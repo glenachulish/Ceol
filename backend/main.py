@@ -993,7 +993,8 @@ async def flutefling_all_tunes(refresh: bool = False):
     for chunk in results:
         all_tunes.extend(chunk)
 
-    _FF_TUNES_CACHE = (now, all_tunes)
+    if all_tunes:
+        _FF_TUNES_CACHE = (now, all_tunes)
     return {"tunes": all_tunes, "cached": False}
 
 

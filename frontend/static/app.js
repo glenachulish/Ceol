@@ -516,30 +516,31 @@ function _buildBarMap() {
   return result;
 }
 
-// Called by ABCJS clickListener.
-// 'analysis' (4th param) = { line: N, measure: M, voice: V, … } — already parsed integers.
-// 'classes'  (3rd param) = space-joined union of all CSS classes from the clicked elemset.
-// Use analysis as primary source; fall back to regex on classes if analysis is incomplete.
-function _barClickListener(abcElem, tuneNumber, classes, analysis) {
-  let line, measure;
-  if (analysis && analysis.line !== undefined && analysis.measure !== undefined) {
-    line    = analysis.line;
-    measure = analysis.measure;
-  } else {
-    const lm = (classes || "").match(/\babcjs-l(\d+)\b/);
-    const mm = (classes || "").match(/\babcjs-m(\d+)\b/);
-    if (!lm || !mm) return;
-    line    = parseInt(lm[1], 10);
-    measure = parseInt(mm[1], 10);
+// Direct DOM click handler on the sheet-music container.
+// Walks up from the clicked element to find a <g> with both abcjs-lN and abcjs-mN classes,
+// then maps that to a bar index and calls _onMeasureClicked.
+// This bypasses ABCJS's clickListener mechanism, which intercepts and replaces the callback
+// with its own highlight function in render mode.
+function _sheetMusicClickHandler(e) {
+  let el = e.target;
+  while (el && el.id !== "sheet-music-render") {
+    const cls = (el.getAttribute && el.getAttribute("class")) || "";
+    if (/\babcjs-l\d+\b/.test(cls) && /\babcjs-m\d+\b/.test(cls)) break;
+    el = el.parentElement;
   }
-  console.error("[BAR-CLICK] line:", line, "measure:", measure, "analysis:", analysis);
-  // Build the map lazily on first click so the responsive layout is final.
+  if (!el || el.id === "sheet-music-render") return;
+
+  const cls = el.getAttribute("class") || "";
+  const lm = cls.match(/\babcjs-l(\d+)\b/);
+  const mm = cls.match(/\babcjs-m(\d+)\b/);
+  if (!mm) return;
+
+  const line    = lm ? parseInt(lm[1], 10) : 0;
+  const measure = parseInt(mm[1], 10);
+
   if (_barMap.length === 0) _barMap = _buildBarMap();
   const idx = _barMap.findIndex(b => b.line === line && b.measure === measure);
-  if (idx === -1) {
-    console.warn("[bar-click] bar not found in barMap:", { line, measure }, _barMap);
-    return;
-  }
+  if (idx === -1) return;
   _onMeasureClicked(idx);
 }
 
@@ -647,8 +648,7 @@ function renderSheetMusic(abc) {
       paddingleft: 15,
       paddingright: 15,
       paddingtop: 10,
-      clickListener: _barClickListener,
-      selectTypes: [],
+      selectionColor: "transparent",
     });
 
     _visualObj = visualObjs[0];
@@ -1084,6 +1084,9 @@ function closeModal() {
   document.body.style.overflow = "";
 }
 
+// ── Bar selection via direct DOM click ────────────────────────────────────────
+document.getElementById("sheet-music-render").addEventListener("click", _sheetMusicClickHandler);
+
 // ── Nav ───────────────────────────────────────────────────────────────────────
 navLibrary.addEventListener("click", () => switchView("library"));
 navSets.addEventListener("click",    () => switchView("sets"));
@@ -1331,7 +1334,12 @@ ffCatLoadBtn.addEventListener("click", async () => {
   ffCatSearch.value = "";
   ffCatList.innerHTML = "";
   try {
-    const data = await fetch("/api/flutefling/all-tunes").then(r => r.json());
+    const res = await fetch("/api/flutefling/all-tunes");
+    const data = await res.json();
+    if (!res.ok) {
+      ffCatStatus.textContent = `Error: ${data.detail || "Could not reach flutefling.scot"}`;
+      return;
+    }
     _ffAllTunes = data.tunes || [];
     if (!_ffAllTunes.length) {
       ffCatStatus.textContent = "No tunes found — the archive may have changed.";
