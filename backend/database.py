@@ -122,7 +122,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(tunes)").fetchall()}
     if "imported_at" not in existing_cols:
         conn.execute(
-            "ALTER TABLE tunes ADD COLUMN imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            "ALTER TABLE tunes ADD COLUMN imported_at TIMESTAMP"
         )
         conn.execute("UPDATE tunes SET imported_at = created_at WHERE imported_at IS NULL")
 
