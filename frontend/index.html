@@ -9,8 +9,17 @@
 <body>
   <header>
     <div class="header-inner">
-      <h1>🎵 Ceol</h1>
-      <span class="subtitle">Your trad music library</span>
+      <div class="header-brand">
+        <h1>🎵 Ceol</h1>
+        <span class="subtitle">Your trad music library</span>
+      </div>
+      <nav class="header-nav">
+        <button id="nav-library" class="nav-btn active">Library</button>
+        <button id="nav-sets" class="nav-btn">Sets</button>
+      </nav>
+      <div class="header-actions">
+        <button id="import-btn" class="btn-secondary">Import ABC</button>
+      </div>
     </div>
   </header>
 
@@ -20,47 +29,78 @@
       <span id="stats-text"></span>
     </div>
 
-    <!-- Filters -->
-    <section class="filters">
-      <div class="filter-row">
-        <input
-          id="search"
-          type="search"
-          placeholder="Search by title…"
-          autocomplete="off"
-          spellcheck="false"
-        />
-        <select id="filter-type">
-          <option value="">All types</option>
-        </select>
-        <select id="filter-key">
-          <option value="">All keys</option>
-        </select>
-        <select id="filter-mode">
-          <option value="">All modes</option>
-        </select>
-        <button id="clear-btn" class="btn-secondary">Clear</button>
+    <!-- ── Library view ── -->
+    <div id="view-library">
+      <section class="filters">
+        <div class="filter-row">
+          <input
+            id="search"
+            type="search"
+            placeholder="Search by title…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <select id="filter-type"><option value="">All types</option></select>
+          <select id="filter-key"><option value="">All keys</option></select>
+          <select id="filter-mode"><option value="">All modes</option></select>
+          <button id="clear-btn" class="btn-secondary">Clear</button>
+        </div>
+        <div class="result-count" id="result-count"></div>
+      </section>
+      <section class="tune-list" id="tune-list">
+        <p class="loading">Loading tunes…</p>
+      </section>
+      <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- ── Sets view ── -->
+    <div id="view-sets" class="hidden">
+      <div class="view-header">
+        <h2 class="section-title">Sets</h2>
+        <button id="new-set-btn" class="btn-primary">+ New Set</button>
       </div>
-      <div class="result-count" id="result-count"></div>
-    </section>
-
-    <!-- Tune list -->
-    <section class="tune-list" id="tune-list">
-      <p class="loading">Loading tunes…</p>
-    </section>
-
-    <!-- Pagination -->
-    <div class="pagination" id="pagination"></div>
+      <div id="new-set-form" class="new-set-form hidden">
+        <input id="new-set-name" type="text" placeholder="Set name…" maxlength="120" />
+        <input id="new-set-notes" type="text" placeholder="Notes (optional)…" />
+        <div class="form-actions">
+          <button id="create-set-btn" class="btn-primary">Create</button>
+          <button id="cancel-set-btn" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+      <div id="sets-list" class="sets-list">
+        <p class="loading">Loading sets…</p>
+      </div>
+    </div>
   </main>
 
-  <!-- Tune detail modal -->
+  <!-- ── Tune detail modal ── -->
   <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
-    <div class="modal">
+    <div class="modal modal-wide">
       <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
       <div id="modal-content"></div>
     </div>
   </div>
 
+  <!-- ── Import modal ── -->
+  <div id="import-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal">
+      <button class="modal-close" id="import-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">Import ABC File</h2>
+      <p class="import-desc">Choose an .abc file to import tunes into your library.</p>
+      <label class="import-drop" id="import-drop">
+        <input type="file" id="import-file" accept=".abc,.txt" />
+        <span class="import-icon">📁</span>
+        <span class="import-label">Click to choose a file</span>
+        <span id="import-filename" class="import-filename"></span>
+      </label>
+      <div id="import-result" class="import-result hidden"></div>
+      <div class="import-actions">
+        <button id="import-submit" class="btn-primary" disabled>Import</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.4/dist/abcjs-basic-min.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

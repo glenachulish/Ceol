@@ -3,11 +3,13 @@
 const PAGE_SIZE = 48;
 
 const state = {
+  view: "library",
   page: 1,
   q: "",
   type: "",
   key: "",
   mode: "",
+  sets: [],
 };
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
@@ -24,6 +26,24 @@ const statsText     = document.getElementById("stats-text");
 const modalOverlay  = document.getElementById("modal-overlay");
 const modalContent  = document.getElementById("modal-content");
 const modalClose    = document.getElementById("modal-close");
+const viewLibrary   = document.getElementById("view-library");
+const viewSets      = document.getElementById("view-sets");
+const navLibrary    = document.getElementById("nav-library");
+const navSets       = document.getElementById("nav-sets");
+const importBtn     = document.getElementById("import-btn");
+const importOverlay = document.getElementById("import-overlay");
+const importClose   = document.getElementById("import-close");
+const importFile    = document.getElementById("import-file");
+const importFilename= document.getElementById("import-filename");
+const importSubmit  = document.getElementById("import-submit");
+const importResult  = document.getElementById("import-result");
+const newSetBtn     = document.getElementById("new-set-btn");
+const newSetForm    = document.getElementById("new-set-form");
+const newSetName    = document.getElementById("new-set-name");
+const newSetNotes   = document.getElementById("new-set-notes");
+const createSetBtn  = document.getElementById("create-set-btn");
+const cancelSetBtn  = document.getElementById("cancel-set-btn");
+const setsList      = document.getElementById("sets-list");
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 function debounce(fn, ms) {
@@ -43,17 +63,16 @@ function typeBadgeClass(type) {
 }
 
 function escHtml(s) {
-  return String(s)
+  return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
 
-// ── API calls ────────────────────────────────────────────────────────────────
+// ── API ───────────────────────────────────────────────────────────────────────
 async function fetchFilters() {
-  const res = await fetch("/api/filters");
-  return res.json();
+  return fetch("/api/filters").then(r => r.json());
 }
 
 async function fetchTunes() {
@@ -62,18 +81,74 @@ async function fetchTunes() {
   if (state.type) params.set("type", state.type);
   if (state.key)  params.set("key",  state.key);
   if (state.mode) params.set("mode", state.mode);
-  const res = await fetch(`/api/tunes?${params}`);
-  return res.json();
+  return fetch(`/api/tunes?${params}`).then(r => r.json());
 }
 
 async function fetchTune(id) {
-  const res = await fetch(`/api/tunes/${id}`);
-  return res.json();
+  return fetch(`/api/tunes/${id}`).then(r => r.json());
 }
 
 async function fetchStats() {
-  const res = await fetch("/api/stats");
-  return res.json();
+  return fetch("/api/stats").then(r => r.json());
+}
+
+async function fetchSets() {
+  const sets = await fetch("/api/sets").then(r => r.json());
+  state.sets = sets;
+  return sets;
+}
+
+async function apiCreateSet(name, notes) {
+  return fetch("/api/sets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, notes }),
+  }).then(r => r.json());
+}
+
+async function apiDeleteSet(id) {
+  return fetch(`/api/sets/${id}`, { method: "DELETE" });
+}
+
+async function apiGetSet(id) {
+  return fetch(`/api/sets/${id}`).then(r => r.json());
+}
+
+async function apiAddTuneToSet(setId, tuneId) {
+  return fetch(`/api/sets/${setId}/tunes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tune_id: tuneId }),
+  }).then(r => r.json());
+}
+
+async function apiRemoveTuneFromSet(setId, tuneId) {
+  return fetch(`/api/sets/${setId}/tunes/${tuneId}`, { method: "DELETE" });
+}
+
+async function apiSaveNotes(tuneId, notes) {
+  return fetch(`/api/tunes/${tuneId}/notes`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notes }),
+  }).then(r => r.json());
+}
+
+// ── View switching ────────────────────────────────────────────────────────────
+function switchView(view) {
+  state.view = view;
+  if (view === "library") {
+    viewLibrary.classList.remove("hidden");
+    viewSets.classList.add("hidden");
+    navLibrary.classList.add("active");
+    navSets.classList.remove("active");
+  } else {
+    viewLibrary.classList.add("hidden");
+    viewSets.classList.remove("hidden");
+    navLibrary.classList.remove("active");
+    navSets.classList.add("active");
+    loadSets();
+  }
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
@@ -112,12 +187,7 @@ function renderTunes(data) {
 function renderPagination(current, total) {
   if (total <= 1) { pagination.innerHTML = ""; return; }
 
-  const pages = [];
-
-  // Always show first, last, current ±2
-  const visible = new Set();
-  visible.add(1);
-  visible.add(total);
+  const visible = new Set([1, total]);
   for (let p = Math.max(1, current - 2); p <= Math.min(total, current + 2); p++) {
     visible.add(p);
   }
@@ -150,32 +220,256 @@ function renderModal(tune) {
     ? `<div class="modal-meta">${tune.tags.map(g => `<span class="badge badge-other">${escHtml(g)}</span>`).join("")}</div>`
     : "";
 
+  const setsOptions = state.sets
+    .map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`)
+    .join("");
+  const setsFooter = state.sets.length
+    ? `<div class="modal-sets-row">
+        <select id="set-select" class="set-select">
+          <option value="">Add to a set…</option>
+          ${setsOptions}
+        </select>
+        <button id="add-to-set-btn" class="btn-secondary">+ Add</button>
+        <span id="set-status" class="set-status"></span>
+      </div>`
+    : `<p class="modal-hint">Go to Sets to create a set, then add this tune to it.</p>`;
+
   modalContent.innerHTML = `
     <h2 class="modal-title">${escHtml(tune.title)}</h2>
     <div class="modal-meta">${typeBadge}${keyBadge}</div>
     ${aliasLine}
     ${tagLine}
-    <p class="modal-abc-label">ABC Notation</p>
-    <pre class="modal-abc">${escHtml(tune.abc)}</pre>
+
+    <div class="modal-tabs">
+      <button class="tab-btn active" data-tab="music">Sheet Music</button>
+      <button class="tab-btn" data-tab="abc">ABC Text</button>
+      <button class="tab-btn" data-tab="notes">Notes</button>
+    </div>
+
+    <div id="tab-music" class="tab-panel">
+      <div class="sheet-music-wrap">
+        <div id="sheet-music-render"></div>
+      </div>
+      <div id="audio-player-container" class="audio-player-wrap"></div>
+      <p id="audio-unavailable" class="audio-unavailable hidden">
+        Audio playback is not supported in this browser.
+      </p>
+    </div>
+
+    <div id="tab-abc" class="tab-panel hidden">
+      <p class="modal-abc-label">ABC Notation</p>
+      <pre class="modal-abc">${escHtml(tune.abc)}</pre>
+    </div>
+
+    <div id="tab-notes" class="tab-panel hidden">
+      <p class="modal-abc-label">Personal Notes</p>
+      <textarea id="notes-textarea" class="notes-textarea"
+        placeholder="Add your own notes about this tune…">${escHtml(tune.notes || "")}</textarea>
+      <div class="notes-actions">
+        <button id="save-notes-btn" class="btn-primary">Save Notes</button>
+        <span id="notes-status" class="notes-status"></span>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      ${setsFooter}
+    </div>
   `;
+
+  // Tab switching
+  modalContent.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      modalContent.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      modalContent.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+      btn.classList.add("active");
+      document.getElementById(`tab-${btn.dataset.tab}`).classList.remove("hidden");
+    });
+  });
+
+  // Notes save
+  document.getElementById("save-notes-btn").addEventListener("click", async () => {
+    const btn = document.getElementById("save-notes-btn");
+    const status = document.getElementById("notes-status");
+    const notes = document.getElementById("notes-textarea").value;
+    btn.disabled = true;
+    try {
+      await apiSaveNotes(tune.id, notes);
+      status.textContent = "Saved!";
+      status.className = "notes-status notes-saved";
+      setTimeout(() => { status.textContent = ""; }, 2000);
+    } catch {
+      status.textContent = "Failed to save.";
+      status.className = "notes-status notes-error";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Add to set
+  const addToSetBtn = document.getElementById("add-to-set-btn");
+  if (addToSetBtn) {
+    addToSetBtn.addEventListener("click", async () => {
+      const setId = document.getElementById("set-select").value;
+      const setStatus = document.getElementById("set-status");
+      if (!setId) return;
+      try {
+        const result = await apiAddTuneToSet(setId, tune.id);
+        setStatus.textContent = result.added ? "Added!" : "Already in set.";
+        setStatus.className = "set-status set-saved";
+        setTimeout(() => { setStatus.textContent = ""; }, 2000);
+        await fetchSets();
+      } catch {
+        setStatus.textContent = "Failed.";
+        setStatus.className = "set-status set-error";
+      }
+    });
+  }
+
+  // Render sheet music after paint
+  requestAnimationFrame(() => renderSheetMusic(tune.abc));
+}
+
+function renderSheetMusic(abc) {
+  const container = document.getElementById("sheet-music-render");
+  if (!container || typeof ABCJS === "undefined") return;
+
+  try {
+    const visualObjs = ABCJS.renderAbc("sheet-music-render", abc, {
+      responsive: "resize",
+      add_classes: true,
+      paddingbottom: 10,
+      paddingleft: 15,
+      paddingright: 15,
+      paddingtop: 10,
+    });
+
+    if (ABCJS.synth.supportsAudio()) {
+      const synthController = new ABCJS.synth.SynthController();
+      synthController.load("#audio-player-container", null, {
+        displayLoop: true,
+        displayRestart: true,
+        displayPlay: true,
+        displayProgress: true,
+        displayWarp: false,
+      });
+      const midiBuffer = new ABCJS.synth.CreateSynth();
+      midiBuffer
+        .init({ visualObj: visualObjs[0] })
+        .then(() => synthController.setTune(visualObjs[0], false))
+        .catch(err => {
+          console.warn("Audio init failed:", err);
+          const el = document.getElementById("audio-unavailable");
+          if (el) el.classList.remove("hidden");
+        });
+    } else {
+      const el = document.getElementById("audio-unavailable");
+      if (el) el.classList.remove("hidden");
+    }
+  } catch (err) {
+    console.warn("Sheet music render failed:", err);
+    if (container) container.textContent = "(Could not render sheet music)";
+  }
+}
+
+function renderSets(sets) {
+  if (!sets.length) {
+    setsList.innerHTML = '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
+    return;
+  }
+
+  setsList.innerHTML = sets.map(s => `
+    <div class="set-card" data-set-id="${s.id}">
+      <div class="set-card-header">
+        <div class="set-card-info">
+          <span class="set-name">${escHtml(s.name)}</span>
+          <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
+        </div>
+        <div class="set-card-actions">
+          <button class="btn-secondary set-expand-btn" data-set-id="${s.id}">View</button>
+          <button class="btn-danger set-delete-btn" data-set-id="${s.id}" title="Delete set">✕</button>
+        </div>
+      </div>
+      ${s.notes ? `<p class="set-notes">${escHtml(s.notes)}</p>` : ""}
+      <div class="set-tunes-list hidden" id="set-tunes-${s.id}"></div>
+    </div>
+  `).join("");
+
+  setsList.querySelectorAll(".set-expand-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.setId;
+      const tunesDiv = document.getElementById(`set-tunes-${id}`);
+      if (tunesDiv.classList.contains("hidden")) {
+        tunesDiv.innerHTML = '<p class="loading" style="padding:.5rem">Loading…</p>';
+        tunesDiv.classList.remove("hidden");
+        btn.textContent = "Hide";
+        const setData = await apiGetSet(id);
+        if (!setData.tunes || !setData.tunes.length) {
+          tunesDiv.innerHTML = '<p class="set-empty">No tunes yet – open a tune and use "Add to set".</p>';
+        } else {
+          tunesDiv.innerHTML = setData.tunes.map((t, i) => `
+            <div class="set-tune-row">
+              <span class="set-tune-pos">${i + 1}.</span>
+              <span class="set-tune-title">${escHtml(t.title)}</span>
+              <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+              <span class="badge badge-key">${escHtml(t.key || "")}</span>
+              <button class="btn-icon remove-from-set"
+                data-set-id="${id}" data-tune-id="${t.id}" title="Remove">✕</button>
+            </div>
+          `).join("");
+
+          tunesDiv.querySelectorAll(".remove-from-set").forEach(rb => {
+            rb.addEventListener("click", async () => {
+              await apiRemoveTuneFromSet(rb.dataset.setId, rb.dataset.tuneId);
+              rb.closest(".set-tune-row").remove();
+              const set = state.sets.find(s => String(s.id) === String(id));
+              if (set) {
+                set.tune_count = Math.max(0, (set.tune_count || 1) - 1);
+                const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
+                if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
+              }
+            });
+          });
+        }
+      } else {
+        tunesDiv.classList.add("hidden");
+        btn.textContent = "View";
+      }
+    });
+  });
+
+  setsList.querySelectorAll(".set-delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const name = btn.closest(".set-card").querySelector(".set-name").textContent;
+      if (!confirm(`Delete set "${name}"?`)) return;
+      await apiDeleteSet(btn.dataset.setId);
+      btn.closest(".set-card").remove();
+      state.sets = state.sets.filter(s => String(s.id) !== String(btn.dataset.setId));
+      if (!setsList.querySelector(".set-card")) {
+        setsList.innerHTML = '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
+      }
+    });
+  });
 }
 
 // ── Loaders ───────────────────────────────────────────────────────────────────
 async function loadFilters() {
   const { types, keys, modes } = await fetchFilters();
 
+  // Clear existing options (except placeholder) to allow safe re-calling
+  filterType.innerHTML = '<option value="">All types</option>';
+  filterKey.innerHTML  = '<option value="">All keys</option>';
+  filterMode.innerHTML = '<option value="">All modes</option>';
+
   types.forEach(t => {
     const o = document.createElement("option");
     o.value = t; o.textContent = t.charAt(0).toUpperCase() + t.slice(1);
     filterType.appendChild(o);
   });
-
   keys.forEach(k => {
     const o = document.createElement("option");
     o.value = k; o.textContent = k;
     filterKey.appendChild(o);
   });
-
   modes.forEach(m => {
     const o = document.createElement("option");
     o.value = m; o.textContent = m.charAt(0).toUpperCase() + m.slice(1);
@@ -194,7 +488,7 @@ async function loadStats() {
       statsText.textContent = `${stats.total_tunes.toLocaleString()} tunes  ·  ${byType}`;
       statsBar.classList.remove("hidden");
     }
-  } catch (_) { /* stats are non-critical */ }
+  } catch (_) { /* non-critical */ }
 }
 
 async function loadTunes() {
@@ -204,6 +498,17 @@ async function loadTunes() {
     renderTunes(data);
   } catch (err) {
     tuneList.innerHTML = '<p class="empty">Failed to load tunes. Is the server running?</p>';
+    console.error(err);
+  }
+}
+
+async function loadSets() {
+  setsList.innerHTML = '<p class="loading">Loading sets…</p>';
+  try {
+    const sets = await fetchSets();
+    renderSets(sets);
+  } catch (err) {
+    setsList.innerHTML = '<p class="empty">Failed to load sets.</p>';
     console.error(err);
   }
 }
@@ -234,6 +539,7 @@ pagination.addEventListener("click", e => {
 tuneList.addEventListener("click", async e => {
   const card = e.target.closest(".tune-card");
   if (!card) return;
+  await fetchSets(); // ensure fresh sets for "add to set" dropdown
   const tune = await fetchTune(card.dataset.id);
   renderModal(tune);
   modalOverlay.classList.remove("hidden");
@@ -246,15 +552,114 @@ tuneList.addEventListener("keydown", e => {
 
 modalClose.addEventListener("click", closeModal);
 modalOverlay.addEventListener("click", e => { if (e.target === modalOverlay) closeModal(); });
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeModal(); closeImport(); }
+});
 
 function closeModal() {
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }
 
+// ── Nav ───────────────────────────────────────────────────────────────────────
+navLibrary.addEventListener("click", () => switchView("library"));
+navSets.addEventListener("click",    () => switchView("sets"));
+
+// ── Sets form ─────────────────────────────────────────────────────────────────
+newSetBtn.addEventListener("click", () => {
+  newSetForm.classList.remove("hidden");
+  newSetName.focus();
+});
+
+cancelSetBtn.addEventListener("click", () => {
+  newSetForm.classList.add("hidden");
+  newSetName.value = "";
+  newSetNotes.value = "";
+});
+
+createSetBtn.addEventListener("click", async () => {
+  const name = newSetName.value.trim();
+  if (!name) { newSetName.focus(); return; }
+  createSetBtn.disabled = true;
+  try {
+    const set = await apiCreateSet(name, newSetNotes.value.trim());
+    state.sets.push({ ...set, tune_count: 0 });
+    newSetForm.classList.add("hidden");
+    newSetName.value = "";
+    newSetNotes.value = "";
+    loadSets();
+  } finally {
+    createSetBtn.disabled = false;
+  }
+});
+
+newSetName.addEventListener("keydown", e => { if (e.key === "Enter") createSetBtn.click(); });
+
+// ── Import ────────────────────────────────────────────────────────────────────
+importBtn.addEventListener("click", () => {
+  importResult.classList.add("hidden");
+  importFilename.textContent = "";
+  importSubmit.disabled = true;
+  importFile.value = "";
+  importOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+});
+
+function closeImport() {
+  importOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+importClose.addEventListener("click", closeImport);
+importOverlay.addEventListener("click", e => { if (e.target === importOverlay) closeImport(); });
+
+importFile.addEventListener("change", () => {
+  const f = importFile.files[0];
+  if (f) {
+    importFilename.textContent = f.name;
+    importSubmit.disabled = false;
+  } else {
+    importFilename.textContent = "";
+    importSubmit.disabled = true;
+  }
+});
+
+importSubmit.addEventListener("click", async () => {
+  const f = importFile.files[0];
+  if (!f) return;
+  importSubmit.disabled = true;
+  importSubmit.textContent = "Importing…";
+  importResult.classList.add("hidden");
+  try {
+    const form = new FormData();
+    form.append("file", f);
+    const res = await fetch("/api/import", { method: "POST", body: form });
+    const data = await res.json();
+    if (res.ok) {
+      importResult.textContent =
+        `Imported ${data.imported} tune${data.imported !== 1 ? "s" : ""}` +
+        (data.skipped ? ` (${data.skipped} skipped due to missing title)` : "") + ".";
+      importResult.className = "import-result import-success";
+      importResult.classList.remove("hidden");
+      await Promise.all([loadStats(), loadFilters()]);
+      if (state.view === "library") loadTunes();
+    } else {
+      importResult.textContent = `Error: ${data.detail || "Import failed."}`;
+      importResult.className = "import-result import-error";
+      importResult.classList.remove("hidden");
+    }
+  } catch (err) {
+    importResult.textContent = "Network error. Is the server running?";
+    importResult.className = "import-result import-error";
+    importResult.classList.remove("hidden");
+  } finally {
+    importSubmit.disabled = false;
+    importSubmit.textContent = "Import";
+  }
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {
-  await Promise.all([loadFilters(), loadStats()]);
+  await Promise.all([loadFilters(), loadStats(), fetchSets()]);
   await loadTunes();
 })();
