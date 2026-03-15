@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ceol – Trad Music</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <h1>🎵 Ceol</h1>
+      <span class="subtitle">Your trad music library</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Stats bar -->
+    <div id="stats-bar" class="stats-bar hidden">
+      <span id="stats-text"></span>
+    </div>
+
+    <!-- Filters -->
+    <section class="filters">
+      <div class="filter-row">
+        <input
+          id="search"
+          type="search"
+          placeholder="Search by title…"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <select id="filter-type">
+          <option value="">All types</option>
+        </select>
+        <select id="filter-key">
+          <option value="">All keys</option>
+        </select>
+        <select id="filter-mode">
+          <option value="">All modes</option>
+        </select>
+        <button id="clear-btn" class="btn-secondary">Clear</button>
+      </div>
+      <div class="result-count" id="result-count"></div>
+    </section>
+
+    <!-- Tune list -->
+    <section class="tune-list" id="tune-list">
+      <p class="loading">Loading tunes…</p>
+    </section>
+
+    <!-- Pagination -->
+    <div class="pagination" id="pagination"></div>
+  </main>
+
+  <!-- Tune detail modal -->
+  <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal">
+      <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
