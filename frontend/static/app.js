@@ -968,6 +968,7 @@ document.addEventListener("keydown", e => {
 });
 
 function closeModal() {
+  if (_synthController) _synthController.pause();
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }
