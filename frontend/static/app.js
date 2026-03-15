@@ -264,6 +264,30 @@ function renderPagination(current, total) {
   pagination.innerHTML = html;
 }
 
+// Render a notes string: URLs become audio players or clickable links
+function renderNotesHtml(text) {
+  if (!text) return "";
+  const urlRe = /https?:\/\/[^\s<>"]+/g;
+  const parts = [];
+  let last = 0;
+  let m;
+  while ((m = urlRe.exec(text)) !== null) {
+    if (m.index > last) parts.push(`<span>${escHtml(text.slice(last, m.index))}</span>`);
+    const url = m[0];
+    const urlEsc = escHtml(url);
+    if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url)) {
+      parts.push(`<div class="notes-audio"><audio controls preload="none" src="${urlEsc}"></audio><a href="${urlEsc}" target="_blank" rel="noopener" class="notes-audio-link">🎵 ${urlEsc}</a></div>`);
+    } else if (/\.pdf(\?|$)/i.test(url)) {
+      parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">📄 ${urlEsc}</a>`);
+    } else {
+      parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">🔗 ${urlEsc}</a>`);
+    }
+    last = m.index + url.length;
+  }
+  if (last < text.length) parts.push(`<span>${escHtml(text.slice(last))}</span>`);
+  return parts.join("").replace(/\n/g, "<br>");
+}
+
 function renderModal(tune) {
   const typeClass = typeBadgeClass(tune.type);
   const typeBadge = tune.type
@@ -326,7 +350,8 @@ function renderModal(tune) {
     </div>
 
     <div id="tab-notes" class="tab-panel hidden">
-      <p class="modal-abc-label">Personal Notes</p>
+      ${tune.notes ? `<div class="notes-rendered">${renderNotesHtml(tune.notes)}</div><hr class="notes-divider">` : ""}
+      <p class="modal-abc-label">Edit Notes</p>
       <textarea id="notes-textarea" class="notes-textarea"
         placeholder="Add your own notes about this tune…">${escHtml(tune.notes || "")}</textarea>
       <div class="notes-actions">
@@ -410,36 +435,28 @@ let _synthController = null;
 let _msPerMeasure = null;
 let _barSel = { start: null, end: null };
 
-function _measureFromEl(el) {
-  const root = document.getElementById("sheet-music-render");
-  while (el && el !== root) {
-    for (const cls of el.classList) {
-      if (/^abcjs-m\d+$/.test(cls)) return parseInt(cls.slice(7), 10);
-    }
-    el = el.parentElement;
-  }
-  return null;
+// Called by ABCJS clickListener – classes is a space-separated string
+// e.g. "abcjs-note abcjs-m3 abcjs-l0 abcjs-n2"
+function _barClickListener(abcElem, tuneNumber, classes) {
+  const match = (classes || "").match(/\babcjs-m(\d+)\b/);
+  if (!match) return; // clicked on non-note area
+  _onMeasureClicked(parseInt(match[1], 10));
 }
 
-function _handleBarClick(e) {
-  const m = _measureFromEl(e.target);
-  if (m === null) { _clearBarSel(); return; }
-
+function _onMeasureClicked(m) {
   const { start, end } = _barSel;
 
   if (start === null) {
-    // Nothing selected yet → set start point
+    // Nothing selected → set start point
     _barSel = { start: m, end: m };
   } else if (start === end) {
-    // Start point chosen, waiting for end
+    // Waiting for end click
     if (m === start) {
-      // Clicked same bar → cancel
-      _clearBarSel(); return;
+      _clearBarSel(); return; // same bar → cancel
     }
-    // Different bar → complete the range
     _barSel = { start: Math.min(start, m), end: Math.max(start, m) };
   } else {
-    // Range already set → start fresh with this bar as new start
+    // Range already set → start fresh
     _barSel = { start: m, end: m };
   }
 
@@ -523,16 +540,13 @@ function renderSheetMusic(abc) {
       paddingleft: 15,
       paddingright: 15,
       paddingtop: 10,
+      clickListener: _barClickListener,
     });
 
     _visualObj = visualObjs[0];
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
       ? _visualObj.millisecondsPerMeasure()
       : null;
-
-    // Set up bar-click listener (remove first to avoid duplicates)
-    container.removeEventListener("click", _handleBarClick);
-    container.addEventListener("click", _handleBarClick);
 
     if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) {
       const el = document.getElementById("audio-unavailable");

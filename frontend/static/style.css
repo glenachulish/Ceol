@@ -651,6 +651,30 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .session-result-name { font-weight: 600; font-size: .9rem; }
 .session-result-meta { font-size: .75rem; color: var(--text-muted); }
 
+/* ── Notes rendered preview ───────────────────────────────── */
+.notes-rendered {
+  font-size: .9rem;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: break-word;
+  margin-bottom: .5rem;
+}
+.notes-link {
+  color: var(--accent);
+  word-break: break-all;
+  display: inline-block;
+  margin: .1rem 0;
+}
+.notes-audio {
+  margin: .5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+.notes-audio audio { width: 100%; max-width: 420px; }
+.notes-audio-link { font-size: .78rem; color: var(--text-muted); word-break: break-all; }
+.notes-divider { border: none; border-top: 1px solid var(--border); margin: .75rem 0 .5rem; }
+
 /* ── FlutefFling tab sections ─────────────────────────────── */
 .flutefling-section {
   margin-bottom: 1.25rem;
