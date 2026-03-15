@@ -19,9 +19,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.abc_parser import parse_abc_file
-from backend.database import DB_PATH, get_connection
+from backend.database import DB_PATH, get_connection, init_db
 
 app = FastAPI(title="Ceol", version="0.1.0")
+init_db()
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 STATIC_DIR = FRONTEND_DIR / "static"
