@@ -624,6 +624,16 @@ importFile.addEventListener("change", () => {
   }
 });
 
+// ── Import tab switching ──────────────────────────────────────────────────────
+document.querySelectorAll("[data-import-tab]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("[data-import-tab]").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("#import-overlay .tab-panel").forEach(p => p.classList.add("hidden"));
+    btn.classList.add("active");
+    document.getElementById(`import-tab-${btn.dataset.importTab}`).classList.remove("hidden");
+  });
+});
+
 importSubmit.addEventListener("click", async () => {
   const f = importFile.files[0];
   if (!f) return;
@@ -657,6 +667,80 @@ importSubmit.addEventListener("click", async () => {
     importSubmit.textContent = "Import";
   }
 });
+
+// ── TheSession.org search + import ───────────────────────────────────────────
+const sessionSearchInput = document.getElementById("session-search-input");
+const sessionSearchBtn   = document.getElementById("session-search-btn");
+const sessionResults     = document.getElementById("session-results");
+
+async function runSessionSearch() {
+  const q = sessionSearchInput.value.trim();
+  if (!q) return;
+  sessionResults.innerHTML = '<p class="loading" style="padding:1rem 0">Searching TheSession.org…</p>';
+  sessionSearchBtn.disabled = true;
+  try {
+    const params = new URLSearchParams({ q });
+    const data = await fetch(`/api/thesession/search?${params}`).then(r => r.json());
+    if (!data.tunes || !data.tunes.length) {
+      sessionResults.innerHTML = '<p class="empty" style="padding:1rem 0">No results found.</p>';
+      return;
+    }
+    sessionResults.innerHTML = data.tunes.map(t => `
+      <div class="session-result-row" data-session-id="${t.id}">
+        <div class="session-result-info">
+          <span class="session-result-name">${escHtml(t.name)}</span>
+          <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+          <span class="session-result-meta">${t.tunebooks} tunebook${t.tunebooks !== 1 ? "s" : ""}</span>
+        </div>
+        <button class="btn-primary session-import-btn" data-session-id="${t.id}" data-name="${escHtml(t.name)}">
+          + Import
+        </button>
+      </div>
+    `).join("");
+
+    sessionResults.querySelectorAll(".session-import-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "Importing…";
+        try {
+          const res = await fetch("/api/thesession/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tune_id: Number(btn.dataset.sessionId) }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            if (data.status === "exists") {
+              btn.textContent = "Already in library";
+              btn.style.opacity = ".5";
+            } else {
+              btn.textContent = "Imported ✓";
+              btn.style.background = "var(--jig)";
+              await Promise.all([loadStats(), loadFilters()]);
+              if (state.view === "library") loadTunes();
+            }
+          } else {
+            btn.textContent = "Failed";
+            btn.style.borderColor = "var(--danger)";
+            btn.style.color = "var(--danger)";
+            btn.disabled = false;
+          }
+        } catch {
+          btn.textContent = "Error";
+          btn.disabled = false;
+        }
+      });
+    });
+  } catch (err) {
+    sessionResults.innerHTML = '<p class="empty" style="padding:1rem 0">Could not reach TheSession.org. Check your connection.</p>';
+    console.error(err);
+  } finally {
+    sessionSearchBtn.disabled = false;
+  }
+}
+
+sessionSearchBtn.addEventListener("click", runSessionSearch);
+sessionSearchInput.addEventListener("keydown", e => { if (e.key === "Enter") runSessionSearch(); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {

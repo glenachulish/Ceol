@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+import httpx
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -330,6 +331,92 @@ async def import_abc(file: UploadFile = File(...)):
             imported += 1
 
     return {"imported": imported, "skipped": skipped}
+
+
+# ---------------------------------------------------------------------------
+# TheSession.org endpoints
+# ---------------------------------------------------------------------------
+
+_SESSION_BASE = "https://thesession.org"
+_SESSION_HEADERS = {"Accept": "application/json", "User-Agent": "Ceol/0.1 trad-music-app"}
+
+
+@app.get("/api/thesession/search")
+async def thesession_search(q: str = Query(..., min_length=1), page: int = Query(1, ge=1)):
+    """Proxy a search to TheSession.org and return normalised results."""
+    async with httpx.AsyncClient(headers=_SESSION_HEADERS, timeout=10) as client:
+        try:
+            resp = await client.get(
+                f"{_SESSION_BASE}/tunes/search",
+                params={"q": q, "format": "json", "perpage": 20, "page": page},
+            )
+            resp.raise_for_status()
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Could not reach TheSession.org: {exc}")
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(502, f"TheSession.org returned {exc.response.status_code}")
+
+    data = resp.json()
+    tunes = [
+        {"id": t["id"], "name": t["name"], "type": t.get("type", ""), "tunebooks": t.get("tunebooks", 0)}
+        for t in data.get("tunes", [])
+    ]
+    return {"tunes": tunes, "page": data.get("page", 1), "pages": data.get("pages", 1), "total": data.get("total", 0)}
+
+
+@app.post("/api/thesession/import")
+async def thesession_import(body: dict):
+    """Fetch a tune from TheSession.org by ID and save the top-voted setting."""
+    tune_id = body.get("tune_id")
+    if not tune_id:
+        raise HTTPException(400, "tune_id required")
+
+    async with httpx.AsyncClient(headers=_SESSION_HEADERS, timeout=10) as client:
+        try:
+            resp = await client.get(f"{_SESSION_BASE}/tunes/{tune_id}", params={"format": "json"})
+            resp.raise_for_status()
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Could not reach TheSession.org: {exc}")
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(502, f"TheSession.org returned {exc.response.status_code}")
+
+    data = resp.json()
+    settings = data.get("settings", [])
+    if not settings:
+        raise HTTPException(404, "No ABC settings found for this tune")
+
+    # Pick the setting with the most votes; fall back to first
+    best = max(settings, key=lambda s: s.get("votes", 0))
+    abc = best.get("abc", "")
+    key = best.get("key", "")
+    tune_type = data.get("type", "")
+    title = data.get("name", "")
+    aliases = [a["name"] for a in data.get("aliases", []) if a.get("name")]
+
+    # Normalise key/mode from TheSession format (e.g. "Dmaj", "Ador")
+    from backend.abc_parser import normalise_key
+    key_norm, mode_norm = normalise_key(key) if key else (key, "")
+
+    with _db() as conn:
+        # Avoid re-importing the same session_id
+        existing = conn.execute(
+            "SELECT id FROM tunes WHERE session_id = ?", (str(tune_id),)
+        ).fetchone()
+        if existing:
+            return {"status": "exists", "tune_id": existing["id"], "title": title}
+
+        cur = conn.execute(
+            "INSERT INTO tunes (session_id, title, type, key, mode, abc) VALUES (?, ?, ?, ?, ?, ?)",
+            (str(tune_id), title, tune_type.lower() if tune_type else "", key_norm, mode_norm, abc),
+        )
+        new_id = cur.lastrowid
+        for alias in aliases:
+            conn.execute(
+                "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?, ?)",
+                (new_id, alias),
+            )
+
+    return {"status": "imported", "tune_id": new_id, "title": title}
 
 
 # ---------------------------------------------------------------------------

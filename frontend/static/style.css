@@ -552,6 +552,39 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   border: 1px solid rgba(239,68,68,.3);
 }
 
+/* ── TheSession.org search ────────────────────────────────── */
+.session-search-row {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+.session-search-row input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: .5rem .75rem;
+  font-size: .9rem;
+  outline: none;
+}
+.session-search-row input:focus { border-color: var(--accent); }
+
+.session-results { display: flex; flex-direction: column; gap: .4rem; max-height: 340px; overflow-y: auto; }
+.session-result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .6rem .9rem;
+}
+.session-result-info { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; flex: 1; min-width: 0; }
+.session-result-name { font-weight: 600; font-size: .9rem; }
+.session-result-meta { font-size: .75rem; color: var(--text-muted); }
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 600px) {
   .header-inner { flex-wrap: wrap; gap: .5rem; }

@@ -18,7 +18,7 @@
         <button id="nav-sets" class="nav-btn">Sets</button>
       </nav>
       <div class="header-actions">
-        <button id="import-btn" class="btn-secondary">Import ABC</button>
+        <button id="import-btn" class="btn-secondary">Import</button>
       </div>
     </div>
   </header>
@@ -83,19 +83,39 @@
 
   <!-- ── Import modal ── -->
   <div id="import-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
-    <div class="modal">
+    <div class="modal modal-wide">
       <button class="modal-close" id="import-close" aria-label="Close">✕</button>
-      <h2 class="modal-title">Import ABC File</h2>
-      <p class="import-desc">Choose an .abc file to import tunes into your library.</p>
-      <label class="import-drop" id="import-drop">
-        <input type="file" id="import-file" accept=".abc,.txt" />
-        <span class="import-icon">📁</span>
-        <span class="import-label">Click to choose a file</span>
-        <span id="import-filename" class="import-filename"></span>
-      </label>
-      <div id="import-result" class="import-result hidden"></div>
-      <div class="import-actions">
-        <button id="import-submit" class="btn-primary" disabled>Import</button>
+      <h2 class="modal-title">Import Tunes</h2>
+
+      <!-- Import source tabs -->
+      <div class="modal-tabs">
+        <button class="tab-btn active" data-import-tab="file">ABC File</button>
+        <button class="tab-btn" data-import-tab="session">TheSession.org</button>
+      </div>
+
+      <!-- ABC file tab -->
+      <div id="import-tab-file" class="tab-panel">
+        <p class="import-desc">Choose an .abc file to bulk-import tunes into your library.</p>
+        <label class="import-drop">
+          <input type="file" id="import-file" accept=".abc,.txt" />
+          <span class="import-icon">📁</span>
+          <span class="import-label">Click to choose a file</span>
+          <span id="import-filename" class="import-filename"></span>
+        </label>
+        <div id="import-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="import-submit" class="btn-primary" disabled>Import</button>
+        </div>
+      </div>
+
+      <!-- TheSession.org tab -->
+      <div id="import-tab-session" class="tab-panel hidden">
+        <p class="import-desc">Search TheSession.org and import individual tunes directly into your library.</p>
+        <div class="session-search-row">
+          <input id="session-search-input" type="search" placeholder="Search tunes on TheSession.org…" autocomplete="off" />
+          <button id="session-search-btn" class="btn-primary">Search</button>
+        </div>
+        <div id="session-results" class="session-results"></div>
       </div>
     </div>
   </div>
