@@ -116,6 +116,7 @@
       <div class="modal-tabs">
         <button class="tab-btn active" data-import-tab="file">ABC File</button>
         <button class="tab-btn" data-import-tab="session">TheSession.org</button>
+        <button class="tab-btn" data-import-tab="flutefling">FlutefFling.scot</button>
       </div>
 
       <!-- ABC file tab -->
@@ -141,6 +142,27 @@
           <button id="session-search-btn" class="btn-primary">Search</button>
         </div>
         <div id="session-results" class="session-results"></div>
+      </div>
+
+      <!-- FlutefFling.scot tab -->
+      <div id="import-tab-flutefling" class="tab-panel hidden">
+        <p class="import-desc">
+          Import ABC tunes from
+          <a href="https://flutefling.scot/resources/flutefling-session-tunes/" target="_blank" rel="noopener">FlutefFling.scot</a>.
+          Click <strong>Browse</strong> to fetch the tune file list, or paste a direct link to any <code>.abc</code> / <code>.txt</code> file.
+        </p>
+        <div class="flutefling-browse-row">
+          <button id="flutefling-browse-btn" class="btn-primary">Browse Tune Files</button>
+        </div>
+        <div id="flutefling-file-list" class="session-results"></div>
+        <div class="flutefling-url-section">
+          <p class="import-desc" style="margin-top:.75rem">Or paste a direct ABC file URL:</p>
+          <div class="session-search-row">
+            <input id="flutefling-url-input" type="url" placeholder="https://flutefling.scot/…" autocomplete="off" />
+            <button id="flutefling-url-btn" class="btn-primary">Import</button>
+          </div>
+          <div id="flutefling-url-result" class="import-result hidden"></div>
+        </div>
       </div>
     </div>
   </div>

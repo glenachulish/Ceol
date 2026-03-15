@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import tempfile
 import uuid
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -132,6 +134,18 @@ def get_tune(tune_id: int):
 
 class NotesUpdate(BaseModel):
     notes: str = ""
+
+
+@app.delete("/api/tunes/{tune_id}")
+def delete_tune(tune_id: int):
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM tunes WHERE id = ?", (tune_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Tune not found")
+        conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (tune_id,))
+        conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (tune_id,))
+        conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (tune_id,))
+        conn.execute("DELETE FROM tunes WHERE id = ?", (tune_id,))
+    return {"ok": True}
 
 
 @app.patch("/api/tunes/{tune_id}/notes")
@@ -345,14 +359,16 @@ async def import_abc(file: UploadFile = File(...)):
 
     imported = 0
     skipped = 0
+    import_date = date.today().isoformat()
     with _db() as conn:
         for tune in tunes:
             if not tune.title:
                 skipped += 1
                 continue
             cur = conn.execute(
-                "INSERT INTO tunes (craic_id, title, type, key, mode, abc) VALUES (?, ?, ?, ?, ?, ?)",
-                (tune.craic_id, tune.title, tune.type, tune.key, tune.mode, tune.abc),
+                "INSERT INTO tunes (craic_id, title, type, key, mode, abc, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (tune.craic_id, tune.title, tune.type, tune.key, tune.mode, tune.abc,
+                 f"Imported from file: {import_date}"),
             )
             tune_id = cur.lastrowid
             for alias in tune.aliases:
@@ -437,9 +453,11 @@ async def thesession_import(body: dict):
         if existing:
             return {"status": "exists", "tune_id": existing["id"], "title": title}
 
+        import_date = date.today().isoformat()
         cur = conn.execute(
-            "INSERT INTO tunes (session_id, title, type, key, mode, abc) VALUES (?, ?, ?, ?, ?, ?)",
-            (str(tune_id), title, tune_type.lower() if tune_type else "", key_norm, mode_norm, abc),
+            "INSERT INTO tunes (session_id, title, type, key, mode, abc, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (str(tune_id), title, tune_type.lower() if tune_type else "", key_norm, mode_norm, abc,
+             f"Imported from TheSession.org: {import_date}"),
         )
         new_id = cur.lastrowid
         for alias in aliases:
@@ -449,6 +467,108 @@ async def thesession_import(body: dict):
             )
 
     return {"status": "imported", "tune_id": new_id, "title": title}
+
+
+# ---------------------------------------------------------------------------
+# FlutefFling.scot endpoints
+# ---------------------------------------------------------------------------
+
+_FLUTEFLING_URL = "https://flutefling.scot/resources/flutefling-session-tunes/"
+_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-GB,en;q=0.9",
+}
+
+
+@app.get("/api/flutefling/browse")
+async def flutefling_browse():
+    """Scrape FlutefFling.scot session tunes page and return ABC/TXT file links."""
+    async with httpx.AsyncClient(headers=_BROWSER_HEADERS, timeout=15,
+                                  follow_redirects=True) as client:
+        try:
+            resp = await client.get(_FLUTEFLING_URL)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(502, f"FlutefFling.scot returned {exc.response.status_code}")
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Could not reach FlutefFling.scot: {exc}")
+        html = resp.text
+
+    files = []
+    for m in re.finditer(r'href=["\']([^"\']*\.(?:abc|txt))["\']', html, re.I):
+        href = m.group(1)
+        if not href.startswith("http"):
+            href = ("https://flutefling.scot" + href) if href.startswith("/") else href
+        # Grab nearby anchor text for a title
+        ctx_start = max(0, m.start() - 300)
+        ctx = html[ctx_start: m.end() + 100]
+        title_m = re.search(r'>([^<]{4,100})</a', ctx)
+        title = title_m.group(1).strip() if title_m else href.split("/")[-1]
+        files.append({"url": href, "title": title})
+
+    if not files:
+        raise HTTPException(404, "No ABC files found on the page")
+    return {"files": files}
+
+
+@app.post("/api/flutefling/import")
+async def flutefling_import(body: dict):
+    """Fetch an ABC/TXT file from a URL and import all tunes found in it."""
+    url = (body.get("url") or "").strip()
+    if not url:
+        raise HTTPException(400, "url required")
+
+    async with httpx.AsyncClient(headers=_BROWSER_HEADERS, timeout=30,
+                                  follow_redirects=True) as client:
+        try:
+            resp = await client.get(url)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(502, f"Could not fetch file: {exc.response.status_code}")
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Network error: {exc}")
+
+    try:
+        text = resp.content.decode("utf-8")
+    except UnicodeDecodeError:
+        text = resp.content.decode("latin-1")
+
+    with tempfile.NamedTemporaryFile(
+        suffix=".abc", mode="w", encoding="utf-8", delete=False
+    ) as f:
+        f.write(text)
+        tmp_path = f.name
+
+    try:
+        tunes = parse_abc_file(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    import_date = date.today().isoformat()
+    imported = 0
+    skipped = 0
+    with _db() as conn:
+        for tune in tunes:
+            if not tune.title:
+                skipped += 1
+                continue
+            cur = conn.execute(
+                "INSERT INTO tunes (craic_id, title, type, key, mode, abc, notes) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (tune.craic_id, tune.title, tune.type, tune.key, tune.mode, tune.abc,
+                 f"Imported from FlutefFling.scot: {import_date}"),
+            )
+            tune_id = cur.lastrowid
+            for alias in tune.aliases:
+                conn.execute(
+                    "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?, ?)",
+                    (tune_id, alias),
+                )
+            imported += 1
+
+    return {"imported": imported, "skipped": skipped}
 
 
 # ---------------------------------------------------------------------------

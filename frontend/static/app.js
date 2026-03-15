@@ -180,6 +180,32 @@ async function apiDeleteAttachment(attId) {
   return fetch(`/api/note-attachments/${attId}`, { method: "DELETE" }).then(r => r.json());
 }
 
+async function apiDeleteTune(id) {
+  return fetch(`/api/tunes/${id}`, { method: "DELETE" }).then(r => r.json());
+}
+
+async function apiFluteflingBrowse() {
+  const res = await fetch("/api/flutefling/browse");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
+async function apiFluteflingImport(url) {
+  const res = await fetch("/api/flutefling/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
 // ── View switching ────────────────────────────────────────────────────────────
 function switchView(view) {
   state.view = view;
@@ -231,6 +257,7 @@ function renderTunes(data) {
                aria-label="${escHtml(t.title)}">
         <div class="card-title">${escHtml(t.title)}</div>
         <div class="card-meta">${typeLabel}${keyLabel}</div>
+        <button class="tune-delete-btn" data-id="${t.id}" title="Delete tune" aria-label="Delete ${escHtml(t.title)}">✕</button>
       </article>`;
   }).join("");
 
@@ -331,6 +358,9 @@ function renderModal(tune) {
 
     <div class="modal-footer">
       ${setsFooter}
+      <div class="modal-danger-row">
+        <button id="delete-tune-modal-btn" class="btn-danger" data-tune-id="${tune.id}">Delete from Library</button>
+      </div>
     </div>
   `;
 
@@ -382,6 +412,14 @@ function renderModal(tune) {
       }
     });
   }
+
+  // Delete tune from modal
+  document.getElementById("delete-tune-modal-btn").addEventListener("click", async () => {
+    if (!confirm(`Delete "${tune.title}" from your library? This cannot be undone.`)) return;
+    await apiDeleteTune(tune.id);
+    closeModal();
+    loadTunes();
+  });
 
   // Render sheet music after paint
   requestAnimationFrame(() => renderSheetMusic(tune.abc));
@@ -450,22 +488,23 @@ function _updateSelectionInfo() {
   el.querySelector(".bar-sel-clear").addEventListener("click", _clearBarSel);
 }
 
+function _seekToBar(barIndex) {
+  if (!_synthController || !_msPerMeasure) return;
+  const dur = _synthController.midiBuffer && _synthController.midiBuffer.duration;
+  if (!dur) return;
+  const frac = Math.max(0, Math.min(1, (barIndex * _msPerMeasure / 1000) / dur));
+  _synthController.seek(frac);
+}
+
 function _clearBarSel() {
   _barSel = { start: null, end: null };
   _updateBarHighlight();
   _updateSelectionInfo();
-  if (_synthController && _visualObj) {
-    _synthController.setTune(_visualObj, false).catch(() => {});
-  }
 }
 
 function _applySelectionToPlayer() {
-  if (!_synthController || !_visualObj || !_msPerMeasure) return;
-  const lo = Math.min(_barSel.start, _barSel.end);
-  const hi = Math.max(_barSel.start, _barSel.end);
-  const startMs = lo * _msPerMeasure;
-  const endMs = (hi + 1) * _msPerMeasure;
-  _synthController.setTune(_visualObj, false, { startMs, endMs }).catch(() => {});
+  if (_barSel.start === null) return;
+  _seekToBar(Math.min(_barSel.start, _barSel.end));
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -481,8 +520,11 @@ function renderSheetMusic(abc) {
   const infoEl = document.getElementById("bar-selection-info");
   if (infoEl) infoEl.classList.add("hidden");
 
+  // Inject flute MIDI instrument into ABC before rendering
+  const abcWithFlute = abc.replace(/(K:[^\n]*)(\n|$)/, "$1\n%%MIDI program 73\n");
+
   try {
-    const visualObjs = ABCJS.renderAbc("sheet-music-render", abc, {
+    const visualObjs = ABCJS.renderAbc("sheet-music-render", abcWithFlute, {
       responsive: "resize",
       add_classes: true,
       paddingbottom: 10,
@@ -515,6 +557,13 @@ function renderSheetMusic(abc) {
           ev.elements.forEach(grp => {
             if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
           });
+        }
+        // Bar selection loop: seek back when playback passes the selected range
+        if (_barSel.start !== null && ev && typeof ev.measureNumber === "number") {
+          const hi = Math.max(_barSel.start, _barSel.end);
+          if (ev.measureNumber > hi) {
+            _seekToBar(Math.min(_barSel.start, _barSel.end));
+          }
         }
       },
       onFinished() {
@@ -884,6 +933,16 @@ pagination.addEventListener("click", e => {
 });
 
 tuneList.addEventListener("click", async e => {
+  const delBtn = e.target.closest(".tune-delete-btn");
+  if (delBtn) {
+    e.stopPropagation();
+    const id = delBtn.dataset.id;
+    const title = delBtn.closest(".tune-card")?.querySelector(".card-title")?.textContent || "this tune";
+    if (!confirm(`Delete "${title}" from your library? This cannot be undone.`)) return;
+    await apiDeleteTune(id);
+    loadTunes();
+    return;
+  }
   const card = e.target.closest(".tune-card");
   if (!card) return;
   await fetchSets(); // ensure fresh sets for "add to set" dropdown
@@ -1096,6 +1155,83 @@ async function runSessionSearch() {
 
 sessionSearchBtn.addEventListener("click", runSessionSearch);
 sessionSearchInput.addEventListener("keydown", e => { if (e.key === "Enter") runSessionSearch(); });
+
+// ── FlutefFling.scot import ───────────────────────────────────────────────────
+const fluteflingBrowseBtn  = document.getElementById("flutefling-browse-btn");
+const fluteflingFileList   = document.getElementById("flutefling-file-list");
+const fluteflingUrlInput   = document.getElementById("flutefling-url-input");
+const fluteflingUrlBtn     = document.getElementById("flutefling-url-btn");
+const fluteflingUrlResult  = document.getElementById("flutefling-url-result");
+
+fluteflingBrowseBtn.addEventListener("click", async () => {
+  fluteflingFileList.innerHTML = '<p class="loading" style="padding:1rem 0">Fetching tune list…</p>';
+  fluteflingBrowseBtn.disabled = true;
+  try {
+    const data = await apiFluteflingBrowse();
+    if (!data.files || !data.files.length) {
+      fluteflingFileList.innerHTML = '<p class="empty" style="padding:1rem 0">No ABC files found.</p>';
+      return;
+    }
+    fluteflingFileList.innerHTML = data.files.map(f => `
+      <div class="session-result-row">
+        <div class="session-result-info">
+          <span class="session-result-name">${escHtml(f.title)}</span>
+        </div>
+        <button class="btn-primary flutefling-import-btn" data-url="${escHtml(f.url)}">+ Import</button>
+      </div>
+    `).join("");
+    fluteflingFileList.querySelectorAll(".flutefling-import-btn").forEach(btn => {
+      btn.addEventListener("click", () => doFluteflingImport(btn.dataset.url, btn));
+    });
+  } catch (err) {
+    fluteflingFileList.innerHTML = `<p class="empty" style="padding:1rem 0">Could not fetch file list: ${escHtml(err.message)}.<br>Use the URL field below instead.</p>`;
+  } finally {
+    fluteflingBrowseBtn.disabled = false;
+  }
+});
+
+fluteflingUrlBtn.addEventListener("click", async () => {
+  const url = fluteflingUrlInput.value.trim();
+  if (!url) { fluteflingUrlInput.focus(); return; }
+  await doFluteflingImport(url, fluteflingUrlBtn, fluteflingUrlResult);
+});
+
+fluteflingUrlInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") fluteflingUrlBtn.click();
+});
+
+async function doFluteflingImport(url, btn, resultEl) {
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = "Importing…";
+  try {
+    const data = await apiFluteflingImport(url);
+    if (resultEl) {
+      resultEl.textContent = `Imported ${data.imported} tune${data.imported !== 1 ? "s" : ""}` +
+        (data.skipped ? ` (${data.skipped} skipped)` : "") + ".";
+      resultEl.className = "import-result import-success";
+      resultEl.classList.remove("hidden");
+    } else {
+      btn.textContent = `Imported ${data.imported} ✓`;
+      btn.style.background = "var(--jig)";
+      btn.disabled = true;
+      return;
+    }
+    await Promise.all([loadStats(), loadFilters()]);
+    if (state.view === "library") loadTunes();
+  } catch (err) {
+    if (resultEl) {
+      resultEl.textContent = `Error: ${err.message}`;
+      resultEl.className = "import-result import-error";
+      resultEl.classList.remove("hidden");
+    } else {
+      btn.textContent = "Failed";
+      btn.style.color = "var(--danger)";
+    }
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {

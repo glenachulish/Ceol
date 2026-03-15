@@ -198,6 +198,28 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   gap: .35rem;
   align-items: center;
 }
+.tune-delete-btn {
+  position: absolute;
+  top: .5rem; right: .5rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: .85rem;
+  cursor: pointer;
+  padding: .2rem .35rem;
+  border-radius: 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity .15s, color .15s;
+}
+.tune-card:hover .tune-delete-btn { opacity: 1; }
+.tune-delete-btn:hover { color: var(--danger); }
+
+.modal-danger-row {
+  margin-top: .75rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--border);
+}
 
 /* ── Badges ───────────────────────────────────────────────── */
 .badge {
