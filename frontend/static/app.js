@@ -532,7 +532,7 @@ function _barClickListener(abcElem, tuneNumber, classes, analysis) {
     line    = parseInt(lm[1], 10);
     measure = parseInt(mm[1], 10);
   }
-  console.log("[bar-click] line:", line, "measure:", measure, "analysis:", analysis);
+  console.error("[BAR-CLICK] line:", line, "measure:", measure, "analysis:", analysis);
   // Build the map lazily on first click so the responsive layout is final.
   if (_barMap.length === 0) _barMap = _buildBarMap();
   const idx = _barMap.findIndex(b => b.line === line && b.measure === measure);
@@ -648,6 +648,7 @@ function renderSheetMusic(abc) {
       paddingright: 15,
       paddingtop: 10,
       clickListener: _barClickListener,
+      selectTypes: [],
     });
 
     _visualObj = visualObjs[0];
