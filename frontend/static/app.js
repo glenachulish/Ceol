@@ -648,7 +648,7 @@ function renderSheetMusic(abc) {
       paddingleft: 15,
       paddingright: 15,
       paddingtop: 10,
-      selectionColor: "transparent",
+      selectTypes: false,
     });
 
     _visualObj = visualObjs[0];
