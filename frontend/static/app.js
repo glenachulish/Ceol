@@ -472,74 +472,99 @@ let _barSel = { start: null, end: null };
 // ABCJS resets abcjs-mN per staff line, so we need (line, measure) as a pair.
 let _barMap = [];
 
-// Build the bar map by scanning the rendered SVG for unique (line, measure) pairs.
-// ABCJS puts both abcjs-lN and abcjs-mN on the same <g> element for each note group.
+// Build the bar map: each entry is { staffLine, measure } where staffLine is
+// the visual staff line index from the abcjs-staff-wrapper group, and measure
+// is the per-line bar number.  Using the wrapper as anchor is critical because
+// abcjs-lN on individual note elements encodes the VOICE number (always 0 for
+// monophonic tunes), NOT the visual line — so abcjs-l0.abcjs-m0 would match
+// bar 0 on every visual staff line without this scoping.
 function _buildBarMap() {
   const render = document.getElementById("sheet-music-render");
   if (!render) return [];
-  const seen = new Map(); // "L-M" → {line, measure}
 
-  // Primary: find <g> elements that carry both abcjs-lN and abcjs-mN classes.
-  for (const el of render.querySelectorAll("[class]")) {
-    let line = null, measure = null;
-    for (const cls of el.classList) {
-      const lm = cls.match(/^abcjs-l(\d+)$/);
-      const mm = cls.match(/^abcjs-m(\d+)$/);
-      if (lm) line = parseInt(lm[1], 10);
-      if (mm) measure = parseInt(mm[1], 10);
-    }
-    if (line !== null && measure !== null) {
-      const key = `${line}-${measure}`;
-      if (!seen.has(key)) seen.set(key, { line, measure });
-    }
-  }
+  const result = [];
+  const wrappers = render.querySelectorAll(".abcjs-staff-wrapper");
 
-  // Fallback: classes may be on separate ancestor/descendant elements.
-  // Scan each abcjs-lN container and collect abcjs-mN children within it.
-  if (!seen.size) {
-    for (const lineEl of render.querySelectorAll("[class]")) {
-      const lm = [...lineEl.classList].find(c => /^abcjs-l\d+$/.test(c));
-      if (!lm) continue;
-      const line = parseInt(lm.replace("abcjs-l", ""), 10);
-      for (const el of lineEl.querySelectorAll("[class]")) {
-        const mm = [...el.classList].find(c => /^abcjs-m\d+$/.test(c));
-        if (!mm) continue;
-        const measure = parseInt(mm.replace("abcjs-m", ""), 10);
-        const key = `${line}-${measure}`;
-        if (!seen.has(key)) seen.set(key, { line, measure });
+  for (const wrapper of wrappers) {
+    let staffLine = null;
+    for (const cls of wrapper.classList) {
+      const m = cls.match(/^abcjs-l(\d+)$/);
+      if (m) { staffLine = parseInt(m[1], 10); break; }
+    }
+    if (staffLine === null) continue;
+
+    const seenMeasures = new Set();
+    for (const el of wrapper.querySelectorAll("[class]")) {
+      for (const cls of el.classList) {
+        const m = cls.match(/^abcjs-m(\d+)$/);
+        if (m) { seenMeasures.add(parseInt(m[1], 10)); break; }
       }
     }
+    for (const measure of [...seenMeasures].sort((a, b) => a - b)) {
+      result.push({ staffLine, measure });
+    }
   }
 
-  const result = [...seen.values()].sort((a, b) => a.line !== b.line ? a.line - b.line : a.measure - b.measure);
+  // Fallback if no staff-wrapper elements found.
+  if (!result.length) {
+    const seen = new Map();
+    for (const el of render.querySelectorAll("[class]")) {
+      let staffLine = null, measure = null;
+      for (const cls of el.classList) {
+        const lm = cls.match(/^abcjs-l(\d+)$/);
+        const mm = cls.match(/^abcjs-m(\d+)$/);
+        if (lm) staffLine = parseInt(lm[1], 10);
+        if (mm) measure  = parseInt(mm[1], 10);
+      }
+      if (staffLine !== null && measure !== null) {
+        const key = `${staffLine}-${measure}`;
+        if (!seen.has(key)) seen.set(key, { staffLine, measure });
+      }
+    }
+    result.push(...[...seen.values()].sort((a, b) =>
+      a.staffLine !== b.staffLine ? a.staffLine - b.staffLine : a.measure - b.measure));
+  }
+
   console.log("[barMap] built", result.length, "bars:", result);
   return result;
 }
 
-// Direct DOM click handler on the sheet-music container.
-// Walks up from the clicked element to find a <g> with both abcjs-lN and abcjs-mN classes,
-// then maps that to a bar index and calls _onMeasureClicked.
-// This bypasses ABCJS's clickListener mechanism, which intercepts and replaces the callback
-// with its own highlight function in render mode.
+// Direct DOM click handler: find which (staffLine, measure) was clicked by
+// walking up to an element with abcjs-mN, then finding the abcjs-staff-wrapper
+// ancestor for the staffLine index.
 function _sheetMusicClickHandler(e) {
+  const container = document.getElementById("sheet-music-render");
+
+  // Walk up to find abcjs-mN on the clicked element or an ancestor.
+  let measure = null;
   let el = e.target;
-  while (el && el.id !== "sheet-music-render") {
-    const cls = (el.getAttribute && el.getAttribute("class")) || "";
-    if (/\babcjs-l\d+\b/.test(cls) && /\babcjs-m\d+\b/.test(cls)) break;
+  while (el && el !== container) {
+    for (const cls of (el.classList || [])) {
+      const m = cls.match(/^abcjs-m(\d+)$/);
+      if (m) { measure = parseInt(m[1], 10); break; }
+    }
+    if (measure !== null) break;
     el = el.parentElement;
   }
-  if (!el || el.id === "sheet-music-render") return;
+  if (measure === null) return;
 
-  const cls = el.getAttribute("class") || "";
-  const lm = cls.match(/\babcjs-l(\d+)\b/);
-  const mm = cls.match(/\babcjs-m(\d+)\b/);
-  if (!mm) return;
-
-  const line    = lm ? parseInt(lm[1], 10) : 0;
-  const measure = parseInt(mm[1], 10);
+  // Walk up further to find the abcjs-staff-wrapper ancestor.
+  let staffLine = null;
+  let ancestor = el.parentElement;
+  while (ancestor && ancestor !== container) {
+    if (ancestor.classList && ancestor.classList.contains("abcjs-staff-wrapper")) {
+      for (const cls of ancestor.classList) {
+        const m = cls.match(/^abcjs-l(\d+)$/);
+        if (m) { staffLine = parseInt(m[1], 10); break; }
+      }
+      break;
+    }
+    ancestor = ancestor.parentElement;
+  }
+  if (staffLine === null) return;
 
   if (_barMap.length === 0) _barMap = _buildBarMap();
-  const idx = _barMap.findIndex(b => b.line === line && b.measure === measure);
+  const idx = _barMap.findIndex(b => b.staffLine === staffLine && b.measure === measure);
   if (idx === -1) return;
   _onMeasureClicked(idx);
 }
@@ -575,11 +600,10 @@ function _updateBarHighlight() {
   const cls = isPending ? "bar-sel-start" : "bar-selected";
   for (let i = _barSel.start; i <= _barSel.end; i++) {
     if (i >= _barMap.length) break;
-    const { line, measure } = _barMap[i];
-    // Compound selector: elements that have both abcjs-lN and abcjs-mN classes
-    // (ABCJS puts both on the same <g> note group).
+    const { staffLine, measure } = _barMap[i];
+    // Scope the measure selector inside the correct staff-wrapper visual line.
     document.querySelectorAll(
-      `#sheet-music-render .abcjs-l${line}.abcjs-m${measure}`
+      `#sheet-music-render .abcjs-staff-wrapper.abcjs-l${staffLine} .abcjs-m${measure}`
     ).forEach(el => el.classList.add(cls));
   }
 }
@@ -677,7 +701,7 @@ function renderSheetMusic(abc) {
         // Bar selection loop: when playback passes the end bar, seek back to start.
         // ev.measureNumber is line-local, so convert (ev.line, ev.measureNumber) → global index.
         if (_barSel.start !== null && ev && ev.measureStart) {
-          const evIdx = _barMap.findIndex(b => b.line === ev.line && b.measure === ev.measureNumber);
+          const evIdx = _barMap.findIndex(b => b.staffLine === ev.line && b.measure === ev.measureNumber);
           if (evIdx !== -1 && evIdx > _barSel.end) {
             _seekToBar(_barSel.start);
           }

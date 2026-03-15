@@ -512,8 +512,16 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   fill: var(--accent) !important;
 }
 
+/* Force all ABCJS SVG primitives to render in black.
+   ABCJS defaults foregroundColor to "currentColor" which inherits the
+   dark-theme CSS color (light text) — making notes appear tinted.
+   CSS property rules beat SVG presentation attributes; the !important
+   selection rules below override this for selected bars. */
+#sheet-music-render path,
+#sheet-music-render rect,
+#sheet-music-render ellipse { fill: #000000; stroke: #000000; }
+
 /* Bar selection highlight for practice loop */
-/* color:#000 forces currentColor to black for ABCJS SVG elements */
 #sheet-music-render { cursor: pointer; color: #000000; }
 /* Handle both cases: class on an ancestor group OR on the element itself */
 #sheet-music-render .bar-selected path,
