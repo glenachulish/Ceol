@@ -115,6 +115,7 @@
       <!-- Import source tabs -->
       <div class="modal-tabs">
         <button class="tab-btn active" data-import-tab="file">ABC File</button>
+        <button class="tab-btn" data-import-tab="paste">Paste ABC</button>
         <button class="tab-btn" data-import-tab="session">TheSession.org</button>
         <button class="tab-btn" data-import-tab="flutefling">FlutefFling.scot</button>
       </div>
@@ -131,6 +132,16 @@
         <div id="import-result" class="import-result hidden"></div>
         <div class="import-actions">
           <button id="import-submit" class="btn-primary" disabled>Import</button>
+        </div>
+      </div>
+
+      <!-- Paste ABC tab -->
+      <div id="import-tab-paste" class="tab-panel hidden">
+        <p class="import-desc">Paste ABC notation to import one or more tunes. Each tune must start with <code>X:</code>.</p>
+        <textarea id="paste-abc-input" class="paste-abc-textarea" placeholder="X:1&#10;T:The Morning Dew&#10;M:6/8&#10;L:1/8&#10;K:G&#10;…" rows="12"></textarea>
+        <div id="paste-abc-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="paste-abc-submit" class="btn-primary">Import</button>
         </div>
       </div>
 
@@ -190,6 +201,6 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=4"></script>
 </body>
 </html>

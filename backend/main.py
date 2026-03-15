@@ -151,6 +151,32 @@ def delete_tune(tune_id: int):
     return {"ok": True}
 
 
+class TuneUpdate(BaseModel):
+    title: Optional[str] = None
+    type: Optional[str] = None
+    key: Optional[str] = None
+    mode: Optional[str] = None
+    abc: Optional[str] = None
+
+
+@app.patch("/api/tunes/{tune_id}")
+def update_tune(tune_id: int, body: TuneUpdate):
+    """Update editable fields on a tune (title, type, key, mode, abc)."""
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(400, "No fields to update")
+    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    values = list(fields.values()) + [tune_id]
+    with _db() as conn:
+        cur = conn.execute(
+            f"UPDATE tunes SET {set_clause}, updated_at = datetime('now') WHERE id = ?",
+            values,
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Tune not found")
+    return {"ok": True}
+
+
 @app.patch("/api/tunes/{tune_id}/notes")
 def update_tune_notes(tune_id: int, body: NotesUpdate):
     with _db() as conn:
@@ -381,6 +407,37 @@ async def import_abc(file: UploadFile = File(...)):
                 )
             imported += 1
 
+    return {"imported": imported, "skipped": skipped}
+
+
+class ImportTextBody(BaseModel):
+    abc: str
+
+
+@app.post("/api/import-text")
+def import_abc_text(body: ImportTextBody):
+    """Import ABC tunes from a pasted text string."""
+    tunes = parse_abc_string(body.abc.strip())
+    imported = 0
+    skipped = 0
+    import_date = date.today().isoformat()
+    with _db() as conn:
+        for tune in tunes:
+            if not tune.title:
+                skipped += 1
+                continue
+            cur = conn.execute(
+                "INSERT INTO tunes (craic_id, title, type, key, mode, abc, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (tune.craic_id, tune.title, tune.type, tune.key, tune.mode, tune.abc,
+                 f"Imported from paste: {import_date}"),
+            )
+            tune_id = cur.lastrowid
+            for alias in tune.aliases:
+                conn.execute(
+                    "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?, ?)",
+                    (tune_id, alias),
+                )
+            imported += 1
     return {"imported": imported, "skipped": skipped}
 
 

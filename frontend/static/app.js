@@ -345,8 +345,12 @@ function renderModal(tune) {
     </div>
 
     <div id="tab-abc" class="tab-panel hidden">
-      <p class="modal-abc-label">ABC Notation</p>
-      <pre class="modal-abc">${escHtml(tune.abc)}</pre>
+      <p class="modal-abc-label">ABC Notation — edit below and save to update the sheet music.</p>
+      <textarea id="abc-edit-textarea" class="modal-abc-edit" spellcheck="false" rows="16">${escHtml(tune.abc)}</textarea>
+      <div class="notes-actions">
+        <button id="save-abc-btn" class="btn-primary">Save &amp; Re-render</button>
+        <span id="abc-status" class="notes-status"></span>
+      </div>
     </div>
 
     <div id="tab-notes" class="tab-panel hidden">
@@ -397,6 +401,36 @@ function renderModal(tune) {
     }
   });
 
+  // ABC edit + save
+  document.getElementById("save-abc-btn").addEventListener("click", async () => {
+    const btn    = document.getElementById("save-abc-btn");
+    const status = document.getElementById("abc-status");
+    const abc    = document.getElementById("abc-edit-textarea").value;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/tunes/${tune.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ abc }),
+      });
+      if (res.ok) {
+        status.textContent = "Saved!";
+        status.className = "notes-status notes-saved";
+        // Re-render the sheet music with the updated ABC
+        renderSheetMusic(abc);
+        setTimeout(() => { status.textContent = ""; }, 2000);
+      } else {
+        status.textContent = "Failed to save.";
+        status.className = "notes-status notes-error";
+      }
+    } catch {
+      status.textContent = "Failed to save.";
+      status.className = "notes-status notes-error";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // Add to set
   const addToSetBtn = document.getElementById("add-to-set-btn");
   if (addToSetBtn) {
@@ -439,10 +473,13 @@ let _barSel = { start: null, end: null };
 let _barMap = [];
 
 // Build the bar map by scanning the rendered SVG for unique (line, measure) pairs.
+// ABCJS puts both abcjs-lN and abcjs-mN on the same <g> element for each note group.
 function _buildBarMap() {
   const render = document.getElementById("sheet-music-render");
   if (!render) return [];
   const seen = new Map(); // "L-M" → {line, measure}
+
+  // Primary: find <g> elements that carry both abcjs-lN and abcjs-mN classes.
   for (const el of render.querySelectorAll("[class]")) {
     let line = null, measure = null;
     for (const cls of el.classList) {
@@ -456,22 +493,53 @@ function _buildBarMap() {
       if (!seen.has(key)) seen.set(key, { line, measure });
     }
   }
-  return [...seen.values()].sort((a, b) => a.line !== b.line ? a.line - b.line : a.measure - b.measure);
+
+  // Fallback: classes may be on separate ancestor/descendant elements.
+  // Scan each abcjs-lN container and collect abcjs-mN children within it.
+  if (!seen.size) {
+    for (const lineEl of render.querySelectorAll("[class]")) {
+      const lm = [...lineEl.classList].find(c => /^abcjs-l\d+$/.test(c));
+      if (!lm) continue;
+      const line = parseInt(lm.replace("abcjs-l", ""), 10);
+      for (const el of lineEl.querySelectorAll("[class]")) {
+        const mm = [...el.classList].find(c => /^abcjs-m\d+$/.test(c));
+        if (!mm) continue;
+        const measure = parseInt(mm.replace("abcjs-m", ""), 10);
+        const key = `${line}-${measure}`;
+        if (!seen.has(key)) seen.set(key, { line, measure });
+      }
+    }
+  }
+
+  const result = [...seen.values()].sort((a, b) => a.line !== b.line ? a.line - b.line : a.measure - b.measure);
+  console.log("[barMap] built", result.length, "bars:", result);
+  return result;
 }
 
 // Called by ABCJS clickListener.
-// 'analysis' (4th param) is an object ABCJS builds from the elemset classes:
-//   { line: N, measure: M, voice: V, … }  — already parsed integers.
+// 'analysis' (4th param) = { line: N, measure: M, voice: V, … } — already parsed integers.
+// 'classes'  (3rd param) = space-joined union of all CSS classes from the clicked elemset.
+// Use analysis as primary source; fall back to regex on classes if analysis is incomplete.
 function _barClickListener(abcElem, tuneNumber, classes, analysis) {
-  if (!analysis || analysis.line === undefined || analysis.measure === undefined) return;
-  const line    = analysis.line;
-  const measure = analysis.measure;
-  // Build the map lazily on first click — by this point any responsive
-  // re-renders triggered by ResizeObserver have already happened, so we
-  // read the final DOM layout rather than a potentially stale initial render.
+  let line, measure;
+  if (analysis && analysis.line !== undefined && analysis.measure !== undefined) {
+    line    = analysis.line;
+    measure = analysis.measure;
+  } else {
+    const lm = (classes || "").match(/\babcjs-l(\d+)\b/);
+    const mm = (classes || "").match(/\babcjs-m(\d+)\b/);
+    if (!lm || !mm) return;
+    line    = parseInt(lm[1], 10);
+    measure = parseInt(mm[1], 10);
+  }
+  console.log("[bar-click] line:", line, "measure:", measure, "analysis:", analysis);
+  // Build the map lazily on first click so the responsive layout is final.
   if (_barMap.length === 0) _barMap = _buildBarMap();
   const idx = _barMap.findIndex(b => b.line === line && b.measure === measure);
-  if (idx === -1) return;
+  if (idx === -1) {
+    console.warn("[bar-click] bar not found in barMap:", { line, measure }, _barMap);
+    return;
+  }
   _onMeasureClicked(idx);
 }
 
@@ -507,9 +575,11 @@ function _updateBarHighlight() {
   for (let i = _barSel.start; i <= _barSel.end; i++) {
     if (i >= _barMap.length) break;
     const { line, measure } = _barMap[i];
-    // Use the compound selector so only this specific bar on this specific line is highlighted
-    document.querySelectorAll(`#sheet-music-render .abcjs-l${line}.abcjs-m${measure}`)
-      .forEach(el => el.classList.add(cls));
+    // Compound selector: elements that have both abcjs-lN and abcjs-mN classes
+    // (ABCJS puts both on the same <g> note group).
+    document.querySelectorAll(
+      `#sheet-music-render .abcjs-l${line}.abcjs-m${measure}`
+    ).forEach(el => el.classList.add(cls));
   }
 }
 
@@ -1128,6 +1198,48 @@ importSubmit.addEventListener("click", async () => {
   }
 });
 
+// ── Paste ABC import ─────────────────────────────────────────────────────────
+const pasteAbcInput  = document.getElementById("paste-abc-input");
+const pasteAbcSubmit = document.getElementById("paste-abc-submit");
+const pasteAbcResult = document.getElementById("paste-abc-result");
+
+pasteAbcSubmit.addEventListener("click", async () => {
+  const abc = pasteAbcInput.value.trim();
+  if (!abc) { pasteAbcInput.focus(); return; }
+  pasteAbcSubmit.disabled = true;
+  pasteAbcSubmit.textContent = "Importing…";
+  pasteAbcResult.classList.add("hidden");
+  try {
+    const res = await fetch("/api/import-text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ abc }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      pasteAbcResult.textContent =
+        `Imported ${data.imported} tune${data.imported !== 1 ? "s" : ""}` +
+        (data.skipped ? ` (${data.skipped} skipped due to missing title)` : "") + ".";
+      pasteAbcResult.className = "import-result import-success";
+      pasteAbcResult.classList.remove("hidden");
+      pasteAbcInput.value = "";
+      await Promise.all([loadStats(), loadFilters()]);
+      if (state.view === "library") loadTunes();
+    } else {
+      pasteAbcResult.textContent = `Error: ${data.detail || "Import failed."}`;
+      pasteAbcResult.className = "import-result import-error";
+      pasteAbcResult.classList.remove("hidden");
+    }
+  } catch (err) {
+    pasteAbcResult.textContent = `Error: ${err.message}`;
+    pasteAbcResult.className = "import-result import-error";
+    pasteAbcResult.classList.remove("hidden");
+  } finally {
+    pasteAbcSubmit.disabled = false;
+    pasteAbcSubmit.textContent = "Import";
+  }
+});
+
 // ── TheSession.org search + import ───────────────────────────────────────────
 const sessionSearchInput = document.getElementById("session-search-input");
 const sessionSearchBtn   = document.getElementById("session-search-btn");
@@ -1218,7 +1330,7 @@ ffCatLoadBtn.addEventListener("click", async () => {
   ffCatSearch.value = "";
   ffCatList.innerHTML = "";
   try {
-    const data = await apiFetch("/api/flutefling/all-tunes");
+    const data = await fetch("/api/flutefling/all-tunes").then(r => r.json());
     _ffAllTunes = data.tunes || [];
     if (!_ffAllTunes.length) {
       ffCatStatus.textContent = "No tunes found — the archive may have changed.";
@@ -1268,14 +1380,15 @@ function renderFfTuneList(tunes) {
       btn.disabled = true;
       btn.textContent = "Importing…";
       try {
-        await apiFetch("/api/tunes", {
+        await fetch("/api/tunes", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: tune.title, type: tune.type || "", key: tune.key || "",
             mode: tune.mode || "", abc: tune.abc,
             notes: `Imported from FlutefFling.scot${tune.set_label ? " — " + tune.set_label : ""}`,
           }),
-        });
+        }).then(r => r.json());
         btn.textContent = "Imported ✓";
         loadTunes();
       } catch {

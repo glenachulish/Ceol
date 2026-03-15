@@ -427,6 +427,40 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   overflow-y: auto;
 }
 
+/* ABC edit textarea (same style as modal-abc pre but editable) */
+.modal-abc-edit {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .85rem 1rem;
+  font-family: "Fira Code", "Cascadia Code", "Consolas", monospace;
+  font-size: .8rem;
+  white-space: pre;
+  color: var(--accent2);
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+.modal-abc-edit:focus { border-color: var(--accent); }
+
+/* Paste ABC textarea in import dialog */
+.paste-abc-textarea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: .75rem;
+  font-family: "Fira Code", "Cascadia Code", "Consolas", monospace;
+  font-size: .8rem;
+  resize: vertical;
+  outline: none;
+  line-height: 1.5;
+  margin-bottom: .5rem;
+}
+.paste-abc-textarea:focus { border-color: var(--accent); }
+
 /* ── Modal tabs ───────────────────────────────────────────── */
 .modal-tabs {
   display: flex;
