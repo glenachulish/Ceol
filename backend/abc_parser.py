@@ -201,7 +201,18 @@ def _parse_tune_block(block: str) -> Tune:
     return tune
 
 
-def parse_abc_file(path: str) -> list[Tune]:
+def parse_abc_string(content: str) -> list["Tune"]:
+    """Parse ABC notation from a string and return a list of Tune objects."""
+    raw_blocks = re.split(r"\n{2,}", content)
+    tunes: list[Tune] = []
+    for block in raw_blocks:
+        block = block.strip()
+        if block and re.search(r"^X:", block, re.MULTILINE):
+            tunes.append(_parse_tune_block(block))
+    return tunes
+
+
+def parse_abc_file(path: str) -> list["Tune"]:
     """
     Read an ABC file and return a list of Tune objects.
 

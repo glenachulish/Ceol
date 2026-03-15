@@ -20,7 +20,10 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from backend.abc_parser import parse_abc_file
+import time as _time
+from html.parser import HTMLParser as _HTMLParser
+
+from backend.abc_parser import parse_abc_file, parse_abc_string
 from backend.database import DB_PATH, get_connection, init_db
 
 app = FastAPI(title="Ceol", version="0.1.0")
@@ -659,6 +662,198 @@ def serve_upload(filename: str):
     if not fpath.exists():
         raise HTTPException(404, "File not found")
     return FileResponse(str(fpath))
+
+
+# ---------------------------------------------------------------------------
+# FlutefFling.scot catalogue scraper
+# ---------------------------------------------------------------------------
+
+_FF_BASE = "https://flutefling.scot"
+_FF_ARCHIVE_ROOT = f"{_FF_BASE}/resources/flutefling-repertoire-archive/"
+_FF_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-GB,en;q=0.5",
+    "Referer": "https://flutefling.scot/",
+}
+_FF_CACHE: tuple[float, list] | None = None
+_FF_CACHE_TTL = 3600  # 1 hour
+
+
+class _LinkParser(_HTMLParser):
+    """Extract links with their surrounding heading context."""
+
+    def __init__(self):
+        super().__init__()
+        self.results: list[dict] = []
+        self._heading = ""
+        self._in_heading = False
+        self._heading_buf: list[str] = []
+        self._link_href: str | None = None
+        self._link_buf: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs_d = dict(attrs)
+        if tag in ("h1", "h2", "h3", "h4"):
+            self._in_heading = True
+            self._heading_buf = []
+        if tag == "a":
+            self._link_href = attrs_d.get("href", "")
+            self._link_buf = []
+
+    def handle_endtag(self, tag):
+        if tag in ("h1", "h2", "h3", "h4") and self._in_heading:
+            self._in_heading = False
+            self._heading = " ".join(self._heading_buf).strip()
+        if tag == "a" and self._link_href is not None:
+            text = " ".join(self._link_buf).strip()
+            self.results.append({
+                "href": self._link_href,
+                "text": text,
+                "heading": self._heading,
+            })
+            self._link_href = None
+
+    def handle_data(self, data):
+        if self._in_heading:
+            self._heading_buf.append(data)
+        if self._link_href is not None:
+            self._link_buf.append(data)
+
+
+async def _ff_get(url: str, client: httpx.AsyncClient) -> str | None:
+    try:
+        r = await client.get(url, headers=_FF_HEADERS, timeout=15, follow_redirects=True)
+        r.raise_for_status()
+        return r.text
+    except Exception:
+        return None
+
+
+def _extract_abc_sets(html: str, page_url: str) -> list[dict]:
+    """Return all ABC tune-set entries found in a page's HTML."""
+    parser = _LinkParser()
+    parser.feed(html)
+
+    sets: list[dict] = []
+    links = parser.results
+
+    for i, link in enumerate(links):
+        href = link["href"]
+        if not (href.lower().endswith(".txt") and _FF_BASE in href):
+            continue
+
+        # Best label: heading > link text > filename
+        label = (link["heading"] or link["text"] or
+                 href.rsplit("/", 1)[-1].replace(".txt", "").replace("_", " "))
+
+        # Look for a matching PDF link (nearby, same name stem)
+        stem = re.sub(r"\.txt$", "", href, flags=re.I)
+        pdf_url = next(
+            (lk["href"] for lk in links
+             if lk["href"].lower().startswith(stem.lower()) and
+             lk["href"].lower().endswith(".pdf")),
+            None,
+        )
+
+        sets.append({
+            "label": label.strip(),
+            "abc_url": href,
+            "pdf_url": pdf_url,
+            "source_page": page_url,
+        })
+
+    return sets
+
+
+@app.get("/api/flutefling/catalogue")
+async def flutefling_catalogue(refresh: bool = False):
+    """Scrape flutefling.scot archive pages and return available ABC tune sets."""
+    global _FF_CACHE
+
+    now = _time.time()
+    if not refresh and _FF_CACHE and now - _FF_CACHE[0] < _FF_CACHE_TTL:
+        return {"sets": _FF_CACHE[1], "cached": True}
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        # 1. Fetch the archive index to discover year-pages
+        index_html = await _ff_get(_FF_ARCHIVE_ROOT, client)
+        if not index_html:
+            raise HTTPException(502, "Could not reach flutefling.scot — check network access")
+
+        idx_parser = _LinkParser()
+        idx_parser.feed(index_html)
+
+        # Collect sub-pages inside the archive (year pages + misc)
+        subpage_urls: list[str] = [
+            lk["href"] for lk in idx_parser.results
+            if lk["href"].startswith(_FF_ARCHIVE_ROOT)
+            and lk["href"].rstrip("/") != _FF_ARCHIVE_ROOT.rstrip("/")
+        ]
+        # Also check the NE session tunes tag page for individual posts
+        subpage_urls.append(f"{_FF_BASE}/tag/ne-session-tunes/")
+
+        # De-duplicate while preserving order
+        seen: set[str] = set()
+        subpage_urls = [u for u in subpage_urls if not (u in seen or seen.add(u))]  # type: ignore[func-returns-value]
+
+        all_sets: list[dict] = []
+
+        # 2. Check ABC links on the archive index itself
+        all_sets.extend(_extract_abc_sets(index_html, _FF_ARCHIVE_ROOT))
+
+        # 3. Fetch each sub-page and extract ABC links
+        for page_url in subpage_urls:
+            html = await _ff_get(page_url, client)
+            if not html:
+                continue
+            page_sets = _extract_abc_sets(html, page_url)
+
+            # For tag pages, also follow linked post URLs
+            if not page_sets:
+                tag_parser = _LinkParser()
+                tag_parser.feed(html)
+                post_urls = [
+                    lk["href"] for lk in tag_parser.results
+                    if re.match(r"https://flutefling\.scot/\d{4}/\d{2}/", lk["href"])
+                ]
+                for post_url in post_urls[:20]:  # cap at 20 posts
+                    post_html = await _ff_get(post_url, client)
+                    if post_html:
+                        page_sets.extend(_extract_abc_sets(post_html, post_url))
+
+            all_sets.extend(page_sets)
+
+    # Remove exact duplicates on abc_url
+    seen_abc: set[str] = set()
+    unique_sets = [s for s in all_sets if not (s["abc_url"] in seen_abc or seen_abc.add(s["abc_url"]))]  # type: ignore[func-returns-value]
+
+    _FF_CACHE = (now, unique_sets)
+    return {"sets": unique_sets, "cached": False}
+
+
+@app.get("/api/flutefling/fetch-abc")
+async def flutefling_fetch_abc(url: str = Query(...)):
+    """Fetch an ABC file from flutefling.scot and return parsed individual tunes."""
+    if not re.match(r"https?://flutefling\.scot/", url):
+        raise HTTPException(400, "URL must be from flutefling.scot")
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        try:
+            r = await client.get(url, headers=_FF_HEADERS, timeout=15)
+            r.raise_for_status()
+        except Exception as exc:
+            raise HTTPException(502, f"Could not fetch ABC file: {exc}")
+
+    tunes = parse_abc_string(r.text)
+    return {
+        "tunes": [
+            {"title": t.title, "type": t.type, "key": t.key, "mode": t.mode, "abc": t.abc}
+            for t in tunes
+        ]
+    }
 
 
 # ---------------------------------------------------------------------------

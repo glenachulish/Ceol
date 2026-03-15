@@ -147,15 +147,26 @@
       <!-- FlutefFling.scot tab -->
       <div id="import-tab-flutefling" class="tab-panel hidden">
         <p class="import-desc">
-          <a href="https://flutefling.scot/resources/flutefling-session-tunes/" target="_blank" rel="noopener">FlutefFling.scot</a>
-          presents tunes as <strong>PDF sheet music</strong> and <strong>MP3 recordings</strong>.
-          Use the options below to add them to your library.
+          <a href="https://flutefling.scot" target="_blank" rel="noopener">FlutefFling.scot</a>
+          publishes curated tune sets with ABC notation, PDFs, and MP3 recordings.
         </p>
 
-        <!-- Option A: find ABC via TheSession.org -->
+        <!-- Browse ABC archive -->
         <div class="flutefling-section">
-          <h4 class="flutefling-section-title">Import ABC notation via TheSession.org</h4>
-          <p class="import-desc">Browse FlutefFling, note a tune name, then search here to import its ABC notation:</p>
+          <h4 class="flutefling-section-title">Browse FlutefFling ABC archive</h4>
+          <p class="import-desc">Load the list of available tune sets directly from the FlutefFling archive. Click a set to see its tunes and import them.</p>
+          <div class="ff-cat-toolbar">
+            <button id="ff-cat-load-btn" class="btn-primary">Load tune list</button>
+            <input id="ff-cat-search" type="search" placeholder="Filter tunes…" autocomplete="off" class="ff-cat-search hidden" />
+            <span id="ff-cat-status" class="ff-cat-status"></span>
+          </div>
+          <div id="ff-cat-list" class="ff-cat-list"></div>
+        </div>
+
+        <!-- Option B: find ABC via TheSession.org -->
+        <div class="flutefling-section">
+          <h4 class="flutefling-section-title">Search by name via TheSession.org</h4>
+          <p class="import-desc">Type a tune name to find its ABC notation on TheSession.org:</p>
           <div class="session-search-row">
             <input id="ff-ts-input" type="text" placeholder="Tune name…" autocomplete="off" />
             <button id="ff-ts-btn" class="btn-primary">Search</button>
@@ -163,10 +174,10 @@
           <div id="ff-ts-results" class="session-results"></div>
         </div>
 
-        <!-- Option B: save as audio reference -->
+        <!-- Option C: save as audio reference -->
         <div class="flutefling-section">
           <h4 class="flutefling-section-title">Save as audio / sheet music reference</h4>
-          <p class="import-desc">Paste an MP3 or PDF URL from FlutefFling to create a catalogue entry with a listening link saved in its notes:</p>
+          <p class="import-desc">Paste an MP3 or PDF URL from FlutefFling to create a catalogue entry with a playable link in its notes:</p>
           <div class="flutefling-ref-form">
             <input id="ff-ref-title" type="text" placeholder="Tune title (required)" />
             <input id="ff-ref-url" type="url" placeholder="MP3 or PDF URL from FlutefFling…" />
