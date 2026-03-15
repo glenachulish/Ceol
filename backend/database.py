@@ -83,6 +83,29 @@ CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT ''
 );
+
+-- Notes documents (general-purpose notes, not per-tune)
+CREATE TABLE IF NOT EXISTS note_documents (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    title      TEXT NOT NULL DEFAULT 'Untitled',
+    content    TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Attachments for note documents: uploaded files or saved web links
+CREATE TABLE IF NOT EXISTS note_attachments (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id   INTEGER NOT NULL REFERENCES note_documents(id) ON DELETE CASCADE,
+    type          TEXT NOT NULL,       -- 'file' or 'link'
+    filename      TEXT,                -- stored filename on disk (files only)
+    original_name TEXT,                -- original upload name (files only)
+    mime_type     TEXT,
+    size          INTEGER,
+    url           TEXT,                -- URL (links) or download path (files)
+    title         TEXT,                -- display title for links
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 

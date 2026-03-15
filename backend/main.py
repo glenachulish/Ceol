@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,8 @@ app = FastAPI(title="Ceol", version="0.1.0")
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 STATIC_DIR = FRONTEND_DIR / "static"
+UPLOADS_DIR = Path(__file__).parent.parent / "data" / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -445,6 +448,165 @@ async def thesession_import(body: dict):
             )
 
     return {"status": "imported", "tune_id": new_id, "title": title}
+
+
+# ---------------------------------------------------------------------------
+# Note documents endpoints
+# ---------------------------------------------------------------------------
+
+class NoteDocCreate(BaseModel):
+    title: str = "Untitled"
+
+class NoteDocUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+
+class LinkAttachmentBody(BaseModel):
+    url: str
+    title: str = ""
+
+
+@app.get("/api/note-documents")
+def list_note_documents():
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, title, updated_at FROM note_documents ORDER BY updated_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/note-documents", status_code=201)
+def create_note_document(body: NoteDocCreate):
+    title = body.title.strip() or "Untitled"
+    with _db() as conn:
+        cur = conn.execute(
+            "INSERT INTO note_documents (title) VALUES (?)", (title,)
+        )
+        doc_id = cur.lastrowid
+    return {"id": doc_id, "title": title, "content": "", "attachments": []}
+
+
+@app.get("/api/note-documents/{doc_id}")
+def get_note_document(doc_id: int):
+    with _db() as conn:
+        doc = conn.execute(
+            "SELECT * FROM note_documents WHERE id = ?", (doc_id,)
+        ).fetchone()
+        if not doc:
+            raise HTTPException(404, "Document not found")
+        attachments = conn.execute(
+            "SELECT * FROM note_attachments WHERE document_id = ? ORDER BY created_at",
+            (doc_id,),
+        ).fetchall()
+    result = dict(doc)
+    result["attachments"] = [dict(a) for a in attachments]
+    return result
+
+
+@app.patch("/api/note-documents/{doc_id}")
+def update_note_document(doc_id: int, body: NoteDocUpdate):
+    with _db() as conn:
+        doc = conn.execute("SELECT id FROM note_documents WHERE id = ?", (doc_id,)).fetchone()
+        if not doc:
+            raise HTTPException(404, "Document not found")
+        if body.title is not None:
+            conn.execute(
+                "UPDATE note_documents SET title = ?, updated_at = datetime('now') WHERE id = ?",
+                (body.title, doc_id),
+            )
+        if body.content is not None:
+            conn.execute(
+                "UPDATE note_documents SET content = ?, updated_at = datetime('now') WHERE id = ?",
+                (body.content, doc_id),
+            )
+    return {"ok": True}
+
+
+@app.delete("/api/note-documents/{doc_id}")
+def delete_note_document(doc_id: int):
+    with _db() as conn:
+        # Delete uploaded files first
+        files = conn.execute(
+            "SELECT filename FROM note_attachments WHERE document_id = ? AND type = 'file'",
+            (doc_id,),
+        ).fetchall()
+        for f in files:
+            fpath = UPLOADS_DIR / f["filename"]
+            if fpath.exists():
+                fpath.unlink()
+        conn.execute("DELETE FROM note_documents WHERE id = ?", (doc_id,))
+    return {"ok": True}
+
+
+@app.post("/api/note-documents/{doc_id}/attachments/file", status_code=201)
+async def add_file_attachment(doc_id: int, file: UploadFile = File(...)):
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM note_documents WHERE id = ?", (doc_id,)).fetchone():
+            raise HTTPException(404, "Document not found")
+
+    content = await file.read()
+    ext = Path(file.filename).suffix if file.filename else ""
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    dest = UPLOADS_DIR / stored_name
+    dest.write_bytes(content)
+
+    with _db() as conn:
+        cur = conn.execute(
+            """INSERT INTO note_attachments
+               (document_id, type, filename, original_name, mime_type, size, url)
+               VALUES (?, 'file', ?, ?, ?, ?, ?)""",
+            (doc_id, stored_name, file.filename, file.content_type, len(content),
+             f"/api/uploads/{stored_name}"),
+        )
+        att_id = cur.lastrowid
+
+    return {
+        "id": att_id, "type": "file", "filename": stored_name,
+        "original_name": file.filename, "mime_type": file.content_type,
+        "size": len(content), "url": f"/api/uploads/{stored_name}",
+    }
+
+
+@app.post("/api/note-documents/{doc_id}/attachments/link", status_code=201)
+def add_link_attachment(doc_id: int, body: LinkAttachmentBody):
+    if not body.url.strip():
+        raise HTTPException(400, "URL is required")
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM note_documents WHERE id = ?", (doc_id,)).fetchone():
+            raise HTTPException(404, "Document not found")
+        cur = conn.execute(
+            "INSERT INTO note_attachments (document_id, type, url, title) VALUES (?, 'link', ?, ?)",
+            (doc_id, body.url.strip(), body.title.strip() or body.url.strip()),
+        )
+        att_id = cur.lastrowid
+    return {"id": att_id, "type": "link", "url": body.url.strip(),
+            "title": body.title.strip() or body.url.strip()}
+
+
+@app.delete("/api/note-attachments/{att_id}")
+def delete_attachment(att_id: int):
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT type, filename FROM note_attachments WHERE id = ?", (att_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Attachment not found")
+        if row["type"] == "file" and row["filename"]:
+            fpath = UPLOADS_DIR / row["filename"]
+            if fpath.exists():
+                fpath.unlink()
+        conn.execute("DELETE FROM note_attachments WHERE id = ?", (att_id,))
+    return {"ok": True}
+
+
+@app.get("/api/uploads/{filename}")
+def serve_upload(filename: str):
+    # Sanitise: no path traversal
+    safe = Path(filename).name
+    fpath = UPLOADS_DIR / safe
+    if not fpath.exists():
+        raise HTTPException(404, "File not found")
+    return FileResponse(str(fpath))
 
 
 # ---------------------------------------------------------------------------

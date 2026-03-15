@@ -56,14 +56,25 @@
 
     <!-- ── Notes view ── -->
     <div id="view-notes" class="hidden">
-      <div class="view-header">
-        <h2 class="section-title">Notes</h2>
-        <button id="save-global-notes-btn" class="btn-primary">Save</button>
+      <div class="notes-layout">
+        <!-- Sidebar: document list -->
+        <aside class="notes-sidebar">
+          <div class="notes-sidebar-header">
+            <h2 class="section-title">Notes</h2>
+            <button id="new-doc-btn" class="btn-primary">+ New</button>
+          </div>
+          <div id="notes-doc-list" class="notes-doc-list">
+            <p class="loading">Loading…</p>
+          </div>
+        </aside>
+
+        <!-- Editor panel -->
+        <div id="notes-editor" class="notes-editor">
+          <div class="notes-empty-state">
+            <p>Select a document or create a new one.</p>
+          </div>
+        </div>
       </div>
-      <p class="notes-view-desc">A space for general session notes, tips, tune observations — anything you like.</p>
-      <textarea id="global-notes-textarea" class="notes-textarea notes-textarea-global"
-        placeholder="Write your notes here…"></textarea>
-      <span id="global-notes-status" class="notes-status"></span>
     </div>
 
     <!-- ── Sets view ── -->
@@ -133,7 +144,7 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.4/dist/abcjs-min.js"></script>
+  <script src="/static/abcjs-basic-min.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

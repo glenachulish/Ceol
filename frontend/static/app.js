@@ -46,9 +46,9 @@ const cancelSetBtn  = document.getElementById("cancel-set-btn");
 const setsList      = document.getElementById("sets-list");
 const viewNotes     = document.getElementById("view-notes");
 const navNotes      = document.getElementById("nav-notes");
-const globalNotesTextarea = document.getElementById("global-notes-textarea");
-const saveGlobalNotesBtn  = document.getElementById("save-global-notes-btn");
-const globalNotesStatus   = document.getElementById("global-notes-status");
+const notesDocList  = document.getElementById("notes-doc-list");
+const notesEditor   = document.getElementById("notes-editor");
+const newDocBtn     = document.getElementById("new-doc-btn");
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 function debounce(fn, ms) {
@@ -139,16 +139,45 @@ async function apiSaveNotes(tuneId, notes) {
   }).then(r => r.json());
 }
 
-async function fetchGlobalNotes() {
-  return fetch("/api/notes").then(r => r.json());
+// ── Note documents API ────────────────────────────────────────────────────────
+async function fetchNoteDocuments() {
+  return fetch("/api/note-documents").then(r => r.json());
 }
 
-async function apiSaveGlobalNotes(notes) {
-  return fetch("/api/notes", {
+async function apiCreateNoteDocument(title = "Untitled") {
+  return fetch("/api/note-documents", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  }).then(r => r.json());
+}
+
+async function fetchNoteDocument(id) {
+  return fetch(`/api/note-documents/${id}`).then(r => r.json());
+}
+
+async function apiUpdateNoteDocument(id, fields) {
+  return fetch(`/api/note-documents/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ notes }),
+    body: JSON.stringify(fields),
   }).then(r => r.json());
+}
+
+async function apiDeleteNoteDocument(id) {
+  return fetch(`/api/note-documents/${id}`, { method: "DELETE" }).then(r => r.json());
+}
+
+async function apiAddLinkAttachment(docId, url, title) {
+  return fetch(`/api/note-documents/${docId}/attachments/link`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, title }),
+  }).then(r => r.json());
+}
+
+async function apiDeleteAttachment(attId) {
+  return fetch(`/api/note-attachments/${attId}`, { method: "DELETE" }).then(r => r.json());
 }
 
 // ── View switching ────────────────────────────────────────────────────────────
@@ -171,7 +200,7 @@ function switchView(view) {
   } else if (view === "notes") {
     viewNotes.classList.remove("hidden");
     navNotes.classList.add("active");
-    loadGlobalNotes();
+    loadNoteDocuments();
   }
 }
 
@@ -400,16 +429,12 @@ function renderSheetMusic(abc) {
       displayRestart: true,
       displayPlay: true,
       displayProgress: true,
-      displayWarp: true,   // enables tempo slider (slow down / speed up)
+      displayWarp: true,
     });
 
-    synthController
-      .setTune(visualObjs[0], false, {})
-      .catch(err => {
-        console.warn("Audio init failed:", err);
-        const el = document.getElementById("audio-unavailable");
-        if (el) el.classList.remove("hidden");
-      });
+    synthController.setTune(visualObjs[0], false).catch(err => {
+      console.warn("Audio init failed:", err);
+    });
   } catch (err) {
     console.warn("Sheet music render failed:", err);
     if (container) container.textContent = "(Could not render sheet music)";
@@ -558,13 +583,181 @@ async function loadSets() {
   }
 }
 
-async function loadGlobalNotes() {
+// ── Note documents view ───────────────────────────────────────────────────────
+
+let _currentDocId = null;
+let _saveTimer = null;
+
+async function loadNoteDocuments() {
+  notesDocList.innerHTML = '<p class="loading">Loading…</p>';
   try {
-    const { notes } = await fetchGlobalNotes();
-    globalNotesTextarea.value = notes || "";
+    const docs = await fetchNoteDocuments();
+    renderNoteDocList(docs);
+    if (docs.length && !_currentDocId) openNoteDocument(docs[0].id);
+    if (!docs.length) {
+      notesEditor.innerHTML = '<div class="notes-empty-state"><p>Create a document to get started.</p></div>';
+    }
   } catch (err) {
-    console.error("Failed to load notes:", err);
+    notesDocList.innerHTML = '<p class="empty">Failed to load notes.</p>';
+    console.error(err);
   }
+}
+
+function renderNoteDocList(docs) {
+  if (!docs.length) {
+    notesDocList.innerHTML = '<p class="notes-doc-empty">No documents yet.</p>';
+    return;
+  }
+  notesDocList.innerHTML = docs.map(d => `
+    <div class="notes-doc-item ${d.id === _currentDocId ? "active" : ""}" data-doc-id="${d.id}">
+      <span class="notes-doc-title">${escHtml(d.title || "Untitled")}</span>
+      <span class="notes-doc-date">${new Date(d.updated_at).toLocaleDateString()}</span>
+    </div>
+  `).join("");
+  notesDocList.querySelectorAll(".notes-doc-item").forEach(el => {
+    el.addEventListener("click", () => openNoteDocument(Number(el.dataset.docId)));
+  });
+}
+
+async function openNoteDocument(id) {
+  _currentDocId = id;
+  notesEditor.innerHTML = '<p class="loading" style="padding:2rem">Loading…</p>';
+
+  // Highlight active item in list
+  notesDocList.querySelectorAll(".notes-doc-item").forEach(el => {
+    el.classList.toggle("active", Number(el.dataset.docId) === id);
+  });
+
+  try {
+    const doc = await fetchNoteDocument(id);
+    renderNoteEditor(doc);
+  } catch (err) {
+    notesEditor.innerHTML = '<p class="empty">Failed to load document.</p>';
+  }
+}
+
+function renderNoteEditor(doc) {
+  const attHtml = doc.attachments.map(a => {
+    if (a.type === "file") {
+      const icon = (a.mime_type || "").startsWith("image/") ? "🖼" : "📄";
+      const kb = a.size ? ` (${Math.round(a.size / 1024)} KB)` : "";
+      return `<div class="note-att-row" data-att-id="${a.id}">
+        <a href="${escHtml(a.url)}" target="_blank" class="note-att-link">${icon} ${escHtml(a.original_name || a.filename)}${kb}</a>
+        <button class="btn-icon note-att-del" data-att-id="${a.id}" title="Remove">✕</button>
+      </div>`;
+    } else {
+      return `<div class="note-att-row" data-att-id="${a.id}">
+        <a href="${escHtml(a.url)}" target="_blank" class="note-att-link">🔗 ${escHtml(a.title || a.url)}</a>
+        <button class="btn-icon note-att-del" data-att-id="${a.id}" title="Remove">✕</button>
+      </div>`;
+    }
+  }).join("");
+
+  notesEditor.innerHTML = `
+    <div class="notes-editor-inner">
+      <div class="notes-editor-header">
+        <input id="doc-title-input" class="doc-title-input" value="${escHtml(doc.title)}" placeholder="Document title…" />
+        <div class="notes-editor-actions">
+          <span id="doc-save-status" class="notes-status"></span>
+          <button id="delete-doc-btn" class="btn-danger">Delete</button>
+        </div>
+      </div>
+      <textarea id="doc-content" class="notes-textarea doc-content-area"
+        placeholder="Write your notes here…">${escHtml(doc.content || "")}</textarea>
+
+      <div class="note-attachments">
+        <div class="note-att-header">
+          <span class="modal-abc-label">Attachments</span>
+          <div class="note-att-btns">
+            <label class="btn-secondary note-file-label">
+              📎 Add file
+              <input type="file" id="note-file-input" multiple style="display:none" />
+            </label>
+            <button id="note-add-link-btn" class="btn-secondary">🔗 Add link</button>
+          </div>
+        </div>
+        <div id="note-att-list" class="note-att-list">${attHtml || '<p class="note-att-empty">No attachments yet.</p>'}</div>
+      </div>
+    </div>
+  `;
+
+  const docId = doc.id;
+  const titleInput = document.getElementById("doc-title-input");
+  const contentArea = document.getElementById("doc-content");
+  const saveStatus = document.getElementById("doc-save-status");
+
+  function scheduleSave() {
+    clearTimeout(_saveTimer);
+    saveStatus.textContent = "";
+    _saveTimer = setTimeout(async () => {
+      try {
+        await apiUpdateNoteDocument(docId, {
+          title: titleInput.value,
+          content: contentArea.value,
+        });
+        saveStatus.textContent = "Saved";
+        saveStatus.className = "notes-status notes-saved";
+        // Refresh sidebar title
+        const items = notesDocList.querySelectorAll(".notes-doc-item");
+        items.forEach(el => {
+          if (Number(el.dataset.docId) === docId) {
+            el.querySelector(".notes-doc-title").textContent = titleInput.value || "Untitled";
+          }
+        });
+        setTimeout(() => { saveStatus.textContent = ""; }, 2000);
+      } catch {
+        saveStatus.textContent = "Save failed";
+        saveStatus.className = "notes-status notes-error";
+      }
+    }, 900);
+  }
+
+  titleInput.addEventListener("input", scheduleSave);
+  contentArea.addEventListener("input", scheduleSave);
+
+  document.getElementById("delete-doc-btn").addEventListener("click", async () => {
+    if (!confirm(`Delete "${titleInput.value || "Untitled"}"?`)) return;
+    await apiDeleteNoteDocument(docId);
+    _currentDocId = null;
+    await loadNoteDocuments();
+  });
+
+  // File upload
+  document.getElementById("note-file-input").addEventListener("change", async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append("file", file);
+      const att = await fetch(`/api/note-documents/${docId}/attachments/file`, {
+        method: "POST", body: fd,
+      }).then(r => r.json());
+      doc.attachments.push(att);
+    }
+    e.target.value = "";
+    renderNoteEditor(doc);
+    openNoteDocument(docId);
+  });
+
+  // Add link
+  document.getElementById("note-add-link-btn").addEventListener("click", async () => {
+    const url = prompt("Enter URL:");
+    if (!url) return;
+    const title = prompt("Link title (optional):", "");
+    const att = await apiAddLinkAttachment(docId, url, title || "");
+    doc.attachments.push(att);
+    openNoteDocument(docId);
+  });
+
+  // Delete attachments
+  notesEditor.querySelectorAll(".note-att-del").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const attId = Number(btn.dataset.attId);
+      await apiDeleteAttachment(attId);
+      doc.attachments = doc.attachments.filter(a => a.id !== attId);
+      openNoteDocument(docId);
+    });
+  });
 }
 
 // ── Event handlers ────────────────────────────────────────────────────────────
@@ -620,20 +813,11 @@ navLibrary.addEventListener("click", () => switchView("library"));
 navSets.addEventListener("click",    () => switchView("sets"));
 navNotes.addEventListener("click",   () => switchView("notes"));
 
-// ── Global Notes save ─────────────────────────────────────────────────────────
-saveGlobalNotesBtn.addEventListener("click", async () => {
-  saveGlobalNotesBtn.disabled = true;
-  try {
-    await apiSaveGlobalNotes(globalNotesTextarea.value);
-    globalNotesStatus.textContent = "Saved!";
-    globalNotesStatus.className = "notes-status notes-saved";
-    setTimeout(() => { globalNotesStatus.textContent = ""; }, 2000);
-  } catch {
-    globalNotesStatus.textContent = "Failed to save.";
-    globalNotesStatus.className = "notes-status notes-error";
-  } finally {
-    saveGlobalNotesBtn.disabled = false;
-  }
+// ── New note document ─────────────────────────────────────────────────────────
+newDocBtn.addEventListener("click", async () => {
+  const doc = await apiCreateNoteDocument("Untitled");
+  _currentDocId = doc.id;
+  await loadNoteDocuments();
 });
 
 // ── Sets form ─────────────────────────────────────────────────────────────────
