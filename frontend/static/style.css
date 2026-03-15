@@ -505,24 +505,35 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 /* Note cursor highlight during playback */
 #sheet-music-render .abcjs-highlight path,
 #sheet-music-render .abcjs-highlight rect,
-#sheet-music-render .abcjs-highlight ellipse {
+#sheet-music-render .abcjs-highlight ellipse,
+#sheet-music-render path.abcjs-highlight,
+#sheet-music-render rect.abcjs-highlight,
+#sheet-music-render ellipse.abcjs-highlight {
   fill: var(--accent) !important;
 }
 
 /* Bar selection highlight for practice loop */
-#sheet-music-render { cursor: pointer; }
+/* color:#000 forces currentColor to black for ABCJS SVG elements */
+#sheet-music-render { cursor: pointer; color: #000000; }
+/* Handle both cases: class on an ancestor group OR on the element itself */
 #sheet-music-render .bar-selected path,
 #sheet-music-render .bar-selected rect,
-#sheet-music-render .bar-selected ellipse {
+#sheet-music-render .bar-selected ellipse,
+#sheet-music-render path.bar-selected,
+#sheet-music-render rect.bar-selected,
+#sheet-music-render ellipse.bar-selected {
   fill: var(--accent2) !important;
-  opacity: 0.85;
+  opacity: 1;
 }
-/* Pending start bar (waiting for end click) – lighter pulse */
+/* Pending start bar (waiting for end click) */
 #sheet-music-render .bar-sel-start path,
 #sheet-music-render .bar-sel-start rect,
-#sheet-music-render .bar-sel-start ellipse {
+#sheet-music-render .bar-sel-start ellipse,
+#sheet-music-render path.bar-sel-start,
+#sheet-music-render rect.bar-sel-start,
+#sheet-music-render ellipse.bar-sel-start {
   fill: var(--accent) !important;
-  opacity: 0.55;
+  opacity: 1;
 }
 
 /* Bar selection info strip */
