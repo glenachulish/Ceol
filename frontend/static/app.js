@@ -184,27 +184,6 @@ async function apiDeleteTune(id) {
   return fetch(`/api/tunes/${id}`, { method: "DELETE" }).then(r => r.json());
 }
 
-async function apiFluteflingBrowse() {
-  const res = await fetch("/api/flutefling/browse");
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || res.statusText);
-  }
-  return res.json();
-}
-
-async function apiFluteflingImport(url) {
-  const res = await fetch("/api/flutefling/import", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || res.statusText);
-  }
-  return res.json();
-}
 
 // ── View switching ────────────────────────────────────────────────────────────
 function switchView(view) {
@@ -446,15 +425,21 @@ function _handleBarClick(e) {
   const m = _measureFromEl(e.target);
   if (m === null) { _clearBarSel(); return; }
 
-  if (e.shiftKey && _barSel.start !== null) {
-    if (m < _barSel.start) {
-      _barSel = { start: m, end: _barSel.start };
-    } else {
-      _barSel.end = m;
+  const { start, end } = _barSel;
+
+  if (start === null) {
+    // Nothing selected yet → set start point
+    _barSel = { start: m, end: m };
+  } else if (start === end) {
+    // Start point chosen, waiting for end
+    if (m === start) {
+      // Clicked same bar → cancel
+      _clearBarSel(); return;
     }
-  } else if (_barSel.start === m && _barSel.end === m) {
-    _clearBarSel(); return;
+    // Different bar → complete the range
+    _barSel = { start: Math.min(start, m), end: Math.max(start, m) };
   } else {
+    // Range already set → start fresh with this bar as new start
     _barSel = { start: m, end: m };
   }
 
@@ -464,14 +449,14 @@ function _handleBarClick(e) {
 }
 
 function _updateBarHighlight() {
-  document.querySelectorAll("#sheet-music-render .bar-selected")
-    .forEach(el => el.classList.remove("bar-selected"));
+  document.querySelectorAll("#sheet-music-render .bar-selected, #sheet-music-render .bar-sel-start")
+    .forEach(el => el.classList.remove("bar-selected", "bar-sel-start"));
   if (_barSel.start === null) return;
-  const lo = Math.min(_barSel.start, _barSel.end);
-  const hi = Math.max(_barSel.start, _barSel.end);
-  for (let m = lo; m <= hi; m++) {
+
+  const isPending = _barSel.start === _barSel.end;
+  for (let m = _barSel.start; m <= _barSel.end; m++) {
     document.querySelectorAll(`#sheet-music-render .abcjs-m${m}`)
-      .forEach(el => el.classList.add("bar-selected"));
+      .forEach(el => el.classList.add(isPending ? "bar-sel-start" : "bar-selected"));
   }
 }
 
@@ -479,12 +464,19 @@ function _updateSelectionInfo() {
   const el = document.getElementById("bar-selection-info");
   if (!el) return;
   if (_barSel.start === null) { el.classList.add("hidden"); return; }
-  const lo = Math.min(_barSel.start, _barSel.end) + 1;
-  const hi = Math.max(_barSel.start, _barSel.end) + 1;
-  const label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
-  el.innerHTML = `<span>${label} selected &mdash; enable Loop &#8635; to repeat</span>`
-    + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
+
+  const isPending = _barSel.start === _barSel.end;
+  const lo = _barSel.start + 1;
+  const hi = _barSel.end + 1;
+
   el.classList.remove("hidden");
+  if (isPending) {
+    el.innerHTML = `<span>Bar ${lo} — now click another bar to set the end point</span>`
+      + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
+  } else {
+    el.innerHTML = `<span>Bars ${lo}–${hi} selected — enable Loop &#8635; to repeat</span>`
+      + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
+  }
   el.querySelector(".bar-sel-clear").addEventListener("click", _clearBarSel);
 }
 
@@ -504,7 +496,7 @@ function _clearBarSel() {
 
 function _applySelectionToPlayer() {
   if (_barSel.start === null) return;
-  _seekToBar(Math.min(_barSel.start, _barSel.end));
+  _seekToBar(_barSel.start);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -558,11 +550,10 @@ function renderSheetMusic(abc) {
             if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
           });
         }
-        // Bar selection loop: seek back when playback passes the selected range
+        // Bar selection loop: when playback passes the end bar, seek back to start
         if (_barSel.start !== null && ev && typeof ev.measureNumber === "number") {
-          const hi = Math.max(_barSel.start, _barSel.end);
-          if (ev.measureNumber > hi) {
-            _seekToBar(Math.min(_barSel.start, _barSel.end));
+          if (ev.measureNumber > _barSel.end) {
+            _seekToBar(_barSel.start);
           }
         }
       },
@@ -1156,82 +1147,101 @@ async function runSessionSearch() {
 sessionSearchBtn.addEventListener("click", runSessionSearch);
 sessionSearchInput.addEventListener("keydown", e => { if (e.key === "Enter") runSessionSearch(); });
 
-// ── FlutefFling.scot import ───────────────────────────────────────────────────
-const fluteflingBrowseBtn  = document.getElementById("flutefling-browse-btn");
-const fluteflingFileList   = document.getElementById("flutefling-file-list");
-const fluteflingUrlInput   = document.getElementById("flutefling-url-input");
-const fluteflingUrlBtn     = document.getElementById("flutefling-url-btn");
-const fluteflingUrlResult  = document.getElementById("flutefling-url-result");
+// ── FlutefFling.scot — section A: search TheSession.org by tune name ──────────
+const ffTsInput   = document.getElementById("ff-ts-input");
+const ffTsBtn     = document.getElementById("ff-ts-btn");
+const ffTsResults = document.getElementById("ff-ts-results");
 
-fluteflingBrowseBtn.addEventListener("click", async () => {
-  fluteflingFileList.innerHTML = '<p class="loading" style="padding:1rem 0">Fetching tune list…</p>';
-  fluteflingBrowseBtn.disabled = true;
+async function runFfTsSearch() {
+  const q = ffTsInput.value.trim();
+  if (!q) return;
+  ffTsResults.innerHTML = '<p class="loading" style="padding:1rem 0">Searching TheSession.org…</p>';
+  ffTsBtn.disabled = true;
   try {
-    const data = await apiFluteflingBrowse();
-    if (!data.files || !data.files.length) {
-      fluteflingFileList.innerHTML = '<p class="empty" style="padding:1rem 0">No ABC files found.</p>';
+    const data = await fetch(`/api/thesession/search?${new URLSearchParams({ q })}`).then(r => r.json());
+    if (!data.tunes || !data.tunes.length) {
+      ffTsResults.innerHTML = '<p class="empty" style="padding:1rem 0">No results found.</p>';
       return;
     }
-    fluteflingFileList.innerHTML = data.files.map(f => `
-      <div class="session-result-row">
+    ffTsResults.innerHTML = data.tunes.map(t => `
+      <div class="session-result-row" data-session-id="${t.id}">
         <div class="session-result-info">
-          <span class="session-result-name">${escHtml(f.title)}</span>
+          <span class="session-result-name">${escHtml(t.name)}</span>
+          <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
         </div>
-        <button class="btn-primary flutefling-import-btn" data-url="${escHtml(f.url)}">+ Import</button>
+        <button class="btn-primary ff-ts-import-btn" data-session-id="${t.id}">+ Import</button>
       </div>
     `).join("");
-    fluteflingFileList.querySelectorAll(".flutefling-import-btn").forEach(btn => {
-      btn.addEventListener("click", () => doFluteflingImport(btn.dataset.url, btn));
+    ffTsResults.querySelectorAll(".ff-ts-import-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "Importing…";
+        try {
+          const res = await fetch("/api/thesession/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tune_id: Number(btn.dataset.sessionId) }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            btn.textContent = data.status === "exists" ? "Already in library" : "Imported ✓";
+            btn.style.background = "var(--jig)";
+            await Promise.all([loadStats(), loadFilters()]);
+            if (state.view === "library") loadTunes();
+          } else {
+            btn.textContent = "Failed";
+            btn.disabled = false;
+          }
+        } catch { btn.textContent = "Error"; btn.disabled = false; }
+      });
     });
   } catch (err) {
-    fluteflingFileList.innerHTML = `<p class="empty" style="padding:1rem 0">Could not fetch file list: ${escHtml(err.message)}.<br>Use the URL field below instead.</p>`;
+    ffTsResults.innerHTML = '<p class="empty" style="padding:1rem 0">Could not reach TheSession.org.</p>';
   } finally {
-    fluteflingBrowseBtn.disabled = false;
+    ffTsBtn.disabled = false;
   }
-});
+}
+ffTsBtn.addEventListener("click", runFfTsSearch);
+ffTsInput.addEventListener("keydown", e => { if (e.key === "Enter") runFfTsSearch(); });
 
-fluteflingUrlBtn.addEventListener("click", async () => {
-  const url = fluteflingUrlInput.value.trim();
-  if (!url) { fluteflingUrlInput.focus(); return; }
-  await doFluteflingImport(url, fluteflingUrlBtn, fluteflingUrlResult);
-});
+// ── FlutefFling.scot — section B: save as audio/PDF reference ─────────────────
+const ffRefTitle  = document.getElementById("ff-ref-title");
+const ffRefUrl    = document.getElementById("ff-ref-url");
+const ffRefBtn    = document.getElementById("ff-ref-btn");
+const ffRefResult = document.getElementById("ff-ref-result");
 
-fluteflingUrlInput.addEventListener("keydown", e => {
-  if (e.key === "Enter") fluteflingUrlBtn.click();
-});
-
-async function doFluteflingImport(url, btn, resultEl) {
-  btn.disabled = true;
-  const origText = btn.textContent;
-  btn.textContent = "Importing…";
+ffRefBtn.addEventListener("click", async () => {
+  const title = ffRefTitle.value.trim();
+  const url   = ffRefUrl.value.trim();
+  if (!title) { ffRefTitle.focus(); return; }
+  ffRefBtn.disabled = true;
+  ffRefResult.classList.add("hidden");
   try {
-    const data = await apiFluteflingImport(url);
-    if (resultEl) {
-      resultEl.textContent = `Imported ${data.imported} tune${data.imported !== 1 ? "s" : ""}` +
-        (data.skipped ? ` (${data.skipped} skipped)` : "") + ".";
-      resultEl.className = "import-result import-success";
-      resultEl.classList.remove("hidden");
-    } else {
-      btn.textContent = `Imported ${data.imported} ✓`;
-      btn.style.background = "var(--jig)";
-      btn.disabled = true;
-      return;
-    }
+    const importDate = new Date().toISOString().slice(0, 10);
+    const notes = url
+      ? `Audio/sheet music: ${url}\n\nImported from FlutefFling.scot: ${importDate}`
+      : `Imported from FlutefFling.scot: ${importDate}`;
+    await fetch("/api/tunes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, notes }),
+    }).then(r => r.json());
+    ffRefResult.textContent = `"${title}" added to library.`;
+    ffRefResult.className = "import-result import-success";
+    ffRefResult.classList.remove("hidden");
+    ffRefTitle.value = "";
+    ffRefUrl.value = "";
     await Promise.all([loadStats(), loadFilters()]);
     if (state.view === "library") loadTunes();
   } catch (err) {
-    if (resultEl) {
-      resultEl.textContent = `Error: ${err.message}`;
-      resultEl.className = "import-result import-error";
-      resultEl.classList.remove("hidden");
-    } else {
-      btn.textContent = "Failed";
-      btn.style.color = "var(--danger)";
-    }
-    btn.disabled = false;
-    btn.textContent = origText;
+    ffRefResult.textContent = `Error: ${err.message}`;
+    ffRefResult.className = "import-result import-error";
+    ffRefResult.classList.remove("hidden");
+  } finally {
+    ffRefBtn.disabled = false;
   }
-}
+});
+ffRefTitle.addEventListener("keydown", e => { if (e.key === "Enter") ffRefBtn.click(); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {

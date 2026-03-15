@@ -483,6 +483,13 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   fill: var(--accent2) !important;
   opacity: 0.85;
 }
+/* Pending start bar (waiting for end click) – lighter pulse */
+#sheet-music-render .bar-sel-start path,
+#sheet-music-render .bar-sel-start rect,
+#sheet-music-render .bar-sel-start ellipse {
+  fill: var(--accent) !important;
+  opacity: 0.55;
+}
 
 /* Bar selection info strip */
 .bar-selection-info {
@@ -643,6 +650,37 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .session-result-info { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; flex: 1; min-width: 0; }
 .session-result-name { font-weight: 600; font-size: .9rem; }
 .session-result-meta { font-size: .75rem; color: var(--text-muted); }
+
+/* ── FlutefFling tab sections ─────────────────────────────── */
+.flutefling-section {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.flutefling-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.flutefling-section-title {
+  font-size: .85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  margin: 0 0 .5rem;
+}
+.flutefling-ref-form {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.flutefling-ref-form input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .5rem .75rem;
+  color: var(--text);
+  font-size: .9rem;
+  outline: none;
+}
+.flutefling-ref-form input:focus { border-color: var(--accent); }
 
 /* ── Notes view layout ────────────────────────────────────── */
 .notes-layout {

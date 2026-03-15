@@ -147,21 +147,32 @@
       <!-- FlutefFling.scot tab -->
       <div id="import-tab-flutefling" class="tab-panel hidden">
         <p class="import-desc">
-          Import ABC tunes from
-          <a href="https://flutefling.scot/resources/flutefling-session-tunes/" target="_blank" rel="noopener">FlutefFling.scot</a>.
-          Click <strong>Browse</strong> to fetch the tune file list, or paste a direct link to any <code>.abc</code> / <code>.txt</code> file.
+          <a href="https://flutefling.scot/resources/flutefling-session-tunes/" target="_blank" rel="noopener">FlutefFling.scot</a>
+          presents tunes as <strong>PDF sheet music</strong> and <strong>MP3 recordings</strong>.
+          Use the options below to add them to your library.
         </p>
-        <div class="flutefling-browse-row">
-          <button id="flutefling-browse-btn" class="btn-primary">Browse Tune Files</button>
-        </div>
-        <div id="flutefling-file-list" class="session-results"></div>
-        <div class="flutefling-url-section">
-          <p class="import-desc" style="margin-top:.75rem">Or paste a direct ABC file URL:</p>
+
+        <!-- Option A: find ABC via TheSession.org -->
+        <div class="flutefling-section">
+          <h4 class="flutefling-section-title">Import ABC notation via TheSession.org</h4>
+          <p class="import-desc">Browse FlutefFling, note a tune name, then search here to import its ABC notation:</p>
           <div class="session-search-row">
-            <input id="flutefling-url-input" type="url" placeholder="https://flutefling.scot/…" autocomplete="off" />
-            <button id="flutefling-url-btn" class="btn-primary">Import</button>
+            <input id="ff-ts-input" type="text" placeholder="Tune name…" autocomplete="off" />
+            <button id="ff-ts-btn" class="btn-primary">Search</button>
           </div>
-          <div id="flutefling-url-result" class="import-result hidden"></div>
+          <div id="ff-ts-results" class="session-results"></div>
+        </div>
+
+        <!-- Option B: save as audio reference -->
+        <div class="flutefling-section">
+          <h4 class="flutefling-section-title">Save as audio / sheet music reference</h4>
+          <p class="import-desc">Paste an MP3 or PDF URL from FlutefFling to create a catalogue entry with a listening link saved in its notes:</p>
+          <div class="flutefling-ref-form">
+            <input id="ff-ref-title" type="text" placeholder="Tune title (required)" />
+            <input id="ff-ref-url" type="url" placeholder="MP3 or PDF URL from FlutefFling…" />
+            <button id="ff-ref-btn" class="btn-primary">Add to Library</button>
+          </div>
+          <div id="ff-ref-result" class="import-result hidden"></div>
         </div>
       </div>
     </div>
