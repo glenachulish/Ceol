@@ -434,13 +434,42 @@ let _visualObj = null;
 let _synthController = null;
 let _msPerMeasure = null;
 let _barSel = { start: null, end: null };
+// Ordered map of every bar: [{line, measure}, …] sorted by line then measure.
+// ABCJS resets abcjs-mN per staff line, so we need (line, measure) as a pair.
+let _barMap = [];
+
+// Build the bar map by scanning the rendered SVG for unique (line, measure) pairs.
+function _buildBarMap() {
+  const render = document.getElementById("sheet-music-render");
+  if (!render) return [];
+  const seen = new Map(); // "L-M" → {line, measure}
+  for (const el of render.querySelectorAll("[class]")) {
+    let line = null, measure = null;
+    for (const cls of el.classList) {
+      const lm = cls.match(/^abcjs-l(\d+)$/);
+      const mm = cls.match(/^abcjs-m(\d+)$/);
+      if (lm) line = parseInt(lm[1], 10);
+      if (mm) measure = parseInt(mm[1], 10);
+    }
+    if (line !== null && measure !== null) {
+      const key = `${line}-${measure}`;
+      if (!seen.has(key)) seen.set(key, { line, measure });
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.line !== b.line ? a.line - b.line : a.measure - b.measure);
+}
 
 // Called by ABCJS clickListener – classes is a space-separated string
-// e.g. "abcjs-note abcjs-m3 abcjs-l0 abcjs-n2"
+// e.g. "abcjs-note abcjs-m3 abcjs-l1 abcjs-n2"
 function _barClickListener(abcElem, tuneNumber, classes) {
-  const match = (classes || "").match(/\babcjs-m(\d+)\b/);
-  if (!match) return; // clicked on non-note area
-  _onMeasureClicked(parseInt(match[1], 10));
+  const lm = (classes || "").match(/\babcjs-l(\d+)\b/);
+  const mm = (classes || "").match(/\babcjs-m(\d+)\b/);
+  if (!lm || !mm) return;
+  const line = parseInt(lm[1], 10);
+  const measure = parseInt(mm[1], 10);
+  const idx = _barMap.findIndex(b => b.line === line && b.measure === measure);
+  if (idx === -1) return;
+  _onMeasureClicked(idx);
 }
 
 function _onMeasureClicked(m) {
@@ -471,9 +500,13 @@ function _updateBarHighlight() {
   if (_barSel.start === null) return;
 
   const isPending = _barSel.start === _barSel.end;
-  for (let m = _barSel.start; m <= _barSel.end; m++) {
-    document.querySelectorAll(`#sheet-music-render .abcjs-m${m}`)
-      .forEach(el => el.classList.add(isPending ? "bar-sel-start" : "bar-selected"));
+  const cls = isPending ? "bar-sel-start" : "bar-selected";
+  for (let i = _barSel.start; i <= _barSel.end; i++) {
+    if (i >= _barMap.length) break;
+    const { line, measure } = _barMap[i];
+    // Use the compound selector so only this specific bar on this specific line is highlighted
+    document.querySelectorAll(`#sheet-music-render .abcjs-l${line}.abcjs-m${measure}`)
+      .forEach(el => el.classList.add(cls));
   }
 }
 
@@ -523,6 +556,7 @@ function renderSheetMusic(abc) {
 
   // Reset bar selection state for new tune
   _barSel = { start: null, end: null };
+  _barMap = [];
   _visualObj = null;
   _synthController = null;
   _msPerMeasure = null;
@@ -547,6 +581,7 @@ function renderSheetMusic(abc) {
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
       ? _visualObj.millisecondsPerMeasure()
       : null;
+    _barMap = _buildBarMap();
 
     if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) {
       const el = document.getElementById("audio-unavailable");
@@ -564,9 +599,11 @@ function renderSheetMusic(abc) {
             if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
           });
         }
-        // Bar selection loop: when playback passes the end bar, seek back to start
-        if (_barSel.start !== null && ev && typeof ev.measureNumber === "number") {
-          if (ev.measureNumber > _barSel.end) {
+        // Bar selection loop: when playback passes the end bar, seek back to start.
+        // ev.measureNumber is line-local, so convert (ev.line, ev.measureNumber) → global index.
+        if (_barSel.start !== null && ev && ev.measureStart) {
+          const evIdx = _barMap.findIndex(b => b.line === ev.line && b.measure === ev.measureNumber);
+          if (evIdx !== -1 && evIdx > _barSel.end) {
             _seekToBar(_barSel.start);
           }
         }
