@@ -453,6 +453,31 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   fill: var(--accent) !important;
 }
 
+/* Bar selection highlight for practice loop */
+#sheet-music-render { cursor: pointer; }
+#sheet-music-render .bar-selected path,
+#sheet-music-render .bar-selected rect,
+#sheet-music-render .bar-selected ellipse {
+  fill: var(--accent2) !important;
+  opacity: 0.85;
+}
+
+/* Bar selection info strip */
+.bar-selection-info {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-top: .5rem;
+  padding: .4rem .65rem;
+  background: color-mix(in srgb, var(--accent2) 12%, var(--surface2));
+  border: 1px solid color-mix(in srgb, var(--accent2) 40%, var(--border));
+  border-radius: var(--radius);
+  font-size: .82rem;
+  color: var(--accent2);
+}
+.bar-selection-info span { flex: 1; }
+.bar-sel-clear { padding: .15rem .55rem !important; font-size: .78rem !important; }
+
 /* abcjs inline player overrides */
 .abcjs-inline-audio {
   background: var(--surface2) !important;

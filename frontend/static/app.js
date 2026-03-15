@@ -308,6 +308,7 @@ function renderModal(tune) {
         <div id="sheet-music-render"></div>
       </div>
       <div id="audio-player-container" class="audio-player-wrap"></div>
+      <div id="bar-selection-info" class="bar-selection-info hidden"></div>
       <p id="audio-unavailable" class="audio-unavailable hidden">
         Audio playback is not supported in this browser.
       </p>
@@ -386,9 +387,99 @@ function renderModal(tune) {
   requestAnimationFrame(() => renderSheetMusic(tune.abc));
 }
 
+// ── Bar-range selection (practice loop) ──────────────────────────────────────
+let _visualObj = null;
+let _synthController = null;
+let _msPerMeasure = null;
+let _barSel = { start: null, end: null };
+
+function _measureFromEl(el) {
+  const root = document.getElementById("sheet-music-render");
+  while (el && el !== root) {
+    for (const cls of el.classList) {
+      if (/^abcjs-m\d+$/.test(cls)) return parseInt(cls.slice(7), 10);
+    }
+    el = el.parentElement;
+  }
+  return null;
+}
+
+function _handleBarClick(e) {
+  const m = _measureFromEl(e.target);
+  if (m === null) { _clearBarSel(); return; }
+
+  if (e.shiftKey && _barSel.start !== null) {
+    if (m < _barSel.start) {
+      _barSel = { start: m, end: _barSel.start };
+    } else {
+      _barSel.end = m;
+    }
+  } else if (_barSel.start === m && _barSel.end === m) {
+    _clearBarSel(); return;
+  } else {
+    _barSel = { start: m, end: m };
+  }
+
+  _updateBarHighlight();
+  _updateSelectionInfo();
+  _applySelectionToPlayer();
+}
+
+function _updateBarHighlight() {
+  document.querySelectorAll("#sheet-music-render .bar-selected")
+    .forEach(el => el.classList.remove("bar-selected"));
+  if (_barSel.start === null) return;
+  const lo = Math.min(_barSel.start, _barSel.end);
+  const hi = Math.max(_barSel.start, _barSel.end);
+  for (let m = lo; m <= hi; m++) {
+    document.querySelectorAll(`#sheet-music-render .abcjs-m${m}`)
+      .forEach(el => el.classList.add("bar-selected"));
+  }
+}
+
+function _updateSelectionInfo() {
+  const el = document.getElementById("bar-selection-info");
+  if (!el) return;
+  if (_barSel.start === null) { el.classList.add("hidden"); return; }
+  const lo = Math.min(_barSel.start, _barSel.end) + 1;
+  const hi = Math.max(_barSel.start, _barSel.end) + 1;
+  const label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
+  el.innerHTML = `<span>${label} selected &mdash; enable Loop &#8635; to repeat</span>`
+    + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
+  el.classList.remove("hidden");
+  el.querySelector(".bar-sel-clear").addEventListener("click", _clearBarSel);
+}
+
+function _clearBarSel() {
+  _barSel = { start: null, end: null };
+  _updateBarHighlight();
+  _updateSelectionInfo();
+  if (_synthController && _visualObj) {
+    _synthController.setTune(_visualObj, false).catch(() => {});
+  }
+}
+
+function _applySelectionToPlayer() {
+  if (!_synthController || !_visualObj || !_msPerMeasure) return;
+  const lo = Math.min(_barSel.start, _barSel.end);
+  const hi = Math.max(_barSel.start, _barSel.end);
+  const startMs = lo * _msPerMeasure;
+  const endMs = (hi + 1) * _msPerMeasure;
+  _synthController.setTune(_visualObj, false, { startMs, endMs }).catch(() => {});
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function renderSheetMusic(abc) {
   const container = document.getElementById("sheet-music-render");
   if (!container || typeof ABCJS === "undefined") return;
+
+  // Reset bar selection state for new tune
+  _barSel = { start: null, end: null };
+  _visualObj = null;
+  _synthController = null;
+  _msPerMeasure = null;
+  const infoEl = document.getElementById("bar-selection-info");
+  if (infoEl) infoEl.classList.add("hidden");
 
   try {
     const visualObjs = ABCJS.renderAbc("sheet-music-render", abc, {
@@ -399,6 +490,15 @@ function renderSheetMusic(abc) {
       paddingright: 15,
       paddingtop: 10,
     });
+
+    _visualObj = visualObjs[0];
+    _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
+      ? _visualObj.millisecondsPerMeasure()
+      : null;
+
+    // Set up bar-click listener (remove first to avoid duplicates)
+    container.removeEventListener("click", _handleBarClick);
+    container.addEventListener("click", _handleBarClick);
 
     if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) {
       const el = document.getElementById("audio-unavailable");
@@ -423,8 +523,8 @@ function renderSheetMusic(abc) {
       },
     };
 
-    const synthController = new ABCJS.synth.SynthController();
-    synthController.load("#audio-player-container", cursorControl, {
+    _synthController = new ABCJS.synth.SynthController();
+    _synthController.load("#audio-player-container", cursorControl, {
       displayLoop: true,
       displayRestart: true,
       displayPlay: true,
@@ -432,7 +532,7 @@ function renderSheetMusic(abc) {
       displayWarp: true,
     });
 
-    synthController.setTune(visualObjs[0], false).catch(err => {
+    _synthController.setTune(_visualObj, false).catch(err => {
       console.warn("Audio init failed:", err);
     });
   } catch (err) {
