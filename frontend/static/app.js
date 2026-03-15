@@ -459,14 +459,17 @@ function _buildBarMap() {
   return [...seen.values()].sort((a, b) => a.line !== b.line ? a.line - b.line : a.measure - b.measure);
 }
 
-// Called by ABCJS clickListener – classes is a space-separated string
-// e.g. "abcjs-note abcjs-m3 abcjs-l1 abcjs-n2"
-function _barClickListener(abcElem, tuneNumber, classes) {
-  const lm = (classes || "").match(/\babcjs-l(\d+)\b/);
-  const mm = (classes || "").match(/\babcjs-m(\d+)\b/);
-  if (!lm || !mm) return;
-  const line = parseInt(lm[1], 10);
-  const measure = parseInt(mm[1], 10);
+// Called by ABCJS clickListener.
+// 'analysis' (4th param) is an object ABCJS builds from the elemset classes:
+//   { line: N, measure: M, voice: V, … }  — already parsed integers.
+function _barClickListener(abcElem, tuneNumber, classes, analysis) {
+  if (!analysis || analysis.line === undefined || analysis.measure === undefined) return;
+  const line    = analysis.line;
+  const measure = analysis.measure;
+  // Build the map lazily on first click — by this point any responsive
+  // re-renders triggered by ResizeObserver have already happened, so we
+  // read the final DOM layout rather than a potentially stale initial render.
+  if (_barMap.length === 0) _barMap = _buildBarMap();
   const idx = _barMap.findIndex(b => b.line === line && b.measure === measure);
   if (idx === -1) return;
   _onMeasureClicked(idx);
@@ -581,7 +584,7 @@ function renderSheetMusic(abc) {
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
       ? _visualObj.millisecondsPerMeasure()
       : null;
-    _barMap = _buildBarMap();
+    // _barMap is built lazily on first click, after any responsive re-render.
 
     if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) {
       const el = document.getElementById("audio-unavailable");
