@@ -16,6 +16,7 @@
       <nav class="header-nav">
         <button id="nav-library" class="nav-btn active">Library</button>
         <button id="nav-sets" class="nav-btn">Sets</button>
+        <button id="nav-notes" class="nav-btn">Notes</button>
       </nav>
       <div class="header-actions">
         <button id="import-btn" class="btn-secondary">Import</button>
@@ -51,6 +52,18 @@
         <p class="loading">Loading tunes…</p>
       </section>
       <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- ── Notes view ── -->
+    <div id="view-notes" class="hidden">
+      <div class="view-header">
+        <h2 class="section-title">Notes</h2>
+        <button id="save-global-notes-btn" class="btn-primary">Save</button>
+      </div>
+      <p class="notes-view-desc">A space for general session notes, tips, tune observations — anything you like.</p>
+      <textarea id="global-notes-textarea" class="notes-textarea notes-textarea-global"
+        placeholder="Write your notes here…"></textarea>
+      <span id="global-notes-status" class="notes-status"></span>
     </div>
 
     <!-- ── Sets view ── -->
@@ -120,7 +133,7 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.4/dist/abcjs-basic-min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.4/dist/abcjs-min.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

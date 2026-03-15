@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS tunes (
     mode        TEXT,
     abc         TEXT NOT NULL,
     notes       TEXT,
+    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -76,6 +77,12 @@ CREATE TABLE IF NOT EXISTS session_cache (
     recordings  JSON,
     fetched_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- App-wide key/value settings (e.g. global notes)
+CREATE TABLE IF NOT EXISTS app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+);
 """
 
 
@@ -87,10 +94,21 @@ def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Apply incremental migrations for existing databases."""
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(tunes)").fetchall()}
+    if "imported_at" not in existing_cols:
+        conn.execute(
+            "ALTER TABLE tunes ADD COLUMN imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        )
+        conn.execute("UPDATE tunes SET imported_at = created_at WHERE imported_at IS NULL")
+
+
 def init_db(db_path: Path = DB_PATH) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with get_connection(db_path) as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
     print(f"Database initialised at {db_path}")
 
 

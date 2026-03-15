@@ -183,6 +183,34 @@ def get_stats():
 
 
 # ---------------------------------------------------------------------------
+# Global Notes endpoint
+# ---------------------------------------------------------------------------
+
+class GlobalNotesUpdate(BaseModel):
+    notes: str = ""
+
+
+@app.get("/api/notes")
+def get_global_notes():
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key = 'global_notes'"
+        ).fetchone()
+    return {"notes": row["value"] if row else ""}
+
+
+@app.patch("/api/notes")
+def update_global_notes(body: GlobalNotesUpdate):
+    with _db() as conn:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('global_notes', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (body.notes,),
+        )
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # Sets endpoints
 # ---------------------------------------------------------------------------
 

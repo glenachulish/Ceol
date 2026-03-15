@@ -375,8 +375,13 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .modal-aliases {
   font-size: .82rem;
   color: var(--text-muted);
-  margin-bottom: .75rem;
+  margin-bottom: .35rem;
   font-style: italic;
+}
+.modal-imported {
+  font-size: .78rem;
+  color: var(--text-muted);
+  margin-bottom: .75rem;
 }
 .modal-abc-label {
   font-size: .75rem;
@@ -439,6 +444,13 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   font-size: .82rem;
   font-style: italic;
   margin-top: .5rem;
+}
+
+/* Note cursor highlight during playback */
+#sheet-music-render .abcjs-highlight path,
+#sheet-music-render .abcjs-highlight rect,
+#sheet-music-render .abcjs-highlight ellipse {
+  fill: var(--accent) !important;
 }
 
 /* abcjs inline player overrides */
@@ -584,6 +596,19 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .session-result-info { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; flex: 1; min-width: 0; }
 .session-result-name { font-weight: 600; font-size: .9rem; }
 .session-result-meta { font-size: .75rem; color: var(--text-muted); }
+
+/* ── Global Notes view ────────────────────────────────────── */
+.notes-view-desc {
+  color: var(--text-muted);
+  font-size: .88rem;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+.notes-textarea-global {
+  min-height: 420px;
+  width: 100%;
+  display: block;
+}
 
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 600px) {

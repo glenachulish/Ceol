@@ -44,6 +44,11 @@ const newSetNotes   = document.getElementById("new-set-notes");
 const createSetBtn  = document.getElementById("create-set-btn");
 const cancelSetBtn  = document.getElementById("cancel-set-btn");
 const setsList      = document.getElementById("sets-list");
+const viewNotes     = document.getElementById("view-notes");
+const navNotes      = document.getElementById("nav-notes");
+const globalNotesTextarea = document.getElementById("global-notes-textarea");
+const saveGlobalNotesBtn  = document.getElementById("save-global-notes-btn");
+const globalNotesStatus   = document.getElementById("global-notes-status");
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 function debounce(fn, ms) {
@@ -134,20 +139,39 @@ async function apiSaveNotes(tuneId, notes) {
   }).then(r => r.json());
 }
 
+async function fetchGlobalNotes() {
+  return fetch("/api/notes").then(r => r.json());
+}
+
+async function apiSaveGlobalNotes(notes) {
+  return fetch("/api/notes", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notes }),
+  }).then(r => r.json());
+}
+
 // ── View switching ────────────────────────────────────────────────────────────
 function switchView(view) {
   state.view = view;
+  viewLibrary.classList.add("hidden");
+  viewSets.classList.add("hidden");
+  viewNotes.classList.add("hidden");
+  navLibrary.classList.remove("active");
+  navSets.classList.remove("active");
+  navNotes.classList.remove("active");
+
   if (view === "library") {
     viewLibrary.classList.remove("hidden");
-    viewSets.classList.add("hidden");
     navLibrary.classList.add("active");
-    navSets.classList.remove("active");
-  } else {
-    viewLibrary.classList.add("hidden");
+  } else if (view === "sets") {
     viewSets.classList.remove("hidden");
-    navLibrary.classList.remove("active");
     navSets.classList.add("active");
     loadSets();
+  } else if (view === "notes") {
+    viewNotes.classList.remove("hidden");
+    navNotes.classList.add("active");
+    loadGlobalNotes();
   }
 }
 
@@ -216,6 +240,9 @@ function renderModal(tune) {
   const aliasLine = tune.aliases && tune.aliases.length
     ? `<p class="modal-aliases">Also known as: ${tune.aliases.map(escHtml).join(", ")}</p>`
     : "";
+  const importedLine = tune.imported_at
+    ? `<p class="modal-imported">Imported: ${new Date(tune.imported_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</p>`
+    : "";
   const tagLine = tune.tags && tune.tags.length
     ? `<div class="modal-meta">${tune.tags.map(g => `<span class="badge badge-other">${escHtml(g)}</span>`).join("")}</div>`
     : "";
@@ -238,6 +265,7 @@ function renderModal(tune) {
     <h2 class="modal-title">${escHtml(tune.title)}</h2>
     <div class="modal-meta">${typeBadge}${keyBadge}</div>
     ${aliasLine}
+    ${importedLine}
     ${tagLine}
 
     <div class="modal-tabs">
@@ -343,28 +371,45 @@ function renderSheetMusic(abc) {
       paddingtop: 10,
     });
 
-    if (ABCJS.synth.supportsAudio()) {
-      const synthController = new ABCJS.synth.SynthController();
-      synthController.load("#audio-player-container", null, {
-        displayLoop: true,
-        displayRestart: true,
-        displayPlay: true,
-        displayProgress: true,
-        displayWarp: false,
-      });
-      const midiBuffer = new ABCJS.synth.CreateSynth();
-      midiBuffer
-        .init({ visualObj: visualObjs[0] })
-        .then(() => synthController.setTune(visualObjs[0], false))
-        .catch(err => {
-          console.warn("Audio init failed:", err);
-          const el = document.getElementById("audio-unavailable");
-          if (el) el.classList.remove("hidden");
-        });
-    } else {
+    if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) {
       const el = document.getElementById("audio-unavailable");
       if (el) el.classList.remove("hidden");
+      return;
     }
+
+    // Cursor control: highlights the current note during playback
+    const cursorControl = {
+      onEvent(ev) {
+        document.querySelectorAll("#sheet-music-render .abcjs-highlight")
+          .forEach(el => el.classList.remove("abcjs-highlight"));
+        if (ev && ev.elements) {
+          ev.elements.forEach(grp => {
+            if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
+          });
+        }
+      },
+      onFinished() {
+        document.querySelectorAll("#sheet-music-render .abcjs-highlight")
+          .forEach(el => el.classList.remove("abcjs-highlight"));
+      },
+    };
+
+    const synthController = new ABCJS.synth.SynthController();
+    synthController.load("#audio-player-container", cursorControl, {
+      displayLoop: true,
+      displayRestart: true,
+      displayPlay: true,
+      displayProgress: true,
+      displayWarp: true,   // enables tempo slider (slow down / speed up)
+    });
+
+    synthController
+      .setTune(visualObjs[0], false, {})
+      .catch(err => {
+        console.warn("Audio init failed:", err);
+        const el = document.getElementById("audio-unavailable");
+        if (el) el.classList.remove("hidden");
+      });
   } catch (err) {
     console.warn("Sheet music render failed:", err);
     if (container) container.textContent = "(Could not render sheet music)";
@@ -513,6 +558,15 @@ async function loadSets() {
   }
 }
 
+async function loadGlobalNotes() {
+  try {
+    const { notes } = await fetchGlobalNotes();
+    globalNotesTextarea.value = notes || "";
+  } catch (err) {
+    console.error("Failed to load notes:", err);
+  }
+}
+
 // ── Event handlers ────────────────────────────────────────────────────────────
 const debouncedLoad = debounce(() => { state.page = 1; loadTunes(); }, 280);
 
@@ -564,6 +618,23 @@ function closeModal() {
 // ── Nav ───────────────────────────────────────────────────────────────────────
 navLibrary.addEventListener("click", () => switchView("library"));
 navSets.addEventListener("click",    () => switchView("sets"));
+navNotes.addEventListener("click",   () => switchView("notes"));
+
+// ── Global Notes save ─────────────────────────────────────────────────────────
+saveGlobalNotesBtn.addEventListener("click", async () => {
+  saveGlobalNotesBtn.disabled = true;
+  try {
+    await apiSaveGlobalNotes(globalNotesTextarea.value);
+    globalNotesStatus.textContent = "Saved!";
+    globalNotesStatus.className = "notes-status notes-saved";
+    setTimeout(() => { globalNotesStatus.textContent = ""; }, 2000);
+  } catch {
+    globalNotesStatus.textContent = "Failed to save.";
+    globalNotesStatus.className = "notes-status notes-error";
+  } finally {
+    saveGlobalNotesBtn.disabled = false;
+  }
+});
 
 // ── Sets form ─────────────────────────────────────────────────────────────────
 newSetBtn.addEventListener("click", () => {
