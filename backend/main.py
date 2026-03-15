@@ -856,6 +856,90 @@ async def flutefling_fetch_abc(url: str = Query(...)):
     }
 
 
+_FF_TUNES_CACHE: tuple[float, list] | None = None
+
+
+@app.get("/api/flutefling/all-tunes")
+async def flutefling_all_tunes(refresh: bool = False):
+    """
+    Scrape the FlutefFling archive and return every individual tune as a flat list.
+    Results are cached for 1 hour.
+    """
+    global _FF_TUNES_CACHE
+
+    now = _time.time()
+    if not refresh and _FF_TUNES_CACHE and now - _FF_TUNES_CACHE[0] < _FF_CACHE_TTL:
+        return {"tunes": _FF_TUNES_CACHE[1], "cached": True}
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        # Step 1: build the set catalogue (reuses catalogue logic)
+        index_html = await _ff_get(_FF_ARCHIVE_ROOT, client)
+        if not index_html:
+            raise HTTPException(502, "Could not reach flutefling.scot — check network access")
+
+        idx_parser = _LinkParser()
+        idx_parser.feed(index_html)
+
+        subpage_urls: list[str] = [
+            lk["href"] for lk in idx_parser.results
+            if lk["href"].startswith(_FF_ARCHIVE_ROOT)
+            and lk["href"].rstrip("/") != _FF_ARCHIVE_ROOT.rstrip("/")
+        ]
+        subpage_urls.append(f"{_FF_BASE}/tag/ne-session-tunes/")
+        seen_sp: set[str] = set()
+        subpage_urls = [u for u in subpage_urls if not (u in seen_sp or seen_sp.add(u))]  # type: ignore[func-returns-value]
+
+        all_sets: list[dict] = _extract_abc_sets(index_html, _FF_ARCHIVE_ROOT)
+        for page_url in subpage_urls:
+            html = await _ff_get(page_url, client)
+            if not html:
+                continue
+            page_sets = _extract_abc_sets(html, page_url)
+            if not page_sets:
+                tag_parser = _LinkParser()
+                tag_parser.feed(html)
+                post_urls = [
+                    lk["href"] for lk in tag_parser.results
+                    if re.match(r"https://flutefling\.scot/\d{4}/\d{2}/", lk["href"])
+                ]
+                for post_url in post_urls[:20]:
+                    post_html = await _ff_get(post_url, client)
+                    if post_html:
+                        page_sets.extend(_extract_abc_sets(post_html, post_url))
+            all_sets.extend(page_sets)
+
+        seen_abc: set[str] = set()
+        unique_sets = [s for s in all_sets if not (s["abc_url"] in seen_abc or seen_abc.add(s["abc_url"]))]  # type: ignore[func-returns-value]
+
+        # Step 2: fetch all ABC files in parallel and parse into individual tunes
+        async def _fetch_set_tunes(s: dict) -> list[dict]:
+            html = await _ff_get(s["abc_url"], client)
+            if not html:
+                return []
+            return [
+                {
+                    "title": t.title,
+                    "type": t.type,
+                    "key": t.key,
+                    "mode": t.mode,
+                    "abc": t.abc,
+                    "set_label": s["label"],
+                    "abc_url": s["abc_url"],
+                }
+                for t in parse_abc_string(html)
+            ]
+
+        import asyncio as _asyncio
+        results = await _asyncio.gather(*[_fetch_set_tunes(s) for s in unique_sets])
+
+    all_tunes: list[dict] = []
+    for chunk in results:
+        all_tunes.extend(chunk)
+
+    _FF_TUNES_CACHE = (now, all_tunes)
+    return {"tunes": all_tunes, "cached": False}
+
+
 # ---------------------------------------------------------------------------
 # Serve the frontend SPA
 # ---------------------------------------------------------------------------

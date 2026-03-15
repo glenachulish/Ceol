@@ -684,8 +684,10 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   margin-bottom: .75rem;
 }
 .ff-cat-search {
-  flex: 1;
-  min-width: 140px;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: .5rem;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -716,14 +718,17 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .ff-cat-tune-row {
   display: flex;
   align-items: center;
-  gap: .4rem;
-  flex-wrap: wrap;
-  padding: .25rem 0;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .35rem 0;
   border-bottom: 1px solid var(--border);
 }
 .ff-cat-tune-row:last-child { border-bottom: none; }
-.ff-cat-tune-title { flex: 1; font-size: .88rem; min-width: 0; }
-.ff-cat-tune-key { font-size: .78rem; color: var(--text-muted); }
+.ff-cat-tune-info { display: flex; flex-direction: column; gap: .15rem; flex: 1; min-width: 0; }
+.ff-cat-tune-title { font-size: .9rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ff-cat-tune-meta { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.ff-cat-tune-key { font-size: .75rem; color: var(--text-muted); }
+.ff-cat-tune-source { font-size: .75rem; color: var(--text-muted); font-style: italic; }
 .ff-cat-empty { font-size: .85rem; color: var(--text-muted); padding: .3rem 0; margin: 0; }
 .btn-sm { padding: .25rem .55rem; font-size: .78rem; }
 .btn-ghost {
