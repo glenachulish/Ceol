@@ -472,27 +472,18 @@ let _barSel = { start: null, end: null };
 // ABCJS resets abcjs-mN per staff line, so we need (line, measure) as a pair.
 let _barMap = [];
 
-// Build the bar map: each entry is { staffLine, measure } where staffLine is
-// the visual staff line index from the abcjs-staff-wrapper group, and measure
-// is the per-line bar number.  Using the wrapper as anchor is critical because
-// abcjs-lN on individual note elements encodes the VOICE number (always 0 for
-// monophonic tunes), NOT the visual line — so abcjs-l0.abcjs-m0 would match
-// bar 0 on every visual staff line without this scoping.
+// Build the bar map.  Each entry stores a direct reference to the wrapper
+// DOM element so that highlight queries are scoped to that exact element —
+// avoiding the abcjs-lN ambiguity (all monophonic wrappers share abcjs-l0
+// because lN encodes voice number, not visual line number).
 function _buildBarMap() {
   const render = document.getElementById("sheet-music-render");
   if (!render) return [];
 
   const result = [];
-  const wrappers = render.querySelectorAll(".abcjs-staff-wrapper");
+  const wrappers = Array.from(render.querySelectorAll(".abcjs-staff-wrapper"));
 
   for (const wrapper of wrappers) {
-    let staffLine = null;
-    for (const cls of wrapper.classList) {
-      const m = cls.match(/^abcjs-l(\d+)$/);
-      if (m) { staffLine = parseInt(m[1], 10); break; }
-    }
-    if (staffLine === null) continue;
-
     const seenMeasures = new Set();
     for (const el of wrapper.querySelectorAll("[class]")) {
       for (const cls of el.classList) {
@@ -501,41 +492,21 @@ function _buildBarMap() {
       }
     }
     for (const measure of [...seenMeasures].sort((a, b) => a - b)) {
-      result.push({ staffLine, measure });
+      result.push({ wrapper, measure });
     }
   }
 
-  // Fallback if no staff-wrapper elements found.
-  if (!result.length) {
-    const seen = new Map();
-    for (const el of render.querySelectorAll("[class]")) {
-      let staffLine = null, measure = null;
-      for (const cls of el.classList) {
-        const lm = cls.match(/^abcjs-l(\d+)$/);
-        const mm = cls.match(/^abcjs-m(\d+)$/);
-        if (lm) staffLine = parseInt(lm[1], 10);
-        if (mm) measure  = parseInt(mm[1], 10);
-      }
-      if (staffLine !== null && measure !== null) {
-        const key = `${staffLine}-${measure}`;
-        if (!seen.has(key)) seen.set(key, { staffLine, measure });
-      }
-    }
-    result.push(...[...seen.values()].sort((a, b) =>
-      a.staffLine !== b.staffLine ? a.staffLine - b.staffLine : a.measure - b.measure));
-  }
-
-  console.log("[barMap] built", result.length, "bars:", result);
+  console.log("[barMap] built", result.length, "bars");
   return result;
 }
 
-// Direct DOM click handler: find which (staffLine, measure) was clicked by
-// walking up to an element with abcjs-mN, then finding the abcjs-staff-wrapper
-// ancestor for the staffLine index.
+// Direct DOM click handler: identify the bar by finding the abcjs-mN class
+// and the specific abcjs-staff-wrapper DOM element, then look both up in the
+// bar map by object identity (not class name).
 function _sheetMusicClickHandler(e) {
   const container = document.getElementById("sheet-music-render");
 
-  // Walk up to find abcjs-mN on the clicked element or an ancestor.
+  // Walk up to find abcjs-mN.
   let measure = null;
   let el = e.target;
   while (el && el !== container) {
@@ -548,23 +519,22 @@ function _sheetMusicClickHandler(e) {
   }
   if (measure === null) return;
 
-  // Walk up further to find the abcjs-staff-wrapper ancestor.
-  let staffLine = null;
+  // Walk up to find the abcjs-staff-wrapper ancestor element.
+  let wrapperEl = null;
   let ancestor = el.parentElement;
   while (ancestor && ancestor !== container) {
     if (ancestor.classList && ancestor.classList.contains("abcjs-staff-wrapper")) {
-      for (const cls of ancestor.classList) {
-        const m = cls.match(/^abcjs-l(\d+)$/);
-        if (m) { staffLine = parseInt(m[1], 10); break; }
-      }
+      wrapperEl = ancestor;
       break;
     }
     ancestor = ancestor.parentElement;
   }
-  if (staffLine === null) return;
+  if (!wrapperEl) return;
 
   if (_barMap.length === 0) _barMap = _buildBarMap();
-  const idx = _barMap.findIndex(b => b.staffLine === staffLine && b.measure === measure);
+  // Match by DOM element identity — not class name — so duplicate abcjs-l0 wrappers
+  // are distinguished correctly.
+  const idx = _barMap.findIndex(b => b.wrapper === wrapperEl && b.measure === measure);
   if (idx === -1) return;
   _onMeasureClicked(idx);
 }
@@ -600,11 +570,11 @@ function _updateBarHighlight() {
   const cls = isPending ? "bar-sel-start" : "bar-selected";
   for (let i = _barSel.start; i <= _barSel.end; i++) {
     if (i >= _barMap.length) break;
-    const { staffLine, measure } = _barMap[i];
-    // Scope the measure selector inside the correct staff-wrapper visual line.
-    document.querySelectorAll(
-      `#sheet-music-render .abcjs-staff-wrapper.abcjs-l${staffLine} .abcjs-m${measure}`
-    ).forEach(el => el.classList.add(cls));
+    const { wrapper, measure } = _barMap[i];
+    // Query inside the specific wrapper element — unambiguous even when multiple
+    // wrappers share the same abcjs-lN class (voice-number, not visual-line).
+    wrapper.querySelectorAll(`.abcjs-m${measure}`)
+      .forEach(el => el.classList.add(cls));
   }
 }
 
@@ -699,9 +669,20 @@ function renderSheetMusic(abc) {
           });
         }
         // Bar selection loop: when playback passes the end bar, seek back to start.
-        // ev.measureNumber is line-local, so convert (ev.line, ev.measureNumber) → global index.
-        if (_barSel.start !== null && ev && ev.measureStart) {
-          const evIdx = _barMap.findIndex(b => b.staffLine === ev.line && b.measure === ev.measureNumber);
+        // Use ev.elements to find the wrapper by DOM identity (avoids abcjs-lN ambiguity).
+        if (_barSel.start !== null && ev && ev.measureStart && ev.elements) {
+          let evWrapper = null;
+          const firstEl = ev.elements[0] && ev.elements[0][0];
+          if (firstEl) {
+            let node = firstEl.parentElement;
+            while (node) {
+              if (node.classList && node.classList.contains("abcjs-staff-wrapper")) {
+                evWrapper = node; break;
+              }
+              node = node.parentElement;
+            }
+          }
+          const evIdx = _barMap.findIndex(b => b.wrapper === evWrapper && b.measure === ev.measureNumber);
           if (evIdx !== -1 && evIdx > _barSel.end) {
             _seekToBar(_barSel.start);
           }
