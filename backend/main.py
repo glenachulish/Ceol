@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from database import DB_PATH, get_connection
+from backend.database import DB_PATH, get_connection
 
 app = FastAPI(title="Ceol", version="0.1.0")
 
