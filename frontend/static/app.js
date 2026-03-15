@@ -649,6 +649,7 @@ function renderSheetMusic(abc) {
       paddingright: 15,
       paddingtop: 10,
       selectTypes: false,
+      foregroundColor: "#000000",
     });
 
     _visualObj = visualObjs[0];
