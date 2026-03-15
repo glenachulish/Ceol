@@ -83,7 +83,7 @@ def list_tunes(
         rows = conn.execute(
             f"""
             SELECT t.id, t.craic_id, t.session_id, t.title, t.type,
-                   t.key, t.mode, t.notes, t.created_at
+                   t.key, t.mode, t.notes, t.imported_at, t.created_at
             FROM tunes t
             {where}
             ORDER BY t.title COLLATE NOCASE
