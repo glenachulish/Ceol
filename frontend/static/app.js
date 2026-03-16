@@ -599,10 +599,11 @@ function _updateSelectionInfo() {
 }
 
 function _seekToBar(barIndex) {
-  if (!_synthController || !_msPerMeasure) return;
-  try {
-    _synthController.seek(barIndex * _msPerMeasure / 1000, "seconds");
-  } catch (_) { /* not yet loaded */ }
+  if (!_synthController || !_msPerMeasure || !_visualObj) return;
+  const totalSec = typeof _visualObj.getTotalTime === "function" && _visualObj.getTotalTime();
+  if (!totalSec) return;
+  const frac = Math.max(0, Math.min(1, (barIndex * _msPerMeasure / 1000) / totalSec));
+  _synthController.seek(frac);
 }
 
 function _clearBarSel() {
