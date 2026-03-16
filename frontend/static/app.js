@@ -710,7 +710,9 @@ function _updateSelectionInfo() {
 
 function _seekToBar(barIndex) {
   if (!_synthController || !_msPerMeasure) return;
-  const dur = _synthController.midiBuffer && _synthController.midiBuffer.duration;
+  // Use midiBuffer.duration if available; fall back to barMap length estimate.
+  const dur = (_synthController.midiBuffer && _synthController.midiBuffer.duration)
+    || (_barMap.length * _msPerMeasure / 1000);
   if (!dur) return;
   const frac = Math.max(0, Math.min(1, (barIndex * _msPerMeasure / 1000) / dur));
   _synthController.seek(frac);
@@ -781,12 +783,16 @@ function renderSheetMusic(abc) {
       // _barSeekPending is a one-shot flag so that pause→resume does not re-seek.
       onStart() {
         if (!_barSeekPending || _barSel.start === null || !_msPerMeasure) return;
-        const dur = _synthController.midiBuffer && _synthController.midiBuffer.duration;
-        if (!dur) return;
         _barSeekPending = false;
+        // Compute total duration: prefer midiBuffer.duration (exact), fall back to
+        // barMap estimate.  Both sources give seconds.
+        const dur = (_synthController.midiBuffer && _synthController.midiBuffer.duration)
+          || (_barMap.length * _msPerMeasure / 1000);
+        if (!dur) return;
         const frac = Math.max(0, Math.min(1, (_barSel.start * _msPerMeasure / 1000) / dur));
-        _synthController.seek(frac);           // positions audio + timer
-        _synthController.setProgress(frac, dur * 1000); // updates e.percent
+        _synthController.seek(frac);           // positions audio buffer + timer
+        _synthController.setProgress(frac, dur * 1000); // MUST set e.percent so
+        // timer.start(e.percent) does not reset the timer to 0 when frac > 0.
       },
       onEvent(ev) {
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")

@@ -544,14 +544,20 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   margin-top: .5rem;
 }
 
-/* Note cursor highlight during playback */
+/* Note cursor highlight during playback — bright orange so it pops clearly
+   against the black notes on a white score background. The drop-shadow on
+   the note group adds a visible glow that makes the current note easy to
+   track at a glance even at small print sizes. */
 #sheet-music-render .abcjs-highlight path,
 #sheet-music-render .abcjs-highlight rect,
 #sheet-music-render .abcjs-highlight ellipse,
 #sheet-music-render path.abcjs-highlight,
 #sheet-music-render rect.abcjs-highlight,
 #sheet-music-render ellipse.abcjs-highlight {
-  fill: var(--accent) !important;
+  fill: #e65c00 !important;
+}
+#sheet-music-render g.abcjs-highlight {
+  filter: drop-shadow(0 0 5px rgba(230, 92, 0, 0.75));
 }
 
 /* Force all ABCJS SVG primitives to render in black.
