@@ -76,8 +76,14 @@ function escHtml(s) {
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
+async function apiFetch(url, opts) {
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(`Request failed (${r.status})`);
+  return r.json();
+}
+
 async function fetchFilters() {
-  return fetch("/api/filters").then(r => r.json());
+  return apiFetch("/api/filters");
 }
 
 async function fetchTunes() {
@@ -86,102 +92,102 @@ async function fetchTunes() {
   if (state.type) params.set("type", state.type);
   if (state.key)  params.set("key",  state.key);
   if (state.mode) params.set("mode", state.mode);
-  return fetch(`/api/tunes?${params}`).then(r => r.json());
+  return apiFetch(`/api/tunes?${params}`);
 }
 
 async function fetchTune(id) {
-  return fetch(`/api/tunes/${id}`).then(r => r.json());
+  return apiFetch(`/api/tunes/${id}`);
 }
 
 async function fetchStats() {
-  return fetch("/api/stats").then(r => r.json());
+  return apiFetch("/api/stats");
 }
 
 async function fetchSets() {
-  const sets = await fetch("/api/sets").then(r => r.json());
+  const sets = await apiFetch("/api/sets");
   state.sets = sets;
   return sets;
 }
 
 async function apiCreateSet(name, notes) {
-  return fetch("/api/sets", {
+  return apiFetch("/api/sets", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, notes }),
-  }).then(r => r.json());
+  });
 }
 
 async function apiDeleteSet(id) {
-  return fetch(`/api/sets/${id}`, { method: "DELETE" });
+  return apiFetch(`/api/sets/${id}`, { method: "DELETE" });
 }
 
 async function apiGetSet(id) {
-  return fetch(`/api/sets/${id}`).then(r => r.json());
+  return apiFetch(`/api/sets/${id}`);
 }
 
 async function apiAddTuneToSet(setId, tuneId) {
-  return fetch(`/api/sets/${setId}/tunes`, {
+  return apiFetch(`/api/sets/${setId}/tunes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tune_id: tuneId }),
-  }).then(r => r.json());
+  });
 }
 
 async function apiRemoveTuneFromSet(setId, tuneId) {
-  return fetch(`/api/sets/${setId}/tunes/${tuneId}`, { method: "DELETE" });
+  return apiFetch(`/api/sets/${setId}/tunes/${tuneId}`, { method: "DELETE" });
 }
 
 async function apiSaveNotes(tuneId, notes) {
-  return fetch(`/api/tunes/${tuneId}/notes`, {
+  return apiFetch(`/api/tunes/${tuneId}/notes`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ notes }),
-  }).then(r => r.json());
+  });
 }
 
 // ── Note documents API ────────────────────────────────────────────────────────
 async function fetchNoteDocuments() {
-  return fetch("/api/note-documents").then(r => r.json());
+  return apiFetch("/api/note-documents");
 }
 
 async function apiCreateNoteDocument(title = "Untitled") {
-  return fetch("/api/note-documents", {
+  return apiFetch("/api/note-documents", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }),
-  }).then(r => r.json());
+  });
 }
 
 async function fetchNoteDocument(id) {
-  return fetch(`/api/note-documents/${id}`).then(r => r.json());
+  return apiFetch(`/api/note-documents/${id}`);
 }
 
 async function apiUpdateNoteDocument(id, fields) {
-  return fetch(`/api/note-documents/${id}`, {
+  return apiFetch(`/api/note-documents/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(fields),
-  }).then(r => r.json());
+  });
 }
 
 async function apiDeleteNoteDocument(id) {
-  return fetch(`/api/note-documents/${id}`, { method: "DELETE" }).then(r => r.json());
+  return apiFetch(`/api/note-documents/${id}`, { method: "DELETE" });
 }
 
 async function apiAddLinkAttachment(docId, url, title) {
-  return fetch(`/api/note-documents/${docId}/attachments/link`, {
+  return apiFetch(`/api/note-documents/${docId}/attachments/link`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, title }),
-  }).then(r => r.json());
+  });
 }
 
 async function apiDeleteAttachment(attId) {
-  return fetch(`/api/note-attachments/${attId}`, { method: "DELETE" }).then(r => r.json());
+  return apiFetch(`/api/note-attachments/${attId}`, { method: "DELETE" });
 }
 
 async function apiDeleteTune(id) {
-  return fetch(`/api/tunes/${id}`, { method: "DELETE" }).then(r => r.json());
+  return apiFetch(`/api/tunes/${id}`, { method: "DELETE" });
 }
 
 
@@ -452,11 +458,17 @@ function renderModal(tune) {
   }
 
   // Delete tune from modal
-  document.getElementById("delete-tune-modal-btn").addEventListener("click", async () => {
+  document.getElementById("delete-tune-modal-btn").addEventListener("click", async (ev) => {
     if (!confirm(`Delete "${tune.title}" from your library? This cannot be undone.`)) return;
-    await apiDeleteTune(tune.id);
-    closeModal();
-    loadTunes();
+    ev.currentTarget.disabled = true;
+    try {
+      await apiDeleteTune(tune.id);
+      closeModal();
+      loadTunes();
+    } catch {
+      alert("Failed to delete tune. Please try again.");
+      ev.currentTarget.disabled = false;
+    }
   });
 
   // Render sheet music after paint
@@ -496,7 +508,6 @@ function _buildBarMap() {
     }
   }
 
-  console.log("[barMap] built", result.length, "bars");
   return result;
 }
 
@@ -765,13 +776,19 @@ function renderSets(sets) {
 
           tunesDiv.querySelectorAll(".remove-from-set").forEach(rb => {
             rb.addEventListener("click", async () => {
-              await apiRemoveTuneFromSet(rb.dataset.setId, rb.dataset.tuneId);
-              rb.closest(".set-tune-row").remove();
-              const set = state.sets.find(s => String(s.id) === String(id));
-              if (set) {
-                set.tune_count = Math.max(0, (set.tune_count || 1) - 1);
-                const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
-                if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
+              rb.disabled = true;
+              try {
+                await apiRemoveTuneFromSet(rb.dataset.setId, rb.dataset.tuneId);
+                rb.closest(".set-tune-row").remove();
+                const set = state.sets.find(s => String(s.id) === String(id));
+                if (set) {
+                  set.tune_count = Math.max(0, (set.tune_count || 1) - 1);
+                  const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
+                  if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
+                }
+              } catch {
+                alert("Failed to remove tune. Please try again.");
+                rb.disabled = false;
               }
             });
           });
@@ -787,11 +804,17 @@ function renderSets(sets) {
     btn.addEventListener("click", async () => {
       const name = btn.closest(".set-card").querySelector(".set-name").textContent;
       if (!confirm(`Delete set "${name}"?`)) return;
-      await apiDeleteSet(btn.dataset.setId);
-      btn.closest(".set-card").remove();
-      state.sets = state.sets.filter(s => String(s.id) !== String(btn.dataset.setId));
-      if (!setsList.querySelector(".set-card")) {
-        setsList.innerHTML = '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
+      btn.disabled = true;
+      try {
+        await apiDeleteSet(btn.dataset.setId);
+        btn.closest(".set-card").remove();
+        state.sets = state.sets.filter(s => String(s.id) !== String(btn.dataset.setId));
+        if (!setsList.querySelector(".set-card")) {
+          setsList.innerHTML = '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
+        }
+      } catch {
+        alert("Failed to delete set. Please try again.");
+        btn.disabled = false;
       }
     });
   });
@@ -1066,8 +1089,14 @@ tuneList.addEventListener("click", async e => {
     const id = delBtn.dataset.id;
     const title = delBtn.closest(".tune-card")?.querySelector(".card-title")?.textContent || "this tune";
     if (!confirm(`Delete "${title}" from your library? This cannot be undone.`)) return;
-    await apiDeleteTune(id);
-    loadTunes();
+    delBtn.disabled = true;
+    try {
+      await apiDeleteTune(id);
+      loadTunes();
+    } catch {
+      alert("Failed to delete tune. Please try again.");
+      delBtn.disabled = false;
+    }
     return;
   }
   const card = e.target.closest(".tune-card");
@@ -1399,7 +1428,7 @@ function renderFfTuneList(tunes) {
       btn.disabled = true;
       btn.textContent = "Importing…";
       try {
-        await fetch("/api/tunes", {
+        await apiFetch("/api/tunes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1407,7 +1436,7 @@ function renderFfTuneList(tunes) {
             mode: tune.mode || "", abc: tune.abc,
             notes: `Imported from FlutefFling.scot${tune.set_label ? " — " + tune.set_label : ""}`,
           }),
-        }).then(r => r.json());
+        });
         btn.textContent = "Imported ✓";
         loadTunes();
       } catch {

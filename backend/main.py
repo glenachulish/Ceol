@@ -356,10 +356,12 @@ def add_tune_to_set(set_id: int, body: SetTuneAdd):
 @app.delete("/api/sets/{set_id}/tunes/{tune_id}")
 def remove_tune_from_set(set_id: int, tune_id: int):
     with _db() as conn:
-        conn.execute(
+        cur = conn.execute(
             "DELETE FROM set_tunes WHERE set_id = ? AND tune_id = ?",
             (set_id, tune_id),
         )
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Tune not in set")
     return {"ok": True}
 
 
