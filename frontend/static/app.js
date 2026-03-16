@@ -1312,7 +1312,7 @@ async function runSessionSearch() {
   sessionSearchBtn.disabled = true;
   try {
     const params = new URLSearchParams({ q });
-    const data = await fetch(`/api/thesession/search?${params}`).then(r => r.json());
+    const data = await apiFetch(`/api/thesession/search?${params}`);
     if (!data.tunes || !data.tunes.length) {
       sessionResults.innerHTML = '<p class="empty" style="padding:1rem 0">No results found.</p>';
       return;
@@ -1475,7 +1475,7 @@ async function runFfTsSearch() {
   ffTsResults.innerHTML = '<p class="loading" style="padding:1rem 0">Searching TheSession.org…</p>';
   ffTsBtn.disabled = true;
   try {
-    const data = await fetch(`/api/thesession/search?${new URLSearchParams({ q })}`).then(r => r.json());
+    const data = await apiFetch(`/api/thesession/search?${new URLSearchParams({ q })}`);
     if (!data.tunes || !data.tunes.length) {
       ffTsResults.innerHTML = '<p class="empty" style="padding:1rem 0">No results found.</p>';
       return;
@@ -1538,11 +1538,11 @@ ffRefBtn.addEventListener("click", async () => {
     const notes = url
       ? `Audio/sheet music: ${url}\n\nImported from FlutefFling.scot: ${importDate}`
       : `Imported from FlutefFling.scot: ${importDate}`;
-    await fetch("/api/tunes", {
+    await apiFetch("/api/tunes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, notes }),
-    }).then(r => r.json());
+    });
     ffRefResult.textContent = `"${title}" added to library.`;
     ffRefResult.className = "import-result import-success";
     ffRefResult.classList.remove("hidden");
