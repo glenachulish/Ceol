@@ -1090,8 +1090,11 @@ function closeModal() {
   document.body.style.overflow = "";
 }
 
-// ── Bar selection via direct DOM click ────────────────────────────────────────
-document.getElementById("sheet-music-render").addEventListener("click", _sheetMusicClickHandler);
+// ── Bar selection via event delegation (sheet-music-render is created dynamically) ──
+modalContent.addEventListener("click", e => {
+  const render = document.getElementById("sheet-music-render");
+  if (render && render.contains(e.target)) _sheetMusicClickHandler(e);
+});
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 navLibrary.addEventListener("click", () => switchView("library"));
