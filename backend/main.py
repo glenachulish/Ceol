@@ -920,9 +920,12 @@ async def flutefling_fetch_abc(url: str = Query(...)):
     if re.search(r"(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)", url):
         raise HTTPException(400, "Private/local URLs are not allowed")
 
+    # FlutefFling stores ABC as .txt files; if the user pastes a .pdf URL, try .txt instead
+    fetch_url = re.sub(r"\.pdf$", ".txt", url, flags=re.I) if url.lower().endswith(".pdf") else url
+
     async with httpx.AsyncClient(follow_redirects=True) as client:
         try:
-            r = await client.get(url, headers=_FF_HEADERS, timeout=15)
+            r = await client.get(fetch_url, headers=_FF_HEADERS, timeout=15)
             r.raise_for_status()
         except Exception as exc:
             raise HTTPException(502, f"Could not fetch ABC file: {exc}")
