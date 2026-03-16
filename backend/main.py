@@ -913,24 +913,52 @@ async def flutefling_catalogue(refresh: bool = False):
 
 @app.get("/api/flutefling/fetch-abc")
 async def flutefling_fetch_abc(url: str = Query(...)):
-    """Fetch an ABC/text file from a safe HTTPS URL and return parsed individual tunes."""
+    """Fetch an ABC/text file from a safe HTTPS URL and return parsed individual tunes.
+
+    Accepts three URL shapes from FlutefFling:
+      - Direct .txt URL  → fetch and parse immediately
+      - .pdf URL         → swap extension to .txt and fetch
+      - Tune page URL    → scrape the page for the .txt download link, then fetch it
+    """
     if not re.match(r"https://", url):
         raise HTTPException(400, "URL must use HTTPS")
-    # Block private/local addresses
     if re.search(r"(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)", url):
         raise HTTPException(400, "Private/local URLs are not allowed")
 
-    # FlutefFling stores ABC as .txt files; if the user pastes a .pdf URL, try .txt instead
-    fetch_url = re.sub(r"\.pdf$", ".txt", url, flags=re.I) if url.lower().endswith(".pdf") else url
-
     async with httpx.AsyncClient(follow_redirects=True) as client:
+        # Decide what to fetch first
+        if url.lower().endswith(".txt"):
+            fetch_url = url
+        elif url.lower().endswith(".pdf"):
+            fetch_url = re.sub(r"\.pdf$", ".txt", url, flags=re.I)
+        else:
+            # Likely a tune page URL – fetch it and look for a .txt link
+            fetch_url = url
+
         try:
             r = await client.get(fetch_url, headers=_FF_HEADERS, timeout=15)
             r.raise_for_status()
         except Exception as exc:
-            raise HTTPException(502, f"Could not fetch ABC file: {exc}")
+            raise HTTPException(502, f"Could not fetch URL: {exc}")
 
-    tunes = parse_abc_string(r.text)
+        content_type = r.headers.get("content-type", "")
+        text = r.text
+
+        # If we got HTML back (tune page), extract the .txt link and fetch that
+        if "html" in content_type or text.lstrip().startswith("<!"):
+            sets = _extract_abc_sets(text, fetch_url)
+            if not sets:
+                raise HTTPException(404, "No ABC sheet-music link found on that page. "
+                                         "Try pasting the direct .txt or .pdf file URL instead.")
+            abc_url = sets[0]["abc_url"]
+            try:
+                r = await client.get(abc_url, headers=_FF_HEADERS, timeout=15)
+                r.raise_for_status()
+                text = r.text
+            except Exception as exc:
+                raise HTTPException(502, f"Found sheet-music link but could not fetch it: {exc}")
+
+    tunes = parse_abc_string(text)
     return {
         "tunes": [
             {"title": t.title, "type": t.type, "key": t.key, "mode": t.mode, "abc": t.abc}

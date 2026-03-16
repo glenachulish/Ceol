@@ -783,14 +783,17 @@ function renderSheetMusic(abc) {
         if (!_barSeekPending || _barSel.start === null || !_barMap.length) return;
         _barSeekPending = false;
         const frac = Math.max(0, Math.min(1, _barSel.start / _barMap.length));
-        _synthController.seek(frac); // positions audio buffer + timer
-        // MUST call setProgress so e.percent = frac, ensuring the ABCJS internal
-        // timer.start(e.percent) enters the setProgress branch (which correctly
-        // sets startTime) rather than the reset() branch (which snaps to bar 0).
-        const durMs = _msPerMeasure
-          ? _barMap.length * _msPerMeasure
-          : 30000; // fallback: 30 s (used only for the progress-bar clock display)
+        // setProgress sets e.percent = frac so that the ABCJS-internal
+        // timer.start(e.percent) fires the setProgress branch (which correctly
+        // sets startTime) rather than reset() (which snaps the cursor to bar 0).
+        const durMs = _msPerMeasure ? _barMap.length * _msPerMeasure : 30000;
         _synthController.setProgress(frac, durMs);
+        // Seek the audio buffer *after* midiBuffer.start() has been called.
+        // During active playback seek() reliably stops the current buffer and
+        // restarts it from the target offset; calling it before start() can be
+        // silently ignored in some browsers.
+        const targetFrac = frac;
+        setTimeout(() => { if (_synthController) _synthController.seek(targetFrac); }, 0);
       },
       onEvent(ev) {
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")
