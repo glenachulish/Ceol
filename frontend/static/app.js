@@ -600,10 +600,9 @@ function _updateSelectionInfo() {
 
 function _seekToBar(barIndex) {
   if (!_synthController || !_msPerMeasure) return;
-  const dur = _synthController.midiBuffer && _synthController.midiBuffer.duration;
-  if (!dur) return;
-  const frac = Math.max(0, Math.min(1, (barIndex * _msPerMeasure / 1000) / dur));
-  _synthController.seek(frac);
+  try {
+    _synthController.seek(barIndex * _msPerMeasure / 1000, "seconds");
+  } catch (_) { /* not yet loaded */ }
 }
 
 function _clearBarSel() {
