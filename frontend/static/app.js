@@ -822,7 +822,11 @@ function renderSets(sets) {
 
 // ── Loaders ───────────────────────────────────────────────────────────────────
 async function loadFilters() {
-  const { types, keys, modes } = await fetchFilters();
+  let types, keys, modes;
+  try {
+    ({ types, keys, modes } = await fetchFilters());
+  } catch { return; }
+  if (!types) return;
 
   // Clear existing options (except placeholder) to allow safe re-calling
   filterType.innerHTML = '<option value="">All types</option>';
@@ -1558,6 +1562,6 @@ ffRefTitle.addEventListener("keydown", e => { if (e.key === "Enter") ffRefBtn.cl
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {
-  await Promise.all([loadFilters(), loadStats(), fetchSets()]);
+  await Promise.allSettled([loadFilters(), loadStats(), fetchSets()]);
   await loadTunes();
 })();
