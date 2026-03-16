@@ -1493,17 +1493,18 @@ const ffDownloadBtn  = document.getElementById("ff-download-btn");
 const ffSearchStatus = document.getElementById("ff-search-status");
 const ffSearchResults= document.getElementById("ff-search-results");
 
-function _ffFormatValue() {
-  const checked = document.querySelector('input[name="ff-format"]:checked');
-  return checked ? checked.value : "abc";
+function _ffFormats() {
+  const boxes = document.querySelectorAll('input[name="ff-format"]:checked');
+  const vals = new Set([...boxes].map(b => b.value));
+  return { abc: vals.has("abc"), mp3: vals.has("mp3") };
 }
 
 function _ffReset() {
   ffNameInput.value = "";
   ffSearchStatus.textContent = "";
   ffSearchResults.innerHTML = "";
-  document.querySelectorAll('input[name="ff-format"]').forEach(r => {
-    r.checked = (r.value === "abc");
+  document.querySelectorAll('input[name="ff-format"]').forEach(cb => {
+    cb.checked = (cb.value === "abc");
   });
   ffDownloadBtn.disabled = false;
 }
@@ -1511,7 +1512,11 @@ function _ffReset() {
 async function runFfDownload() {
   const name = ffNameInput.value.trim();
   if (!name) { ffNameInput.focus(); return; }
-  const format = _ffFormatValue();
+  const fmt = _ffFormats();
+  if (!fmt.abc && !fmt.mp3) {
+    ffSearchStatus.textContent = "Please select at least one format (sheet music or MP3).";
+    return;
+  }
   ffDownloadBtn.disabled = true;
   ffSearchStatus.textContent = "Searching FlutefFling…";
   ffSearchResults.innerHTML = "";
@@ -1525,6 +1530,10 @@ async function runFfDownload() {
     }
     ffSearchStatus.textContent = `${results.length} match${results.length !== 1 ? "es" : ""} found:`;
 
+    const btnLabel = fmt.abc && fmt.mp3 ? "Import sheet + MP3 ref"
+                   : fmt.abc             ? "Import sheet music"
+                                         : "Save MP3 reference";
+
     ffSearchResults.innerHTML = results.map((t, i) => {
       const page  = escHtml(t.source_page || t.abc_url || "");
       const pageUrl = t.source_page || t.abc_url || "";
@@ -1532,53 +1541,41 @@ async function runFfDownload() {
         ? `<a class="ff-result-title-link" href="${page}" target="_blank" rel="noopener">${escHtml(t.title)}</a>`
         : `<span>${escHtml(t.title)}</span>`;
       const setLabel = t.set_label ? `<span class="ff-cat-tune-source">${escHtml(t.set_label)}</span>` : "";
-      const label = format === "abc" ? "Import sheet music" : "Save MP3 reference";
       return `
         <div class="ff-result-row">
           <div class="ff-result-info">
             <span class="ff-result-title">${titleLink}</span>
             ${setLabel}
           </div>
-          <button class="btn-primary btn-sm ff-result-import-btn" data-idx="${i}">${label}</button>
+          <button class="btn-primary btn-sm ff-result-import-btn" data-idx="${i}">${btnLabel}</button>
         </div>`;
     }).join("");
 
     ffSearchResults.querySelectorAll(".ff-result-import-btn").forEach(btn => {
       btn.addEventListener("click", async () => {
         const tune = results[parseInt(btn.dataset.idx)];
+        const f = _ffFormats();
         btn.disabled = true;
         btn.textContent = "Importing…";
         try {
-          if (format === "abc") {
-            await apiFetch("/api/tunes", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: tune.title,
-                type: tune.type || "",
-                key: tune.key || "",
-                mode: tune.mode || "",
-                abc: tune.abc,
-                notes: tune.source_page
-                  ? `FlutefFling: ${tune.source_page}`
-                  : `FlutefFling: ${tune.abc_url || ""}`,
-              }),
-            });
-          } else {
-            // MP3 reference: store the source page as a link in notes
-            const ref = tune.source_page || tune.abc_url || "https://flutefling.scot/resources/flutefling-session-tunes/";
-            await apiFetch("/api/tunes", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: tune.title,
-                type: tune.type || "",
-                key: tune.key || "",
-                mode: tune.mode || "",
-                notes: `FlutefFling MP3: ${ref}`,
-              }),
-            });
-          }
+          const ref = tune.source_page || tune.abc_url || "https://flutefling.scot/resources/flutefling-session-tunes/";
+          let noteParts = [];
+          if (f.abc) noteParts.push(`FlutefFling: ${ref}`);
+          if (f.mp3) noteParts.push(`FlutefFling MP3: ${ref}`);
+          const notes = noteParts.join("\n");
+
+          await apiFetch("/api/tunes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: tune.title,
+              type:  tune.type || "",
+              key:   tune.key  || "",
+              mode:  tune.mode || "",
+              abc:   f.abc ? (tune.abc || "") : "",
+              notes,
+            }),
+          });
           btn.textContent = "Imported ✓";
           btn.style.background = "var(--jig)";
           await Promise.all([loadStats(), loadFilters()]);

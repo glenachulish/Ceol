@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceol – Trad Music</title>
-  <link rel="stylesheet" href="/static/style.css?v=22" />
+  <link rel="stylesheet" href="/static/style.css?v=23" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -167,23 +167,25 @@
 
       <!-- FlutefFling.scot tab -->
       <div id="import-tab-flutefling" class="tab-panel hidden">
-        <p class="import-desc">
-          Import tunes from
-          <a href="https://flutefling.scot/resources/flutefling-session-tunes/" target="_blank" rel="noopener">FlutefFling.scot session tunes</a>.
-          Enter a tune name and choose whether to import the sheet music (ABC notation) or save a reference to the MP3 recording.
-        </p>
+
+        <a class="ff-site-link"
+           href="https://flutefling.scot/resources/flutefling-session-tunes/"
+           target="_blank" rel="noopener">
+          Visit FlutefFling.scot session tunes ↗
+        </a>
+        <p class="ff-site-hint">Open the page above, find the tune name, then enter it below.</p>
 
         <div class="ff-search-form">
           <input id="ff-name-input" type="text" class="ff-name-input" placeholder="Tune name…" autocomplete="off" />
           <div class="ff-format-row">
             <label class="ff-format-label">
-              <input type="radio" name="ff-format" value="abc" checked> Sheet music
+              <input type="checkbox" name="ff-format" value="abc" checked> Sheet music
             </label>
             <label class="ff-format-label">
-              <input type="radio" name="ff-format" value="mp3"> MP3 reference
+              <input type="checkbox" name="ff-format" value="mp3"> MP3 reference
             </label>
           </div>
-          <button id="ff-download-btn" class="btn-primary">Download</button>
+          <button id="ff-download-btn" class="btn-primary">Search</button>
         </div>
 
         <div id="ff-search-status" class="ff-cat-status"></div>
@@ -193,6 +195,6 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=22"></script>
+  <script src="/static/app.js?v=23"></script>
 </body>
 </html>
