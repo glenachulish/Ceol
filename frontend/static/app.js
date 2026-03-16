@@ -1206,6 +1206,7 @@ importBtn.addEventListener("click", () => {
 function closeImport() {
   importOverlay.classList.add("hidden");
   document.body.style.overflow = "";
+  _ffReset();
 }
 
 importClose.addEventListener("click", closeImport);
@@ -1382,256 +1383,117 @@ async function runSessionSearch() {
 sessionSearchBtn.addEventListener("click", runSessionSearch);
 sessionSearchInput.addEventListener("keydown", e => { if (e.key === "Enter") runSessionSearch(); });
 
-// ── FlutefFling.scot — direct ABC URL import ──────────────────────────────────
+// ── FlutefFling.scot ──────────────────────────────────────────────────────────
 
-const ffUrlInput  = document.getElementById("ff-url-input");
-const ffUrlBtn    = document.getElementById("ff-url-btn");
-const ffUrlStatus = document.getElementById("ff-url-status");
-const ffUrlList   = document.getElementById("ff-url-list");
+const ffNameInput    = document.getElementById("ff-name-input");
+const ffDownloadBtn  = document.getElementById("ff-download-btn");
+const ffSearchStatus = document.getElementById("ff-search-status");
+const ffSearchResults= document.getElementById("ff-search-results");
 
-async function runFfUrlFetch() {
-  const url = ffUrlInput.value.trim();
-  if (!url) { ffUrlInput.focus(); return; }
-  ffUrlBtn.disabled = true;
-  ffUrlStatus.textContent = "Fetching…";
-  ffUrlList.innerHTML = "";
+function _ffFormatValue() {
+  const checked = document.querySelector('input[name="ff-format"]:checked');
+  return checked ? checked.value : "abc";
+}
+
+function _ffReset() {
+  ffNameInput.value = "";
+  ffSearchStatus.textContent = "";
+  ffSearchResults.innerHTML = "";
+  document.querySelectorAll('input[name="ff-format"]').forEach(r => {
+    r.checked = (r.value === "abc");
+  });
+  ffDownloadBtn.disabled = false;
+}
+
+async function runFfDownload() {
+  const name = ffNameInput.value.trim();
+  if (!name) { ffNameInput.focus(); return; }
+  const format = _ffFormatValue();
+  ffDownloadBtn.disabled = true;
+  ffSearchStatus.textContent = "Searching FlutefFling…";
+  ffSearchResults.innerHTML = "";
   try {
-    const data = await apiFetch(`/api/flutefling/fetch-abc?url=${encodeURIComponent(url)}`);
-    if (!data.tunes || !data.tunes.length) {
-      ffUrlStatus.textContent = "No tunes found in that file.";
+    const data = await apiFetch(`/api/flutefling/search?q=${encodeURIComponent(name)}`);
+    const results = data.results || [];
+    if (!results.length) {
+      ffSearchStatus.textContent = `No results found for "${name}". Check the spelling or visit FlutefFling directly.`;
+      ffDownloadBtn.disabled = false;
       return;
     }
-    ffUrlStatus.textContent = `${data.tunes.length} tune${data.tunes.length !== 1 ? "s" : ""} found:`;
-    ffUrlList.innerHTML = data.tunes.map((t, i) => `
-      <div class="ff-cat-tune-row">
-        <div class="ff-cat-tune-info">
-          <span class="ff-cat-tune-title">${escHtml(t.title)}</span>
-          <span class="ff-cat-tune-meta">
-            ${t.type ? `<span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type)}</span>` : ""}
-            ${t.key  ? `<span class="ff-cat-tune-key">${escHtml(t.key)}${t.mode && t.mode !== "major" ? " " + escHtml(t.mode) : ""}</span>` : ""}
-          </span>
-        </div>
-        <button class="btn-primary btn-sm ff-url-import-btn" data-idx="${i}">+ Import</button>
-      </div>`).join("");
+    ffSearchStatus.textContent = `${results.length} match${results.length !== 1 ? "es" : ""} found:`;
 
-    ffUrlList.querySelectorAll(".ff-url-import-btn").forEach(btn => {
+    ffSearchResults.innerHTML = results.map((t, i) => {
+      const page  = escHtml(t.source_page || t.abc_url || "");
+      const pageUrl = t.source_page || t.abc_url || "";
+      const titleLink = pageUrl
+        ? `<a class="ff-result-title-link" href="${page}" target="_blank" rel="noopener">${escHtml(t.title)}</a>`
+        : `<span>${escHtml(t.title)}</span>`;
+      const setLabel = t.set_label ? `<span class="ff-cat-tune-source">${escHtml(t.set_label)}</span>` : "";
+      const label = format === "abc" ? "Import sheet music" : "Save MP3 reference";
+      return `
+        <div class="ff-result-row">
+          <div class="ff-result-info">
+            <span class="ff-result-title">${titleLink}</span>
+            ${setLabel}
+          </div>
+          <button class="btn-primary btn-sm ff-result-import-btn" data-idx="${i}">${label}</button>
+        </div>`;
+    }).join("");
+
+    ffSearchResults.querySelectorAll(".ff-result-import-btn").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const tune = data.tunes[parseInt(btn.dataset.idx)];
+        const tune = results[parseInt(btn.dataset.idx)];
         btn.disabled = true;
         btn.textContent = "Importing…";
         try {
-          await apiFetch("/api/tunes", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: tune.title, type: tune.type || "", key: tune.key || "",
-              mode: tune.mode || "", abc: tune.abc,
-              notes: `Imported from: ${url}`,
-            }),
-          });
+          if (format === "abc") {
+            await apiFetch("/api/tunes", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: tune.title,
+                type: tune.type || "",
+                key: tune.key || "",
+                mode: tune.mode || "",
+                abc: tune.abc,
+                notes: tune.source_page
+                  ? `FlutefFling: ${tune.source_page}`
+                  : `FlutefFling: ${tune.abc_url || ""}`,
+              }),
+            });
+          } else {
+            // MP3 reference: store the source page as a link in notes
+            const ref = tune.source_page || tune.abc_url || "https://flutefling.scot/resources/flutefling-session-tunes/";
+            await apiFetch("/api/tunes", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: tune.title,
+                type: tune.type || "",
+                key: tune.key || "",
+                mode: tune.mode || "",
+                notes: `FlutefFling MP3: ${ref}`,
+              }),
+            });
+          }
           btn.textContent = "Imported ✓";
-          loadTunes();
-        } catch {
+          btn.style.background = "var(--jig)";
+          await Promise.all([loadStats(), loadFilters()]);
+          if (state.view === "library") loadTunes();
+        } catch (err) {
           btn.textContent = "Failed";
           btn.disabled = false;
         }
       });
     });
   } catch (err) {
-    ffUrlStatus.textContent = `Error: ${err.message}`;
-  } finally {
-    ffUrlBtn.disabled = false;
+    ffSearchStatus.textContent = `Error: ${err.message}`;
+    ffDownloadBtn.disabled = false;
   }
 }
 
-ffUrlBtn.addEventListener("click", runFfUrlFetch);
-ffUrlInput.addEventListener("keydown", e => { if (e.key === "Enter") runFfUrlFetch(); });
-
-// ── FlutefFling.scot — catalogue browser (flat tune list) ────────────────────
-
-const ffCatLoadBtn = document.getElementById("ff-cat-load-btn");
-const ffCatSearch  = document.getElementById("ff-cat-search");
-const ffCatStatus  = document.getElementById("ff-cat-status");
-const ffCatList    = document.getElementById("ff-cat-list");
-
-let _ffAllTunes = []; // full flat list of every tune from FlutefFling
-
-ffCatLoadBtn.addEventListener("click", async () => {
-  ffCatLoadBtn.disabled = true;
-  ffCatStatus.textContent = "Loading — fetching archive pages and ABC files…";
-  ffCatSearch.classList.add("hidden");
-  ffCatSearch.value = "";
-  ffCatList.innerHTML = "";
-  try {
-    const res = await fetch("/api/flutefling/all-tunes");
-    const data = await res.json();
-    if (!res.ok) {
-      ffCatStatus.textContent = `Error: ${data.detail || "Could not reach flutefling.scot"}`;
-      return;
-    }
-    _ffAllTunes = data.tunes || [];
-    if (!_ffAllTunes.length) {
-      ffCatStatus.textContent = "No tunes found — the archive may have changed.";
-      return;
-    }
-    ffCatStatus.textContent = `${_ffAllTunes.length} tune${_ffAllTunes.length !== 1 ? "s" : ""} available`;
-    ffCatSearch.classList.remove("hidden");
-    ffCatSearch.focus();
-    renderFfTuneList(_ffAllTunes);
-    ffCatLoadBtn.textContent = "Refresh";
-  } catch (err) {
-    ffCatStatus.textContent = `Could not load tunes: ${err.message}`;
-  } finally {
-    ffCatLoadBtn.disabled = false;
-  }
-});
-
-ffCatSearch.addEventListener("input", () => {
-  const q = ffCatSearch.value.trim().toLowerCase();
-  const filtered = q
-    ? _ffAllTunes.filter(t => t.title.toLowerCase().includes(q) || (t.set_label || "").toLowerCase().includes(q))
-    : _ffAllTunes;
-  renderFfTuneList(filtered);
-});
-
-function renderFfTuneList(tunes) {
-  if (!tunes.length) {
-    ffCatList.innerHTML = `<p class="ff-cat-empty">No matching tunes.</p>`;
-    return;
-  }
-  ffCatList.innerHTML = tunes.map((t, i) => `
-    <div class="ff-cat-tune-row">
-      <div class="ff-cat-tune-info">
-        <span class="ff-cat-tune-title">${escHtml(t.title)}</span>
-        <span class="ff-cat-tune-meta">
-          ${t.type ? `<span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type)}</span>` : ""}
-          ${t.key  ? `<span class="ff-cat-tune-key">${escHtml(t.key)}${t.mode && t.mode !== "major" ? " " + escHtml(t.mode) : ""}</span>` : ""}
-          ${t.set_label ? `<span class="ff-cat-tune-source">${escHtml(t.set_label)}</span>` : ""}
-        </span>
-      </div>
-      <button class="btn-primary btn-sm ff-cat-import-btn" data-idx="${i}">+ Import</button>
-    </div>`).join("");
-
-  ffCatList.querySelectorAll(".ff-cat-import-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const tune = tunes[parseInt(btn.dataset.idx)];
-      btn.disabled = true;
-      btn.textContent = "Importing…";
-      try {
-        await apiFetch("/api/tunes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: tune.title, type: tune.type || "", key: tune.key || "",
-            mode: tune.mode || "", abc: tune.abc,
-            notes: `Imported from FlutefFling.scot${tune.set_label ? " — " + tune.set_label : ""}`,
-          }),
-        });
-        btn.textContent = "Imported ✓";
-        loadTunes();
-      } catch {
-        btn.textContent = "Failed";
-        btn.disabled = false;
-      }
-    });
-  });
-}
-
-// ── FlutefFling.scot — section B: search TheSession.org by tune name ──────────
-const ffTsInput   = document.getElementById("ff-ts-input");
-const ffTsBtn     = document.getElementById("ff-ts-btn");
-const ffTsResults = document.getElementById("ff-ts-results");
-
-async function runFfTsSearch() {
-  const q = ffTsInput.value.trim();
-  if (!q) return;
-  ffTsResults.innerHTML = '<p class="loading" style="padding:1rem 0">Searching TheSession.org…</p>';
-  ffTsBtn.disabled = true;
-  try {
-    const data = await apiFetch(`/api/thesession/search?${new URLSearchParams({ q })}`);
-    if (!data.tunes || !data.tunes.length) {
-      ffTsResults.innerHTML = '<p class="empty" style="padding:1rem 0">No results found.</p>';
-      return;
-    }
-    ffTsResults.innerHTML = data.tunes.map(t => `
-      <div class="session-result-row" data-session-id="${t.id}">
-        <div class="session-result-info">
-          <span class="session-result-name">${escHtml(t.name)}</span>
-          <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
-        </div>
-        <button class="btn-primary ff-ts-import-btn" data-session-id="${t.id}">+ Import</button>
-      </div>
-    `).join("");
-    ffTsResults.querySelectorAll(".ff-ts-import-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        btn.disabled = true;
-        btn.textContent = "Importing…";
-        try {
-          const res = await fetch("/api/thesession/import", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ tune_id: Number(btn.dataset.sessionId) }),
-          });
-          const data = await res.json();
-          if (res.ok) {
-            btn.textContent = data.status === "exists" ? "Already in library" : "Imported ✓";
-            btn.style.background = "var(--jig)";
-            await Promise.all([loadStats(), loadFilters()]);
-            if (state.view === "library") loadTunes();
-          } else {
-            btn.textContent = "Failed";
-            btn.disabled = false;
-          }
-        } catch { btn.textContent = "Error"; btn.disabled = false; }
-      });
-    });
-  } catch (err) {
-    ffTsResults.innerHTML = '<p class="empty" style="padding:1rem 0">Could not reach TheSession.org.</p>';
-  } finally {
-    ffTsBtn.disabled = false;
-  }
-}
-ffTsBtn.addEventListener("click", runFfTsSearch);
-ffTsInput.addEventListener("keydown", e => { if (e.key === "Enter") runFfTsSearch(); });
-
-// ── FlutefFling.scot — section B: save as audio/PDF reference ─────────────────
-const ffRefTitle  = document.getElementById("ff-ref-title");
-const ffRefUrl    = document.getElementById("ff-ref-url");
-const ffRefBtn    = document.getElementById("ff-ref-btn");
-const ffRefResult = document.getElementById("ff-ref-result");
-
-ffRefBtn.addEventListener("click", async () => {
-  const title = ffRefTitle.value.trim();
-  const url   = ffRefUrl.value.trim();
-  if (!title) { ffRefTitle.focus(); return; }
-  ffRefBtn.disabled = true;
-  ffRefResult.classList.add("hidden");
-  try {
-    const importDate = new Date().toISOString().slice(0, 10);
-    const notes = url
-      ? `Audio/sheet music: ${url}\n\nImported from FlutefFling.scot: ${importDate}`
-      : `Imported from FlutefFling.scot: ${importDate}`;
-    await apiFetch("/api/tunes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, notes }),
-    });
-    ffRefResult.textContent = `"${title}" added to library.`;
-    ffRefResult.className = "import-result import-success";
-    ffRefResult.classList.remove("hidden");
-    ffRefTitle.value = "";
-    ffRefUrl.value = "";
-    await Promise.all([loadStats(), loadFilters()]);
-    if (state.view === "library") loadTunes();
-  } catch (err) {
-    ffRefResult.textContent = `Error: ${err.message}`;
-    ffRefResult.className = "import-result import-error";
-    ffRefResult.classList.remove("hidden");
-  } finally {
-    ffRefBtn.disabled = false;
-  }
-});
-ffRefTitle.addEventListener("keydown", e => { if (e.key === "Enter") ffRefBtn.click(); });
+ffDownloadBtn.addEventListener("click", runFfDownload);
+ffNameInput.addEventListener("keydown", e => { if (e.key === "Enter") runFfDownload(); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {

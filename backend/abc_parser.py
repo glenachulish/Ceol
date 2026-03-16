@@ -203,6 +203,9 @@ def _parse_tune_block(block: str) -> Tune:
 
 def parse_abc_string(content: str) -> list["Tune"]:
     """Parse ABC notation from a string and return a list of Tune objects."""
+    # Normalise line endings (Windows CRLF, old Mac CR) so blank-line
+    # splitting works regardless of how the server delivered the file.
+    content = content.replace("\r\n", "\n").replace("\r", "\n")
     raw_blocks = re.split(r"\n{2,}", content)
     tunes: list[Tune] = []
     for block in raw_blocks:

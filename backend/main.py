@@ -948,6 +948,7 @@ async def flutefling_all_tunes(refresh: bool = False):
             and lk["href"].rstrip("/") != _FF_ARCHIVE_ROOT.rstrip("/")
         ]
         subpage_urls.append(f"{_FF_BASE}/tag/ne-session-tunes/")
+        subpage_urls.append(f"{_FF_BASE}/resources/flutefling-session-tunes/")
         seen_sp: set[str] = set()
         subpage_urls = [u for u in subpage_urls if not (u in seen_sp or seen_sp.add(u))]  # type: ignore[func-returns-value]
 
@@ -987,6 +988,7 @@ async def flutefling_all_tunes(refresh: bool = False):
                     "abc": t.abc,
                     "set_label": s["label"],
                     "abc_url": s["abc_url"],
+                    "source_page": s.get("source_page", ""),
                 }
                 for t in parse_abc_string(html)
             ]
@@ -1001,6 +1003,47 @@ async def flutefling_all_tunes(refresh: bool = False):
     if all_tunes:
         _FF_TUNES_CACHE = (now, all_tunes)
     return {"tunes": all_tunes, "cached": False}
+
+
+@app.get("/api/flutefling/search")
+async def flutefling_search(q: str = Query(..., min_length=1)):
+    """
+    Search the cached FlutefFling all-tunes list by title.
+    Loads and caches the catalogue on first call; subsequent calls are instant.
+    Returns up to 20 matches ordered by relevance (exact prefix > contains).
+    """
+    import asyncio as _asyncio
+
+    # Reuse the all-tunes cache or trigger a load
+    global _FF_TUNES_CACHE
+    now = _time.time()
+
+    if not _FF_TUNES_CACHE or now - _FF_TUNES_CACHE[0] >= _FF_CACHE_TTL:
+        # Trigger a background load of the full catalogue so the cache is warm;
+        # for the current request we do a synchronous (awaited) load instead.
+        try:
+            resp = await flutefling_all_tunes(refresh=False)
+            tunes = resp.get("tunes", []) if isinstance(resp, dict) else []
+        except Exception:
+            tunes = []
+    else:
+        tunes = _FF_TUNES_CACHE[1]
+
+    q_lower = q.strip().lower()
+
+    def _score(t: dict) -> int:
+        title = (t.get("title") or "").lower()
+        if title == q_lower:
+            return 0
+        if title.startswith(q_lower):
+            return 1
+        if q_lower in title:
+            return 2
+        return 99
+
+    matches = [t for t in tunes if q_lower in (t.get("title") or "").lower()]
+    matches.sort(key=_score)
+    return {"results": matches[:20]}
 
 
 # ---------------------------------------------------------------------------

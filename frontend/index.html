@@ -158,61 +158,31 @@
       <!-- FlutefFling.scot tab -->
       <div id="import-tab-flutefling" class="tab-panel hidden">
         <p class="import-desc">
-          <a href="https://flutefling.scot/resources/flutefling-repertoire-archive/" target="_blank" rel="noopener">FlutefFling.scot</a>
-          publishes curated tune sets with ABC notation, PDFs, and MP3 recordings.
+          Import tunes from
+          <a href="https://flutefling.scot/resources/flutefling-session-tunes/" target="_blank" rel="noopener">FlutefFling.scot session tunes</a>.
+          Enter a tune name and choose whether to import the sheet music (ABC notation) or save a reference to the MP3 recording.
         </p>
 
-        <!-- Option A: paste ABC file URL directly -->
-        <div class="flutefling-section">
-          <h4 class="flutefling-section-title">Import from ABC file URL</h4>
-          <p class="import-desc">Visit <a href="https://flutefling.scot/resources/flutefling-repertoire-archive/" target="_blank" rel="noopener">the FlutefFling archive</a>, copy the link to any <code>.txt</code> ABC file, and paste it here:</p>
-          <div class="ff-url-row">
-            <input id="ff-url-input" type="url" class="ff-url-input" placeholder="https://flutefling.scot/…/tunes.txt" autocomplete="off" />
-            <button id="ff-url-btn" class="btn-primary">Fetch</button>
+        <div class="ff-search-form">
+          <input id="ff-name-input" type="text" class="ff-name-input" placeholder="Tune name…" autocomplete="off" />
+          <div class="ff-format-row">
+            <label class="ff-format-label">
+              <input type="radio" name="ff-format" value="abc" checked> Sheet music
+            </label>
+            <label class="ff-format-label">
+              <input type="radio" name="ff-format" value="mp3"> MP3 reference
+            </label>
           </div>
-          <span id="ff-url-status" class="ff-cat-status"></span>
-          <div id="ff-url-list" class="ff-cat-list"></div>
+          <button id="ff-download-btn" class="btn-primary">Download</button>
         </div>
 
-        <!-- Browse ABC archive -->
-        <div class="flutefling-section">
-          <h4 class="flutefling-section-title">Browse all FlutefFling tunes</h4>
-          <p class="import-desc">Scrape the entire FlutefFling archive into a searchable list. Takes a minute on first load.</p>
-          <div class="ff-cat-toolbar">
-            <button id="ff-cat-load-btn" class="btn-primary">Load tune list</button>
-            <span id="ff-cat-status" class="ff-cat-status"></span>
-          </div>
-          <input id="ff-cat-search" type="search" placeholder="Search tunes…" autocomplete="off" class="ff-cat-search hidden" />
-          <div id="ff-cat-list" class="ff-cat-list"></div>
-        </div>
-
-        <!-- Option B: find ABC via TheSession.org -->
-        <div class="flutefling-section">
-          <h4 class="flutefling-section-title">Search by name via TheSession.org</h4>
-          <p class="import-desc">Type a tune name to find its ABC notation on TheSession.org:</p>
-          <div class="session-search-row">
-            <input id="ff-ts-input" type="text" placeholder="Tune name…" autocomplete="off" />
-            <button id="ff-ts-btn" class="btn-primary">Search</button>
-          </div>
-          <div id="ff-ts-results" class="session-results"></div>
-        </div>
-
-        <!-- Option C: save as audio reference -->
-        <div class="flutefling-section">
-          <h4 class="flutefling-section-title">Save as audio / sheet music reference</h4>
-          <p class="import-desc">Paste an MP3 or PDF URL from FlutefFling to create a catalogue entry with a playable link in its notes:</p>
-          <div class="flutefling-ref-form">
-            <input id="ff-ref-title" type="text" placeholder="Tune title (required)" />
-            <input id="ff-ref-url" type="url" placeholder="MP3 or PDF URL from FlutefFling…" />
-            <button id="ff-ref-btn" class="btn-primary">Add to Library</button>
-          </div>
-          <div id="ff-ref-result" class="import-result hidden"></div>
-        </div>
+        <div id="ff-search-status" class="ff-cat-status"></div>
+        <div id="ff-search-results"></div>
       </div>
     </div>
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=20"></script>
+  <script src="/static/app.js?v=21"></script>
 </body>
 </html>
