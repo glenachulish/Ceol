@@ -515,7 +515,11 @@ async def thesession_fetch(tune_id: int):
     key = best.get("key", "")
     tune_type = data.get("type", "")
     title = data.get("name", "")
-    aliases = [a["name"] if isinstance(a, dict) else a for a in data.get("aliases", []) if (a["name"] if isinstance(a, dict) else a)]
+    aliases = [
+        a.get("name") if isinstance(a, dict) else a
+        for a in data.get("aliases", [])
+        if (a.get("name") if isinstance(a, dict) else a)
+    ]
 
     from backend.abc_parser import normalise_key
     key_norm, mode_norm = normalise_key(key) if key else (key, "")
@@ -558,7 +562,11 @@ async def thesession_import(body: dict):
     key = best.get("key", "")
     tune_type = data.get("type", "")
     title = data.get("name", "")
-    aliases = [a["name"] if isinstance(a, dict) else a for a in data.get("aliases", []) if (a["name"] if isinstance(a, dict) else a)]
+    aliases = [
+        a.get("name") if isinstance(a, dict) else a
+        for a in data.get("aliases", [])
+        if (a.get("name") if isinstance(a, dict) else a)
+    ]
 
     # Normalise key/mode from TheSession format (e.g. "Dmaj", "Ador")
     from backend.abc_parser import normalise_key

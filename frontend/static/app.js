@@ -1642,50 +1642,33 @@ function _ffReset() {
 }
 
 ffAddBtn.addEventListener("click", async () => {
-  const abcUrl  = ffAbcUrlInput.value.trim();
-  const mp3Url  = ffMp3UrlInput.value.trim();
-  const manualTitle = ffTitleInput.value.trim();
+  const pdfUrl = ffAbcUrlInput.value.trim();
+  const mp3Url = ffMp3UrlInput.value.trim();
+  const title  = ffTitleInput.value.trim();
 
-  if (!abcUrl && !mp3Url) {
-    ffStatus.textContent = "Please paste at least one URL (sheet music or MP3).";
+  if (!title) {
+    ffStatus.textContent = "A tune title is required.";
+    ffTitleInput.focus();
     return;
   }
-  if (!abcUrl && !manualTitle) {
-    ffStatus.textContent = "A tune title is required when adding an MP3 without sheet music.";
-    ffTitleInput.focus();
+  if (!pdfUrl && !mp3Url) {
+    ffStatus.textContent = "Please paste at least one URL (sheet music PDF or MP3).";
     return;
   }
 
   ffAddBtn.disabled = true;
   ffAddBtn.textContent = "Adding…";
-  ffStatus.textContent = "";
+  ffStatus.textContent = "Saving…";
 
   try {
-    let title = manualTitle;
-    let type = "", key = "", mode = "", abc = "";
-
-    if (abcUrl) {
-      ffStatus.textContent = "Fetching sheet music…";
-      const data = await apiFetch(`/api/flutefling/fetch-abc?url=${encodeURIComponent(abcUrl)}`);
-      const tunes = data.tunes || [];
-      if (!tunes.length) throw new Error("No ABC tunes found at that URL. Check the link and try again.");
-      const t = tunes[0];
-      if (!title) title = t.title;
-      type = t.type || "";
-      key  = t.key  || "";
-      mode = t.mode || "";
-      abc  = t.abc  || "";
-    }
-
     const noteParts = [];
-    if (abcUrl)  noteParts.push(`FlutefFling sheet music: ${abcUrl}`);
-    if (mp3Url)  noteParts.push(`FlutefFling MP3: ${mp3Url}`);
+    if (pdfUrl) noteParts.push(`FlutefFling sheet music (PDF): ${pdfUrl}`);
+    if (mp3Url) noteParts.push(`FlutefFling MP3: ${mp3Url}`);
 
-    ffStatus.textContent = "Saving…";
     await apiFetch("/api/tunes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, type, key, mode, abc, notes: noteParts.join("\n") }),
+      body: JSON.stringify({ title, type: "", key: "", mode: "", abc: "", notes: noteParts.join("\n") }),
     });
 
     ffStatus.textContent = `✓ "${title}" added to your library.`;
