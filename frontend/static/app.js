@@ -1488,112 +1488,79 @@ sessionSearchInput.addEventListener("keydown", e => { if (e.key === "Enter") run
 
 // ── FlutefFling.scot ──────────────────────────────────────────────────────────
 
-const ffNameInput    = document.getElementById("ff-name-input");
-const ffDownloadBtn  = document.getElementById("ff-download-btn");
-const ffSearchStatus = document.getElementById("ff-search-status");
-const ffSearchResults= document.getElementById("ff-search-results");
-
-function _ffFormats() {
-  const boxes = document.querySelectorAll('input[name="ff-format"]:checked');
-  const vals = new Set([...boxes].map(b => b.value));
-  return { abc: vals.has("abc"), mp3: vals.has("mp3") };
-}
+const ffAbcUrlInput  = document.getElementById("ff-abc-url");
+const ffMp3UrlInput  = document.getElementById("ff-mp3-url");
+const ffTitleInput   = document.getElementById("ff-title-input");
+const ffAddBtn       = document.getElementById("ff-add-btn");
+const ffStatus       = document.getElementById("ff-status");
 
 function _ffReset() {
-  ffNameInput.value = "";
-  ffSearchStatus.textContent = "";
-  ffSearchResults.innerHTML = "";
-  document.querySelectorAll('input[name="ff-format"]').forEach(cb => {
-    cb.checked = (cb.value === "abc");
-  });
-  ffDownloadBtn.disabled = false;
+  ffAbcUrlInput.value  = "";
+  ffMp3UrlInput.value  = "";
+  ffTitleInput.value   = "";
+  ffStatus.textContent = "";
+  ffAddBtn.disabled    = false;
+  ffAddBtn.textContent = "Add to Library";
 }
 
-async function runFfDownload() {
-  const name = ffNameInput.value.trim();
-  if (!name) { ffNameInput.focus(); return; }
-  const fmt = _ffFormats();
-  if (!fmt.abc && !fmt.mp3) {
-    ffSearchStatus.textContent = "Please select at least one format (sheet music or MP3).";
+ffAddBtn.addEventListener("click", async () => {
+  const abcUrl  = ffAbcUrlInput.value.trim();
+  const mp3Url  = ffMp3UrlInput.value.trim();
+  const manualTitle = ffTitleInput.value.trim();
+
+  if (!abcUrl && !mp3Url) {
+    ffStatus.textContent = "Please paste at least one URL (sheet music or MP3).";
     return;
   }
-  ffDownloadBtn.disabled = true;
-  ffSearchStatus.textContent = "Searching FlutefFling…";
-  ffSearchResults.innerHTML = "";
-  try {
-    const data = await apiFetch(`/api/flutefling/search?q=${encodeURIComponent(name)}`);
-    const results = data.results || [];
-    if (!results.length) {
-      ffSearchStatus.textContent = `No results found for "${name}". Check the spelling or visit FlutefFling directly.`;
-      ffDownloadBtn.disabled = false;
-      return;
-    }
-    ffSearchStatus.textContent = `${results.length} match${results.length !== 1 ? "es" : ""} found:`;
-
-    const btnLabel = fmt.abc && fmt.mp3 ? "Import sheet + MP3 ref"
-                   : fmt.abc             ? "Import sheet music"
-                                         : "Save MP3 reference";
-
-    ffSearchResults.innerHTML = results.map((t, i) => {
-      const page  = escHtml(t.source_page || t.abc_url || "");
-      const pageUrl = t.source_page || t.abc_url || "";
-      const titleLink = pageUrl
-        ? `<a class="ff-result-title-link" href="${page}" target="_blank" rel="noopener">${escHtml(t.title)}</a>`
-        : `<span>${escHtml(t.title)}</span>`;
-      const setLabel = t.set_label ? `<span class="ff-cat-tune-source">${escHtml(t.set_label)}</span>` : "";
-      return `
-        <div class="ff-result-row">
-          <div class="ff-result-info">
-            <span class="ff-result-title">${titleLink}</span>
-            ${setLabel}
-          </div>
-          <button class="btn-primary btn-sm ff-result-import-btn" data-idx="${i}">${btnLabel}</button>
-        </div>`;
-    }).join("");
-
-    ffSearchResults.querySelectorAll(".ff-result-import-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const tune = results[parseInt(btn.dataset.idx)];
-        const f = _ffFormats();
-        btn.disabled = true;
-        btn.textContent = "Importing…";
-        try {
-          const ref = tune.source_page || tune.abc_url || "https://flutefling.scot/resources/flutefling-session-tunes/";
-          let noteParts = [];
-          if (f.abc) noteParts.push(`FlutefFling: ${ref}`);
-          if (f.mp3) noteParts.push(`FlutefFling MP3: ${ref}`);
-          const notes = noteParts.join("\n");
-
-          await apiFetch("/api/tunes", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: tune.title,
-              type:  tune.type || "",
-              key:   tune.key  || "",
-              mode:  tune.mode || "",
-              abc:   f.abc ? (tune.abc || "") : "",
-              notes,
-            }),
-          });
-          btn.textContent = "Imported ✓";
-          btn.style.background = "var(--jig)";
-          await Promise.all([loadStats(), loadFilters()]);
-          if (state.view === "library") loadTunes();
-        } catch (err) {
-          btn.textContent = "Failed";
-          btn.disabled = false;
-        }
-      });
-    });
-  } catch (err) {
-    ffSearchStatus.textContent = `Error: ${err.message}`;
-    ffDownloadBtn.disabled = false;
+  if (!abcUrl && !manualTitle) {
+    ffStatus.textContent = "A tune title is required when adding an MP3 without sheet music.";
+    ffTitleInput.focus();
+    return;
   }
-}
 
-ffDownloadBtn.addEventListener("click", runFfDownload);
-ffNameInput.addEventListener("keydown", e => { if (e.key === "Enter") runFfDownload(); });
+  ffAddBtn.disabled = true;
+  ffAddBtn.textContent = "Adding…";
+  ffStatus.textContent = "";
+
+  try {
+    let title = manualTitle;
+    let type = "", key = "", mode = "", abc = "";
+
+    if (abcUrl) {
+      ffStatus.textContent = "Fetching sheet music…";
+      const data = await apiFetch(`/api/flutefling/fetch-abc?url=${encodeURIComponent(abcUrl)}`);
+      const tunes = data.tunes || [];
+      if (!tunes.length) throw new Error("No ABC tunes found at that URL. Check the link and try again.");
+      const t = tunes[0];
+      if (!title) title = t.title;
+      type = t.type || "";
+      key  = t.key  || "";
+      mode = t.mode || "";
+      abc  = t.abc  || "";
+    }
+
+    const noteParts = [];
+    if (abcUrl)  noteParts.push(`FlutefFling sheet music: ${abcUrl}`);
+    if (mp3Url)  noteParts.push(`FlutefFling MP3: ${mp3Url}`);
+
+    ffStatus.textContent = "Saving…";
+    await apiFetch("/api/tunes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, type, key, mode, abc, notes: noteParts.join("\n") }),
+    });
+
+    ffStatus.textContent = `✓ "${title}" added to your library.`;
+    ffAddBtn.textContent  = "Added ✓";
+    ffAddBtn.style.background = "var(--jig)";
+    await Promise.all([loadStats(), loadFilters()]);
+    if (state.view === "library") loadTunes();
+  } catch (err) {
+    ffStatus.textContent = `Error: ${err.message}`;
+    ffAddBtn.disabled    = false;
+    ffAddBtn.textContent = "Add to Library";
+  }
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {

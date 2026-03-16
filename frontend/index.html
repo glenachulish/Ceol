@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceol – Trad Music</title>
-  <link rel="stylesheet" href="/static/style.css?v=23" />
+  <link rel="stylesheet" href="/static/style.css?v=24" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -171,30 +171,29 @@
         <a class="ff-site-link"
            href="https://flutefling.scot/resources/flutefling-session-tunes/"
            target="_blank" rel="noopener">
-          Visit FlutefFling.scot session tunes ↗
+          Link to FlutefFling Session Tunes ↗
         </a>
-        <p class="ff-site-hint">Open the page above, find the tune name, then enter it below.</p>
+        <p class="ff-site-hint">Visit the page above, find your tune, then paste its URLs below. At least one URL is required.</p>
 
-        <div class="ff-search-form">
-          <input id="ff-name-input" type="text" class="ff-name-input" placeholder="Tune name…" autocomplete="off" />
-          <div class="ff-format-row">
-            <label class="ff-format-label">
-              <input type="checkbox" name="ff-format" value="abc" checked> Sheet music
-            </label>
-            <label class="ff-format-label">
-              <input type="checkbox" name="ff-format" value="mp3"> MP3 reference
-            </label>
-          </div>
-          <button id="ff-download-btn" class="btn-primary">Search</button>
+        <div class="ff-url-form">
+          <label class="ff-url-label" for="ff-abc-url">Paste the URL for sheet music here</label>
+          <input id="ff-abc-url" type="url" class="ff-url-input" placeholder="https://flutefling.scot/…" autocomplete="off" spellcheck="false" />
+
+          <label class="ff-url-label" for="ff-mp3-url">Paste the URL for MP3 here</label>
+          <input id="ff-mp3-url" type="url" class="ff-url-input" placeholder="https://flutefling.scot/…" autocomplete="off" spellcheck="false" />
+
+          <label class="ff-url-label" for="ff-title-input">Tune title <span class="ff-url-hint">(auto-filled from sheet music; required if adding MP3 only)</span></label>
+          <input id="ff-title-input" type="text" class="ff-url-input" placeholder="e.g. The Morning Dew" autocomplete="off" />
+
+          <button id="ff-add-btn" class="btn-primary ff-add-btn">Add to Library</button>
         </div>
 
-        <div id="ff-search-status" class="ff-cat-status"></div>
-        <div id="ff-search-results"></div>
+        <div id="ff-status" class="ff-cat-status"></div>
       </div>
     </div>
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=23"></script>
+  <script src="/static/app.js?v=24"></script>
 </body>
 </html>
