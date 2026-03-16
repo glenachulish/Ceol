@@ -895,9 +895,12 @@ async def flutefling_catalogue(refresh: bool = False):
 
 @app.get("/api/flutefling/fetch-abc")
 async def flutefling_fetch_abc(url: str = Query(...)):
-    """Fetch an ABC file from flutefling.scot and return parsed individual tunes."""
-    if not re.match(r"https?://flutefling\.scot/", url):
-        raise HTTPException(400, "URL must be from flutefling.scot")
+    """Fetch an ABC/text file from a safe HTTPS URL and return parsed individual tunes."""
+    if not re.match(r"https://", url):
+        raise HTTPException(400, "URL must use HTTPS")
+    # Block private/local addresses
+    if re.search(r"(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)", url):
+        raise HTTPException(400, "Private/local URLs are not allowed")
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
         try:

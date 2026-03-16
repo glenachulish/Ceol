@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceol – Trad Music</title>
-  <link rel="stylesheet" href="/static/style.css?v=19" />
+  <link rel="stylesheet" href="/static/style.css?v=20" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -158,14 +158,26 @@
       <!-- FlutefFling.scot tab -->
       <div id="import-tab-flutefling" class="tab-panel hidden">
         <p class="import-desc">
-          <a href="https://flutefling.scot" target="_blank" rel="noopener">FlutefFling.scot</a>
+          <a href="https://flutefling.scot/resources/flutefling-repertoire-archive/" target="_blank" rel="noopener">FlutefFling.scot</a>
           publishes curated tune sets with ABC notation, PDFs, and MP3 recordings.
         </p>
 
+        <!-- Option A: paste ABC file URL directly -->
+        <div class="flutefling-section">
+          <h4 class="flutefling-section-title">Import from ABC file URL</h4>
+          <p class="import-desc">Visit <a href="https://flutefling.scot/resources/flutefling-repertoire-archive/" target="_blank" rel="noopener">the FlutefFling archive</a>, copy the link to any <code>.txt</code> ABC file, and paste it here:</p>
+          <div class="ff-url-row">
+            <input id="ff-url-input" type="url" class="ff-url-input" placeholder="https://flutefling.scot/…/tunes.txt" autocomplete="off" />
+            <button id="ff-url-btn" class="btn-primary">Fetch</button>
+          </div>
+          <span id="ff-url-status" class="ff-cat-status"></span>
+          <div id="ff-url-list" class="ff-cat-list"></div>
+        </div>
+
         <!-- Browse ABC archive -->
         <div class="flutefling-section">
-          <h4 class="flutefling-section-title">Browse FlutefFling tunes</h4>
-          <p class="import-desc">Load the complete list of tunes available from the FlutefFling archive. Takes a moment on first load.</p>
+          <h4 class="flutefling-section-title">Browse all FlutefFling tunes</h4>
+          <p class="import-desc">Scrape the entire FlutefFling archive into a searchable list. Takes a minute on first load.</p>
           <div class="ff-cat-toolbar">
             <button id="ff-cat-load-btn" class="btn-primary">Load tune list</button>
             <span id="ff-cat-status" class="ff-cat-status"></span>
@@ -201,6 +213,6 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=19"></script>
+  <script src="/static/app.js?v=20"></script>
 </body>
 </html>

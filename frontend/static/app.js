@@ -480,6 +480,9 @@ let _visualObj = null;
 let _synthController = null;
 let _msPerMeasure = null;
 let _barSel = { start: null, end: null };
+// When true, the next Play press will seek to the selected start bar.
+// Cleared after the seek fires so that pause/resume doesn't re-seek.
+let _barSeekPending = false;
 // Ordered map of every bar: [{line, measure}, …] sorted by line then measure.
 // ABCJS resets abcjs-mN per staff line, so we need (line, measure) as a pair.
 let _barMap = [];
@@ -567,6 +570,7 @@ function _onMeasureClicked(m) {
     _barSel = { start: m, end: m };
   }
 
+  _barSeekPending = true;   // arm the seek for the next Play press
   _updateBarHighlight();
   _updateSelectionInfo();
   _applySelectionToPlayer();
@@ -619,6 +623,7 @@ function _seekToBar(barIndex) {
 
 function _clearBarSel() {
   _barSel = { start: null, end: null };
+  _barSeekPending = false;
   _updateBarHighlight();
   _updateSelectionInfo();
 }
@@ -675,15 +680,18 @@ function renderSheetMusic(abc) {
 
     // Cursor control: highlights the current note during playback
     const cursorControl = {
-      // Seek to selected start bar the moment Play is pressed.
-      // setProgress (not seek) updates e.percent so timer.start(e.percent) picks it up.
+      // Seek to selected start bar the moment Play is first pressed.
+      // seek() positions the audio buffer AND the timer; setProgress() updates
+      // e.percent so that timer.start(e.percent) restarts from the right place.
+      // _barSeekPending is a one-shot flag so that pause→resume does not re-seek.
       onStart() {
-        if (_barSel.start !== null && _msPerMeasure) {
-          const dur = _synthController.midiBuffer && _synthController.midiBuffer.duration;
-          if (!dur) return;
-          const frac = Math.max(0, Math.min(1, (_barSel.start * _msPerMeasure / 1000) / dur));
-          _synthController.setProgress(frac, dur * 1000);
-        }
+        if (!_barSeekPending || _barSel.start === null || !_msPerMeasure) return;
+        const dur = _synthController.midiBuffer && _synthController.midiBuffer.duration;
+        if (!dur) return;
+        _barSeekPending = false;
+        const frac = Math.max(0, Math.min(1, (_barSel.start * _msPerMeasure / 1000) / dur));
+        _synthController.seek(frac);           // positions audio + timer
+        _synthController.setProgress(frac, dur * 1000); // updates e.percent
       },
       onEvent(ev) {
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")
@@ -1373,6 +1381,71 @@ async function runSessionSearch() {
 
 sessionSearchBtn.addEventListener("click", runSessionSearch);
 sessionSearchInput.addEventListener("keydown", e => { if (e.key === "Enter") runSessionSearch(); });
+
+// ── FlutefFling.scot — direct ABC URL import ──────────────────────────────────
+
+const ffUrlInput  = document.getElementById("ff-url-input");
+const ffUrlBtn    = document.getElementById("ff-url-btn");
+const ffUrlStatus = document.getElementById("ff-url-status");
+const ffUrlList   = document.getElementById("ff-url-list");
+
+async function runFfUrlFetch() {
+  const url = ffUrlInput.value.trim();
+  if (!url) { ffUrlInput.focus(); return; }
+  ffUrlBtn.disabled = true;
+  ffUrlStatus.textContent = "Fetching…";
+  ffUrlList.innerHTML = "";
+  try {
+    const data = await apiFetch(`/api/flutefling/fetch-abc?url=${encodeURIComponent(url)}`);
+    if (!data.tunes || !data.tunes.length) {
+      ffUrlStatus.textContent = "No tunes found in that file.";
+      return;
+    }
+    ffUrlStatus.textContent = `${data.tunes.length} tune${data.tunes.length !== 1 ? "s" : ""} found:`;
+    ffUrlList.innerHTML = data.tunes.map((t, i) => `
+      <div class="ff-cat-tune-row">
+        <div class="ff-cat-tune-info">
+          <span class="ff-cat-tune-title">${escHtml(t.title)}</span>
+          <span class="ff-cat-tune-meta">
+            ${t.type ? `<span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type)}</span>` : ""}
+            ${t.key  ? `<span class="ff-cat-tune-key">${escHtml(t.key)}${t.mode && t.mode !== "major" ? " " + escHtml(t.mode) : ""}</span>` : ""}
+          </span>
+        </div>
+        <button class="btn-primary btn-sm ff-url-import-btn" data-idx="${i}">+ Import</button>
+      </div>`).join("");
+
+    ffUrlList.querySelectorAll(".ff-url-import-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const tune = data.tunes[parseInt(btn.dataset.idx)];
+        btn.disabled = true;
+        btn.textContent = "Importing…";
+        try {
+          await apiFetch("/api/tunes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: tune.title, type: tune.type || "", key: tune.key || "",
+              mode: tune.mode || "", abc: tune.abc,
+              notes: `Imported from: ${url}`,
+            }),
+          });
+          btn.textContent = "Imported ✓";
+          loadTunes();
+        } catch {
+          btn.textContent = "Failed";
+          btn.disabled = false;
+        }
+      });
+    });
+  } catch (err) {
+    ffUrlStatus.textContent = `Error: ${err.message}`;
+  } finally {
+    ffUrlBtn.disabled = false;
+  }
+}
+
+ffUrlBtn.addEventListener("click", runFfUrlFetch);
+ffUrlInput.addEventListener("keydown", e => { if (e.key === "Enter") runFfUrlFetch(); });
 
 // ── FlutefFling.scot — catalogue browser (flat tune list) ────────────────────
 
