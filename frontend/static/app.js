@@ -671,22 +671,12 @@ function renderSheetMusic(abc) {
             if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
           });
         }
-        // Bar selection loop: when playback passes the end bar, seek back to start.
-        // Use ev.elements to find the wrapper by DOM identity (avoids abcjs-lN ambiguity).
-        if (_barSel.start !== null && ev && ev.measureStart && ev.elements) {
-          let evWrapper = null;
-          const firstEl = ev.elements[0] && ev.elements[0][0];
-          if (firstEl) {
-            let node = firstEl.parentElement;
-            while (node) {
-              if (node.classList && node.classList.contains("abcjs-staff-wrapper")) {
-                evWrapper = node; break;
-              }
-              node = node.parentElement;
-            }
-          }
-          const evIdx = _barMap.findIndex(b => b.wrapper === evWrapper && b.measure === ev.measureNumber);
-          if (evIdx !== -1 && evIdx > _barSel.end) {
+        // Bar selection loop: when playback passes the end of the selected range,
+        // seek back to the start bar.  Use ev.milliseconds (absolute time from the
+        // start of the piece) compared against the bar-map index × msPerMeasure.
+        if (_barSel.start !== null && ev && ev.measureStart && _msPerMeasure) {
+          const endTimeMs = (_barSel.end + 1) * _msPerMeasure;
+          if (ev.milliseconds >= endTimeMs) {
             _seekToBar(_barSel.start);
           }
         }
