@@ -969,19 +969,16 @@ async def flutefling_fetch_abc(url: str = Query(...)):
         raise HTTPException(400, "Private/local URLs are not allowed")
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
+        _conn_error: list[str] = []
 
         async def _fetch_text(fetch_url: str) -> str | None:
-            """Fetch a URL; return text on success, None on 404, raise on other errors."""
+            """Return response text on HTTP 2xx, None on any HTTP error, raise only on network failure."""
             try:
                 r = await client.get(fetch_url, headers=_FF_HEADERS, timeout=15)
-                if r.status_code == 404:
-                    return None
-                r.raise_for_status()
-                return r.text
-            except httpx.HTTPStatusError as exc:
-                raise HTTPException(502, f"Server returned {exc.response.status_code} for {fetch_url}")
+                return r.text if r.is_success else None
             except Exception as exc:
-                raise HTTPException(502, f"Could not fetch URL: {exc}")
+                _conn_error.append(str(exc))
+                return None
 
         text: str | None = None
 
@@ -989,6 +986,8 @@ async def flutefling_fetch_abc(url: str = Query(...)):
             # Direct ABC text file
             text = await _fetch_text(url)
             if text is None:
+                if _conn_error:
+                    raise HTTPException(502, f"Could not reach flutefling.scot: {_conn_error[0]}")
                 raise HTTPException(404, "The .txt file was not found at that URL.")
 
         elif url.lower().endswith(".pdf"):
@@ -1013,6 +1012,8 @@ async def flutefling_fetch_abc(url: str = Query(...)):
                             text = await _fetch_text(sets[0]["abc_url"])
 
             if text is None:
+                if _conn_error:
+                    raise HTTPException(502, f"Could not reach flutefling.scot: {_conn_error[0]}")
                 raise HTTPException(
                     404,
                     "Could not find an ABC (.txt) file for that PDF. "
