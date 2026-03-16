@@ -752,6 +752,40 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .session-result-name { font-weight: 600; font-size: .9rem; }
 .session-result-meta { font-size: .75rem; color: var(--text-muted); }
 
+/* ── TheSession.org tune preview ─────────────────────────── */
+.session-preview { margin-top: .5rem; }
+.session-preview-header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .75rem;
+  flex-wrap: wrap;
+}
+.session-preview-title-text { font-weight: 600; font-size: 1rem; flex: 1; min-width: 0; }
+.session-preview-footer {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-top: .75rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--border);
+}
+.preview-panel { padding-top: .9rem; }
+#preview-sheet-render { min-height: 80px; }
+.preview-abc-text {
+  font-family: monospace;
+  font-size: .78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  background: var(--surface2);
+  border-radius: 6px;
+  padding: .75rem 1rem;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  color: var(--text);
+}
+
 /* ── Notes rendered preview ───────────────────────────────── */
 .notes-rendered {
   font-size: .9rem;

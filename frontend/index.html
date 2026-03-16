@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceol – Trad Music</title>
-  <link rel="stylesheet" href="/static/style.css?v=25" />
+  <link rel="stylesheet" href="/static/style.css?v=26" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -157,12 +157,38 @@
 
       <!-- TheSession.org tab -->
       <div id="import-tab-session" class="tab-panel hidden">
-        <p class="import-desc">Search TheSession.org and import individual tunes directly into your library.</p>
-        <div class="session-search-row">
-          <input id="session-search-input" type="search" placeholder="Search tunes on TheSession.org…" autocomplete="off" />
-          <button id="session-search-btn" class="btn-primary">Search</button>
+        <div id="session-search-pane">
+          <p class="import-desc">Search TheSession.org and preview a tune before adding it to your library.</p>
+          <div class="session-search-row">
+            <input id="session-search-input" type="search" placeholder="Search tunes on TheSession.org…" autocomplete="off" />
+            <button id="session-search-btn" class="btn-primary">Search</button>
+          </div>
+          <div id="session-results" class="session-results"></div>
         </div>
-        <div id="session-results" class="session-results"></div>
+
+        <!-- Preview panel (hidden until a result is clicked) -->
+        <div id="session-preview" class="session-preview hidden">
+          <div class="session-preview-header">
+            <button id="session-preview-back" class="btn-secondary btn-sm">← Back</button>
+            <span id="session-preview-title" class="session-preview-title-text"></span>
+            <span id="session-preview-badges"></span>
+          </div>
+          <div class="modal-tabs">
+            <button class="tab-btn active" data-preview-tab="sheet">Sheet Music</button>
+            <button class="tab-btn" data-preview-tab="abc">ABC</button>
+          </div>
+          <div id="preview-panel-sheet" class="preview-panel">
+            <div id="preview-sheet-render"></div>
+            <div id="preview-audio-container" class="audio-player-wrap"></div>
+          </div>
+          <div id="preview-panel-abc" class="preview-panel hidden">
+            <pre id="preview-abc-text" class="preview-abc-text"></pre>
+          </div>
+          <div class="session-preview-footer">
+            <button id="session-save-btn" class="btn-primary">Save to Library</button>
+            <span id="session-save-status" class="notes-status"></span>
+          </div>
+        </div>
       </div>
 
       <!-- FlutefFling.scot tab -->
@@ -194,6 +220,6 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=27"></script>
+  <script src="/static/app.js?v=28"></script>
 </body>
 </html>

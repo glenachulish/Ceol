@@ -492,6 +492,44 @@ async def thesession_search(q: str = Query(..., min_length=1), page: int = Query
     return {"tunes": tunes, "page": data.get("page", 1), "pages": data.get("pages", 1), "total": data.get("total", 0)}
 
 
+@app.get("/api/thesession/fetch/{tune_id}")
+async def thesession_fetch(tune_id: int):
+    """Fetch a tune's ABC from TheSession.org by ID without saving it."""
+    async with httpx.AsyncClient(headers=_SESSION_HEADERS, timeout=10) as client:
+        try:
+            resp = await client.get(f"{_SESSION_BASE}/tunes/{tune_id}", params={"format": "json"})
+            resp.raise_for_status()
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Could not reach TheSession.org: {exc}")
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(502, f"TheSession.org returned {exc.response.status_code}")
+
+    data = resp.json()
+    settings = data.get("settings", [])
+    if not settings:
+        raise HTTPException(404, "No ABC settings found for this tune")
+
+    best = max(settings, key=lambda s: s.get("votes", 0))
+    abc = best.get("abc", "")
+    key = best.get("key", "")
+    tune_type = data.get("type", "")
+    title = data.get("name", "")
+    aliases = [a["name"] for a in data.get("aliases", []) if a.get("name")]
+
+    from backend.abc_parser import normalise_key
+    key_norm, mode_norm = normalise_key(key) if key else (key, "")
+
+    return {
+        "session_id": tune_id,
+        "title": title,
+        "type": tune_type.lower() if tune_type else "",
+        "key": key_norm,
+        "mode": mode_norm,
+        "abc": abc,
+        "aliases": aliases,
+    }
+
+
 @app.post("/api/thesession/import")
 async def thesession_import(body: dict):
     """Fetch a tune from TheSession.org by ID and save the top-voted setting."""

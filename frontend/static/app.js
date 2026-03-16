@@ -575,6 +575,11 @@ let _visualObj = null;
 let _synthController = null;
 let _msPerMeasure = null;
 let _barSel = { start: null, end: null };
+
+// ── TheSession preview state ──────────────────────────────────────────────────
+let _previewVisualObj = null;
+let _previewSynthCtrl = null;
+let _previewTuneData = null;
 // When true, the next Play press will seek to the selected start bar.
 // Cleared after the seek fires so that pause/resume doesn't re-seek.
 let _barSeekPending = false;
@@ -836,6 +841,82 @@ function renderSheetMusic(abc) {
     console.warn("Sheet music render failed:", err);
     if (container) container.textContent = "(Could not render sheet music)";
   }
+}
+
+function renderPreviewMusic(abc) {
+  const container = document.getElementById("preview-sheet-render");
+  if (!container || typeof ABCJS === "undefined") return;
+
+  if (_previewSynthCtrl) {
+    try { _previewSynthCtrl.stop(); } catch {}
+    _previewSynthCtrl = null;
+  }
+  container.innerHTML = "";
+  document.getElementById("preview-audio-container").innerHTML = "";
+
+  const abcWithFlute = abc.replace(/(K:[^\n]*)(\n|$)/, "$1\n%%MIDI program 73\n");
+  try {
+    const visualObjs = ABCJS.renderAbc("preview-sheet-render", abcWithFlute, {
+      responsive: "resize",
+      add_classes: true,
+      paddingbottom: 10,
+      paddingleft: 15,
+      paddingright: 15,
+      paddingtop: 10,
+      selectTypes: false,
+      foregroundColor: "#000000",
+    });
+    _previewVisualObj = visualObjs[0];
+
+    if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+
+    _previewSynthCtrl = new ABCJS.synth.SynthController();
+    _previewSynthCtrl.load("#preview-audio-container", null, {
+      displayLoop: true,
+      displayRestart: true,
+      displayPlay: true,
+      displayProgress: true,
+      displayWarp: true,
+    });
+    _previewSynthCtrl.setTune(_previewVisualObj, false).catch(err => {
+      console.warn("Preview audio init failed:", err);
+    });
+  } catch (err) {
+    console.warn("Preview render failed:", err);
+    if (container) container.textContent = "(Could not render sheet music)";
+  }
+}
+
+function showSessionPreview(tuneData) {
+  _previewTuneData = tuneData;
+
+  document.getElementById("session-search-pane").classList.add("hidden");
+  const preview = document.getElementById("session-preview");
+  preview.classList.remove("hidden");
+
+  document.getElementById("session-preview-title").textContent = tuneData.title;
+  const typeClass = typeBadgeClass(tuneData.type);
+  document.getElementById("session-preview-badges").innerHTML =
+    (tuneData.type ? `<span class="badge ${typeClass}">${escHtml(tuneData.type)}</span>` : "") +
+    (tuneData.key  ? `<span class="badge badge-key">${escHtml(tuneData.key)}</span>` : "");
+
+  document.getElementById("preview-abc-text").textContent = tuneData.abc;
+
+  // Reset tabs to Sheet Music
+  preview.querySelectorAll("[data-preview-tab]").forEach(b => b.classList.remove("active"));
+  preview.querySelector('[data-preview-tab="sheet"]').classList.add("active");
+  document.getElementById("preview-panel-sheet").classList.remove("hidden");
+  document.getElementById("preview-panel-abc").classList.add("hidden");
+
+  // Reset save button
+  const saveBtn = document.getElementById("session-save-btn");
+  saveBtn.textContent = "Save to Library";
+  saveBtn.disabled = false;
+  saveBtn.style.background = "";
+  saveBtn.style.opacity = "";
+  document.getElementById("session-save-status").textContent = "";
+
+  requestAnimationFrame(() => renderPreviewMusic(tuneData.abc));
 }
 
 function renderSets(sets) {
@@ -1317,6 +1398,13 @@ function closeImport() {
   importOverlay.classList.add("hidden");
   document.body.style.overflow = "";
   _ffReset();
+  if (_previewSynthCtrl) {
+    try { _previewSynthCtrl.stop(); } catch {}
+    _previewSynthCtrl = null;
+  }
+  _previewTuneData = null;
+  document.getElementById("session-preview").classList.add("hidden");
+  document.getElementById("session-search-pane").classList.remove("hidden");
 }
 
 importClose.addEventListener("click", closeImport);
@@ -1443,39 +1531,19 @@ async function runSessionSearch() {
           <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
           <span class="session-result-meta">${t.tunebooks} tunebook${t.tunebooks !== 1 ? "s" : ""}</span>
         </div>
-        <button class="btn-primary session-import-btn" data-session-id="${t.id}" data-name="${escHtml(t.name)}">
-          + Import
+        <button class="btn-primary session-preview-btn" data-session-id="${t.id}">
+          Preview
         </button>
       </div>
     `).join("");
 
-    sessionResults.querySelectorAll(".session-import-btn").forEach(btn => {
+    sessionResults.querySelectorAll(".session-preview-btn").forEach(btn => {
       btn.addEventListener("click", async () => {
         btn.disabled = true;
-        btn.textContent = "Importing…";
+        btn.textContent = "Loading…";
         try {
-          const res = await fetch("/api/thesession/import", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ tune_id: Number(btn.dataset.sessionId) }),
-          });
-          const data = await res.json();
-          if (res.ok) {
-            if (data.status === "exists") {
-              btn.textContent = "Already in library";
-              btn.style.opacity = ".5";
-            } else {
-              btn.textContent = "Imported ✓";
-              btn.style.background = "var(--jig)";
-              await Promise.all([loadStats(), loadFilters()]);
-              if (state.view === "library") loadTunes();
-            }
-          } else {
-            btn.textContent = "Failed";
-            btn.style.borderColor = "var(--danger)";
-            btn.style.color = "var(--danger)";
-            btn.disabled = false;
-          }
+          const tuneData = await apiFetch(`/api/thesession/fetch/${btn.dataset.sessionId}`);
+          showSessionPreview(tuneData);
         } catch {
           btn.textContent = "Error";
           btn.disabled = false;
@@ -1492,6 +1560,69 @@ async function runSessionSearch() {
 
 sessionSearchBtn.addEventListener("click", runSessionSearch);
 sessionSearchInput.addEventListener("keydown", e => { if (e.key === "Enter") runSessionSearch(); });
+
+// Preview tab switching
+document.querySelectorAll("[data-preview-tab]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("[data-preview-tab]").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("#session-preview .preview-panel").forEach(p => p.classList.add("hidden"));
+    btn.classList.add("active");
+    document.getElementById(`preview-panel-${btn.dataset.previewTab}`).classList.remove("hidden");
+  });
+});
+
+// Back button: return to search results
+document.getElementById("session-preview-back").addEventListener("click", () => {
+  if (_previewSynthCtrl) {
+    try { _previewSynthCtrl.stop(); } catch {}
+    _previewSynthCtrl = null;
+  }
+  _previewTuneData = null;
+  document.getElementById("session-preview").classList.add("hidden");
+  document.getElementById("session-search-pane").classList.remove("hidden");
+});
+
+// Save button: import the previewed tune into the library
+document.getElementById("session-save-btn").addEventListener("click", async () => {
+  if (!_previewTuneData) return;
+  const btn = document.getElementById("session-save-btn");
+  const status = document.getElementById("session-save-status");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+  try {
+    const res = await fetch("/api/thesession/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tune_id: _previewTuneData.session_id }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      if (data.status === "exists") {
+        btn.textContent = "Already in library";
+        btn.style.opacity = ".5";
+        status.textContent = "Already in your library.";
+        status.className = "notes-status notes-saved";
+      } else {
+        btn.textContent = "Saved ✓";
+        btn.style.background = "var(--jig)";
+        status.textContent = `"${data.title}" saved to your library!`;
+        status.className = "notes-status notes-saved";
+        await Promise.all([loadStats(), loadFilters()]);
+        if (state.view === "library") loadTunes();
+      }
+    } else {
+      btn.textContent = "Save to Library";
+      btn.disabled = false;
+      status.textContent = "Failed to save.";
+      status.className = "notes-status notes-error";
+    }
+  } catch {
+    btn.textContent = "Save to Library";
+    btn.disabled = false;
+    status.textContent = "Error saving.";
+    status.className = "notes-status notes-error";
+  }
+});
 
 // ── FlutefFling.scot ──────────────────────────────────────────────────────────
 
