@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceol – Trad Music</title>
-  <link rel="stylesheet" href="/static/style.css?v=21" />
+  <link rel="stylesheet" href="/static/style.css?v=22" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -46,9 +46,19 @@
           <select id="filter-key"><option value="">All keys</option></select>
           <select id="filter-mode"><option value="">All modes</option></select>
           <button id="clear-btn" class="btn-secondary">Clear</button>
+          <button id="select-mode-btn" class="btn-secondary">Select</button>
         </div>
         <div class="result-count" id="result-count"></div>
       </section>
+
+      <!-- Bulk-action bar — visible only in select mode -->
+      <div id="bulk-bar" class="bulk-bar hidden">
+        <span id="bulk-count" class="bulk-count">0 selected</span>
+        <button id="bulk-select-all-btn" class="btn-secondary btn-sm">Select all</button>
+        <button id="bulk-delete-btn" class="btn-danger btn-sm" disabled>Delete selected</button>
+        <button id="bulk-cancel-btn" class="btn-secondary btn-sm">Cancel</button>
+      </div>
+
       <section class="tune-list" id="tune-list">
         <p class="loading">Loading tunes…</p>
       </section>
@@ -183,6 +193,6 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=21"></script>
+  <script src="/static/app.js?v=22"></script>
 </body>
 </html>

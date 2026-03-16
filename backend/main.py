@@ -151,6 +151,24 @@ def delete_tune(tune_id: int):
     return {"ok": True}
 
 
+class BulkDeleteBody(BaseModel):
+    ids: list[int]
+
+
+@app.post("/api/tunes/bulk-delete")
+def bulk_delete_tunes(body: BulkDeleteBody):
+    """Delete multiple tunes in a single transaction."""
+    if not body.ids:
+        raise HTTPException(400, "No IDs provided")
+    with _db() as conn:
+        for tid in body.ids:
+            conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (tid,))
+            conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (tid,))
+            conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (tid,))
+            conn.execute("DELETE FROM tunes WHERE id = ?", (tid,))
+    return {"deleted": len(body.ids)}
+
+
 class TuneUpdate(BaseModel):
     title: Optional[str] = None
     type: Optional[str] = None

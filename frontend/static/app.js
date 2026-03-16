@@ -17,8 +17,14 @@ const searchEl      = document.getElementById("search");
 const filterType    = document.getElementById("filter-type");
 const filterKey     = document.getElementById("filter-key");
 const filterMode    = document.getElementById("filter-mode");
-const clearBtn      = document.getElementById("clear-btn");
-const tuneList      = document.getElementById("tune-list");
+const clearBtn         = document.getElementById("clear-btn");
+const selectModeBtn    = document.getElementById("select-mode-btn");
+const bulkBar          = document.getElementById("bulk-bar");
+const bulkCount        = document.getElementById("bulk-count");
+const bulkSelectAllBtn = document.getElementById("bulk-select-all-btn");
+const bulkDeleteBtn    = document.getElementById("bulk-delete-btn");
+const bulkCancelBtn    = document.getElementById("bulk-cancel-btn");
+const tuneList         = document.getElementById("tune-list");
 const pagination    = document.getElementById("pagination");
 const resultCount   = document.getElementById("result-count");
 const statsBar      = document.getElementById("stats-bar");
@@ -49,6 +55,92 @@ const navNotes      = document.getElementById("nav-notes");
 const notesDocList  = document.getElementById("notes-doc-list");
 const notesEditor   = document.getElementById("notes-editor");
 const newDocBtn     = document.getElementById("new-doc-btn");
+
+// ── Select mode ───────────────────────────────────────────────────────────────
+let _selectMode = false;
+const _selectedIds = new Set();
+
+function _enterSelectMode() {
+  _selectMode = true;
+  _selectedIds.clear();
+  selectModeBtn.textContent = "Done";
+  selectModeBtn.classList.add("active");
+  bulkBar.classList.remove("hidden");
+  tuneList.classList.add("select-mode");
+  _updateBulkBar();
+}
+
+function _exitSelectMode() {
+  _selectMode = false;
+  _selectedIds.clear();
+  selectModeBtn.textContent = "Select";
+  selectModeBtn.classList.remove("active");
+  bulkBar.classList.add("hidden");
+  tuneList.classList.remove("select-mode");
+  tuneList.querySelectorAll(".tune-card.selected").forEach(c => c.classList.remove("selected"));
+}
+
+function _updateBulkBar() {
+  const n = _selectedIds.size;
+  bulkCount.textContent = `${n} selected`;
+  bulkDeleteBtn.disabled = n === 0;
+  // Update "Select all" label based on whether all visible cards are selected
+  const total = tuneList.querySelectorAll(".tune-card").length;
+  bulkSelectAllBtn.textContent = (n > 0 && n === total) ? "Deselect all" : "Select all";
+}
+
+function _toggleCard(card) {
+  const id = card.dataset.id;
+  if (_selectedIds.has(id)) {
+    _selectedIds.delete(id);
+    card.classList.remove("selected");
+  } else {
+    _selectedIds.add(id);
+    card.classList.add("selected");
+  }
+  _updateBulkBar();
+}
+
+selectModeBtn.addEventListener("click", () => {
+  if (_selectMode) _exitSelectMode(); else _enterSelectMode();
+});
+
+bulkCancelBtn.addEventListener("click", _exitSelectMode);
+
+bulkSelectAllBtn.addEventListener("click", () => {
+  const cards = tuneList.querySelectorAll(".tune-card");
+  const total = cards.length;
+  if (_selectedIds.size === total) {
+    // deselect all
+    cards.forEach(c => { _selectedIds.delete(c.dataset.id); c.classList.remove("selected"); });
+  } else {
+    // select all
+    cards.forEach(c => { _selectedIds.add(c.dataset.id); c.classList.add("selected"); });
+  }
+  _updateBulkBar();
+});
+
+bulkDeleteBtn.addEventListener("click", async () => {
+  const ids = [..._selectedIds];
+  if (!ids.length) return;
+  const n = ids.length;
+  if (!confirm(`Delete ${n} tune${n !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+  bulkDeleteBtn.disabled = true;
+  bulkDeleteBtn.textContent = "Deleting…";
+  try {
+    await apiFetch("/api/tunes/bulk-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: ids.map(Number) }),
+    });
+    _exitSelectMode();
+    await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+  } catch {
+    alert("Failed to delete tunes. Please try again.");
+    bulkDeleteBtn.disabled = false;
+    bulkDeleteBtn.textContent = "Delete selected";
+  }
+});
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 function debounce(fn, ms) {
@@ -204,7 +296,10 @@ function switchView(view) {
   if (view === "library") {
     viewLibrary.classList.remove("hidden");
     navLibrary.classList.add("active");
-  } else if (view === "sets") {
+  } else {
+    if (_selectMode) _exitSelectMode();
+  }
+  if (view === "sets") {
     viewSets.classList.remove("hidden");
     navSets.classList.add("active");
     loadSets();
@@ -1108,6 +1203,14 @@ pagination.addEventListener("click", e => {
 });
 
 tuneList.addEventListener("click", async e => {
+  const card = e.target.closest(".tune-card");
+
+  // In select mode: clicking anywhere on the card toggles selection
+  if (_selectMode) {
+    if (card) _toggleCard(card);
+    return;
+  }
+
   const delBtn = e.target.closest(".tune-delete-btn");
   if (delBtn) {
     e.stopPropagation();
@@ -1124,7 +1227,7 @@ tuneList.addEventListener("click", async e => {
     }
     return;
   }
-  const card = e.target.closest(".tune-card");
+
   if (!card) return;
   await fetchSets(); // ensure fresh sets for "add to set" dropdown
   const tune = await fetchTune(card.dataset.id);
