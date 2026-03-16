@@ -519,7 +519,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
    selection rules below override this for selected bars. */
 #sheet-music-render path,
 #sheet-music-render rect,
-#sheet-music-render ellipse { fill: #000000; stroke: #000000; }
+#sheet-music-render ellipse { fill: #000000 !important; stroke: #000000 !important; }
 
 /* Bar selection highlight for practice loop */
 #sheet-music-render { cursor: pointer; color: #000000; }
