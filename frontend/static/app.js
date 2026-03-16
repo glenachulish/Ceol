@@ -987,7 +987,8 @@ function renderNoteEditor(doc) {
 
   function scheduleSave() {
     clearTimeout(_saveTimer);
-    saveStatus.textContent = "";
+    saveStatus.textContent = "Saving…";
+    saveStatus.className = "notes-status";
     _saveTimer = setTimeout(async () => {
       try {
         await apiUpdateNoteDocument(docId, {
@@ -1014,11 +1015,17 @@ function renderNoteEditor(doc) {
   titleInput.addEventListener("input", scheduleSave);
   contentArea.addEventListener("input", scheduleSave);
 
-  document.getElementById("delete-doc-btn").addEventListener("click", async () => {
+  document.getElementById("delete-doc-btn").addEventListener("click", async (ev) => {
     if (!confirm(`Delete "${titleInput.value || "Untitled"}"?`)) return;
-    await apiDeleteNoteDocument(docId);
-    _currentDocId = null;
-    await loadNoteDocuments();
+    ev.currentTarget.disabled = true;
+    try {
+      await apiDeleteNoteDocument(docId);
+      _currentDocId = null;
+      await loadNoteDocuments();
+    } catch {
+      alert("Failed to delete document. Please try again.");
+      ev.currentTarget.disabled = false;
+    }
   });
 
   // File upload
@@ -1028,10 +1035,16 @@ function renderNoteEditor(doc) {
     for (const file of files) {
       const fd = new FormData();
       fd.append("file", file);
-      const att = await fetch(`/api/note-documents/${docId}/attachments/file`, {
-        method: "POST", body: fd,
-      }).then(r => r.json());
-      doc.attachments.push(att);
+      try {
+        const r = await fetch(`/api/note-documents/${docId}/attachments/file`, {
+          method: "POST", body: fd,
+        });
+        if (!r.ok) throw new Error(`Upload failed (${r.status})`);
+        const att = await r.json();
+        doc.attachments.push(att);
+      } catch {
+        alert(`Failed to upload "${file.name}". Please try again.`);
+      }
     }
     e.target.value = "";
     renderNoteEditor(doc);
