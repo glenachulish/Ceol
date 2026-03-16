@@ -671,12 +671,12 @@ function renderSheetMusic(abc) {
             if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
           });
         }
-        // Bar selection loop: when playback passes the end of the selected range,
-        // seek back to the start bar.  Use ev.milliseconds (absolute time from the
-        // start of the piece) compared against the bar-map index × msPerMeasure.
+        // Bar-range enforcement: jump to start bar if playback is before it (e.g.
+        // user pressed Play after selecting bars), or loop back when past the end.
         if (_barSel.start !== null && ev && ev.measureStart && _msPerMeasure) {
-          const endTimeMs = (_barSel.end + 1) * _msPerMeasure;
-          if (ev.milliseconds >= endTimeMs) {
+          const startTimeMs = _barSel.start * _msPerMeasure;
+          const endTimeMs   = (_barSel.end + 1) * _msPerMeasure;
+          if (ev.milliseconds < startTimeMs || ev.milliseconds >= endTimeMs) {
             _seekToBar(_barSel.start);
           }
         }
