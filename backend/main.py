@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 import time as _time
 from html.parser import HTMLParser as _HTMLParser
+from urllib.parse import urljoin
 
 from backend.abc_parser import parse_abc_file, parse_abc_string
 from backend.database import DB_PATH, get_connection, init_db
@@ -852,12 +853,16 @@ def _extract_abc_sets(html: str, page_url: str) -> list[dict]:
     parser = _LinkParser()
     parser.feed(html)
 
-    sets: list[dict] = []
-    links = parser.results
+    # Resolve all hrefs to absolute URLs upfront so relative paths work
+    links = [
+        {**link, "href": urljoin(page_url, link["href"])}
+        for link in parser.results
+    ]
 
-    for i, link in enumerate(links):
+    sets: list[dict] = []
+    for link in links:
         href = link["href"]
-        if not (href.lower().endswith(".txt") and _FF_BASE in href):
+        if not (href.lower().endswith(".txt") and "flutefling.scot" in href):
             continue
 
         # Best label: heading > link text > filename
@@ -964,39 +969,80 @@ async def flutefling_fetch_abc(url: str = Query(...)):
         raise HTTPException(400, "Private/local URLs are not allowed")
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        # Decide what to fetch first
-        if url.lower().endswith(".txt"):
-            fetch_url = url
-        elif url.lower().endswith(".pdf"):
-            fetch_url = re.sub(r"\.pdf$", ".txt", url, flags=re.I)
-        else:
-            # Likely a tune page URL – fetch it and look for a .txt link
-            fetch_url = url
 
-        try:
-            r = await client.get(fetch_url, headers=_FF_HEADERS, timeout=15)
-            r.raise_for_status()
-        except Exception as exc:
-            raise HTTPException(502, f"Could not fetch URL: {exc}")
-
-        content_type = r.headers.get("content-type", "")
-        text = r.text
-
-        # If we got HTML back (tune page), extract the .txt link and fetch that
-        if "html" in content_type or text.lstrip().startswith("<!"):
-            sets = _extract_abc_sets(text, fetch_url)
-            if not sets:
-                raise HTTPException(404, "No ABC sheet-music link found on that page. "
-                                         "Try pasting the direct .txt or .pdf file URL instead.")
-            abc_url = sets[0]["abc_url"]
+        async def _fetch_text(fetch_url: str) -> str | None:
+            """Fetch a URL; return text on success, None on 404, raise on other errors."""
             try:
-                r = await client.get(abc_url, headers=_FF_HEADERS, timeout=15)
+                r = await client.get(fetch_url, headers=_FF_HEADERS, timeout=15)
+                if r.status_code == 404:
+                    return None
                 r.raise_for_status()
-                text = r.text
+                return r.text
+            except httpx.HTTPStatusError as exc:
+                raise HTTPException(502, f"Server returned {exc.response.status_code} for {fetch_url}")
             except Exception as exc:
-                raise HTTPException(502, f"Found sheet-music link but could not fetch it: {exc}")
+                raise HTTPException(502, f"Could not fetch URL: {exc}")
 
-    tunes = parse_abc_string(text)
+        text: str | None = None
+
+        if url.lower().endswith(".txt"):
+            # Direct ABC text file
+            text = await _fetch_text(url)
+            if text is None:
+                raise HTTPException(404, "The .txt file was not found at that URL.")
+
+        elif url.lower().endswith(".pdf"):
+            # Try swapping .pdf → .txt at the same path
+            txt_url = re.sub(r"\.pdf$", ".txt", url, flags=re.I)
+            text = await _fetch_text(txt_url)
+
+            if text is None:
+                # .txt not at the same path — try to derive the WordPress post URL
+                # Upload path: .../wp-content/uploads/YYYY/MM/Slug.pdf
+                # Post URL:    .../YYYY/MM/slug/
+                m = re.search(r"/wp(?:-content|/wp-content)/uploads/(\d{4})/(\d{2})/(.+?)\.pdf$",
+                              url, re.I)
+                if m:
+                    year, month, stem = m.group(1), m.group(2), m.group(3)
+                    slug = re.sub(r"[\s_]+", "-", stem).lower()
+                    post_url = f"{_FF_BASE}/{year}/{month}/{slug}/"
+                    post_html = await _fetch_text(post_url)
+                    if post_html:
+                        sets = _extract_abc_sets(post_html, post_url)
+                        if sets:
+                            text = await _fetch_text(sets[0]["abc_url"])
+
+            if text is None:
+                raise HTTPException(
+                    404,
+                    "Could not find an ABC (.txt) file for that PDF. "
+                    "Try pasting the tune's page URL (e.g. flutefling.scot/2026/03/tune-name/) instead."
+                )
+
+        else:
+            # Tune page URL — fetch HTML and scrape for the .txt link
+            page_html = await _fetch_text(url)
+            if page_html is None:
+                raise HTTPException(404, "Page not found at that URL.")
+
+            if "html" not in page_html[:50].lower() and not page_html.lstrip().startswith("<!"):
+                # Treat as raw ABC text
+                text = page_html
+            else:
+                sets = _extract_abc_sets(page_html, url)
+                if not sets:
+                    raise HTTPException(
+                        404,
+                        "No ABC sheet-music link found on that page. "
+                        "Try pasting the direct .txt or .pdf file URL instead."
+                    )
+                text = await _fetch_text(sets[0]["abc_url"])
+                if text is None:
+                    raise HTTPException(502, "Found sheet-music link but could not fetch it.")
+
+    tunes = parse_abc_string(text or "")
+    if not tunes:
+        raise HTTPException(404, "No ABC tunes found in the file.")
     return {
         "tunes": [
             {"title": t.title, "type": t.type, "key": t.key, "mode": t.mode, "abc": t.abc}
