@@ -709,12 +709,10 @@ function _updateSelectionInfo() {
 }
 
 function _seekToBar(barIndex) {
-  if (!_synthController || !_msPerMeasure) return;
-  // Use midiBuffer.duration if available; fall back to barMap length estimate.
-  const dur = (_synthController.midiBuffer && _synthController.midiBuffer.duration)
-    || (_barMap.length * _msPerMeasure / 1000);
-  if (!dur) return;
-  const frac = Math.max(0, Math.min(1, (barIndex * _msPerMeasure / 1000) / dur));
+  if (!_synthController || !_barMap.length) return;
+  // frac = barIndex / totalBars is equivalent to (barIndex * msPerBar) / totalDuration
+  // and works even when _msPerMeasure is unavailable.
+  const frac = Math.max(0, Math.min(1, barIndex / _barMap.length));
   _synthController.seek(frac);
 }
 
@@ -782,17 +780,17 @@ function renderSheetMusic(abc) {
       // e.percent so that timer.start(e.percent) restarts from the right place.
       // _barSeekPending is a one-shot flag so that pause→resume does not re-seek.
       onStart() {
-        if (!_barSeekPending || _barSel.start === null || !_msPerMeasure) return;
+        if (!_barSeekPending || _barSel.start === null || !_barMap.length) return;
         _barSeekPending = false;
-        // Compute total duration: prefer midiBuffer.duration (exact), fall back to
-        // barMap estimate.  Both sources give seconds.
-        const dur = (_synthController.midiBuffer && _synthController.midiBuffer.duration)
-          || (_barMap.length * _msPerMeasure / 1000);
-        if (!dur) return;
-        const frac = Math.max(0, Math.min(1, (_barSel.start * _msPerMeasure / 1000) / dur));
-        _synthController.seek(frac);           // positions audio buffer + timer
-        _synthController.setProgress(frac, dur * 1000); // MUST set e.percent so
-        // timer.start(e.percent) does not reset the timer to 0 when frac > 0.
+        const frac = Math.max(0, Math.min(1, _barSel.start / _barMap.length));
+        _synthController.seek(frac); // positions audio buffer + timer
+        // MUST call setProgress so e.percent = frac, ensuring the ABCJS internal
+        // timer.start(e.percent) enters the setProgress branch (which correctly
+        // sets startTime) rather than the reset() branch (which snaps to bar 0).
+        const durMs = _msPerMeasure
+          ? _barMap.length * _msPerMeasure
+          : 30000; // fallback: 30 s (used only for the progress-bar clock display)
+        _synthController.setProgress(frac, durMs);
       },
       onEvent(ev) {
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")
