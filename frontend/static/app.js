@@ -599,10 +599,10 @@ function _updateSelectionInfo() {
 }
 
 function _seekToBar(barIndex) {
-  if (!_synthController || !_msPerMeasure || !_visualObj) return;
-  const totalSec = typeof _visualObj.getTotalTime === "function" && _visualObj.getTotalTime();
-  if (!totalSec) return;
-  const frac = Math.max(0, Math.min(1, (barIndex * _msPerMeasure / 1000) / totalSec));
+  if (!_synthController || !_msPerMeasure) return;
+  const dur = _synthController.midiBuffer && _synthController.midiBuffer.duration;
+  if (!dur) return;
+  const frac = Math.max(0, Math.min(1, (barIndex * _msPerMeasure / 1000) / dur));
   _synthController.seek(frac);
 }
 
@@ -664,6 +664,16 @@ function renderSheetMusic(abc) {
 
     // Cursor control: highlights the current note during playback
     const cursorControl = {
+      // Seek to selected start bar the moment Play is pressed.
+      // setProgress (not seek) updates e.percent so timer.start(e.percent) picks it up.
+      onStart() {
+        if (_barSel.start !== null && _msPerMeasure) {
+          const dur = _synthController.midiBuffer && _synthController.midiBuffer.duration;
+          if (!dur) return;
+          const frac = Math.max(0, Math.min(1, (_barSel.start * _msPerMeasure / 1000) / dur));
+          _synthController.setProgress(frac, dur * 1000);
+        }
+      },
       onEvent(ev) {
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")
           .forEach(el => el.classList.remove("abcjs-highlight"));
@@ -672,12 +682,13 @@ function renderSheetMusic(abc) {
             if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
           });
         }
-        // Bar-range enforcement: jump to start bar if playback is before it (e.g.
-        // user pressed Play after selecting bars), or loop back when past the end.
-        if (_barSel.start !== null && ev && ev.measureStart && _msPerMeasure) {
-          const startTimeMs = _barSel.start * _msPerMeasure;
-          const endTimeMs   = (_barSel.end + 1) * _msPerMeasure;
-          if (ev.milliseconds < startTimeMs || ev.milliseconds >= endTimeMs) {
+        // Bar-range loop: when Loop is enabled and a range is selected, jump back
+        // to the start bar once playback passes the end of the selected range.
+        if (_barSel.start !== null && _barSel.start !== _barSel.end
+            && ev && ev.measureStart && _msPerMeasure
+            && _synthController.isLooping) {
+          const endTimeMs = (_barSel.end + 1) * _msPerMeasure;
+          if (ev.milliseconds >= endTimeMs) {
             _seekToBar(_barSel.start);
           }
         }
