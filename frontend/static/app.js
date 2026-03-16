@@ -631,6 +631,10 @@ function renderSheetMusic(abc) {
   const infoEl = document.getElementById("bar-selection-info");
   if (infoEl) infoEl.classList.add("hidden");
 
+  // Attach bar-selection click listener in capture phase so it fires even if
+  // ABCJS stops propagation on its own SVG click handlers.
+  container.addEventListener("click", _sheetMusicClickHandler, true);
+
   // Inject flute MIDI instrument into ABC before rendering
   const abcWithFlute = abc.replace(/(K:[^\n]*)(\n|$)/, "$1\n%%MIDI program 73\n");
 
@@ -1090,11 +1094,7 @@ function closeModal() {
   document.body.style.overflow = "";
 }
 
-// ── Bar selection via event delegation (sheet-music-render is created dynamically) ──
-modalContent.addEventListener("click", e => {
-  const render = document.getElementById("sheet-music-render");
-  if (render && render.contains(e.target)) _sheetMusicClickHandler(e);
-});
+// Note: bar-selection click listener is attached inside renderSheetMusic (capture phase).
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 navLibrary.addEventListener("click", () => switchView("library"));
