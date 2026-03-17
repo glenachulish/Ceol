@@ -502,7 +502,7 @@ function renderNotesHtml(text) {
     if (m.index > last) parts.push(`<span>${escHtml(text.slice(last, m.index))}</span>`);
     const url = m[0];
     const urlEsc = escHtml(url);
-    if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url)) {
+    if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url) || /\/api\/(uploads|dropbox\/file)\b/.test(url)) {
       parts.push(`<div class="notes-media-link">
         <button class="btn-secondary btn-sm media-play-btn" data-url="${urlEsc}" data-media-type="audio">▶ Play audio</button>
         <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${escHtml(shortUrl(url))}</a>
@@ -564,12 +564,6 @@ function renderModal(tune, onBack = null) {
     const m = tune.notes.match(/sheet music \(PDF\):\s*(https?:\/\/\S+)/);
     return m ? m[1] : null;
   })();
-  const audioUrl = (() => {
-    if (!tune.notes) return null;
-    const m = tune.notes.match(/(?:FlutefFling MP3|Dropbox audio|Audio|MP3):\s*(\S+)/);
-    return m ? m[1] : null;
-  })();
-
   const setsOptions = state.sets
     .map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`)
     .join("");
@@ -606,9 +600,8 @@ function renderModal(tune, onBack = null) {
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
-      ${(pdfUrl || audioUrl) ? `<div class="ff-download-row">
-        ${pdfUrl ? `<a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>` : ""}
-        ${audioUrl ? `<a class="btn-secondary ff-dl-btn" href="${escHtml(audioUrl)}" download>⬇ Download MP3</a>` : ""}
+      ${pdfUrl ? `<div class="ff-download-row">
+        <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
       </div>` : ""}
       <div id="audio-player-container" class="audio-player-wrap"></div>
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
@@ -616,7 +609,7 @@ function renderModal(tune, onBack = null) {
         Audio playback is not supported in this browser.
       </p>
       <div class="attach-audio-row">
-        <button id="attach-audio-btn" class="btn-secondary">🎧 ${audioUrl ? "Change audio" : "Attach audio"}</button>
+        <button id="attach-audio-btn" class="btn-secondary">🎧 Add audio link</button>
       </div>
       <div id="attach-audio-panel" class="attach-audio-panel hidden">
         <div class="attach-audio-tabs">
@@ -843,17 +836,30 @@ function renderModal(tune, onBack = null) {
     });
   });
 
-  // Helper: update the player after attaching audio
-  function _applyAudio(url, newNotes) {
-    tune.notes = newNotes;
-    const container = document.getElementById("audio-player-container");
-    if (container) container.innerHTML = `<audio controls class="mp3-player" src="${escHtml(url)}"></audio>`;
-    attachAudioPanel.classList.add("hidden");
-    attachAudioBtn.textContent = "🎧 Change audio";
-  }
-
-  function _stripAudioLine(notes) {
-    return (notes || "").split("\n").filter(l => !l.startsWith("Audio:") && !l.startsWith("Dropbox audio:")).join("\n").trimEnd();
+  // Append a URL to notes and refresh the rendered notes section
+  async function _appendUrlToNotes(url, statusEl) {
+    const current = tune.notes || "";
+    const newNotes = current.trimEnd() ? `${current.trimEnd()}\n${url}` : url;
+    try {
+      await apiFetch(`/api/tunes/${tune.id}/notes`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: newNotes }),
+      });
+      tune.notes = newNotes;
+      // Refresh rendered notes in Notes tab
+      const rendered = document.querySelector("#tab-notes .notes-rendered");
+      if (rendered) {
+        rendered.innerHTML = renderNotesHtml(newNotes);
+      } else {
+        const tab = document.getElementById("tab-notes");
+        if (tab) tab.insertAdjacentHTML("afterbegin", `<div class="notes-rendered">${renderNotesHtml(newNotes)}</div><hr class="notes-divider">`);
+      }
+      if (statusEl) statusEl.textContent = "";
+      attachAudioPanel.classList.add("hidden");
+    } catch (err) {
+      if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+    }
   }
 
   // Upload tab
@@ -867,9 +873,8 @@ function renderModal(tune, onBack = null) {
     try {
       const res = await fetch(`/api/tunes/${tune.id}/upload-audio`, { method: "POST", body: formData });
       if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-      const data = await res.json();
-      statusEl.textContent = "";
-      _applyAudio(data.url, data.notes);
+      const { url } = await res.json();
+      await _appendUrlToNotes(`${window.location.origin}${url}`, statusEl);
     } catch (err) {
       statusEl.textContent = `Error: ${err.message}`;
     }
@@ -881,19 +886,8 @@ function renderModal(tune, onBack = null) {
     const statusEl = document.getElementById("attach-url-status");
     const url = urlInput.value.trim();
     if (!url) { statusEl.textContent = "Please enter a URL."; return; }
-    const cleaned = _stripAudioLine(tune.notes);
-    const newNotes = cleaned ? `${cleaned}\nAudio: ${url}` : `Audio: ${url}`;
-    try {
-      await apiFetch(`/api/tunes/${tune.id}/notes`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: newNotes }),
-      });
-      statusEl.textContent = "";
-      _applyAudio(url, newNotes);
-    } catch (err) {
-      statusEl.textContent = `Error: ${err.message}`;
-    }
+    urlInput.value = "";
+    await _appendUrlToNotes(url, statusEl);
   });
 
   // Dropbox tab
@@ -918,7 +912,7 @@ function renderModal(tune, onBack = null) {
       }
       attachAudioList.innerHTML = items.map(f => {
         const icon = f.type === "folder" ? "📁" : "🎧";
-        const label = f.type === "folder" ? "Open" : "Attach";
+        const label = f.type === "folder" ? "Open" : "Add to notes";
         return `<div class="ff-cat-entry">
           <div class="ff-cat-info"><span class="ff-cat-name">${icon} ${escHtml(f.name)}</span></div>
           <button class="ff-cat-add btn-secondary" data-path="${escHtml(f.path)}" data-type="${escHtml(f.type)}">${label}</button>
@@ -933,22 +927,11 @@ function renderModal(tune, onBack = null) {
             return;
           }
           btn.disabled = true;
-          btn.textContent = "Attaching…";
+          btn.textContent = "Adding…";
           const proxyUrl = `${window.location.origin}/api/dropbox/file?path=${encodeURIComponent(fPath)}`;
-          const cleaned = _stripAudioLine(tune.notes);
-          const newNotes = cleaned ? `${cleaned}\nDropbox audio: ${proxyUrl}` : `Dropbox audio: ${proxyUrl}`;
-          try {
-            await apiFetch(`/api/tunes/${tune.id}/notes`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ notes: newNotes }),
-            });
-            _applyAudio(proxyUrl, newNotes);
-          } catch (err) {
-            attachAudioStatus.textContent = `Error: ${err.message}`;
-            btn.disabled = false;
-            btn.textContent = "Attach";
-          }
+          await _appendUrlToNotes(proxyUrl, attachAudioStatus);
+          btn.disabled = false;
+          btn.textContent = "Add to notes";
         });
       });
     } catch (err) {
@@ -978,11 +961,6 @@ function renderModal(tune, onBack = null) {
   requestAnimationFrame(() => {
     if (tune.abc) {
       renderSheetMusic(tune.abc);
-    } else if (audioUrl) {
-      const container = document.getElementById("audio-player-container");
-      if (container) {
-        container.innerHTML = `<audio controls class="mp3-player" src="${escHtml(audioUrl)}"></audio>`;
-      }
     }
   });
 }
