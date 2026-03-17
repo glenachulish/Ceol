@@ -735,6 +735,25 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 
 /* ── Audio player ─────────────────────────────────────────── */
 .audio-player-wrap { margin-top: .75rem; }
+.attach-audio-row { margin-top: .6rem; }
+.attach-audio-panel {
+  margin-top: .5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .7rem;
+}
+.attach-audio-browse-row { display: flex; gap: .5rem; margin-bottom: .4rem; }
+.attach-audio-path {
+  flex: 1;
+  padding: .35rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: .85rem;
+  background: var(--bg);
+  color: var(--text);
+}
+.attach-audio-path:focus { outline: none; border-color: var(--accent); }
+.attach-audio-list { max-height: 200px; overflow-y: auto; margin-top: .3rem; }
 .audio-unavailable {
   color: var(--text-muted);
   font-size: .82rem;
