@@ -22,6 +22,7 @@ const selectModeBtn    = document.getElementById("select-mode-btn");
 const bulkBar          = document.getElementById("bulk-bar");
 const bulkCount        = document.getElementById("bulk-count");
 const bulkSelectAllBtn = document.getElementById("bulk-select-all-btn");
+const bulkMergeBtn     = document.getElementById("bulk-merge-btn");
 const bulkDeleteBtn    = document.getElementById("bulk-delete-btn");
 const bulkCancelBtn    = document.getElementById("bulk-cancel-btn");
 const tuneList         = document.getElementById("tune-list");
@@ -84,7 +85,7 @@ function _updateBulkBar() {
   const n = _selectedIds.size;
   bulkCount.textContent = `${n} selected`;
   bulkDeleteBtn.disabled = n === 0;
-  // Update "Select all" label based on whether all visible cards are selected
+  bulkMergeBtn.disabled = n !== 2;
   const total = tuneList.querySelectorAll(".tune-card").length;
   bulkSelectAllBtn.textContent = (n > 0 && n === total) ? "Deselect all" : "Select all";
 }
@@ -139,6 +140,118 @@ bulkDeleteBtn.addEventListener("click", async () => {
     alert("Failed to delete tunes. Please try again.");
     bulkDeleteBtn.disabled = false;
     bulkDeleteBtn.textContent = "Delete selected";
+  }
+});
+
+// ── Merge tunes ───────────────────────────────────────────────────────────────
+
+function _buildMergedAbc(abc1, sub1, abc2, sub2) {
+  function injectSubtitle(abc, subtitle) {
+    if (!subtitle.trim()) return abc;
+    return abc.replace(/(T:[^\n]*\n)/, `$1T:${subtitle}\n`);
+  }
+  function setXNumber(abc, n) {
+    return abc.replace(/^X:\s*\d+/m, `X:${n}`);
+  }
+  const part1 = injectSubtitle(abc1.trim(), sub1);
+  const part2 = injectSubtitle(setXNumber(abc2.trim(), 2), sub2);
+  return part1 + "\n\n" + part2;
+}
+
+function _showMergeDialog(t1, t2) {
+  const defaultSub1 = t1.key ? `Version in ${t1.key}` : "Version 1";
+  const defaultSub2 = t2.key ? `Version in ${t2.key}` : "Version 2";
+
+  const overlay = document.getElementById("modal-overlay");
+  const content = document.getElementById("modal-content");
+  content.innerHTML = `
+    <h2 class="modal-title">Merge Two Tunes</h2>
+    <p class="modal-abc-label">These two tunes will be combined into one entry. Each version will appear as a separate section in the sheet music, labelled with its subtitle.</p>
+
+    <div class="merge-form">
+      <label class="ff-url-label">Combined title</label>
+      <input id="merge-title" type="text" class="ff-url-input" value="${escHtml(t1.title)}" />
+
+      <label class="ff-url-label">Subtitle for <strong>${escHtml(t1.title)}</strong>${t1.key ? ` (${escHtml(t1.key)})` : ""}</label>
+      <input id="merge-sub1" type="text" class="ff-url-input" value="${escHtml(defaultSub1)}" placeholder="e.g. Version in D" />
+
+      <label class="ff-url-label">Subtitle for <strong>${escHtml(t2.title)}</strong>${t2.key ? ` (${escHtml(t2.key)})` : ""}</label>
+      <input id="merge-sub2" type="text" class="ff-url-input" value="${escHtml(defaultSub2)}" placeholder="e.g. Version in G" />
+    </div>
+
+    <div class="notes-actions" style="margin-top:1.25rem">
+      <button id="merge-confirm-btn" class="btn-primary">Merge into one tune</button>
+      <button id="merge-cancel-btn" class="btn-secondary">Cancel</button>
+      <span id="merge-status" class="notes-status"></span>
+    </div>
+  `;
+
+  overlay.classList.remove("hidden");
+
+  document.getElementById("merge-cancel-btn").addEventListener("click", () => {
+    overlay.classList.add("hidden");
+  });
+
+  document.getElementById("merge-confirm-btn").addEventListener("click", async () => {
+    const mergedTitle = document.getElementById("merge-title").value.trim();
+    const sub1 = document.getElementById("merge-sub1").value.trim();
+    const sub2 = document.getElementById("merge-sub2").value.trim();
+    const status = document.getElementById("merge-status");
+    if (!mergedTitle) { status.textContent = "Title is required."; return; }
+
+    const confirmBtn = document.getElementById("merge-confirm-btn");
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Merging…";
+    status.textContent = "";
+
+    try {
+      const hasAbc = t1.abc || t2.abc;
+      const mergedAbc = hasAbc ? _buildMergedAbc(t1.abc || "", sub1, t2.abc || "", sub2) : "";
+      const noteParts = [t1.notes, t2.notes].filter(Boolean);
+
+      await apiFetch("/api/tunes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: mergedTitle,
+          type: t1.type || t2.type || "",
+          key: "",
+          mode: "",
+          abc: mergedAbc,
+          notes: noteParts.join("\n"),
+        }),
+      });
+
+      await apiFetch("/api/tunes/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [Number(t1.id), Number(t2.id)] }),
+      });
+
+      overlay.classList.add("hidden");
+      _exitSelectMode();
+      await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+    } catch (err) {
+      status.textContent = `Error: ${err.message}`;
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Merge into one tune";
+    }
+  });
+}
+
+bulkMergeBtn.addEventListener("click", async () => {
+  if (_selectedIds.size !== 2) return;
+  const [id1, id2] = [..._selectedIds];
+  bulkMergeBtn.disabled = true;
+  bulkMergeBtn.textContent = "Loading…";
+  try {
+    const [t1, t2] = await Promise.all([fetchTune(id1), fetchTune(id2)]);
+    _showMergeDialog(t1, t2);
+  } catch {
+    alert("Could not load tune data. Please try again.");
+  } finally {
+    bulkMergeBtn.disabled = false;
+    bulkMergeBtn.textContent = "Merge 2 tunes";
   }
 });
 
@@ -407,6 +520,13 @@ function renderModal(tune) {
     ? `<div class="modal-meta">${tune.tags.map(g => `<span class="badge badge-other">${escHtml(g)}</span>`).join("")}</div>`
     : "";
 
+  // Extract FlutefFling PDF URL from notes, if any
+  const pdfUrl = (() => {
+    if (!tune.notes) return null;
+    const m = tune.notes.match(/FlutefFling sheet music \(PDF\):\s*(https:\/\/\S+)/);
+    return m ? m[1] : null;
+  })();
+
   const setsOptions = state.sets
     .map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`)
     .join("");
@@ -437,6 +557,8 @@ function renderModal(tune) {
     <div id="tab-music" class="tab-panel">
       <div class="sheet-music-wrap">
         <div id="sheet-music-render"></div>
+        ${pdfUrl && !tune.abc ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
+        ${pdfUrl && !tune.abc ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
       <div id="audio-player-container" class="audio-player-wrap"></div>
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
@@ -566,8 +688,8 @@ function renderModal(tune) {
     }
   });
 
-  // Render sheet music after paint
-  requestAnimationFrame(() => renderSheetMusic(tune.abc));
+  // Render sheet music after paint (skip if no ABC — PDF or empty)
+  requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); });
 }
 
 // ── Bar-range selection (practice loop) ──────────────────────────────────────

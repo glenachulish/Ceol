@@ -534,6 +534,28 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   min-height: 60px;
 }
 .sheet-music-wrap svg { max-width: 100%; display: block; }
+.pdf-embed {
+  width: 100%;
+  height: 70vh;
+  border: none;
+  display: block;
+  border-radius: var(--radius);
+}
+.pdf-link-hint {
+  margin-top: .5rem;
+  font-size: .85rem;
+  color: var(--text-muted);
+}
+.pdf-link-hint a { color: var(--reel); }
+
+/* ── Merge form ───────────────────────────────────────────── */
+.merge-form {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  margin-top: 1rem;
+}
+.merge-form .ff-url-input { width: 100%; }
 
 /* ── Audio player ─────────────────────────────────────────── */
 .audio-player-wrap { margin-top: .75rem; }
