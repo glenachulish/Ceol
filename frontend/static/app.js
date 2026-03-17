@@ -558,10 +558,10 @@ function renderModal(tune, onBack = null) {
     ? `<div class="modal-meta">${tune.tags.map(g => `<span class="badge badge-other">${escHtml(g)}</span>`).join("")}</div>`
     : "";
 
-  // Extract FlutefFling PDF and MP3 URLs from notes, if any
+  // Extract PDF and MP3 URLs from notes (FlutefFling, Dropbox, or any source)
   const pdfUrl = (() => {
     if (!tune.notes) return null;
-    const m = tune.notes.match(/FlutefFling sheet music \(PDF\):\s*(https:\/\/\S+)/);
+    const m = tune.notes.match(/sheet music \(PDF\):\s*(https?:\/\/\S+)/);
     return m ? m[1] : null;
   })();
   const ffMp3Url = (() => {
