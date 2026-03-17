@@ -1732,6 +1732,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     btn.classList.add("active");
     document.getElementById(`import-tab-${btn.dataset.importTab}`).classList.remove("hidden");
     if (btn.dataset.importTab === "flutefling") _ffCatMaybeLoad();
+    if (btn.dataset.importTab === "dropbox") _dropboxMaybeLoad();
   });
 });
 
@@ -2240,6 +2241,205 @@ achAddBtn.addEventListener("click", async () => {
   setTimeout(() => { achStatus.textContent = ""; }, 2000);
   achAddBtn.disabled = false;
   loadAchievements();
+});
+
+// ── Dropbox Browser ───────────────────────────────────────────────────────────
+
+const dropboxSetup        = document.getElementById("dropbox-setup");
+const dropboxBrowser      = document.getElementById("dropbox-browser");
+const dropboxTokenInput   = document.getElementById("dropbox-token-input");
+const dropboxTokenSave    = document.getElementById("dropbox-token-save");
+const dropboxSetupStatus  = document.getElementById("dropbox-setup-status");
+const dropboxPathInput    = document.getElementById("dropbox-path-input");
+const dropboxBrowseBtn    = document.getElementById("dropbox-browse-btn");
+const dropboxStatus       = document.getElementById("dropbox-status");
+const dropboxFileList     = document.getElementById("dropbox-file-list");
+const dropboxTokenChangeBtn = document.getElementById("dropbox-token-change-btn");
+
+const _dropboxFileMap = {};  // index → file object
+
+function _dropboxShowSetup() {
+  dropboxSetup.classList.remove("hidden");
+  dropboxBrowser.classList.add("hidden");
+}
+
+function _dropboxShowBrowser() {
+  dropboxSetup.classList.add("hidden");
+  dropboxBrowser.classList.remove("hidden");
+}
+
+async function _dropboxMaybeLoad() {
+  try {
+    const data = await apiFetch("/api/dropbox/settings");
+    if (data.token_set) {
+      _dropboxShowBrowser();
+    } else {
+      _dropboxShowSetup();
+    }
+  } catch {
+    _dropboxShowSetup();
+  }
+}
+
+dropboxTokenSave.addEventListener("click", async () => {
+  const token = dropboxTokenInput.value.trim();
+  if (!token) { dropboxSetupStatus.textContent = "Please paste your access token."; return; }
+  dropboxTokenSave.disabled = true;
+  dropboxTokenSave.textContent = "Saving…";
+  try {
+    await apiFetch("/api/dropbox/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    dropboxTokenInput.value = "";
+    dropboxSetupStatus.textContent = "";
+    _dropboxShowBrowser();
+  } catch (err) {
+    dropboxSetupStatus.textContent = `Error: ${err.message}`;
+  } finally {
+    dropboxTokenSave.disabled = false;
+    dropboxTokenSave.textContent = "Save token";
+  }
+});
+
+dropboxTokenChangeBtn.addEventListener("click", async () => {
+  await apiFetch("/api/dropbox/settings", { method: "DELETE" });
+  dropboxFileList.innerHTML = '<p class="ff-cat-hint">Enter a folder path above and click Browse</p>';
+  dropboxStatus.textContent = "";
+  _dropboxShowSetup();
+});
+
+function _dropboxFileIcon(type) {
+  switch (type) {
+    case "folder": return "📁";
+    case "abc":
+    case "txt":    return "🎵";
+    case "pdf":    return "📄";
+    case "mp3":
+    case "m4a":
+    case "ogg":    return "🎧";
+    default:       return "📎";
+  }
+}
+
+function _dropboxRenderFiles(files) {
+  if (!files.length) {
+    dropboxFileList.innerHTML = '<p class="ff-cat-empty">No supported files found in this folder.</p>';
+    return;
+  }
+  dropboxFileList.innerHTML = files.map((f, i) => {
+    _dropboxFileMap[i] = f;
+    const icon = _dropboxFileIcon(f.type);
+    const sizeStr = f.type !== "folder" && f.size
+      ? `<span class="ff-cat-meta">${(f.size / 1024).toFixed(0)} KB</span>`
+      : "";
+    const isFolder = f.type === "folder";
+    const btn = isFolder
+      ? `<button class="ff-cat-add btn-secondary" data-idx="${i}">Open</button>`
+      : (f.type === "abc" || f.type === "txt")
+        ? `<button class="ff-cat-add btn-primary" data-idx="${i}">Import</button>`
+        : `<button class="ff-cat-add btn-secondary" data-idx="${i}">Add entry</button>`;
+    return `<div class="ff-cat-entry">
+      <div class="ff-cat-info">
+        <span class="ff-cat-name">${icon} ${escHtml(f.name)}</span>
+        ${sizeStr}
+      </div>
+      ${btn}
+    </div>`;
+  }).join("");
+
+  dropboxFileList.querySelectorAll(".ff-cat-add").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const f = _dropboxFileMap[btn.dataset.idx];
+
+      // Navigate into subfolder
+      if (f.type === "folder") {
+        dropboxPathInput.value = f.path;
+        _dropboxBrowse(f.path);
+        return;
+      }
+
+      btn.disabled = true;
+
+      // Import ABC/TXT files as tunes
+      if (f.type === "abc" || f.type === "txt") {
+        btn.textContent = "Importing…";
+        try {
+          const data = await apiFetch("/api/dropbox/import-abc", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: f.path }),
+          });
+          btn.textContent = `Imported ${data.imported}`;
+          btn.style.background = "var(--jig)";
+          await Promise.all([loadStats(), loadFilters()]);
+          if (state.view === "library") loadTunes();
+        } catch (err) {
+          dropboxStatus.textContent = `Error: ${err.message}`;
+          btn.textContent = "Error";
+          btn.disabled = false;
+        }
+        return;
+      }
+
+      // PDF / audio: create a tune entry with a proxy link in notes
+      btn.textContent = "Adding…";
+      const title = f.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
+      const proxyUrl = `${window.location.origin}/api/dropbox/file?path=${encodeURIComponent(f.path)}`;
+      let notes = "";
+      if (f.type === "pdf") {
+        notes = `Dropbox sheet music (PDF): ${proxyUrl}`;
+      } else {
+        notes = `Dropbox audio: ${proxyUrl}`;
+      }
+      try {
+        await apiFetch("/api/tunes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, notes }),
+        });
+        btn.textContent = "Added ✓";
+        btn.style.background = "var(--jig)";
+        await Promise.all([loadStats(), loadFilters()]);
+        if (state.view === "library") loadTunes();
+      } catch (err) {
+        dropboxStatus.textContent = `Error: ${err.message}`;
+        btn.textContent = "Error";
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+async function _dropboxBrowse(path) {
+  dropboxStatus.textContent = "";
+  dropboxFileList.innerHTML = '<p class="ff-cat-hint">Loading…</p>';
+  dropboxBrowseBtn.disabled = true;
+  try {
+    const data = await apiFetch("/api/dropbox/list", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    _dropboxRenderFiles(data.files || []);
+    if (data.has_more) {
+      dropboxStatus.textContent = "Showing first batch of results — navigate into subfolders to see more.";
+    }
+  } catch (err) {
+    dropboxFileList.innerHTML = `<p class="ff-cat-empty">Could not load folder: ${escHtml(err.message)}</p>`;
+  } finally {
+    dropboxBrowseBtn.disabled = false;
+  }
+}
+
+dropboxBrowseBtn.addEventListener("click", () => {
+  const path = dropboxPathInput.value.trim() || "/";
+  _dropboxBrowse(path);
+});
+
+dropboxPathInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") dropboxBrowseBtn.click();
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────

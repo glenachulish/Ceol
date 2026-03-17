@@ -158,6 +158,7 @@
         <button class="tab-btn" data-import-tab="paste">Paste ABC</button>
         <button class="tab-btn" data-import-tab="session">TheSession.org</button>
         <button class="tab-btn" data-import-tab="flutefling">FlutefFling.scot</button>
+        <button class="tab-btn" data-import-tab="dropbox">Dropbox</button>
       </div>
 
       <!-- ABC file tab -->
@@ -270,6 +271,49 @@
           </div>
           <div id="ff-status" class="ff-cat-status"></div>
         </details>
+      </div>
+
+      <!-- Dropbox tab -->
+      <div id="import-tab-dropbox" class="tab-panel hidden">
+
+        <!-- Token setup (shown when no token is saved) -->
+        <div id="dropbox-setup" class="hidden">
+          <p class="import-desc">
+            Connect a Dropbox folder to browse and import tunes.
+            You'll need a personal access token from a Dropbox app.
+          </p>
+          <ol class="dropbox-setup-steps">
+            <li>Go to <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener">dropbox.com/developers/apps ↗</a></li>
+            <li>Create an app → <strong>Scoped access</strong> → <strong>Full Dropbox</strong></li>
+            <li>Under <em>Settings</em>, click <strong>Generate</strong> next to "Generated access token"</li>
+            <li>Paste the token below and click Save</li>
+          </ol>
+          <div class="ff-url-form">
+            <label class="ff-url-label" for="dropbox-token-input">Access token</label>
+            <input id="dropbox-token-input" type="password" class="ff-url-input"
+              placeholder="sl.u.AAAA…" autocomplete="off" spellcheck="false" />
+            <button id="dropbox-token-save" class="btn-primary">Save token</button>
+          </div>
+          <div id="dropbox-setup-status" class="ff-cat-status"></div>
+        </div>
+
+        <!-- File browser (shown when token is saved) -->
+        <div id="dropbox-browser" class="hidden">
+          <div class="ff-browse-header">
+            <h3 class="ff-browse-title">Browse Dropbox</h3>
+            <button id="dropbox-token-change-btn" class="btn-secondary btn-sm">Change token</button>
+          </div>
+          <div class="ff-search-row">
+            <input id="dropbox-path-input" type="text" class="ff-cat-search-input"
+              placeholder="/Tradwinds" autocomplete="off" spellcheck="false" />
+            <button id="dropbox-browse-btn" class="btn-primary">Browse</button>
+          </div>
+          <div id="dropbox-status" class="ff-cat-status"></div>
+          <div id="dropbox-file-list" class="ff-cat-list">
+            <p class="ff-cat-hint">Enter a folder path above and click Browse</p>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>

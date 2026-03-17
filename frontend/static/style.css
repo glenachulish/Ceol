@@ -1472,6 +1472,20 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   background: rgba(239,68,68,.1);
 }
 
+/* ── Dropbox tab ──────────────────────────────────────────── */
+.dropbox-setup-steps {
+  font-size: .88rem;
+  color: var(--text-muted);
+  padding-left: 1.3rem;
+  margin: .5rem 0 1rem;
+  line-height: 1.7;
+}
+.dropbox-setup-steps a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.dropbox-setup-steps a:hover { text-decoration: underline; }
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 600px) {
   .header-inner { flex-wrap: wrap; gap: .5rem; }

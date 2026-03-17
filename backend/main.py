@@ -5,6 +5,7 @@ FastAPI backend serving tune data as JSON and the frontend SPA.
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
@@ -1404,6 +1405,223 @@ async def proxy_download(url: str = Query(...)):
         _stream(),
         media_type=content_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Dropbox endpoints
+# ---------------------------------------------------------------------------
+
+_DROPBOX_API     = "https://api.dropboxapi.com/2"
+_DROPBOX_CONTENT = "https://content.dropboxapi.com/2"
+
+
+def _dropbox_get_token() -> str | None:
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key = 'dropbox_token'"
+        ).fetchone()
+    return row["value"] if row else None
+
+
+class DropboxTokenBody(BaseModel):
+    token: str
+
+
+@app.get("/api/dropbox/settings")
+def dropbox_settings():
+    return {"token_set": bool(_dropbox_get_token())}
+
+
+@app.post("/api/dropbox/settings")
+def dropbox_save_settings(body: DropboxTokenBody):
+    token = body.token.strip()
+    if not token:
+        raise HTTPException(400, "Token is required")
+    with _db() as conn:
+        conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('dropbox_token', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (token,),
+        )
+    return {"ok": True}
+
+
+@app.delete("/api/dropbox/settings")
+def dropbox_clear_settings():
+    with _db() as conn:
+        conn.execute("DELETE FROM app_settings WHERE key = 'dropbox_token'")
+    return {"ok": True}
+
+
+class DropboxListBody(BaseModel):
+    path: str = "/Tradwinds"
+
+
+@app.post("/api/dropbox/list")
+async def dropbox_list(body: DropboxListBody):
+    """List files in a Dropbox folder."""
+    token = _dropbox_get_token()
+    if not token:
+        raise HTTPException(401, "Dropbox token not configured")
+
+    path = body.path.strip()
+    if not path.startswith("/"):
+        path = "/" + path
+    db_path = "" if path == "/" else path
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        try:
+            resp = await client.post(
+                f"{_DROPBOX_API}/files/list_folder",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={"path": db_path, "recursive": False},
+            )
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Could not reach Dropbox: {exc}")
+
+    if resp.status_code == 401:
+        raise HTTPException(401, "Invalid Dropbox token — please update it in settings.")
+    if resp.status_code == 409:
+        err = resp.json().get("error_summary", "path not found")
+        raise HTTPException(404, f"Folder not found: {err}")
+    if not resp.is_success:
+        raise HTTPException(502, f"Dropbox returned {resp.status_code}")
+
+    data = resp.json()
+    files = []
+    for entry in data.get("entries", []):
+        tag = entry.get(".tag", "")
+        name = entry["name"]
+        if tag == "folder":
+            files.append({"name": name, "path": entry["path_lower"], "type": "folder", "size": 0})
+        elif tag == "file":
+            ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+            if ext in ("abc", "txt", "pdf", "mp3", "m4a", "ogg"):
+                files.append({
+                    "name": name,
+                    "path": entry["path_lower"],
+                    "type": ext,
+                    "size": entry.get("size", 0),
+                })
+
+    files.sort(key=lambda f: (0 if f["type"] == "folder" else 1, f["name"].lower()))
+    return {"files": files, "has_more": data.get("has_more", False)}
+
+
+class DropboxImportABC(BaseModel):
+    path: str
+
+
+@app.post("/api/dropbox/import-abc")
+async def dropbox_import_abc(body: DropboxImportABC):
+    """Download an ABC/TXT file from Dropbox and import tunes into the library."""
+    token = _dropbox_get_token()
+    if not token:
+        raise HTTPException(401, "Dropbox token not configured")
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        try:
+            resp = await client.post(
+                f"{_DROPBOX_CONTENT}/files/download",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Dropbox-API-Arg": json.dumps({"path": body.path}),
+                },
+            )
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Could not reach Dropbox: {exc}")
+
+    if resp.status_code == 401:
+        raise HTTPException(401, "Invalid Dropbox token")
+    if not resp.is_success:
+        raise HTTPException(502, f"Dropbox returned {resp.status_code}")
+
+    try:
+        text = resp.content.decode("utf-8")
+    except UnicodeDecodeError:
+        text = resp.content.decode("latin-1")
+
+    tunes = parse_abc_string(text.strip())
+    imported = 0
+    skipped = 0
+    filename = body.path.rsplit("/", 1)[-1]
+    import_date = date.today().isoformat()
+
+    with _db() as conn:
+        for tune in tunes:
+            if not tune.title:
+                skipped += 1
+                continue
+            cur = conn.execute(
+                "INSERT INTO tunes (craic_id, title, type, key, mode, abc, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (tune.craic_id, tune.title, tune.type, tune.key, tune.mode, tune.abc,
+                 f"Imported from Dropbox: {filename} ({import_date})"),
+            )
+            tune_id = cur.lastrowid
+            for alias in tune.aliases:
+                conn.execute(
+                    "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?, ?)",
+                    (tune_id, alias),
+                )
+            imported += 1
+
+    return {"imported": imported, "skipped": skipped}
+
+
+@app.get("/api/dropbox/file")
+async def dropbox_proxy_file(path: str = Query(...)):
+    """Proxy-stream a file from Dropbox using the stored access token."""
+    token = _dropbox_get_token()
+    if not token:
+        raise HTTPException(401, "Dropbox token not configured")
+
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+    content_type_map = {
+        "pdf": "application/pdf",
+        "mp3": "audio/mpeg",
+        "m4a": "audio/mp4",
+        "ogg": "audio/ogg",
+        "abc": "text/plain",
+        "txt": "text/plain",
+    }
+    content_type = content_type_map.get(ext, "application/octet-stream")
+    filename = path.rsplit("/", 1)[-1]
+
+    try:
+        client = httpx.AsyncClient(timeout=30)
+        req = client.build_request(
+            "POST",
+            f"{_DROPBOX_CONTENT}/files/download",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Dropbox-API-Arg": json.dumps({"path": path}),
+            },
+        )
+        resp = await client.send(req, stream=True)
+        if resp.status_code == 401:
+            await resp.aclose()
+            await client.aclose()
+            raise HTTPException(401, "Invalid Dropbox token")
+        if resp.status_code >= 400:
+            await resp.aclose()
+            await client.aclose()
+            raise HTTPException(resp.status_code, f"Dropbox returned {resp.status_code}")
+    except httpx.RequestError as exc:
+        raise HTTPException(502, f"Could not reach Dropbox: {exc}") from exc
+
+    async def _stream():
+        try:
+            async for chunk in resp.aiter_bytes(chunk_size=65536):
+                yield chunk
+        finally:
+            await resp.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        _stream(),
+        media_type=content_type,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
 
 
