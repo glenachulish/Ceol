@@ -566,7 +566,7 @@ function renderModal(tune, onBack = null) {
   })();
   const audioUrl = (() => {
     if (!tune.notes) return null;
-    const m = tune.notes.match(/(?:FlutefFling MP3|Dropbox audio|MP3):\s*(https?:\/\/\S+)/);
+    const m = tune.notes.match(/(?:FlutefFling MP3|Dropbox audio|Audio|MP3):\s*(\S+)/);
     return m ? m[1] : null;
   })();
 
@@ -619,12 +619,33 @@ function renderModal(tune, onBack = null) {
         <button id="attach-audio-btn" class="btn-secondary">🎧 ${audioUrl ? "Change audio" : "Attach audio"}</button>
       </div>
       <div id="attach-audio-panel" class="attach-audio-panel hidden">
-        <div class="attach-audio-browse-row">
-          <input id="attach-audio-path" class="attach-audio-path" type="text" placeholder="/your/dropbox/folder">
-          <button id="attach-audio-browse" class="btn-secondary">Browse</button>
+        <div class="attach-audio-tabs">
+          <button class="attach-tab-btn active" data-tab="upload">Upload file</button>
+          <button class="attach-tab-btn" data-tab="url">Paste URL</button>
+          <button class="attach-tab-btn" data-tab="dropbox">Dropbox</button>
         </div>
-        <p id="attach-audio-status" class="ff-cat-hint"></p>
-        <div id="attach-audio-list" class="attach-audio-list"></div>
+        <div id="attach-tab-upload" class="attach-tab-panel">
+          <label class="attach-file-label">
+            <input id="attach-audio-file" type="file" accept="audio/*" class="attach-file-input">
+            <span class="attach-file-hint">Choose an audio file from your computer</span>
+          </label>
+          <p id="attach-upload-status" class="ff-cat-hint"></p>
+        </div>
+        <div id="attach-tab-url" class="attach-tab-panel hidden">
+          <div class="attach-audio-browse-row">
+            <input id="attach-url-input" class="attach-audio-path" type="url" placeholder="https://…">
+            <button id="attach-url-btn" class="btn-secondary">Use URL</button>
+          </div>
+          <p id="attach-url-status" class="ff-cat-hint"></p>
+        </div>
+        <div id="attach-tab-dropbox" class="attach-tab-panel hidden">
+          <div class="attach-audio-browse-row">
+            <input id="attach-audio-path" class="attach-audio-path" type="text" placeholder="/your/dropbox/folder">
+            <button id="attach-audio-browse" class="btn-secondary">Browse</button>
+          </div>
+          <p id="attach-audio-status" class="ff-cat-hint"></p>
+          <div id="attach-audio-list" class="attach-audio-list"></div>
+        </div>
       </div>
     </div>
 
@@ -804,17 +825,81 @@ function renderModal(tune, onBack = null) {
     });
   }
 
-  // Attach audio from Dropbox
-  const attachAudioBtn = document.getElementById("attach-audio-btn");
-  const attachAudioPanel = document.getElementById("attach-audio-panel");
-  const attachAudioPathInput = document.getElementById("attach-audio-path");
-  const attachAudioBrowseBtn = document.getElementById("attach-audio-browse");
-  const attachAudioStatus = document.getElementById("attach-audio-status");
-  const attachAudioList = document.getElementById("attach-audio-list");
+  // Attach audio panel
+  const attachAudioBtn    = document.getElementById("attach-audio-btn");
+  const attachAudioPanel  = document.getElementById("attach-audio-panel");
 
   attachAudioBtn.addEventListener("click", () => {
     attachAudioPanel.classList.toggle("hidden");
   });
+
+  // Tab switching
+  attachAudioPanel.querySelectorAll(".attach-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      attachAudioPanel.querySelectorAll(".attach-tab-btn").forEach(b => b.classList.remove("active"));
+      attachAudioPanel.querySelectorAll(".attach-tab-panel").forEach(p => p.classList.add("hidden"));
+      btn.classList.add("active");
+      document.getElementById(`attach-tab-${btn.dataset.tab}`).classList.remove("hidden");
+    });
+  });
+
+  // Helper: update the player after attaching audio
+  function _applyAudio(url, newNotes) {
+    tune.notes = newNotes;
+    const container = document.getElementById("audio-player-container");
+    if (container) container.innerHTML = `<audio controls class="mp3-player" src="${escHtml(url)}"></audio>`;
+    attachAudioPanel.classList.add("hidden");
+    attachAudioBtn.textContent = "🎧 Change audio";
+  }
+
+  function _stripAudioLine(notes) {
+    return (notes || "").split("\n").filter(l => !l.startsWith("Audio:") && !l.startsWith("Dropbox audio:")).join("\n").trimEnd();
+  }
+
+  // Upload tab
+  document.getElementById("attach-audio-file").addEventListener("change", async (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById("attach-upload-status");
+    statusEl.textContent = "Uploading…";
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch(`/api/tunes/${tune.id}/upload-audio`, { method: "POST", body: formData });
+      if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+      const data = await res.json();
+      statusEl.textContent = "";
+      _applyAudio(data.url, data.notes);
+    } catch (err) {
+      statusEl.textContent = `Error: ${err.message}`;
+    }
+  });
+
+  // URL tab
+  document.getElementById("attach-url-btn").addEventListener("click", async () => {
+    const urlInput = document.getElementById("attach-url-input");
+    const statusEl = document.getElementById("attach-url-status");
+    const url = urlInput.value.trim();
+    if (!url) { statusEl.textContent = "Please enter a URL."; return; }
+    const cleaned = _stripAudioLine(tune.notes);
+    const newNotes = cleaned ? `${cleaned}\nAudio: ${url}` : `Audio: ${url}`;
+    try {
+      await apiFetch(`/api/tunes/${tune.id}/notes`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: newNotes }),
+      });
+      statusEl.textContent = "";
+      _applyAudio(url, newNotes);
+    } catch (err) {
+      statusEl.textContent = `Error: ${err.message}`;
+    }
+  });
+
+  // Dropbox tab
+  const attachAudioPathInput = document.getElementById("attach-audio-path");
+  const attachAudioStatus    = document.getElementById("attach-audio-status");
+  const attachAudioList      = document.getElementById("attach-audio-list");
 
   async function _browseForAudio(path) {
     attachAudioStatus.textContent = "Loading…";
@@ -842,8 +927,7 @@ function renderModal(tune, onBack = null) {
       attachAudioList.querySelectorAll(".ff-cat-add").forEach(btn => {
         btn.addEventListener("click", async () => {
           const fPath = btn.dataset.path;
-          const fType = btn.dataset.type;
-          if (fType === "folder") {
+          if (btn.dataset.type === "folder") {
             attachAudioPathInput.value = fPath;
             _browseForAudio(fPath);
             return;
@@ -851,7 +935,7 @@ function renderModal(tune, onBack = null) {
           btn.disabled = true;
           btn.textContent = "Attaching…";
           const proxyUrl = `${window.location.origin}/api/dropbox/file?path=${encodeURIComponent(fPath)}`;
-          const cleaned = (tune.notes || "").split("\n").filter(l => !l.startsWith("Dropbox audio:")).join("\n").trimEnd();
+          const cleaned = _stripAudioLine(tune.notes);
           const newNotes = cleaned ? `${cleaned}\nDropbox audio: ${proxyUrl}` : `Dropbox audio: ${proxyUrl}`;
           try {
             await apiFetch(`/api/tunes/${tune.id}/notes`, {
@@ -859,11 +943,7 @@ function renderModal(tune, onBack = null) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ notes: newNotes }),
             });
-            tune.notes = newNotes;
-            const container = document.getElementById("audio-player-container");
-            if (container) container.innerHTML = `<audio controls class="mp3-player" src="${escHtml(proxyUrl)}"></audio>`;
-            attachAudioPanel.classList.add("hidden");
-            attachAudioBtn.textContent = "🎧 Change audio";
+            _applyAudio(proxyUrl, newNotes);
           } catch (err) {
             attachAudioStatus.textContent = `Error: ${err.message}`;
             btn.disabled = false;
@@ -876,7 +956,7 @@ function renderModal(tune, onBack = null) {
     }
   }
 
-  attachAudioBrowseBtn.addEventListener("click", () => {
+  document.getElementById("attach-audio-browse").addEventListener("click", () => {
     _browseForAudio(attachAudioPathInput.value.trim() || "/");
   });
 

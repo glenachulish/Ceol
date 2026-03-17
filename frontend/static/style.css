@@ -740,8 +740,25 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   margin-top: .5rem;
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: .7rem;
+  overflow: hidden;
 }
+.attach-audio-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.attach-tab-btn {
+  flex: 1;
+  padding: .4rem .5rem;
+  font-size: .8rem;
+  background: var(--surface);
+  border: none;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.attach-tab-btn:last-child { border-right: none; }
+.attach-tab-btn.active { background: var(--bg); color: var(--text); font-weight: 600; }
+.attach-tab-panel { padding: .7rem; }
 .attach-audio-browse-row { display: flex; gap: .5rem; margin-bottom: .4rem; }
 .attach-audio-path {
   flex: 1;
@@ -754,6 +771,19 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 }
 .attach-audio-path:focus { outline: none; border-color: var(--accent); }
 .attach-audio-list { max-height: 200px; overflow-y: auto; margin-top: .3rem; }
+.attach-file-input { display: none; }
+.attach-file-label {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  cursor: pointer;
+}
+.attach-file-hint {
+  font-size: .85rem;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
 .audio-unavailable {
   color: var(--text-muted);
   font-size: .82rem;

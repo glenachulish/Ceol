@@ -256,6 +256,26 @@ def update_tune(tune_id: int, body: TuneUpdate):
     return {"ok": True}
 
 
+@app.post("/api/tunes/{tune_id}/upload-audio", status_code=201)
+async def upload_tune_audio(tune_id: int, file: UploadFile = File(...)):
+    """Upload an audio file and attach it to a tune via its notes."""
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    content = await file.read()
+    ext = Path(file.filename).suffix if file.filename else ".mp3"
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    (UPLOADS_DIR / stored_name).write_bytes(content)
+    url = f"/api/uploads/{stored_name}"
+    with _db() as conn:
+        row = conn.execute("SELECT notes FROM tunes WHERE id = ?", (tune_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Tune not found")
+        existing = row["notes"] or ""
+        cleaned = "\n".join(l for l in existing.splitlines() if not l.startswith(("Audio:", "Dropbox audio:"))).rstrip()
+        new_notes = f"{cleaned}\nAudio: {url}".lstrip("\n")
+        conn.execute("UPDATE tunes SET notes = ?, updated_at = datetime('now') WHERE id = ?", (new_notes, tune_id))
+    return {"url": url, "notes": new_notes}
+
+
 @app.patch("/api/tunes/{tune_id}/notes")
 def update_tune_notes(tune_id: int, body: NotesUpdate):
     with _db() as conn:
