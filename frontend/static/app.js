@@ -651,7 +651,6 @@ function renderModal(tune, onBack = null) {
 
   // Modal star rating
   let _modalRating = tune.rating || 0;
-  const ratingLabels = ["Not yet rated","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
   modalContent.querySelectorAll(".modal-star-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const n = Number(btn.dataset.n);
