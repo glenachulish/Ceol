@@ -224,27 +224,52 @@
       <!-- FlutefFling.scot tab -->
       <div id="import-tab-flutefling" class="tab-panel hidden">
 
-        <a class="ff-site-link"
-           href="https://flutefling.scot/resources/flutefling-session-tunes/"
-           target="_blank" rel="noopener">
-          Link to FlutefFling Session Tunes ↗
-        </a>
-        <p class="ff-site-hint">Visit the page above, find your tune. Copy the PDF link (sheet music) and the MP3 link, then paste them below. A title is always required.</p>
-
-        <div class="ff-url-form">
-          <label class="ff-url-label" for="ff-abc-url">Sheet music PDF link</label>
-          <input id="ff-abc-url" type="url" class="ff-url-input" placeholder="https://flutefling.scot/wp/wp-content/uploads/…pdf" autocomplete="off" spellcheck="false" />
-
-          <label class="ff-url-label" for="ff-mp3-url">MP3 link</label>
-          <input id="ff-mp3-url" type="url" class="ff-url-input" placeholder="https://flutefling.scot/wp/wp-content/uploads/…mp3" autocomplete="off" spellcheck="false" />
-
-          <label class="ff-url-label" for="ff-title-input">Tune title <span class="ff-url-hint">(required)</span></label>
-          <input id="ff-title-input" type="text" class="ff-url-input" placeholder="e.g. The Morning Dew" autocomplete="off" />
-
-          <button id="ff-add-btn" class="btn-primary ff-add-btn">Add to Library</button>
+        <!-- ── Browse catalogue ── -->
+        <div class="ff-browse-section">
+          <div class="ff-browse-header">
+            <h3 class="ff-browse-title">Browse FlutefFling Catalogue</h3>
+            <span id="ff-cat-count" class="ff-cat-count"></span>
+          </div>
+          <div class="ff-search-row">
+            <input id="ff-cat-search" type="search" class="ff-cat-search-input"
+              placeholder="Search by tune name…" autocomplete="off" />
+            <button id="ff-cat-refresh" class="btn-secondary ff-refresh-btn" title="Reload catalogue">↻</button>
+          </div>
+          <div id="ff-cat-status" class="ff-cat-status"></div>
+          <div id="ff-cat-list" class="ff-cat-list">
+            <p class="ff-cat-hint">Open this tab to load the catalogue from FlutefFling.scot</p>
+          </div>
         </div>
 
-        <div id="ff-status" class="ff-cat-status"></div>
+        <!-- ── Manual URL entry (fallback) ── -->
+        <details class="ff-manual-details">
+          <summary class="ff-manual-summary">Or add manually by URL</summary>
+          <p class="ff-site-hint" style="margin-top:.5rem">
+            Copy the PDF and MP3 links from
+            <a class="ff-site-link-inline"
+               href="https://flutefling.scot/resources/flutefling-session-tunes/"
+               target="_blank" rel="noopener">FlutefFling.scot ↗</a>
+            and paste them below.
+          </p>
+          <div class="ff-url-form">
+            <label class="ff-url-label" for="ff-abc-url">Sheet music PDF link</label>
+            <input id="ff-abc-url" type="url" class="ff-url-input"
+              placeholder="https://flutefling.scot/wp/wp-content/uploads/….pdf"
+              autocomplete="off" spellcheck="false" />
+
+            <label class="ff-url-label" for="ff-mp3-url">MP3 link</label>
+            <input id="ff-mp3-url" type="url" class="ff-url-input"
+              placeholder="https://flutefling.scot/wp/wp-content/uploads/….mp3"
+              autocomplete="off" spellcheck="false" />
+
+            <label class="ff-url-label" for="ff-title-input">Tune title <span class="ff-url-hint">(required)</span></label>
+            <input id="ff-title-input" type="text" class="ff-url-input"
+              placeholder="e.g. The Morning Dew" autocomplete="off" />
+
+            <button id="ff-add-btn" class="btn-primary ff-add-btn">Add to Library</button>
+          </div>
+          <div id="ff-status" class="ff-cat-status"></div>
+        </details>
       </div>
     </div>
   </div>
@@ -258,6 +283,6 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=33"></script>
+  <script src="/static/app.js?v=34"></script>
 </body>
 </html>

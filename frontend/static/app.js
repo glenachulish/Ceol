@@ -1719,8 +1719,112 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     document.querySelectorAll("#import-overlay .tab-panel").forEach(p => p.classList.add("hidden"));
     btn.classList.add("active");
     document.getElementById(`import-tab-${btn.dataset.importTab}`).classList.remove("hidden");
+    if (btn.dataset.importTab === "flutefling") _ffCatMaybeLoad();
   });
 });
+
+// ── FlutefFling Catalogue Browser ─────────────────────────────────────────────
+const ffCatSearchInput = document.getElementById("ff-cat-search");
+const ffCatList        = document.getElementById("ff-cat-list");
+const ffCatStatus      = document.getElementById("ff-cat-status");
+const ffCatCount       = document.getElementById("ff-cat-count");
+const ffCatRefreshBtn  = document.getElementById("ff-cat-refresh");
+
+let _ffCatItems = [];     // full catalogue
+let _ffCatLoaded = false; // have we fetched at least once this session
+const _ffCatMap  = {};    // index → tune object (avoids data-attr encoding issues)
+
+function _ffCatRender(items) {
+  if (!items.length) {
+    ffCatList.innerHTML = '<p class="ff-cat-empty">No tunes match your search.</p>';
+    return;
+  }
+  // Show max 80 results to keep DOM snappy
+  const shown = items.slice(0, 80);
+  ffCatList.innerHTML = shown.map((t, i) => {
+    _ffCatMap[i] = t;
+    const meta = [t.type, t.key && t.mode ? `${t.key} ${t.mode}` : t.key].filter(Boolean).join(" · ");
+    return `<div class="ff-cat-entry">
+      <div class="ff-cat-info">
+        <span class="ff-cat-name">${escHtml(t.title)}</span>
+        ${meta ? `<span class="ff-cat-meta">${escHtml(meta)}</span>` : ""}
+        ${t.set_label ? `<span class="ff-cat-set">${escHtml(t.set_label)}</span>` : ""}
+      </div>
+      <button class="ff-cat-add btn-primary" data-idx="${i}">Add</button>
+    </div>`;
+  }).join("");
+  if (items.length > 80) {
+    ffCatList.insertAdjacentHTML("beforeend",
+      `<p class="ff-cat-more">Showing 80 of ${items.length} — refine your search to narrow results.</p>`);
+  }
+
+  ffCatList.querySelectorAll(".ff-cat-add").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const t = _ffCatMap[btn.dataset.idx];
+      btn.disabled = true;
+      btn.textContent = "Adding…";
+      try {
+        await apiFetch("/api/tunes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: t.title,
+            type:  t.type  || "",
+            key:   t.key   || "",
+            mode:  t.mode  || "",
+            abc:   t.abc   || "",
+            notes: "",
+          }),
+        });
+        btn.textContent = "Added ✓";
+        btn.style.background = "var(--jig)";
+        await Promise.all([loadStats(), loadFilters()]);
+        if (state.view === "library") loadTunes();
+      } catch (err) {
+        btn.textContent = "Error";
+        btn.disabled = false;
+        ffCatStatus.textContent = `Error: ${err.message}`;
+      }
+    });
+  });
+}
+
+function _ffCatFilter() {
+  const q = ffCatSearchInput.value.trim().toLowerCase();
+  const filtered = q
+    ? _ffCatItems.filter(t => (t.title || "").toLowerCase().includes(q))
+    : _ffCatItems;
+  ffCatCount.textContent = filtered.length
+    ? `${filtered.length} tune${filtered.length !== 1 ? "s" : ""}`
+    : "";
+  _ffCatRender(filtered);
+}
+
+async function _ffCatLoad(refresh = false) {
+  ffCatList.innerHTML = '<p class="ff-cat-hint">Loading catalogue from FlutefFling.scot…</p>';
+  ffCatStatus.textContent = "";
+  ffCatRefreshBtn.disabled = true;
+  try {
+    const data = await apiFetch(`/api/flutefling/all-tunes${refresh ? "?refresh=true" : ""}`);
+    _ffCatItems = data.tunes || [];
+    _ffCatLoaded = true;
+    ffCatCount.textContent = `${_ffCatItems.length} tune${_ffCatItems.length !== 1 ? "s" : ""}`;
+    ffCatSearchInput.value = "";
+    _ffCatRender(_ffCatItems);
+  } catch (err) {
+    ffCatList.innerHTML = `<p class="ff-cat-empty">Could not load catalogue: ${escHtml(err.message)}</p>`;
+    ffCatStatus.textContent = "";
+  } finally {
+    ffCatRefreshBtn.disabled = false;
+  }
+}
+
+function _ffCatMaybeLoad() {
+  if (!_ffCatLoaded) _ffCatLoad(false);
+}
+
+ffCatSearchInput.addEventListener("input", _ffCatFilter);
+ffCatRefreshBtn.addEventListener("click", () => _ffCatLoad(true));
 
 importSubmit.addEventListener("click", async () => {
   const f = importFile.files[0];
