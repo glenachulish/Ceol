@@ -603,8 +603,8 @@ function renderModal(tune, onBack = null) {
     <div id="tab-music" class="tab-panel">
       <div class="sheet-music-wrap">
         <div id="sheet-music-render"></div>
-        ${pdfUrl && !tune.abc ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
-        ${pdfUrl && !tune.abc ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
+        ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
+        ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
       ${(pdfUrl || ffMp3Url) ? `<div class="ff-download-row">
         ${pdfUrl ? `<a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>` : ""}
