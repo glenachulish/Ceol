@@ -954,6 +954,72 @@ _FF_CACHE: tuple[float, list] | None = None
 _FF_CACHE_TTL = 3600  # 1 hour
 
 
+class _PdfMp3Parser(_HTMLParser):
+    """Extract PDF/MP3 tune pairs from the FlutefFling session tunes page."""
+
+    def __init__(self):
+        super().__init__()
+        self.results: list[dict] = []
+        self._in_li = False
+        self._li_links: list[tuple[str, str]] = []
+        self._li_raw_text: list[str] = []
+        self._cur_href: str | None = None
+        self._link_buf: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs_d = dict(attrs)
+        if tag == "li":
+            self._in_li = True
+            self._li_links = []
+            self._li_raw_text = []
+        if tag == "a" and self._in_li:
+            self._cur_href = attrs_d.get("href", "")
+            self._link_buf = []
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._cur_href is not None and self._in_li:
+            text = "".join(self._link_buf).strip()
+            self._li_links.append((self._cur_href, text))
+            self._li_raw_text.append(text)
+            self._cur_href = None
+        if tag == "li" and self._in_li:
+            self._in_li = False
+            self._process_li()
+
+    def handle_data(self, data):
+        if self._in_li:
+            if self._cur_href is not None:
+                self._link_buf.append(data)
+            else:
+                self._li_raw_text.append(data)
+
+    def _process_li(self):
+        pdf = next(
+            ((h, t) for h, t in self._li_links
+             if "flutefling.scot" in h and h.lower().endswith(".pdf")),
+            None,
+        )
+        mp3 = next(
+            ((h, t) for h, t in self._li_links
+             if "flutefling.scot" in h and h.lower().endswith(".mp3")),
+            None,
+        )
+        if not pdf and not mp3:
+            return
+        title = (pdf[1] if pdf else mp3[1]).strip()
+        if not title:
+            return
+        full_text = "".join(self._li_raw_text)
+        type_match = re.search(r'\(([^)]+)\)', full_text)
+        tune_type = type_match.group(1).lower() if type_match else ""
+        self.results.append({
+            "title": title,
+            "type": tune_type,
+            "pdf_url": pdf[0] if pdf else None,
+            "mp3_url": mp3[0] if mp3 else None,
+        })
+
+
 class _LinkParser(_HTMLParser):
     """Extract links with their surrounding heading context."""
 
@@ -1229,71 +1295,13 @@ async def flutefling_all_tunes(refresh: bool = False):
         return {"tunes": _FF_TUNES_CACHE[1], "cached": True}
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        # Step 1: build the set catalogue (reuses catalogue logic)
-        index_html = await _ff_get(_FF_ARCHIVE_ROOT, client)
-        if not index_html:
+        page_html = await _ff_get(_FF_ARCHIVE_ROOT, client)
+        if not page_html:
             raise HTTPException(502, f"Could not reach flutefling.scot — {_ff_last_error or 'check network access'}")
 
-        idx_parser = _LinkParser()
-        idx_parser.feed(index_html)
-
-        subpage_urls: list[str] = [
-            lk["href"] for lk in idx_parser.results
-            if lk["href"].startswith(_FF_ARCHIVE_ROOT)
-            and lk["href"].rstrip("/") != _FF_ARCHIVE_ROOT.rstrip("/")
-        ]
-        subpage_urls.append(f"{_FF_BASE}/tag/ne-session-tunes/")
-        subpage_urls.append(f"{_FF_BASE}/resources/flutefling-session-tunes/")
-        seen_sp: set[str] = set()
-        subpage_urls = [u for u in subpage_urls if not (u in seen_sp or seen_sp.add(u))]  # type: ignore[func-returns-value]
-
-        all_sets: list[dict] = _extract_abc_sets(index_html, _FF_ARCHIVE_ROOT)
-        for page_url in subpage_urls:
-            html = await _ff_get(page_url, client)
-            if not html:
-                continue
-            page_sets = _extract_abc_sets(html, page_url)
-            if not page_sets:
-                tag_parser = _LinkParser()
-                tag_parser.feed(html)
-                post_urls = [
-                    lk["href"] for lk in tag_parser.results
-                    if re.match(r"https://flutefling\.scot/\d{4}/\d{2}/", lk["href"])
-                ]
-                for post_url in post_urls[:20]:
-                    post_html = await _ff_get(post_url, client)
-                    if post_html:
-                        page_sets.extend(_extract_abc_sets(post_html, post_url))
-            all_sets.extend(page_sets)
-
-        seen_abc: set[str] = set()
-        unique_sets = [s for s in all_sets if not (s["abc_url"] in seen_abc or seen_abc.add(s["abc_url"]))]  # type: ignore[func-returns-value]
-
-        # Step 2: fetch all ABC files in parallel and parse into individual tunes
-        async def _fetch_set_tunes(s: dict) -> list[dict]:
-            html = await _ff_get(s["abc_url"], client)
-            if not html:
-                return []
-            return [
-                {
-                    "title": t.title,
-                    "type": t.type,
-                    "key": t.key,
-                    "mode": t.mode,
-                    "abc": t.abc,
-                    "set_label": s["label"],
-                    "abc_url": s["abc_url"],
-                    "source_page": s.get("source_page", ""),
-                }
-                for t in parse_abc_string(html)
-            ]
-
-        import asyncio as _asyncio
-        results = await _asyncio.gather(*[_fetch_set_tunes(s) for s in unique_sets])
-
-    all_tunes: list[dict] = []
-    for chunk in results:
-        all_tunes.extend(chunk)
+        parser = _PdfMp3Parser()
+        parser.feed(page_html)
+        all_tunes = parser.results
 
     if all_tunes:
         _FF_TUNES_CACHE = (now, all_tunes)

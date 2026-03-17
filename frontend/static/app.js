@@ -1776,16 +1776,19 @@ function _ffCatRender(items) {
       btn.disabled = true;
       btn.textContent = "Adding…";
       try {
+        const noteParts = [];
+        if (t.pdf_url) noteParts.push(`FlutefFling sheet music (PDF): ${t.pdf_url}`);
+        if (t.mp3_url) noteParts.push(`FlutefFling MP3: ${t.mp3_url}`);
         await apiFetch("/api/tunes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: t.title,
             type:  t.type  || "",
-            key:   t.key   || "",
-            mode:  t.mode  || "",
-            abc:   t.abc   || "",
-            notes: "",
+            key:   "",
+            mode:  "",
+            abc:   "",
+            notes: noteParts.join("\n"),
           }),
         });
         btn.textContent = "Added ✓";
