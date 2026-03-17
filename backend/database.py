@@ -78,6 +78,16 @@ CREATE TABLE IF NOT EXISTS session_cache (
     fetched_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Achievements log (auto + manual entries)
+CREATE TABLE IF NOT EXISTS achievements (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    type       TEXT NOT NULL DEFAULT 'manual',
+    tune_id    INTEGER REFERENCES tunes(id) ON DELETE SET NULL,
+    tune_title TEXT,
+    note       TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- App-wide key/value settings (e.g. global notes)
 CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,

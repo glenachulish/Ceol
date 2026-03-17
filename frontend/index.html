@@ -18,6 +18,7 @@
         <button id="nav-library" class="nav-btn active">Library</button>
         <button id="nav-sets" class="nav-btn">Sets</button>
         <button id="nav-notes" class="nav-btn">Notes</button>
+        <button id="nav-achievements" class="nav-btn">Achievements</button>
       </nav>
       <div class="header-actions">
         <button id="import-btn" class="btn-secondary">Import</button>
@@ -114,6 +115,25 @@
       </div>
       <div id="sets-list" class="sets-list">
         <p class="loading">Loading sets…</p>
+      </div>
+    </div>
+
+    <!-- ── Achievements view ── -->
+    <div id="view-achievements" class="hidden">
+      <div class="achievements-layout">
+        <div class="achievements-header">
+          <h2 class="section-title">Achievements</h2>
+          <p class="achievements-hint">Your progress log — improvements, new tunes learned, and your own notes.</p>
+        </div>
+        <div class="achievements-add">
+          <textarea id="ach-textarea" class="notes-textarea" rows="2"
+            placeholder="Write your own achievement or note…"></textarea>
+          <button id="ach-add-btn" class="btn-primary">Add entry</button>
+          <span id="ach-status" class="notes-status"></span>
+        </div>
+        <div id="achievements-list" class="achievements-list">
+          <p class="loading">Loading…</p>
+        </div>
       </div>
     </div>
   </main>

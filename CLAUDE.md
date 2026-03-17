@@ -1,0 +1,73 @@
+# Ceol – Trad Music Web App
+
+## How to run
+```bash
+cd "/Users/callummaclellan/Documents/Ceol Github"
+git pull origin claude/trad-music-web-app-fwneF
+./run.sh
+```
+Then open `http://localhost:8000` in the browser. Hard-refresh with **Cmd+Shift+R** after pulling new code.
+
+## Architecture
+- **Backend**: FastAPI (Python) in `backend/main.py` — REST API + serves frontend
+- **Database**: SQLite at `data/ceol.db` — auto-migrates on startup
+- **Frontend**: Vanilla JS (`frontend/static/app.js`), CSS (`style.css`), HTML (`index.html`)
+- **ABC rendering**: abcjs library (local, `frontend/static/abcjs-basic-min.js`)
+
+## Feature status
+
+### Done ✅
+- Library with search, type/key/mode filters
+- ABC sheet music display with abcjs (flute MIDI instrument)
+- Audio playback with bar-range selection for practice loops
+- Import from TheSession.org (search, preview, import)
+- Import from FlutefFling.scot (paste PDF + MP3 URLs → stored in notes)
+- FlutefFling PDF embedded in Sheet Music tab (when no ABC)
+- Tune versioning: group tunes as versions under a parent entry
+- Merge/group dialog: select 2+ tunes → "Group as versions"
+- Versions panel: click parent → list of versions → click version → full modal
+- ← Back button when navigating from versions panel into a version
+- Notes with auto-linked URLs (MP3, YouTube, PDF, generic links)
+- MP3/YouTube media overlay player in notes
+- Star rating (0–5 stars) on cards and in tune modal
+- Hitlist (📌) — flag tunes to learn; filter bar toggle + per-card button
+- Sets: create named sets of tunes, reorder, play as a sequence
+- Notes documents: rich freeform notes with attachments
+
+### To do 📋
+- [ ] **Achievements** — Auto-log rating improvements, hitlist adds/removes;
+      plus freeform personal achievement entries. New Achievements view in nav.
+- [ ] **FlutefFling catalogue browser** — Scrape flutefling.scot session tunes page
+      on each app start; show full list in import tab with PDF/MP3 links and
+      one-click "Add to Library" per tune.
+- [ ] **Download sheet music + MP3 from FlutefFling** — Proxy-download endpoint
+      so PDF/MP3 files can be saved locally; download button in tune modal for
+      FlutefFling tunes.
+- [ ] **Upload voice recordings** — Record in-browser or upload audio file,
+      attach to a tune (linked in notes section). Uses existing note_attachments
+      infrastructure.
+- [ ] **Upload MP3 to attach to tunes or sets** — File upload UI per tune/set;
+      stored in data/uploads/. Linked in notes.
+- [ ] **Trim uploaded audio** — Browser-based trim UI (WaveSurfer.js) or
+      server-side via ffmpeg. Complex — do after basic upload works.
+- [ ] **Harmonies** — Clarify with user: ABC harmony line in the tune editor,
+      or links to external harmony recordings/sheet music?
+- [ ] **iOS / web hosting** — Deploy backend to Railway/Render; frontend served
+      from same host. Add PWA manifest so it can be pinned to iOS home screen.
+- [ ] **Multi-user template** — Clean open-source version others can fork and
+      populate with their own tunes.
+
+## Database schema notes
+Key tables: `tunes`, `tune_aliases`, `tune_tags`, `sets`, `set_tunes`,
+`theory_notes`, `session_cache`, `app_settings`, `note_documents`,
+`note_attachments`
+
+`tunes` extra columns (added via migration):
+- `imported_at` — timestamp
+- `parent_id` — self-ref for versioning
+- `version_label` — subtitle for versioned tunes
+- `rating` — 0–5 star rating
+- `on_hitlist` — 0/1 boolean
+
+## Development branch
+All changes go to: `claude/trad-music-web-app-fwneF`

@@ -207,19 +207,51 @@ class TuneUpdate(BaseModel):
 
 @app.patch("/api/tunes/{tune_id}")
 def update_tune(tune_id: int, body: TuneUpdate):
-    """Update editable fields on a tune (title, type, key, mode, abc)."""
+    """Update editable fields on a tune and auto-log rating/hitlist changes."""
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(400, "No fields to update")
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [tune_id]
     with _db() as conn:
+        # Read old values before update (for achievement logging)
+        old = conn.execute(
+            "SELECT title, rating, on_hitlist FROM tunes WHERE id = ?", (tune_id,)
+        ).fetchone()
+        if not old:
+            raise HTTPException(404, "Tune not found")
+
         cur = conn.execute(
             f"UPDATE tunes SET {set_clause}, updated_at = datetime('now') WHERE id = ?",
             values,
         )
         if cur.rowcount == 0:
             raise HTTPException(404, "Tune not found")
+
+        # Auto-log achievements
+        rating_labels = ["Not yet rated","Just starting","Getting there",
+                         "Almost there","Know it well","Nailed it!"]
+        if "rating" in fields:
+            new_r, old_r = fields["rating"], old["rating"] or 0
+            if new_r > old_r and new_r > 0:
+                conn.execute(
+                    "INSERT INTO achievements (type, tune_id, tune_title, note) VALUES (?,?,?,?)",
+                    ("rating_up", tune_id, old["title"],
+                     f"Rating improved to {rating_labels[new_r]} ({new_r}★) — {old['title']}"),
+                )
+        if "on_hitlist" in fields:
+            if fields["on_hitlist"] == 1 and not old["on_hitlist"]:
+                conn.execute(
+                    "INSERT INTO achievements (type, tune_id, tune_title, note) VALUES (?,?,?,?)",
+                    ("hitlist_add", tune_id, old["title"],
+                     f"Added to Hitlist: {old['title']}"),
+                )
+            elif fields["on_hitlist"] == 0 and old["on_hitlist"]:
+                conn.execute(
+                    "INSERT INTO achievements (type, tune_id, tune_title, note) VALUES (?,?,?,?)",
+                    ("hitlist_remove", tune_id, old["title"],
+                     f"Removed from Hitlist: {old['title']}"),
+                )
     return {"ok": True}
 
 
@@ -706,6 +738,43 @@ def create_tune(body: TuneCreate):
         )
         tune_id = cur.lastrowid
     return {"id": tune_id, "title": title}
+
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Achievements
+# ---------------------------------------------------------------------------
+
+@app.get("/api/achievements")
+def list_achievements():
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM achievements ORDER BY created_at DESC LIMIT 200"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+class AchievementCreate(BaseModel):
+    note: str
+
+
+@app.post("/api/achievements", status_code=201)
+def create_achievement(body: AchievementCreate):
+    note = body.note.strip()
+    if not note:
+        raise HTTPException(400, "Note required")
+    with _db() as conn:
+        cur = conn.execute(
+            "INSERT INTO achievements (type, note) VALUES ('manual', ?)", (note,)
+        )
+    return {"id": cur.lastrowid}
+
+
+@app.delete("/api/achievements/{ach_id}")
+def delete_achievement(ach_id: int):
+    with _db() as conn:
+        conn.execute("DELETE FROM achievements WHERE id = ?", (ach_id,))
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

@@ -55,8 +55,10 @@ const newSetNotes   = document.getElementById("new-set-notes");
 const createSetBtn  = document.getElementById("create-set-btn");
 const cancelSetBtn  = document.getElementById("cancel-set-btn");
 const setsList      = document.getElementById("sets-list");
-const viewNotes     = document.getElementById("view-notes");
-const navNotes      = document.getElementById("nav-notes");
+const viewNotes         = document.getElementById("view-notes");
+const navNotes          = document.getElementById("nav-notes");
+const viewAchievements  = document.getElementById("view-achievements");
+const navAchievements   = document.getElementById("nav-achievements");
 const notesDocList  = document.getElementById("notes-doc-list");
 const notesEditor   = document.getElementById("notes-editor");
 const newDocBtn     = document.getElementById("new-doc-btn");
@@ -385,12 +387,8 @@ async function apiDeleteTune(id) {
 // ── View switching ────────────────────────────────────────────────────────────
 function switchView(view) {
   state.view = view;
-  viewLibrary.classList.add("hidden");
-  viewSets.classList.add("hidden");
-  viewNotes.classList.add("hidden");
-  navLibrary.classList.remove("active");
-  navSets.classList.remove("active");
-  navNotes.classList.remove("active");
+  [viewLibrary, viewSets, viewNotes, viewAchievements].forEach(v => v.classList.add("hidden"));
+  [navLibrary, navSets, navNotes, navAchievements].forEach(n => n.classList.remove("active"));
 
   if (view === "library") {
     viewLibrary.classList.remove("hidden");
@@ -406,6 +404,10 @@ function switchView(view) {
     viewNotes.classList.remove("hidden");
     navNotes.classList.add("active");
     loadNoteDocuments();
+  } else if (view === "achievements") {
+    viewAchievements.classList.remove("hidden");
+    navAchievements.classList.add("active");
+    loadAchievements();
   }
 }
 
@@ -440,12 +442,12 @@ function renderTunes(data) {
       `<button class="star-btn${rating >= n ? " filled" : ""}" data-n="${n}" tabindex="-1">★</button>`
     ).join("");
     return `
-      <article class="tune-card" data-id="${t.id}" data-versions="${vCount}"
+      <article class="tune-card${t.on_hitlist ? " on-hitlist" : ""}" data-id="${t.id}" data-versions="${vCount}"
                data-rating="${rating}" data-hitlist="${t.on_hitlist || 0}"
                tabindex="0" role="button" aria-label="${escHtml(t.title)}">
         <button class="hitlist-btn${t.on_hitlist ? " active" : ""}"
                 title="${t.on_hitlist ? "Remove from hitlist" : "Add to hitlist"}">📌</button>
-        <div class="card-title">${escHtml(t.title)}</div>
+        <div class="card-title${t.on_hitlist ? " hitlist-title" : ""}">${escHtml(t.title)}</div>
         <div class="card-meta">${typeLabel}${keyLabel}${versionBadge}</div>
         <div class="card-stars">${stars}</div>
         <button class="tune-delete-btn" data-id="${t.id}" title="Delete tune" aria-label="Delete ${escHtml(t.title)}">✕</button>
@@ -683,6 +685,8 @@ function renderModal(tune, onBack = null) {
       const card = tuneList.querySelector(`.tune-card[data-id="${tune.id}"]`);
       if (card) {
         card.dataset.hitlist = on_hitlist;
+        card.classList.toggle("on-hitlist", Boolean(on_hitlist));
+        card.querySelector(".card-title")?.classList.toggle("hitlist-title", Boolean(on_hitlist));
         const hBtn = card.querySelector(".hitlist-btn");
         if (hBtn) {
           hBtn.classList.toggle("active", Boolean(on_hitlist));
@@ -1573,6 +1577,8 @@ tuneList.addEventListener("click", async e => {
         body: JSON.stringify({ on_hitlist }),
       });
       card.dataset.hitlist = on_hitlist;
+      card.classList.toggle("on-hitlist", Boolean(on_hitlist));
+      card.querySelector(".card-title")?.classList.toggle("hitlist-title", Boolean(on_hitlist));
       hitlistBtn.classList.toggle("active", Boolean(on_hitlist));
       hitlistBtn.title = on_hitlist ? "Remove from hitlist" : "Add to hitlist";
     } catch { /* silently ignore */ }
@@ -1627,9 +1633,10 @@ function closeModal() {
 // Note: bar-selection click listener is attached inside renderSheetMusic (capture phase).
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
-navLibrary.addEventListener("click", () => switchView("library"));
-navSets.addEventListener("click",    () => switchView("sets"));
-navNotes.addEventListener("click",   () => switchView("notes"));
+navLibrary.addEventListener("click",      () => switchView("library"));
+navSets.addEventListener("click",         () => switchView("sets"));
+navNotes.addEventListener("click",        () => switchView("notes"));
+navAchievements.addEventListener("click", () => switchView("achievements"));
 
 // ── New note document ─────────────────────────────────────────────────────────
 newDocBtn.addEventListener("click", async () => {
@@ -2053,6 +2060,68 @@ function closeMediaOverlay() {
 
 document.getElementById("media-overlay-close").addEventListener("click", closeMediaOverlay);
 mediaOverlay.addEventListener("click", e => { if (e.target === mediaOverlay) closeMediaOverlay(); });
+
+// ── Achievements ─────────────────────────────────────────────────────────────
+const achTextarea = document.getElementById("ach-textarea");
+const achAddBtn   = document.getElementById("ach-add-btn");
+const achStatus   = document.getElementById("ach-status");
+const achList     = document.getElementById("achievements-list");
+
+const ACH_ICONS = {
+  rating_up:      "⭐",
+  hitlist_add:    "📌",
+  hitlist_remove: "📌",
+  manual:         "✏️",
+};
+
+function renderAchievements(items) {
+  if (!items.length) {
+    achList.innerHTML = '<p class="loading">No achievements yet. Play some tunes and level up!</p>';
+    return;
+  }
+  achList.innerHTML = items.map(a => {
+    const icon = ACH_ICONS[a.type] || "✏️";
+    const d = new Date(a.created_at);
+    const dateStr = d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return `<div class="ach-entry" data-id="${a.id}">
+      <span class="ach-icon">${icon}</span>
+      <div class="ach-body">
+        <span class="ach-note">${escHtml(a.note)}</span>
+        <span class="ach-date">${dateStr}</span>
+      </div>
+      <button class="ach-delete" title="Delete" data-id="${a.id}">✕</button>
+    </div>`;
+  }).join("");
+
+  achList.querySelectorAll(".ach-delete").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await apiFetch(`/api/achievements/${btn.dataset.id}`, { method: "DELETE" });
+      loadAchievements();
+    });
+  });
+}
+
+async function loadAchievements() {
+  achList.innerHTML = '<p class="loading">Loading…</p>';
+  const items = await apiFetch("/api/achievements");
+  renderAchievements(items);
+}
+
+achAddBtn.addEventListener("click", async () => {
+  const note = achTextarea.value.trim();
+  if (!note) return;
+  achAddBtn.disabled = true;
+  await apiFetch("/api/achievements", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+  achTextarea.value = "";
+  achStatus.textContent = "Added!";
+  setTimeout(() => { achStatus.textContent = ""; }, 2000);
+  achAddBtn.disabled = false;
+  loadAchievements();
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {
