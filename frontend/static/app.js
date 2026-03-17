@@ -469,6 +469,15 @@ function renderNotesHtml(text) {
   const parts = [];
   let last = 0;
   let m;
+
+  function shortUrl(u) {
+    try {
+      const { hostname, pathname } = new URL(u);
+      const path = pathname.length > 40 ? pathname.slice(0, 38) + "…" : pathname;
+      return hostname + path;
+    } catch { return u.length > 60 ? u.slice(0, 58) + "…" : u; }
+  }
+
   while ((m = urlRe.exec(text)) !== null) {
     if (m.index > last) parts.push(`<span>${escHtml(text.slice(last, m.index))}</span>`);
     const url = m[0];
@@ -476,17 +485,17 @@ function renderNotesHtml(text) {
     if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url)) {
       parts.push(`<div class="notes-media-link">
         <button class="btn-secondary btn-sm media-play-btn" data-url="${urlEsc}" data-media-type="audio">▶ Play audio</button>
-        <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${urlEsc}</a>
+        <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${escHtml(shortUrl(url))}</a>
       </div>`);
     } else if (/(?:youtube\.com\/watch\?.*v=|youtu\.be\/)/.test(url)) {
       parts.push(`<div class="notes-media-link">
         <button class="btn-secondary btn-sm media-play-btn" data-url="${urlEsc}" data-media-type="video">▶ Watch video</button>
-        <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${urlEsc}</a>
+        <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${escHtml(shortUrl(url))}</a>
       </div>`);
     } else if (/\.pdf(\?|$)/i.test(url)) {
-      parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">📄 ${urlEsc}</a>`);
+      parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">📄 ${escHtml(shortUrl(url))}</a>`);
     } else {
-      parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">🔗 ${urlEsc}</a>`);
+      parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${escHtml(shortUrl(url))}</a>`);
     }
     last = m.index + url.length;
   }

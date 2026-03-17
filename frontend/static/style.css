@@ -904,10 +904,12 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 }
 .notes-link {
   color: var(--accent);
+  text-decoration: underline;
   word-break: break-all;
   display: inline-block;
   margin: .1rem 0;
 }
+.notes-link:hover { opacity: .8; }
 .notes-audio {
   margin: .5rem 0;
   display: flex;
