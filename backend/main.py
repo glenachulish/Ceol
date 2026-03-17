@@ -941,7 +941,7 @@ def serve_upload(filename: str):
 # ---------------------------------------------------------------------------
 
 _FF_BASE = "https://flutefling.scot"
-_FF_ARCHIVE_ROOT = f"{_FF_BASE}/resources/flutefling-repertoire-archive/"
+_FF_ARCHIVE_ROOT = f"{_FF_BASE}/resources/flutefling-session-tunes/"
 _FF_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0"
