@@ -50,6 +50,12 @@ Then open `http://localhost:8000` in the browser. Hard-refresh with **Cmd+Shift+
       or links to external harmony recordings/sheet music?
 - [ ] **iOS / web hosting** — Deploy backend to Railway/Render; frontend served
       from same host. Add PWA manifest so it can be pinned to iOS home screen.
+- [ ] **Raspberry Pi self-hosting** — Host the app on a Raspberry Pi (new model,
+      currently unused). Plan: install Python + dependencies, create a systemd
+      service so the app auto-starts on boot and restarts on crash, set up
+      Tailscale for secure remote access from any device (Mac, iPhone, etc.),
+      and add a PWA manifest for iOS home screen pinning. No port forwarding or
+      paid hosting needed.
 - [ ] **Multi-user template** — Clean open-source version others can fork and
       populate with their own tunes.
 
