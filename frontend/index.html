@@ -45,6 +45,15 @@
           <select id="filter-type"><option value="">All types</option></select>
           <select id="filter-key"><option value="">All keys</option></select>
           <select id="filter-mode"><option value="">All modes</option></select>
+          <select id="filter-rating">
+            <option value="">Any rating</option>
+            <option value="1">★ +</option>
+            <option value="2">★★ +</option>
+            <option value="3">★★★ +</option>
+            <option value="4">★★★★ +</option>
+            <option value="5">★★★★★</option>
+          </select>
+          <button id="filter-hitlist-btn" class="btn-secondary" title="Show only tunes on your hitlist">📌 Hitlist</button>
           <button id="clear-btn" class="btn-secondary">Clear</button>
           <button id="select-mode-btn" class="btn-secondary">Select</button>
         </div>
@@ -229,6 +238,6 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=32"></script>
+  <script src="/static/app.js?v=33"></script>
 </body>
 </html>

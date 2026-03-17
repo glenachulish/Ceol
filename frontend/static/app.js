@@ -9,14 +9,18 @@ const state = {
   type: "",
   key: "",
   mode: "",
+  hitlist: false,
+  min_rating: 0,
   sets: [],
 };
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
-const searchEl      = document.getElementById("search");
-const filterType    = document.getElementById("filter-type");
-const filterKey     = document.getElementById("filter-key");
-const filterMode    = document.getElementById("filter-mode");
+const searchEl         = document.getElementById("search");
+const filterType       = document.getElementById("filter-type");
+const filterKey        = document.getElementById("filter-key");
+const filterMode       = document.getElementById("filter-mode");
+const filterRating     = document.getElementById("filter-rating");
+const filterHitlistBtn = document.getElementById("filter-hitlist-btn");
 const clearBtn         = document.getElementById("clear-btn");
 const selectModeBtn    = document.getElementById("select-mode-btn");
 const bulkBar          = document.getElementById("bulk-bar");
@@ -273,10 +277,12 @@ async function fetchFilters() {
 
 async function fetchTunes() {
   const params = new URLSearchParams({ page: state.page, page_size: PAGE_SIZE });
-  if (state.q)    params.set("q",    state.q);
-  if (state.type) params.set("type", state.type);
-  if (state.key)  params.set("key",  state.key);
-  if (state.mode) params.set("mode", state.mode);
+  if (state.q)          params.set("q",          state.q);
+  if (state.type)       params.set("type",        state.type);
+  if (state.key)        params.set("key",         state.key);
+  if (state.mode)       params.set("mode",        state.mode);
+  if (state.hitlist)    params.set("hitlist",     "1");
+  if (state.min_rating) params.set("min_rating",  state.min_rating);
   return apiFetch(`/api/tunes?${params}`);
 }
 
@@ -429,11 +435,19 @@ function renderTunes(data) {
     const versionBadge = vCount > 0
       ? `<span class="badge badge-versions">${vCount} version${vCount !== 1 ? "s" : ""}</span>`
       : "";
+    const rating = t.rating || 0;
+    const stars = [1,2,3,4,5].map(n =>
+      `<button class="star-btn${rating >= n ? " filled" : ""}" data-n="${n}" tabindex="-1">★</button>`
+    ).join("");
     return `
-      <article class="tune-card" data-id="${t.id}" data-versions="${vCount}" tabindex="0" role="button"
-               aria-label="${escHtml(t.title)}">
+      <article class="tune-card" data-id="${t.id}" data-versions="${vCount}"
+               data-rating="${rating}" data-hitlist="${t.on_hitlist || 0}"
+               tabindex="0" role="button" aria-label="${escHtml(t.title)}">
+        <button class="hitlist-btn${t.on_hitlist ? " active" : ""}"
+                title="${t.on_hitlist ? "Remove from hitlist" : "Add to hitlist"}">📌</button>
         <div class="card-title">${escHtml(t.title)}</div>
         <div class="card-meta">${typeLabel}${keyLabel}${versionBadge}</div>
+        <div class="card-stars">${stars}</div>
         <button class="tune-delete-btn" data-id="${t.id}" title="Delete tune" aria-label="Delete ${escHtml(t.title)}">✕</button>
       </article>`;
   }).join("");
@@ -517,6 +531,17 @@ function renderModal(tune, onBack = null) {
   const versionLine = tune.version_label
     ? `<p class="modal-version-label">${escHtml(tune.version_label)}</p>`
     : "";
+
+  const ratingLabels = ["Not yet rated","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
+  const modalRating = tune.rating || 0;
+  const modalStars = [1,2,3,4,5].map(n =>
+    `<button class="modal-star-btn${modalRating >= n ? " filled" : ""}" data-n="${n}">★</button>`
+  ).join("");
+  const ratingRow = `
+    <div class="modal-rating-row">
+      <div class="modal-stars" id="modal-stars">${modalStars}</div>
+      <span class="modal-rating-label" id="modal-rating-label">${ratingLabels[modalRating]}</span>
+    </div>`;
   const aliasLine = tune.aliases && tune.aliases.length
     ? `<p class="modal-aliases">Also known as: ${tune.aliases.map(escHtml).join(", ")}</p>`
     : "";
@@ -553,6 +578,7 @@ function renderModal(tune, onBack = null) {
     <h2 class="modal-title">${escHtml(tune.title)}</h2>
     ${versionLine}
     <div class="modal-meta">${typeBadge}${keyBadge}</div>
+    ${ratingRow}
     ${aliasLine}
     ${importedLine}
     ${tagLine}
@@ -599,6 +625,9 @@ function renderModal(tune, onBack = null) {
     <div class="modal-footer">
       ${setsFooter}
       <div class="modal-danger-row">
+        <button id="modal-hitlist-btn" class="btn-secondary${tune.on_hitlist ? " hitlist-active" : ""}">
+          📌 ${tune.on_hitlist ? "On Hitlist" : "Add to Hitlist"}
+        </button>
         <button id="delete-tune-modal-btn" class="btn-danger" data-tune-id="${tune.id}">Delete from Library</button>
       </div>
     </div>
@@ -608,6 +637,60 @@ function renderModal(tune, onBack = null) {
   if (onBack) {
     document.getElementById("modal-back-btn").addEventListener("click", onBack);
   }
+
+  // Modal star rating
+  let _modalRating = tune.rating || 0;
+  const ratingLabels = ["Not yet rated","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
+  modalContent.querySelectorAll(".modal-star-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const n = Number(btn.dataset.n);
+      const newRating = n === _modalRating ? 0 : n;
+      try {
+        await apiFetch(`/api/tunes/${tune.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rating: newRating }),
+        });
+        _modalRating = newRating;
+        modalContent.querySelectorAll(".modal-star-btn").forEach((s, i) =>
+          s.classList.toggle("filled", i + 1 <= newRating)
+        );
+        document.getElementById("modal-rating-label").textContent = ratingLabels[newRating];
+        // Also update the card in the background
+        const card = tuneList.querySelector(`.tune-card[data-id="${tune.id}"]`);
+        if (card) {
+          card.dataset.rating = newRating;
+          card.querySelectorAll(".star-btn").forEach((s, i) =>
+            s.classList.toggle("filled", i + 1 <= newRating)
+          );
+        }
+      } catch { /* ignore */ }
+    });
+  });
+
+  // Modal hitlist toggle
+  const modalHitlistBtn = document.getElementById("modal-hitlist-btn");
+  let _modalHitlist = tune.on_hitlist || 0;
+  modalHitlistBtn.addEventListener("click", async () => {
+    const on_hitlist = _modalHitlist ? 0 : 1;
+    try {
+      await apiFetch(`/api/tunes/${tune.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on_hitlist }),
+      });
+      _modalHitlist = on_hitlist;
+      modalHitlistBtn.textContent = `📌 ${on_hitlist ? "On Hitlist" : "Add to Hitlist"}`;
+      modalHitlistBtn.classList.toggle("hitlist-active", Boolean(on_hitlist));
+      const card = tuneList.querySelector(`.tune-card[data-id="${tune.id}"]`);
+      if (card) {
+        card.dataset.hitlist = on_hitlist;
+        const hBtn = card.querySelector(".hitlist-btn");
+        if (hBtn) {
+          hBtn.classList.toggle("active", Boolean(on_hitlist));
+          hBtn.title = on_hitlist ? "Remove from hitlist" : "Add to hitlist";
+        }
+      }
+    } catch { /* ignore */ }
+  });
 
   // Media play buttons in notes
   modalContent.addEventListener("click", e => {
@@ -1417,10 +1500,24 @@ filterType.addEventListener("change", () => { state.type = filterType.value; sta
 filterKey.addEventListener("change",  () => { state.key  = filterKey.value;  state.page = 1; loadTunes(); });
 filterMode.addEventListener("change", () => { state.mode = filterMode.value; state.page = 1; loadTunes(); });
 
+filterRating.addEventListener("change", () => {
+  state.min_rating = Number(filterRating.value) || 0;
+  state.page = 1;
+  loadTunes();
+});
+
+filterHitlistBtn.addEventListener("click", () => {
+  state.hitlist = !state.hitlist;
+  filterHitlistBtn.classList.toggle("active", state.hitlist);
+  state.page = 1;
+  loadTunes();
+});
+
 clearBtn.addEventListener("click", () => {
   searchEl.value = "";
-  filterType.value = filterKey.value = filterMode.value = "";
-  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "" });
+  filterType.value = filterKey.value = filterMode.value = filterRating.value = "";
+  filterHitlistBtn.classList.remove("active");
+  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", hitlist: false, min_rating: 0 });
   loadTunes();
 });
 
@@ -1438,6 +1535,47 @@ tuneList.addEventListener("click", async e => {
   // In select mode: clicking anywhere on the card toggles selection
   if (_selectMode) {
     if (card) _toggleCard(card);
+    return;
+  }
+
+  // Star rating click on card
+  const starBtn = e.target.closest(".star-btn");
+  if (starBtn && !_selectMode) {
+    e.stopPropagation();
+    const card = starBtn.closest(".tune-card");
+    const tuneId = card.dataset.id;
+    const n = Number(starBtn.dataset.n);
+    const current = Number(card.dataset.rating || 0);
+    const rating = n === current ? 0 : n;  // click same star = reset
+    try {
+      await apiFetch(`/api/tunes/${tuneId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating }),
+      });
+      card.dataset.rating = rating;
+      card.querySelectorAll(".star-btn").forEach((s, i) =>
+        s.classList.toggle("filled", i + 1 <= rating)
+      );
+    } catch { /* silently ignore */ }
+    return;
+  }
+
+  // Hitlist toggle on card
+  const hitlistBtn = e.target.closest(".hitlist-btn");
+  if (hitlistBtn && !_selectMode) {
+    e.stopPropagation();
+    const card = hitlistBtn.closest(".tune-card");
+    const tuneId = card.dataset.id;
+    const on_hitlist = hitlistBtn.classList.contains("active") ? 0 : 1;
+    try {
+      await apiFetch(`/api/tunes/${tuneId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on_hitlist }),
+      });
+      card.dataset.hitlist = on_hitlist;
+      hitlistBtn.classList.toggle("active", Boolean(on_hitlist));
+      hitlistBtn.title = on_hitlist ? "Remove from hitlist" : "Add to hitlist";
+    } catch { /* silently ignore */ }
     return;
   }
 

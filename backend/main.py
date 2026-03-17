@@ -53,6 +53,8 @@ def list_tunes(
     type: Optional[str] = Query(None, description="Filter by tune type"),
     key: Optional[str] = Query(None, description="Filter by key"),
     mode: Optional[str] = Query(None, description="Filter by mode"),
+    hitlist: Optional[int] = Query(None, description="1 = hitlist only"),
+    min_rating: Optional[int] = Query(None, ge=1, le=5, description="Minimum star rating"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
 ):
@@ -79,6 +81,13 @@ def list_tunes(
         conditions.append("t.mode = ?")
         params.append(mode.lower())
 
+    if hitlist:
+        conditions.append("t.on_hitlist = 1")
+
+    if min_rating is not None:
+        conditions.append("t.rating >= ?")
+        params.append(min_rating)
+
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     offset = (page - 1) * page_size
 
@@ -91,6 +100,7 @@ def list_tunes(
             f"""
             SELECT t.id, t.craic_id, t.session_id, t.title, t.type,
                    t.key, t.mode, t.notes, t.imported_at, t.created_at,
+                   t.rating, t.on_hitlist,
                    (SELECT COUNT(*) FROM tunes v WHERE v.parent_id = t.id) AS version_count
             FROM tunes t
             {where}
@@ -191,6 +201,8 @@ class TuneUpdate(BaseModel):
     mode: Optional[str] = None
     abc: Optional[str] = None
     version_label: Optional[str] = None
+    rating: Optional[int] = None
+    on_hitlist: Optional[int] = None
 
 
 @app.patch("/api/tunes/{tune_id}")

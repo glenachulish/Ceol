@@ -127,6 +127,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE tunes ADD COLUMN parent_id INTEGER REFERENCES tunes(id)")
     if "version_label" not in existing_cols:
         conn.execute("ALTER TABLE tunes ADD COLUMN version_label TEXT NOT NULL DEFAULT ''")
+    if "rating" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN rating INTEGER NOT NULL DEFAULT 0")
+    if "on_hitlist" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN on_hitlist INTEGER NOT NULL DEFAULT 0")
 
 
 def init_db(db_path: Path = DB_PATH) -> None:
