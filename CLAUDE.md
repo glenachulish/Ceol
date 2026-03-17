@@ -57,7 +57,14 @@ Then open `http://localhost:8000` in the browser. Hard-refresh with **Cmd+Shift+
       and add a PWA manifest for iOS home screen pinning. No port forwarding or
       paid hosting needed.
 - [ ] **Multi-user template** — Clean open-source version others can fork and
-      populate with their own tunes.
+      populate with their own tunes. Two approaches to discuss:
+      (1) Self-hosted: publish a clean GitHub repo; users clone and run it
+      themselves (free but technical). (2) Shared hosted app: add user
+      accounts/login so multiple people share one server instance; host on
+      Railway/Render for ~£5–10/month total — owner pays, invites others.
+      Option 2 is more accessible for non-technical musicians. Requires adding
+      authentication (login/signup) and per-user data isolation to the current
+      single-user architecture.
 
 ## Database schema notes
 Key tables: `tunes`, `tune_aliases`, `tune_tags`, `sets`, `set_tunes`,
