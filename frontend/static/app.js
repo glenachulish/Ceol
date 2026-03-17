@@ -554,10 +554,15 @@ function renderModal(tune, onBack = null) {
     ? `<div class="modal-meta">${tune.tags.map(g => `<span class="badge badge-other">${escHtml(g)}</span>`).join("")}</div>`
     : "";
 
-  // Extract FlutefFling PDF URL from notes, if any
+  // Extract FlutefFling PDF and MP3 URLs from notes, if any
   const pdfUrl = (() => {
     if (!tune.notes) return null;
     const m = tune.notes.match(/FlutefFling sheet music \(PDF\):\s*(https:\/\/\S+)/);
+    return m ? m[1] : null;
+  })();
+  const ffMp3Url = (() => {
+    if (!tune.notes) return null;
+    const m = tune.notes.match(/FlutefFling MP3:\s*(https:\/\/\S+)/);
     return m ? m[1] : null;
   })();
 
@@ -597,6 +602,10 @@ function renderModal(tune, onBack = null) {
         ${pdfUrl && !tune.abc ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl && !tune.abc ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
+      ${(pdfUrl || ffMp3Url) ? `<div class="ff-download-row">
+        ${pdfUrl ? `<a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>` : ""}
+        ${ffMp3Url ? `<a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(ffMp3Url)}" download>⬇ Download MP3</a>` : ""}
+      </div>` : ""}
       <div id="audio-player-container" class="audio-player-wrap"></div>
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
       <p id="audio-unavailable" class="audio-unavailable hidden">

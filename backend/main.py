@@ -16,7 +16,7 @@ from typing import Optional
 
 import httpx
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -1334,6 +1334,64 @@ async def flutefling_search(q: str = Query(..., min_length=1)):
     matches = [t for t in tunes if q_lower in (t.get("title") or "").lower()]
     matches.sort(key=_score)
     return {"results": matches[:20]}
+
+
+# ---------------------------------------------------------------------------
+# Proxy download (FlutefFling PDF / MP3)
+# ---------------------------------------------------------------------------
+
+_ALLOWED_PROXY_HOSTS = {"flutefling.scot", "www.flutefling.scot"}
+
+
+@app.get("/api/proxy-download")
+async def proxy_download(url: str = Query(...)):
+    """Proxy-fetch a FlutefFling PDF or MP3 and stream it back as a download.
+
+    Only URLs on flutefling.scot are permitted.  The filename is derived from
+    the last path segment of the URL.
+    """
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc not in _ALLOWED_PROXY_HOSTS:
+        raise HTTPException(400, "Only https://flutefling.scot/ URLs are supported.")
+
+    filename = parsed.path.rstrip("/").rsplit("/", 1)[-1] or "download"
+
+    # Detect content type from extension
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    content_type_map = {
+        "pdf": "application/pdf",
+        "mp3": "audio/mpeg",
+        "m4a": "audio/mp4",
+        "ogg": "audio/ogg",
+    }
+    content_type = content_type_map.get(ext, "application/octet-stream")
+
+    try:
+        client = httpx.AsyncClient(follow_redirects=True, timeout=30)
+        req = client.build_request("GET", url, headers=_FF_HEADERS)
+        resp = await client.send(req, stream=True)
+        if resp.status_code >= 400:
+            await resp.aclose()
+            await client.aclose()
+            raise HTTPException(resp.status_code, f"Remote returned {resp.status_code}")
+    except httpx.RequestError as exc:
+        raise HTTPException(502, f"Could not reach flutefling.scot: {exc}") from exc
+
+    async def _stream():
+        try:
+            async for chunk in resp.aiter_bytes(chunk_size=65536):
+                yield chunk
+        finally:
+            await resp.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        _stream(),
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ---------------------------------------------------------------------------

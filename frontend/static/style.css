@@ -717,6 +717,22 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   margin: .4rem 0;
 }
 
+/* ── FlutefFling download buttons ────────────────────────── */
+.ff-download-row {
+  display: flex;
+  gap: .6rem;
+  flex-wrap: wrap;
+  margin: .6rem 0 .25rem;
+}
+.ff-dl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  text-decoration: none;
+  font-size: .85rem;
+  padding: .35rem .75rem;
+}
+
 /* ── Audio player ─────────────────────────────────────────── */
 .audio-player-wrap { margin-top: .75rem; }
 .audio-unavailable {

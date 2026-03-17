@@ -23,6 +23,9 @@ Then open `http://localhost:8000` in the browser. Hard-refresh with **Cmd+Shift+
 - Import from TheSession.org (search, preview, import)
 - Import from FlutefFling.scot (paste PDF + MP3 URLs → stored in notes)
 - FlutefFling PDF embedded in Sheet Music tab (when no ABC)
+- FlutefFling catalogue browser — search & one-click import from full catalogue
+- Download PDF / MP3 buttons in tune modal for FlutefFling tunes (proxy endpoint)
+- Hitlist tune titles styled as accent-coloured hyperlinks
 - Tune versioning: group tunes as versions under a parent entry
 - Merge/group dialog: select 2+ tunes → "Group as versions"
 - Versions panel: click parent → list of versions → click version → full modal
@@ -33,16 +36,9 @@ Then open `http://localhost:8000` in the browser. Hard-refresh with **Cmd+Shift+
 - Hitlist (📌) — flag tunes to learn; filter bar toggle + per-card button
 - Sets: create named sets of tunes, reorder, play as a sequence
 - Notes documents: rich freeform notes with attachments
+- Achievements — auto-log rating improvements & hitlist changes; manual entries; timeline view
 
 ### To do 📋
-- [ ] **Achievements** — Auto-log rating improvements, hitlist adds/removes;
-      plus freeform personal achievement entries. New Achievements view in nav.
-- [ ] **FlutefFling catalogue browser** — Scrape flutefling.scot session tunes page
-      on each app start; show full list in import tab with PDF/MP3 links and
-      one-click "Add to Library" per tune.
-- [ ] **Download sheet music + MP3 from FlutefFling** — Proxy-download endpoint
-      so PDF/MP3 files can be saved locally; download button in tune modal for
-      FlutefFling tunes.
 - [ ] **Upload voice recordings** — Record in-browser or upload audio file,
       attach to a tune (linked in notes section). Uses existing note_attachments
       infrastructure.
