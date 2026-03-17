@@ -56,7 +56,7 @@ def list_tunes(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
 ):
-    conditions: list[str] = []
+    conditions: list[str] = ["t.parent_id IS NULL"]
     params: list = []
 
     if q:
@@ -90,7 +90,8 @@ def list_tunes(
         rows = conn.execute(
             f"""
             SELECT t.id, t.craic_id, t.session_id, t.title, t.type,
-                   t.key, t.mode, t.notes, t.imported_at, t.created_at
+                   t.key, t.mode, t.notes, t.imported_at, t.created_at,
+                   (SELECT COUNT(*) FROM tunes v WHERE v.parent_id = t.id) AS version_count
             FROM tunes t
             {where}
             ORDER BY t.title COLLATE NOCASE
@@ -129,10 +130,14 @@ def get_tune(tune_id: int):
             """,
             (tune_id,),
         ).fetchall()
+        version_count = conn.execute(
+            "SELECT COUNT(*) FROM tunes WHERE parent_id = ?", (tune_id,)
+        ).fetchone()[0]
 
     result = dict(row)
     result["aliases"] = [a["alias"] for a in aliases]
     result["tags"] = [t["name"] for t in tags]
+    result["version_count"] = version_count
     return result
 
 
@@ -145,6 +150,11 @@ def delete_tune(tune_id: int):
     with _db() as conn:
         if not conn.execute("SELECT 1 FROM tunes WHERE id = ?", (tune_id,)).fetchone():
             raise HTTPException(status_code=404, detail="Tune not found")
+        # Unlink any versions that had this tune as their parent
+        conn.execute(
+            "UPDATE tunes SET parent_id = NULL, version_label = '' WHERE parent_id = ?",
+            (tune_id,),
+        )
         conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (tune_id,))
         conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (tune_id,))
         conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (tune_id,))
@@ -163,6 +173,10 @@ def bulk_delete_tunes(body: BulkDeleteBody):
         raise HTTPException(400, "No IDs provided")
     with _db() as conn:
         for tid in body.ids:
+            conn.execute(
+                "UPDATE tunes SET parent_id = NULL, version_label = '' WHERE parent_id = ?",
+                (tid,),
+            )
             conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (tid,))
             conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (tid,))
             conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (tid,))
@@ -176,6 +190,7 @@ class TuneUpdate(BaseModel):
     key: Optional[str] = None
     mode: Optional[str] = None
     abc: Optional[str] = None
+    version_label: Optional[str] = None
 
 
 @app.patch("/api/tunes/{tune_id}")
@@ -232,14 +247,16 @@ def get_filter_options():
 @app.get("/api/stats")
 def get_stats():
     with _db() as conn:
-        total = conn.execute("SELECT COUNT(*) FROM tunes").fetchone()[0]
+        total = conn.execute(
+            "SELECT COUNT(*) FROM tunes WHERE parent_id IS NULL"
+        ).fetchone()[0]
         by_type = conn.execute(
             "SELECT COALESCE(type,'unknown') AS type, COUNT(*) AS count "
-            "FROM tunes GROUP BY type ORDER BY count DESC"
+            "FROM tunes WHERE parent_id IS NULL GROUP BY type ORDER BY count DESC"
         ).fetchall()
         by_mode = conn.execute(
             "SELECT COALESCE(mode,'unknown') AS mode, COUNT(*) AS count "
-            "FROM tunes GROUP BY mode ORDER BY count DESC"
+            "FROM tunes WHERE parent_id IS NULL GROUP BY mode ORDER BY count DESC"
         ).fetchall()
     return {
         "total_tunes": total,
@@ -597,6 +614,57 @@ async def thesession_import(body: dict):
 
 
 # ---------------------------------------------------------------------------
+# Tune versions
+# ---------------------------------------------------------------------------
+
+@app.get("/api/tunes/{tune_id}/versions")
+def get_tune_versions(tune_id: int):
+    """Return the parent title and all child versions for a grouped tune."""
+    with _db() as conn:
+        parent = conn.execute(
+            "SELECT id, title FROM tunes WHERE id = ?", (tune_id,)
+        ).fetchone()
+        if not parent:
+            raise HTTPException(404, "Tune not found")
+        versions = conn.execute(
+            "SELECT id, title, type, key, mode, version_label, notes "
+            "FROM tunes WHERE parent_id = ? ORDER BY version_label COLLATE NOCASE",
+            (tune_id,),
+        ).fetchall()
+    return {"parent": dict(parent), "versions": [dict(v) for v in versions]}
+
+
+class GroupTunesBody(BaseModel):
+    title: str
+    tune_ids: list[int]
+    labels: list[str]
+
+
+@app.post("/api/tunes/group", status_code=201)
+def group_tunes(body: GroupTunesBody):
+    """Create a parent container and link existing tunes as versions under it."""
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(400, "Title required")
+    if not body.tune_ids:
+        raise HTTPException(400, "At least one tune required")
+    if len(body.tune_ids) != len(body.labels):
+        raise HTTPException(400, "Must supply a label for each tune")
+    with _db() as conn:
+        cur = conn.execute(
+            "INSERT INTO tunes (title, type, key, mode, abc, notes) VALUES (?, '', '', '', '', '')",
+            (title,),
+        )
+        parent_id = cur.lastrowid
+        for tune_id, label in zip(body.tune_ids, body.labels):
+            conn.execute(
+                "UPDATE tunes SET parent_id = ?, version_label = ? WHERE id = ?",
+                (parent_id, label.strip(), tune_id),
+            )
+    return {"id": parent_id, "title": title}
+
+
+# ---------------------------------------------------------------------------
 # Manual tune creation
 # ---------------------------------------------------------------------------
 
@@ -607,23 +675,22 @@ class TuneCreate(BaseModel):
     mode: str = ""
     notes: str = ""
     abc: str = ""
+    parent_id: Optional[int] = None
+    version_label: str = ""
 
 
 @app.post("/api/tunes", status_code=201)
 def create_tune(body: TuneCreate):
-    """Create a tune manually (e.g. as an audio reference with no ABC notation)."""
+    """Create a tune manually."""
     title = body.title.strip()
     if not title:
         raise HTTPException(400, "Title required")
-    abc = body.abc.strip()
-    if not abc:
-        # Minimal valid placeholder so the tune can be opened without errors
-        abc = f"X:1\nT:{title}\nM:4/4\nL:1/8\nK:C\n%%MIDI program 73\nz8|\n"
     with _db() as conn:
         cur = conn.execute(
-            "INSERT INTO tunes (title, type, key, mode, abc, notes) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, body.type.strip(), body.key.strip(), body.mode.strip(), abc,
-             body.notes.strip()),
+            "INSERT INTO tunes (title, type, key, mode, abc, notes, parent_id, version_label) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (title, body.type.strip(), body.key.strip(), body.mode.strip(),
+             body.abc.strip(), body.notes.strip(), body.parent_id, body.version_label.strip()),
         )
         tune_id = cur.lastrowid
     return {"id": tune_id, "title": title}

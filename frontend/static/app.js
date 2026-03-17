@@ -85,7 +85,7 @@ function _updateBulkBar() {
   const n = _selectedIds.size;
   bulkCount.textContent = `${n} selected`;
   bulkDeleteBtn.disabled = n === 0;
-  bulkMergeBtn.disabled = n !== 2;
+  bulkMergeBtn.disabled = n < 2;
   const total = tuneList.querySelectorAll(".tune-card").length;
   bulkSelectAllBtn.textContent = (n > 0 && n === total) ? "Deselect all" : "Select all";
 }
@@ -143,115 +143,95 @@ bulkDeleteBtn.addEventListener("click", async () => {
   }
 });
 
-// ── Merge tunes ───────────────────────────────────────────────────────────────
+// ── Group tunes as versions ───────────────────────────────────────────────────
 
-function _buildMergedAbc(abc1, sub1, abc2, sub2) {
-  function injectSubtitle(abc, subtitle) {
-    if (!subtitle.trim()) return abc;
-    return abc.replace(/(T:[^\n]*\n)/, `$1T:${subtitle}\n`);
-  }
-  function setXNumber(abc, n) {
-    return abc.replace(/^X:\s*\d+/m, `X:${n}`);
-  }
-  const part1 = injectSubtitle(abc1.trim(), sub1);
-  const part2 = injectSubtitle(setXNumber(abc2.trim(), 2), sub2);
-  return part1 + "\n\n" + part2;
-}
+function _showGroupDialog(tunes) {
+  // tunes: array of {id, title, key}
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
 
-function _showMergeDialog(t1, t2) {
-  const defaultSub1 = t1.key ? `Version in ${t1.key}` : "Version 1";
-  const defaultSub2 = t2.key ? `Version in ${t2.key}` : "Version 2";
+  const labelInputs = tunes.map((t, i) =>
+    `<label class="ff-url-label">Version label for <strong>${escHtml(t.title)}</strong>${t.key ? ` (${escHtml(t.key)})` : ""}</label>
+     <input id="group-label-${i}" type="text" class="ff-url-input"
+            value="${escHtml(t.key ? `Version in ${t.key}` : `Version ${i + 1}`)}"
+            placeholder="e.g. Version in D" />`
+  ).join("");
 
-  const overlay = document.getElementById("modal-overlay");
-  const content = document.getElementById("modal-content");
-  content.innerHTML = `
-    <h2 class="modal-title">Merge Two Tunes</h2>
-    <p class="modal-abc-label">These two tunes will be combined into one entry. Each version will appear as a separate section in the sheet music, labelled with its subtitle.</p>
+  modalContent.innerHTML = `
+    <h2 class="modal-title">Group as Versions</h2>
+    <p class="modal-abc-label">These tunes will be grouped under a single entry. Each version remains its own tune with its own sheet music — they are just listed together when you click the group name.</p>
 
     <div class="merge-form">
-      <label class="ff-url-label">Combined title</label>
-      <input id="merge-title" type="text" class="ff-url-input" value="${escHtml(t1.title)}" />
-
-      <label class="ff-url-label">Subtitle for <strong>${escHtml(t1.title)}</strong>${t1.key ? ` (${escHtml(t1.key)})` : ""}</label>
-      <input id="merge-sub1" type="text" class="ff-url-input" value="${escHtml(defaultSub1)}" placeholder="e.g. Version in D" />
-
-      <label class="ff-url-label">Subtitle for <strong>${escHtml(t2.title)}</strong>${t2.key ? ` (${escHtml(t2.key)})` : ""}</label>
-      <input id="merge-sub2" type="text" class="ff-url-input" value="${escHtml(defaultSub2)}" placeholder="e.g. Version in G" />
+      <label class="ff-url-label">Group title (shown in the library)</label>
+      <input id="group-title" type="text" class="ff-url-input" value="${escHtml(tunes[0].title)}" />
+      ${labelInputs}
     </div>
 
     <div class="notes-actions" style="margin-top:1.25rem">
-      <button id="merge-confirm-btn" class="btn-primary">Merge into one tune</button>
-      <button id="merge-cancel-btn" class="btn-secondary">Cancel</button>
-      <span id="merge-status" class="notes-status"></span>
+      <button id="group-confirm-btn" class="btn-primary">Create group</button>
+      <button id="group-cancel-btn" class="btn-secondary">Cancel</button>
+      <span id="group-status" class="notes-status"></span>
     </div>
   `;
 
-  overlay.classList.remove("hidden");
+  document.getElementById("group-cancel-btn").addEventListener("click", closeModal);
 
-  document.getElementById("merge-cancel-btn").addEventListener("click", () => {
-    overlay.classList.add("hidden");
-  });
+  document.getElementById("group-confirm-btn").addEventListener("click", async () => {
+    const groupTitle = document.getElementById("group-title").value.trim();
+    const labels = tunes.map((_, i) =>
+      document.getElementById(`group-label-${i}`).value.trim()
+    );
+    const status = document.getElementById("group-status");
+    if (!groupTitle) { status.textContent = "Group title is required."; return; }
 
-  document.getElementById("merge-confirm-btn").addEventListener("click", async () => {
-    const mergedTitle = document.getElementById("merge-title").value.trim();
-    const sub1 = document.getElementById("merge-sub1").value.trim();
-    const sub2 = document.getElementById("merge-sub2").value.trim();
-    const status = document.getElementById("merge-status");
-    if (!mergedTitle) { status.textContent = "Title is required."; return; }
-
-    const confirmBtn = document.getElementById("merge-confirm-btn");
+    const confirmBtn = document.getElementById("group-confirm-btn");
     confirmBtn.disabled = true;
-    confirmBtn.textContent = "Merging…";
+    confirmBtn.textContent = "Grouping…";
     status.textContent = "";
 
     try {
-      const hasAbc = t1.abc || t2.abc;
-      const mergedAbc = hasAbc ? _buildMergedAbc(t1.abc || "", sub1, t2.abc || "", sub2) : "";
-      const noteParts = [t1.notes, t2.notes].filter(Boolean);
-
-      await apiFetch("/api/tunes", {
+      await apiFetch("/api/tunes/group", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: mergedTitle,
-          type: t1.type || t2.type || "",
-          key: "",
-          mode: "",
-          abc: mergedAbc,
-          notes: noteParts.join("\n"),
+          title: groupTitle,
+          tune_ids: tunes.map(t => Number(t.id)),
+          labels,
         }),
       });
-
-      await apiFetch("/api/tunes/bulk-delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [Number(t1.id), Number(t2.id)] }),
-      });
-
-      overlay.classList.add("hidden");
+      closeModal();
       _exitSelectMode();
       await Promise.all([loadStats(), loadFilters(), loadTunes()]);
     } catch (err) {
       status.textContent = `Error: ${err.message}`;
       confirmBtn.disabled = false;
-      confirmBtn.textContent = "Merge into one tune";
+      confirmBtn.textContent = "Create group";
     }
   });
 }
 
 bulkMergeBtn.addEventListener("click", async () => {
-  if (_selectedIds.size !== 2) return;
-  const [id1, id2] = [..._selectedIds];
+  if (_selectedIds.size < 2) return;
+  const ids = [..._selectedIds];
+  // Reject if any selected card is itself a parent (already has versions)
+  const parentCards = ids.filter(id => {
+    const card = tuneList.querySelector(`.tune-card[data-id="${id}"]`);
+    return card && Number(card.dataset.versions || 0) > 0;
+  });
+  if (parentCards.length > 0) {
+    alert("One or more selected tunes already have versions. Ungroup them first before re-grouping.");
+    return;
+  }
   bulkMergeBtn.disabled = true;
   bulkMergeBtn.textContent = "Loading…";
   try {
-    const [t1, t2] = await Promise.all([fetchTune(id1), fetchTune(id2)]);
-    _showMergeDialog(t1, t2);
+    const tunes = await Promise.all(ids.map(id => fetchTune(id)));
+    _showGroupDialog(tunes);
   } catch {
     alert("Could not load tune data. Please try again.");
   } finally {
-    bulkMergeBtn.disabled = false;
-    bulkMergeBtn.textContent = "Merge 2 tunes";
+    bulkMergeBtn.disabled = (_selectedIds.size < 2);
+    bulkMergeBtn.textContent = "Group as versions";
   }
 });
 
@@ -445,11 +425,15 @@ function renderTunes(data) {
     const keyLabel = t.key
       ? `<span class="badge badge-key">${escHtml(t.key)}</span>`
       : "";
+    const vCount = t.version_count || 0;
+    const versionBadge = vCount > 0
+      ? `<span class="badge badge-versions">${vCount} version${vCount !== 1 ? "s" : ""}</span>`
+      : "";
     return `
-      <article class="tune-card" data-id="${t.id}" tabindex="0" role="button"
+      <article class="tune-card" data-id="${t.id}" data-versions="${vCount}" tabindex="0" role="button"
                aria-label="${escHtml(t.title)}">
         <div class="card-title">${escHtml(t.title)}</div>
-        <div class="card-meta">${typeLabel}${keyLabel}</div>
+        <div class="card-meta">${typeLabel}${keyLabel}${versionBadge}</div>
         <button class="tune-delete-btn" data-id="${t.id}" title="Delete tune" aria-label="Delete ${escHtml(t.title)}">✕</button>
       </article>`;
   }).join("");
@@ -478,7 +462,7 @@ function renderPagination(current, total) {
   pagination.innerHTML = html;
 }
 
-// Render a notes string: URLs become audio players or clickable links
+// Render a notes string: URLs become playable embeds or clickable links
 function renderNotesHtml(text) {
   if (!text) return "";
   const urlRe = /https?:\/\/[^\s<>"]+/g;
@@ -490,7 +474,15 @@ function renderNotesHtml(text) {
     const url = m[0];
     const urlEsc = escHtml(url);
     if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url)) {
-      parts.push(`<div class="notes-audio"><audio controls preload="none" src="${urlEsc}"></audio><a href="${urlEsc}" target="_blank" rel="noopener" class="notes-audio-link">🎵 ${urlEsc}</a></div>`);
+      parts.push(`<div class="notes-media-link">
+        <button class="btn-secondary btn-sm media-play-btn" data-url="${urlEsc}" data-media-type="audio">▶ Play audio</button>
+        <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${urlEsc}</a>
+      </div>`);
+    } else if (/(?:youtube\.com\/watch\?.*v=|youtu\.be\/)/.test(url)) {
+      parts.push(`<div class="notes-media-link">
+        <button class="btn-secondary btn-sm media-play-btn" data-url="${urlEsc}" data-media-type="video">▶ Watch video</button>
+        <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${urlEsc}</a>
+      </div>`);
     } else if (/\.pdf(\?|$)/i.test(url)) {
       parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">📄 ${urlEsc}</a>`);
     } else {
@@ -502,13 +494,19 @@ function renderNotesHtml(text) {
   return parts.join("").replace(/\n/g, "<br>");
 }
 
-function renderModal(tune) {
+function renderModal(tune, onBack = null) {
   const typeClass = typeBadgeClass(tune.type);
   const typeBadge = tune.type
     ? `<span class="badge ${typeClass}">${escHtml(tune.type)}</span>`
     : "";
   const keyBadge = tune.key
     ? `<span class="badge badge-key">${escHtml(tune.key)}</span>`
+    : "";
+  const backBtn = onBack
+    ? `<button id="modal-back-btn" class="modal-back-btn btn-secondary btn-sm">← Back</button>`
+    : "";
+  const versionLine = tune.version_label
+    ? `<p class="modal-version-label">${escHtml(tune.version_label)}</p>`
     : "";
   const aliasLine = tune.aliases && tune.aliases.length
     ? `<p class="modal-aliases">Also known as: ${tune.aliases.map(escHtml).join(", ")}</p>`
@@ -542,7 +540,9 @@ function renderModal(tune) {
     : `<p class="modal-hint">Go to Sets to create a set, then add this tune to it.</p>`;
 
   modalContent.innerHTML = `
+    ${backBtn}
     <h2 class="modal-title">${escHtml(tune.title)}</h2>
+    ${versionLine}
     <div class="modal-meta">${typeBadge}${keyBadge}</div>
     ${aliasLine}
     ${importedLine}
@@ -594,6 +594,17 @@ function renderModal(tune) {
       </div>
     </div>
   `;
+
+  // Back button (from versions panel)
+  if (onBack) {
+    document.getElementById("modal-back-btn").addEventListener("click", onBack);
+  }
+
+  // Media play buttons in notes
+  modalContent.addEventListener("click", e => {
+    const btn = e.target.closest(".media-play-btn");
+    if (btn) openMediaOverlay(btn.dataset.url, btn.dataset.mediaType);
+  });
 
   // Tab switching
   modalContent.querySelectorAll(".tab-btn").forEach(btn => {
@@ -1439,6 +1450,10 @@ tuneList.addEventListener("click", async e => {
   }
 
   if (!card) return;
+  if (Number(card.dataset.versions || 0) > 0) {
+    renderVersionsPanel(card.dataset.id);
+    return;
+  }
   await fetchSets(); // ensure fresh sets for "add to set" dropdown
   const tune = await fetchTune(card.dataset.id);
   renderModal(tune);
@@ -1804,6 +1819,93 @@ ffAddBtn.addEventListener("click", async () => {
     ffAddBtn.textContent = "Add to Library";
   }
 });
+
+// ── Versions panel ────────────────────────────────────────────────────────────
+
+async function renderVersionsPanel(parentId) {
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  modalContent.innerHTML = '<p class="loading">Loading versions…</p>';
+
+  try {
+    const { parent, versions } = await apiFetch(`/api/tunes/${parentId}/versions`);
+
+    modalContent.innerHTML = `
+      <h2 class="modal-title">${escHtml(parent.title)}</h2>
+      <p class="versions-count">${versions.length} version${versions.length !== 1 ? "s" : ""}</p>
+      <div class="versions-list">
+        ${versions.map(v => `
+          <div class="version-item" data-id="${v.id}" role="button" tabindex="0">
+            <div class="version-info">
+              <span class="version-name">${escHtml(v.version_label || v.title)}</span>
+              <span class="version-meta">${[v.key, v.type].filter(Boolean).map(escHtml).join(" · ")}</span>
+            </div>
+            <span class="version-arrow">→</span>
+          </div>
+        `).join("")}
+      </div>
+      <div class="modal-footer" style="margin-top:1.25rem">
+        <button id="ungroup-btn" class="btn-danger btn-sm">Ungroup</button>
+        <span class="modal-hint" style="margin-left:.5rem">Ungroup removes the container but keeps all versions as individual tunes.</span>
+      </div>
+    `;
+
+    // Each version opens the full tune modal with a ← Back button
+    modalContent.querySelectorAll(".version-item").forEach(item => {
+      const open = async () => {
+        await fetchSets();
+        const tune = await fetchTune(item.dataset.id);
+        renderModal(tune, () => renderVersionsPanel(parentId));
+      };
+      item.addEventListener("click", open);
+      item.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") open(); });
+    });
+
+    document.getElementById("ungroup-btn").addEventListener("click", async () => {
+      if (!confirm(`Ungroup "${parent.title}"? The versions will become individual tunes again.`)) return;
+      try {
+        await apiFetch(`/api/tunes/${parentId}`, { method: "DELETE" });
+        closeModal();
+        await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+      } catch {
+        alert("Failed to ungroup. Please try again.");
+      }
+    });
+
+  } catch (err) {
+    modalContent.innerHTML = `<p class="empty">Error loading versions: ${escHtml(err.message)}</p>`;
+  }
+}
+
+// ── Media overlay (MP3 / YouTube) ─────────────────────────────────────────────
+
+const mediaOverlay = document.getElementById("media-overlay");
+const mediaOverlayContent = document.getElementById("media-overlay-content");
+
+function openMediaOverlay(url, type) {
+  if (type === "video") {
+    const vidId = url.match(/(?:v=|youtu\.be\/)([^&?#]+)/)?.[1];
+    if (!vidId) { window.open(url, "_blank"); return; }
+    mediaOverlayContent.innerHTML =
+      `<iframe class="media-video" src="https://www.youtube-nocookie.com/embed/${escHtml(vidId)}?autoplay=1"
+               allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+  } else {
+    mediaOverlayContent.innerHTML =
+      `<audio controls autoplay class="media-audio" src="${escHtml(url)}"></audio>`;
+  }
+  mediaOverlay.classList.remove("hidden");
+}
+
+function closeMediaOverlay() {
+  // Stop audio/video before removing
+  mediaOverlayContent.querySelectorAll("iframe").forEach(el => { el.src = ""; });
+  mediaOverlayContent.querySelectorAll("audio, video").forEach(el => el.pause());
+  mediaOverlayContent.innerHTML = "";
+  mediaOverlay.classList.add("hidden");
+}
+
+document.getElementById("media-overlay-close").addEventListener("click", closeMediaOverlay);
+mediaOverlay.addEventListener("click", e => { if (e.target === mediaOverlay) closeMediaOverlay(); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {

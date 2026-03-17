@@ -121,10 +121,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
     """Apply incremental migrations for existing databases."""
     existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(tunes)").fetchall()}
     if "imported_at" not in existing_cols:
-        conn.execute(
-            "ALTER TABLE tunes ADD COLUMN imported_at TIMESTAMP"
-        )
+        conn.execute("ALTER TABLE tunes ADD COLUMN imported_at TIMESTAMP")
         conn.execute("UPDATE tunes SET imported_at = created_at WHERE imported_at IS NULL")
+    if "parent_id" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN parent_id INTEGER REFERENCES tunes(id)")
+    if "version_label" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN version_label TEXT NOT NULL DEFAULT ''")
 
 
 def init_db(db_path: Path = DB_PATH) -> None:

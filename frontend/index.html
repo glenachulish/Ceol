@@ -55,7 +55,7 @@
       <div id="bulk-bar" class="bulk-bar hidden">
         <span id="bulk-count" class="bulk-count">0 selected</span>
         <button id="bulk-select-all-btn" class="btn-secondary btn-sm">Select all</button>
-        <button id="bulk-merge-btn" class="btn-secondary btn-sm" disabled title="Select exactly 2 tunes to merge">Merge 2 tunes</button>
+        <button id="bulk-merge-btn" class="btn-secondary btn-sm" disabled title="Select 2 or more tunes to group as versions">Group as versions</button>
         <button id="bulk-delete-btn" class="btn-danger btn-sm" disabled>Delete selected</button>
         <button id="bulk-cancel-btn" class="btn-secondary btn-sm">Cancel</button>
       </div>
@@ -220,7 +220,15 @@
     </div>
   </div>
 
+  <!-- Media player overlay (MP3 / YouTube) -->
+  <div id="media-overlay" class="media-overlay hidden" role="dialog" aria-modal="true">
+    <div class="media-overlay-inner">
+      <button id="media-overlay-close" class="media-overlay-close" aria-label="Close">✕ Close</button>
+      <div id="media-overlay-content"></div>
+    </div>
+  </div>
+
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=30"></script>
+  <script src="/static/app.js?v=31"></script>
 </body>
 </html>
