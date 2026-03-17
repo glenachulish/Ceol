@@ -269,7 +269,11 @@ function escHtml(s) {
 // ── API ───────────────────────────────────────────────────────────────────────
 async function apiFetch(url, opts) {
   const r = await fetch(url, opts);
-  if (!r.ok) throw new Error(`Request failed (${r.status})`);
+  if (!r.ok) {
+    let detail = "";
+    try { detail = (await r.json()).detail || ""; } catch (_) {}
+    throw new Error(detail || `Request failed (${r.status})`);
+  }
   return r.json();
 }
 
