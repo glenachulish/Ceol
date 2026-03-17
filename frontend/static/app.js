@@ -808,7 +808,16 @@ function renderModal(tune, onBack = null) {
   });
 
   // Render sheet music after paint (skip if no ABC — PDF or empty)
-  requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); });
+  requestAnimationFrame(() => {
+    if (tune.abc) {
+      renderSheetMusic(tune.abc);
+    } else if (ffMp3Url) {
+      const container = document.getElementById("audio-player-container");
+      if (container) {
+        container.innerHTML = `<audio controls class="mp3-player" src="/api/proxy-download?url=${encodeURIComponent(ffMp3Url)}"></audio>`;
+      }
+    }
+  });
 }
 
 // ── Bar-range selection (practice loop) ──────────────────────────────────────
