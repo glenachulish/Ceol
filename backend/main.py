@@ -995,12 +995,17 @@ class _LinkParser(_HTMLParser):
             self._link_buf.append(data)
 
 
+_ff_last_error: str = ""
+
 async def _ff_get(url: str, client: httpx.AsyncClient) -> str | None:
+    global _ff_last_error
     try:
-        r = await client.get(url, headers=_FF_HEADERS, timeout=15, follow_redirects=True)
+        r = await client.get(url, headers=_FF_HEADERS, timeout=20, follow_redirects=True)
         r.raise_for_status()
+        _ff_last_error = ""
         return r.text
-    except Exception:
+    except Exception as exc:
+        _ff_last_error = f"{type(exc).__name__}: {exc}"
         return None
 
 
@@ -1057,7 +1062,7 @@ async def flutefling_catalogue(refresh: bool = False):
         # 1. Fetch the archive index to discover year-pages
         index_html = await _ff_get(_FF_ARCHIVE_ROOT, client)
         if not index_html:
-            raise HTTPException(502, "Could not reach flutefling.scot — check network access")
+            raise HTTPException(502, f"Could not reach flutefling.scot — {_ff_last_error or 'check network access'}")
 
         idx_parser = _LinkParser()
         idx_parser.feed(index_html)
@@ -1227,7 +1232,7 @@ async def flutefling_all_tunes(refresh: bool = False):
         # Step 1: build the set catalogue (reuses catalogue logic)
         index_html = await _ff_get(_FF_ARCHIVE_ROOT, client)
         if not index_html:
-            raise HTTPException(502, "Could not reach flutefling.scot — check network access")
+            raise HTTPException(502, f"Could not reach flutefling.scot — {_ff_last_error or 'check network access'}")
 
         idx_parser = _LinkParser()
         idx_parser.feed(index_html)
