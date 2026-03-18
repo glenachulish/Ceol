@@ -1168,7 +1168,6 @@ function renderSheetMusic(abc) {
   try {
     const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
       staffwidth: 680,
-      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1257,19 +1256,35 @@ function renderSheetMusic(abc) {
 
 // Expand |:PART_A:||:PART_B:| into PART_A|PART_A||PART_B|PART_B||
 // so ABCJS SynthController plays AABB without needing repeat-barline support.
+// Also inserts I:linebreak $ markers every 4 bars so the sheet music wraps.
 function expandAbcRepeats(abc) {
   const kIdx = abc.search(/^K:/m);
   if (kIdx < 0) return abc;
   const kEnd = abc.indexOf('\n', kIdx);
   if (kEnd < 0) return abc;
-  const header = abc.slice(0, kEnd + 1);
+  // Add linebreak directive so $ in the body forces a new staff line.
+  const header = abc.slice(0, kEnd + 1) + 'I:linebreak $\n';
   const body = abc.slice(kEnd + 1).trim();
-  if (!body.includes('|:') && !body.includes(':|')) return abc;
-  const parts = body.split(':||:');
-  const expanded = parts.map(p =>
-    p.replace(/^\s*\|:/, '').replace(/:\|\s*$/, '').trim()
-  ).map(p => p + '|' + p).join('||') + '||';
-  return header + expanded;
+  let expanded;
+  if (!body.includes('|:') && !body.includes(':|')) {
+    expanded = body;
+  } else {
+    const parts = body.split(':||:');
+    expanded = parts.map(p =>
+      p.replace(/^\s*\|:/, '').replace(/:\|\s*$/, '').trim()
+    ).map(p => p + '|' + p).join('||') + '||';
+  }
+  return header + _insertLineBreaks(expanded, 4);
+}
+
+// Insert $ after every nth simple barline so ABCJS wraps to a new staff line.
+function _insertLineBreaks(body, barsPerLine) {
+  let count = 0;
+  // Match a | that is not part of ||, |:, or :|
+  return body.replace(/(?<!:)\|(?![|:])/g, (match) => {
+    count++;
+    return count % barsPerLine === 0 ? match + '$' : match;
+  });
 }
 
 function renderPreviewMusic(abc) {
@@ -1286,7 +1301,6 @@ function renderPreviewMusic(abc) {
   try {
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
       staffwidth: 680,
-      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
