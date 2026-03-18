@@ -1055,7 +1055,14 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   border-top: 1px solid var(--border);
 }
 .preview-panel { padding-top: .9rem; }
-#preview-sheet-render { min-height: 80px; }
+#preview-sheet-render {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: .5rem;
+  overflow-x: auto;
+  min-height: 80px;
+}
+#preview-sheet-render svg { max-width: 100%; display: block; }
 .preview-abc-text {
   font-family: monospace;
   font-size: .78rem;
