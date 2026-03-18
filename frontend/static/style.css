@@ -1632,6 +1632,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .setting-check { cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
 .setting-label { font-weight: 600; min-width: 70px; }
 .setting-votes { color: var(--text-muted); font-size: .8rem; }
+.setting-submitter { color: var(--text-muted); font-size: .8rem; font-style: italic; }
 .setting-previewing {
   margin-left: auto;
   font-size: .75rem;

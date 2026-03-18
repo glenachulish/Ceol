@@ -1413,16 +1413,20 @@ function _renderSettingsStrip(settings, activeId) {
   return `
     <div class="settings-strip-header">${settings.length} settings available on TheSession.org</div>
     <div class="settings-list">
-      ${settings.map((s, i) => `
+      ${settings.map((s, i) => {
+        const parts = [s.member, s.date ? s.date.slice(0, 10) : null].filter(Boolean);
+        const byLine = parts.length ? `<span class="setting-submitter">${escHtml(parts.join(", "))}</span>` : "";
+        return `
         <div class="setting-row${s.id === activeId ? " active" : ""}" data-setting-id="${s.id}">
           <input type="checkbox" class="setting-check" data-setting-id="${s.id}"
                  ${s.id === activeId ? "checked" : ""}>
           <span class="setting-label">Setting ${i + 1}</span>
           <span class="badge badge-key">${escHtml(s.key)}</span>
           <span class="setting-votes">${s.votes} vote${s.votes !== 1 ? "s" : ""}</span>
+          ${byLine}
           ${s.id === activeId ? '<span class="setting-previewing">Previewing ▶</span>' : ""}
-        </div>
-      `).join("")}
+        </div>`;
+      }).join("")}
     </div>`;
 }
 

@@ -661,6 +661,7 @@ async def thesession_fetch(tune_id: int):
         meter = s.get("meter") or data.get("meter", "")
         full_abc = _build_session_abc(i + 1, title, tune_type, key,
                                       s.get("abc", ""), meter)
+        member_info = s.get("member") or {}
         settings.append({
             "id": s.get("id"),
             "index": i + 1,
@@ -668,6 +669,8 @@ async def thesession_fetch(tune_id: int):
             "key": key_norm,
             "mode": mode_norm,
             "votes": s.get("votes", 0),
+            "member": member_info.get("name") if isinstance(member_info, dict) else None,
+            "date": s.get("date"),
         })
 
     # Default to first setting (X:1) — matches what TheSession.org displays
