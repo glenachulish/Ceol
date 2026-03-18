@@ -1269,11 +1269,11 @@ function expandAbcRepeats(abc) {
   return header + _insertLineBreaks(body, 4);
 }
 
-// Insert $ after every nth barline so ABCJS wraps to a new staff line.
-// Counts all barline types: :|, ::, ||, |:, | (longest match first).
+// Insert $ after every nth bar. Counts only measure-ENDING barlines:
+// :| (end repeat), || (double bar), | (plain bar) — but NOT opening |: .
 function _insertLineBreaks(body, barsPerLine) {
   let count = 0;
-  return body.replace(/:\||::|[|]{2}:?|\|:?/g, (match) => {
+  return body.replace(/:\||[|]{2}|\|(?!:)/g, (match) => {
     count++;
     return count % barsPerLine === 0 ? match + '$' : match;
   });
