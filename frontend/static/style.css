@@ -1063,6 +1063,10 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   min-height: 80px;
 }
 #preview-sheet-render svg { max-width: 100%; display: block; }
+#preview-sheet-render path,
+#preview-sheet-render rect,
+#preview-sheet-render ellipse { fill: #000000 !important; stroke: #000000 !important; }
+#preview-sheet-render { color: #000000; }
 .preview-abc-text {
   font-family: monospace;
   font-size: .78rem;
