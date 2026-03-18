@@ -1166,7 +1166,7 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    const visualObjs = ABCJS.renderAbc("sheet-music-render", abc, {
+    const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
       responsive: "resize",
       add_classes: true,
       paddingbottom: 10,
@@ -1245,12 +1245,7 @@ function renderSheetMusic(abc) {
       displayWarp: true,
     });
 
-    // Use expanded ABC for synth so repeats play (ABCJS SynthController
-    // renders repeat barlines visually but doesn't expand them for audio).
-    const synthVisualObj = ABCJS.renderAbc(
-      "abcjs-synth-buf", expandAbcRepeats(abc), { selectTypes: false }
-    )[0];
-    _synthController.setTune(synthVisualObj, false, { program: 73 }).catch(err => {
+    _synthController.setTune(_visualObj, false, { program: 73 }).catch(err => {
       console.warn("Audio init failed:", err);
     });
   } catch (err) {
@@ -1288,7 +1283,7 @@ function renderPreviewMusic(abc) {
   document.getElementById("preview-audio-container").innerHTML = "";
 
   try {
-    const visualObjs = ABCJS.renderAbc("preview-sheet-render", abc, {
+    const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
       responsive: "resize",
       add_classes: true,
       paddingbottom: 10,
@@ -1310,10 +1305,7 @@ function renderPreviewMusic(abc) {
       displayProgress: true,
       displayWarp: true,
     });
-    const previewSynthVisualObj = ABCJS.renderAbc(
-      "abcjs-synth-buf", expandAbcRepeats(abc), { selectTypes: false }
-    )[0];
-    _previewSynthCtrl.setTune(previewSynthVisualObj, false, { program: 73 }).catch(err => {
+    _previewSynthCtrl.setTune(_previewVisualObj, false, { program: 73 }).catch(err => {
       console.warn("Preview audio init failed:", err);
     });
   } catch (err) {
