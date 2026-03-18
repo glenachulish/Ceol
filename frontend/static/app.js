@@ -1245,13 +1245,35 @@ function renderSheetMusic(abc) {
       displayWarp: true,
     });
 
-    _synthController.setTune(_visualObj, false, { program: 73 }).catch(err => {
+    // Use expanded ABC for synth so repeats play (ABCJS SynthController
+    // renders repeat barlines visually but doesn't expand them for audio).
+    const synthVisualObj = ABCJS.renderAbc(
+      "abcjs-synth-buf", expandAbcRepeats(abc), { selectTypes: false }
+    )[0];
+    _synthController.setTune(synthVisualObj, false, { program: 73 }).catch(err => {
       console.warn("Audio init failed:", err);
     });
   } catch (err) {
     console.warn("Sheet music render failed:", err);
     if (container) container.textContent = "(Could not render sheet music)";
   }
+}
+
+// Expand |:PART_A:||:PART_B:| into PART_A|PART_A||PART_B|PART_B||
+// so ABCJS SynthController plays AABB without needing repeat-barline support.
+function expandAbcRepeats(abc) {
+  const kIdx = abc.search(/^K:/m);
+  if (kIdx < 0) return abc;
+  const kEnd = abc.indexOf('\n', kIdx);
+  if (kEnd < 0) return abc;
+  const header = abc.slice(0, kEnd + 1);
+  const body = abc.slice(kEnd + 1).trim();
+  if (!body.includes('|:') && !body.includes(':|')) return abc;
+  const parts = body.split(':||:');
+  const expanded = parts.map(p =>
+    p.replace(/^\s*\|:/, '').replace(/:\|\s*$/, '').trim()
+  ).map(p => p + '|' + p).join('||') + '||';
+  return header + expanded;
 }
 
 function renderPreviewMusic(abc) {
@@ -1288,7 +1310,10 @@ function renderPreviewMusic(abc) {
       displayProgress: true,
       displayWarp: true,
     });
-    _previewSynthCtrl.setTune(_previewVisualObj, false, { program: 73 }).catch(err => {
+    const previewSynthVisualObj = ABCJS.renderAbc(
+      "abcjs-synth-buf", expandAbcRepeats(abc), { selectTypes: false }
+    )[0];
+    _previewSynthCtrl.setTune(previewSynthVisualObj, false, { program: 73 }).catch(err => {
       console.warn("Preview audio init failed:", err);
     });
   } catch (err) {
