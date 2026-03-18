@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music</title>
-  <link rel="stylesheet" href="/static/style.css?v=35" />
+  <link rel="stylesheet" href="/static/style.css?v=36" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -230,6 +230,7 @@
           </div>
           <div class="session-preview-footer">
             <button id="session-save-btn" class="btn-primary">Save to Library</button>
+            <a id="session-visit-btn" class="btn-secondary" target="_blank" rel="noopener noreferrer" href="#">View on TheSession ↗</a>
             <span id="session-save-status" class="notes-status"></span>
           </div>
         </div>
@@ -441,6 +442,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=62"></script>
+  <script src="/static/app.js?v=63"></script>
 </body>
 </html>

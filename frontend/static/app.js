@@ -1478,6 +1478,8 @@ function showSessionPreview(tuneData) {
   preview.classList.remove("hidden");
 
   document.getElementById("session-preview-title").textContent = tuneData.title;
+  const visitBtn = document.getElementById("session-visit-btn");
+  if (visitBtn) visitBtn.href = `https://thesession.org/tunes/${tuneData.session_id}`;
   const typeClass = typeBadgeClass(tuneData.type);
   document.getElementById("session-preview-badges").innerHTML =
     (tuneData.type ? `<span class="badge ${typeClass}">${escHtml(tuneData.type)}</span>` : "") +
