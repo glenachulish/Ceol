@@ -549,6 +549,32 @@ _SESSION_BASE = "https://thesession.org"
 _SESSION_HEADERS = {"Accept": "application/json", "User-Agent": "Ceol/0.1 trad-music-app"}
 
 
+def _add_session_repeats(abc: str) -> str:
+    """Add |: :| repeat barlines to TheSession ABC if missing.
+
+    TheSession stores ABC without explicit repeat marks and their player
+    adds AABB repeats by convention. We replicate that here so ABCJS
+    plays the tune correctly.
+    """
+    k_match = re.search(r'^K:[^\n]*\n', abc, re.MULTILINE)
+    if not k_match:
+        return abc
+    header = abc[:k_match.end()]
+    body = abc[k_match.end():]
+
+    # Already has repeat marks — leave untouched
+    if '|:' in body or ':|' in body:
+        return abc
+
+    # Split on double barline (section separator) and wrap each part
+    parts = [p.strip() for p in body.split('||') if p.strip()]
+    if len(parts) <= 1:
+        return abc
+
+    new_body = '|:' + ':||:'.join(parts) + ':|'
+    return header + new_body
+
+
 @app.get("/api/thesession/search")
 async def thesession_search(q: str = Query(..., min_length=1), page: int = Query(1, ge=1)):
     """Proxy a search to TheSession.org and return normalised results."""
@@ -605,7 +631,7 @@ async def thesession_fetch(tune_id: int):
         settings.append({
             "id": s.get("id"),
             "index": i + 1,
-            "abc": s.get("abc", ""),
+            "abc": _add_session_repeats(s.get("abc", "")),
             "key": key_norm,
             "mode": mode_norm,
             "votes": s.get("votes", 0),
@@ -672,7 +698,7 @@ async def thesession_import(body: dict):
     with _db() as conn:
         for idx, s in to_import:
             sid = s.get("id")
-            abc = s.get("abc", "")
+            abc = _add_session_repeats(s.get("abc", ""))
             key = s.get("key", "")
             key_norm, mode_norm = normalise_key(key) if key else (key, "")
             setting_index = idx + 1
