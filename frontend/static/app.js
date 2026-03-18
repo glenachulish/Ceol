@@ -2596,6 +2596,156 @@ dropboxPathInput.addEventListener("keydown", e => {
   if (e.key === "Enter") dropboxBrowseBtn.click();
 });
 
+// ── Library management ────────────────────────────────────────────────────────
+
+const libraryMenuBtn    = document.getElementById("library-menu-btn");
+const libraryMenu       = document.getElementById("library-menu");
+const libraryBackupBtn  = document.getElementById("library-backup-btn");
+const libraryImportBtn  = document.getElementById("library-import-btn");
+const libraryDeleteBtn  = document.getElementById("library-delete-btn");
+
+// Dropdown toggle
+libraryMenuBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  libraryMenu.classList.toggle("hidden");
+});
+document.addEventListener("click", () => libraryMenu.classList.add("hidden"));
+libraryMenu.addEventListener("click", e => e.stopPropagation());
+
+// ── Backup dialog ─────────────────────────────────────────────────────────────
+const backupOverlay    = document.getElementById("backup-overlay");
+const backupClose      = document.getElementById("backup-close");
+const backupFilename   = document.getElementById("backup-filename");
+const backupSaveBtn    = document.getElementById("backup-save-btn");
+const backupCancelBtn  = document.getElementById("backup-cancel-btn");
+
+function _todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+libraryBackupBtn.addEventListener("click", () => {
+  libraryMenu.classList.add("hidden");
+  backupFilename.value = `ceol-backup-${_todayISO()}.zip`;
+  backupOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  backupFilename.focus();
+  backupFilename.select();
+});
+
+function _closeBackup() {
+  backupOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+backupClose.addEventListener("click", _closeBackup);
+backupCancelBtn.addEventListener("click", _closeBackup);
+
+backupSaveBtn.addEventListener("click", () => {
+  const name = backupFilename.value.trim() || `ceol-backup-${_todayISO()}.zip`;
+  const safe = name.endsWith(".zip") ? name : name + ".zip";
+  // Trigger the browser download — Save As dialog appears
+  const a = document.createElement("a");
+  a.href = `/api/library/export?filename=${encodeURIComponent(safe)}`;
+  a.download = safe;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  _closeBackup();
+});
+
+backupFilename.addEventListener("keydown", e => {
+  if (e.key === "Enter") backupSaveBtn.click();
+});
+
+// ── Import Library dialog ─────────────────────────────────────────────────────
+const libImportOverlay  = document.getElementById("lib-import-overlay");
+const libImportClose    = document.getElementById("lib-import-close");
+const libImportFile     = document.getElementById("lib-import-file");
+const libImportFilename = document.getElementById("lib-import-filename");
+const libImportSubmit   = document.getElementById("lib-import-submit");
+const libImportCancel   = document.getElementById("lib-import-cancel");
+const libImportResult   = document.getElementById("lib-import-result");
+
+libraryImportBtn.addEventListener("click", () => {
+  libraryMenu.classList.add("hidden");
+  libImportFile.value = "";
+  libImportFilename.textContent = "";
+  libImportSubmit.disabled = true;
+  libImportResult.classList.add("hidden");
+  libImportOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+});
+
+function _closeLibImport() {
+  libImportOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+libImportClose.addEventListener("click", _closeLibImport);
+libImportCancel.addEventListener("click", _closeLibImport);
+
+libImportFile.addEventListener("change", () => {
+  const f = libImportFile.files[0];
+  libImportFilename.textContent = f ? f.name : "";
+  libImportSubmit.disabled = !f;
+});
+
+libImportSubmit.addEventListener("click", async () => {
+  const f = libImportFile.files[0];
+  if (!f) return;
+
+  libImportSubmit.disabled = true;
+  libImportSubmit.textContent = "Importing…";
+  libImportResult.classList.add("hidden");
+
+  const form = new FormData();
+  form.append("file", f);
+
+  try {
+    await apiFetch("/api/library/import", { method: "POST", body: form });
+    libImportResult.textContent = "✓ Library imported successfully. Reloading…";
+    libImportResult.className = "import-result";
+    libImportResult.classList.remove("hidden");
+    setTimeout(() => location.reload(), 1200);
+  } catch (err) {
+    libImportResult.textContent = `Error: ${err.message}`;
+    libImportResult.className = "import-result import-error";
+    libImportResult.classList.remove("hidden");
+    libImportSubmit.disabled = false;
+    libImportSubmit.textContent = "Import & Replace";
+  }
+});
+
+// ── Delete Library dialog ─────────────────────────────────────────────────────
+const libDeleteOverlay  = document.getElementById("lib-delete-overlay");
+const libDeleteClose    = document.getElementById("lib-delete-close");
+const libDeleteConfirm  = document.getElementById("lib-delete-confirm");
+const libDeleteCancel   = document.getElementById("lib-delete-cancel");
+
+libraryDeleteBtn.addEventListener("click", () => {
+  libraryMenu.classList.add("hidden");
+  libDeleteOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+});
+
+function _closeLibDelete() {
+  libDeleteOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+libDeleteClose.addEventListener("click", _closeLibDelete);
+libDeleteCancel.addEventListener("click", _closeLibDelete);
+
+libDeleteConfirm.addEventListener("click", async () => {
+  libDeleteConfirm.disabled = true;
+  libDeleteConfirm.textContent = "Deleting…";
+  try {
+    await apiFetch("/api/library", { method: "DELETE" });
+    location.reload();
+  } catch (err) {
+    alert(`Delete failed: ${err.message}`);
+    libDeleteConfirm.disabled = false;
+    libDeleteConfirm.textContent = "Yes, delete everything";
+  }
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {
   await Promise.allSettled([loadFilters(), loadStats(), fetchSets()]);

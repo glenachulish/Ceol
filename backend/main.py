@@ -5,12 +5,15 @@ FastAPI backend serving tune data as JSON and the frontend SPA.
 
 from __future__ import annotations
 
+import io
 import json
 import math
 import os
 import re
+import shutil
 import tempfile
 import uuid
+import zipfile
 from datetime import date
 from pathlib import Path
 from typing import Optional
@@ -1637,6 +1640,125 @@ async def dropbox_proxy_file(path: str = Query(...)):
         media_type=content_type,
         headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Library management — export / import / delete
+# ---------------------------------------------------------------------------
+
+_LIBRARY_TABLES = [
+    "tunes", "tune_aliases", "tags", "tune_tags", "sets", "set_tunes",
+    "achievements", "note_documents", "note_attachments", "app_settings",
+    "theory_notes",
+]
+
+
+@app.get("/api/library/export")
+def export_library(filename: str = Query(None)):
+    """Export the entire library as a dated ZIP file."""
+    today = date.today().isoformat()
+    safe_filename = filename or f"ceol-backup-{today}.zip"
+
+    conn = _db()
+    data: dict = {}
+    for table in _LIBRARY_TABLES:
+        try:
+            rows = conn.execute(f"SELECT * FROM {table}").fetchall()
+            data[table] = [dict(r) for r in rows]
+        except Exception:
+            data[table] = []
+    conn.close()
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("library.json", json.dumps(data, indent=2, default=str))
+        if UPLOADS_DIR.exists():
+            for f in UPLOADS_DIR.iterdir():
+                if f.is_file():
+                    z.write(f, f"uploads/{f.name}")
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'},
+    )
+
+
+@app.post("/api/library/import")
+async def import_library(file: UploadFile = File(...)):
+    """Replace the entire library with the contents of a backup ZIP."""
+    content = await file.read()
+    buf = io.BytesIO(content)
+
+    if not zipfile.is_zipfile(buf):
+        raise HTTPException(400, "File is not a valid ZIP archive")
+    buf.seek(0)
+
+    with zipfile.ZipFile(buf, "r") as z:
+        if "library.json" not in z.namelist():
+            raise HTTPException(400, "ZIP does not contain library.json")
+        data = json.loads(z.read("library.json"))
+
+        conn = _db()
+        try:
+            # Clear in reverse dependency order
+            for table in reversed(_LIBRARY_TABLES):
+                try:
+                    conn.execute(f"DELETE FROM {table}")
+                except Exception:
+                    pass
+
+            # Insert in forward dependency order, preserving original IDs
+            for table in _LIBRARY_TABLES:
+                for row in data.get(table, []):
+                    cols = list(row.keys())
+                    placeholders = ", ".join("?" for _ in cols)
+                    col_names = ", ".join(cols)
+                    values = [row[c] for c in cols]
+                    try:
+                        conn.execute(
+                            f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})",
+                            values,
+                        )
+                    except Exception:
+                        pass  # skip rows that can't be inserted (e.g. FK missing)
+
+            conn.commit()
+        finally:
+            conn.close()
+
+        # Restore uploaded files
+        for name in z.namelist():
+            if name.startswith("uploads/") and not name.endswith("/"):
+                fname = name[len("uploads/"):]
+                if fname:
+                    dest = UPLOADS_DIR / fname
+                    dest.write_bytes(z.read(name))
+
+    return {"status": "ok"}
+
+
+@app.delete("/api/library")
+def delete_library():
+    """Permanently delete all library contents and uploaded files."""
+    conn = _db()
+    try:
+        for table in reversed(_LIBRARY_TABLES):
+            try:
+                conn.execute(f"DELETE FROM {table}")
+            except Exception:
+                pass
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Wipe uploaded files
+    if UPLOADS_DIR.exists():
+        shutil.rmtree(UPLOADS_DIR)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------------------

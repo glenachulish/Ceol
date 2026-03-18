@@ -21,7 +21,16 @@
         <button id="nav-achievements" class="nav-btn">Achievements</button>
       </nav>
       <div class="header-actions">
-        <button id="import-btn" class="btn-secondary">Import</button>
+        <div class="library-menu-wrap">
+          <button id="library-menu-btn" class="btn-secondary">Library ▾</button>
+          <div id="library-menu" class="library-menu hidden">
+            <button id="library-backup-btn" class="library-menu-item">💾 Backup</button>
+            <button id="library-import-btn" class="library-menu-item">📂 Import Library</button>
+            <hr class="library-menu-divider" />
+            <button id="library-delete-btn" class="library-menu-item library-menu-danger">🗑 Delete Library</button>
+          </div>
+        </div>
+        <button id="import-btn" class="btn-secondary">Import Tunes</button>
       </div>
     </div>
   </header>
@@ -326,7 +335,58 @@
     </div>
   </div>
 
+  <!-- ── Library Backup dialog ── -->
+  <div id="backup-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-narrow">
+      <button class="modal-close" id="backup-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">💾 Backup Library</h2>
+      <p class="library-dialog-desc">Save your entire library — tunes, sets, notes, and attachments — as a single file you can store anywhere.</p>
+      <div class="library-field">
+        <label class="library-label" for="backup-filename">File name</label>
+        <input id="backup-filename" type="text" class="ff-url-input" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="library-actions">
+        <button id="backup-save-btn" class="btn-primary">Save backup</button>
+        <button id="backup-cancel-btn" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Library Import dialog ── -->
+  <div id="lib-import-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-narrow">
+      <button class="modal-close" id="lib-import-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">📂 Import Library</h2>
+      <p class="library-dialog-desc">Load a Ceol backup file. <strong>This will replace your current library.</strong> Export a backup first if you want to keep your existing data.</p>
+      <label class="import-drop" style="margin-top:1rem">
+        <input type="file" id="lib-import-file" accept=".zip" />
+        <span class="import-icon">📁</span>
+        <span class="import-label">Click to choose a .zip backup file</span>
+        <span id="lib-import-filename" class="import-filename"></span>
+      </label>
+      <div id="lib-import-result" class="import-result hidden"></div>
+      <div class="library-actions">
+        <button id="lib-import-submit" class="btn-primary" disabled>Import &amp; Replace</button>
+        <button id="lib-import-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Library Delete dialog ── -->
+  <div id="lib-delete-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-narrow">
+      <button class="modal-close" id="lib-delete-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">🗑 Delete Library</h2>
+      <p class="library-dialog-desc">This will permanently delete <strong>all tunes, sets, notes, and attachments</strong>. This cannot be undone.</p>
+      <p class="library-dialog-desc" style="margin-top:.5rem">Export a backup first if you want to keep your data.</p>
+      <div class="library-actions">
+        <button id="lib-delete-confirm" class="btn-danger">Yes, delete everything</button>
+        <button id="lib-delete-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=43"></script>
+  <script src="/static/app.js?v=44"></script>
 </body>
 </html>
