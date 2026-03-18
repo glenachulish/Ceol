@@ -1130,14 +1130,16 @@ function _updateSelectionInfo() {
 
 function _seekToBar(barIndex) {
   if (!_synthController) return;
-  if (_msPerMeasure) {
-    // Seek by absolute time in seconds.  This is correct even when the MIDI
-    // has repeat sections that double (or triple) the visual bar count, because
-    // we are pinning to an absolute offset from the beginning rather than a
-    // fraction of an unknown total duration.
-    _synthController.seek(barIndex * _msPerMeasure / 1000, "seconds");
+  // ABCJS seek() only accepts a 0-1 fraction — passing "seconds" confuses the
+  // internal timer.  When midiBuffer is loaded we can compute the correct
+  // fraction from the actual MIDI total duration, which accounts for repeat
+  // sections (MIDI duration > visual-bar count × msPerMeasure).
+  const buf = _synthController.midiBuffer;
+  if (_msPerMeasure && buf && buf.duration) {
+    const targetSec = barIndex * _msPerMeasure / 1000;
+    _synthController.seek(Math.max(0, Math.min(1, targetSec / buf.duration)));
   } else if (_barMap.length) {
-    // No tempo info — fall back to a proportional fraction.
+    // midiBuffer not yet loaded (before first Play) — proportional fallback.
     _synthController.seek(Math.max(0, Math.min(1, barIndex / _barMap.length)));
   }
 }
@@ -1200,21 +1202,21 @@ function renderSheetMusic(abc) {
 
     // Cursor control: highlights the current note during playback
     const cursorControl = {
-      // Seek to selected start bar the moment Play is first pressed.
-      // seek() positions the audio buffer AND the timer; setProgress() updates
-      // e.percent so that timer.start(e.percent) restarts from the right place.
-      // _barSeekPending is a one-shot flag so that pause→resume does not re-seek.
-      onStart() {
-        if (!_barSeekPending || _barSel.start === null) return;
-        _barSeekPending = false;
-        const barIdx = _barSel.start;
-        // Seek immediately (works when midiBuffer was pre-seeked before start).
-        _seekToBar(barIdx);
-        // Also seek after a short delay — by then midiBuffer.start() has fired
-        // in every browser, so this is the reliable backstop.
-        setTimeout(() => { if (_synthController) _seekToBar(barIdx); }, 50);
-      },
+      // _barSeekPending is set when the user clicks a bar selection.
+      // We consume it on the FIRST onEvent (midiBuffer is fully started and
+      // midiBuffer.duration is available for an accurate seek fraction).
+      // Using onEvent rather than onStart avoids the ambiguous timing window
+      // around when midiBuffer.start() is called.
+      onStart() {},
       onEvent(ev) {
+        // One-shot seek: consume pending seek on first event after selection.
+        if (_barSeekPending && _barSel.start !== null) {
+          _barSeekPending = false;
+          _seekToBar(_barSel.start);
+          // Skip cursor update for this (now-stale) event position.
+          return;
+        }
+
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")
           .forEach(el => el.classList.remove("abcjs-highlight"));
         if (ev && ev.elements) {

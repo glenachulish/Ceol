@@ -833,8 +833,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
    against the black notes on a white score background. The drop-shadow on
    the note group adds a visible glow that makes the current note easy to
    track at a glance even at small print sizes.
-   The doubled selectors (bar-selected .abcjs-highlight …) have higher
-   specificity than the bar-selected rules below, so the orange cursor
+   The .bar-selected.abcjs-highlight selectors (no space = same element) have
+   specificity 1,2,1 vs the bar-selected rule's 1,1,1, so the orange cursor
    remains visible even when playing through a selected bar range. */
 #sheet-music-render .abcjs-highlight path,
 #sheet-music-render .abcjs-highlight rect,
@@ -842,12 +842,12 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 #sheet-music-render path.abcjs-highlight,
 #sheet-music-render rect.abcjs-highlight,
 #sheet-music-render ellipse.abcjs-highlight,
-#sheet-music-render .bar-selected .abcjs-highlight path,
-#sheet-music-render .bar-selected .abcjs-highlight rect,
-#sheet-music-render .bar-selected .abcjs-highlight ellipse,
-#sheet-music-render .bar-sel-start .abcjs-highlight path,
-#sheet-music-render .bar-sel-start .abcjs-highlight rect,
-#sheet-music-render .bar-sel-start .abcjs-highlight ellipse {
+#sheet-music-render .bar-selected.abcjs-highlight path,
+#sheet-music-render .bar-selected.abcjs-highlight rect,
+#sheet-music-render .bar-selected.abcjs-highlight ellipse,
+#sheet-music-render .bar-sel-start.abcjs-highlight path,
+#sheet-music-render .bar-sel-start.abcjs-highlight rect,
+#sheet-music-render .bar-sel-start.abcjs-highlight ellipse {
   fill: #e65c00 !important;
 }
 #sheet-music-render g.abcjs-highlight {
