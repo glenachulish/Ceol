@@ -1588,7 +1588,13 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   letter-spacing: .05em;
   margin-bottom: .45rem;
 }
-.settings-list { display: flex; flex-direction: column; gap: .15rem; }
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
 .setting-row {
   display: flex;
   align-items: center;
