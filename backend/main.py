@@ -574,7 +574,7 @@ async def thesession_search(q: str = Query(..., min_length=1), page: int = Query
 
 @app.get("/api/thesession/fetch/{tune_id}")
 async def thesession_fetch(tune_id: int):
-    """Fetch a tune's ABC from TheSession.org by ID without saving it."""
+    """Fetch all settings for a tune from TheSession.org by ID without saving it."""
     async with httpx.AsyncClient(headers=_SESSION_HEADERS, timeout=10) as client:
         try:
             resp = await client.get(f"{_SESSION_BASE}/tunes/{tune_id}", params={"format": "json"})
@@ -585,13 +585,11 @@ async def thesession_fetch(tune_id: int):
             raise HTTPException(502, f"TheSession.org returned {exc.response.status_code}")
 
     data = resp.json()
-    settings = data.get("settings", [])
-    if not settings:
+    raw_settings = data.get("settings", [])
+    if not raw_settings:
         raise HTTPException(404, "No ABC settings found for this tune")
 
-    best = max(settings, key=lambda s: s.get("votes", 0))
-    abc = best.get("abc", "")
-    key = best.get("key", "")
+    from backend.abc_parser import normalise_key
     tune_type = data.get("type", "")
     title = data.get("name", "")
     aliases = [
@@ -600,24 +598,39 @@ async def thesession_fetch(tune_id: int):
         if (a.get("name") if isinstance(a, dict) else a)
     ]
 
-    from backend.abc_parser import normalise_key
-    key_norm, mode_norm = normalise_key(key) if key else (key, "")
+    settings = []
+    for i, s in enumerate(raw_settings):
+        key = s.get("key", "")
+        key_norm, mode_norm = normalise_key(key) if key else (key, "")
+        settings.append({
+            "id": s.get("id"),
+            "index": i + 1,
+            "abc": s.get("abc", ""),
+            "key": key_norm,
+            "mode": mode_norm,
+            "votes": s.get("votes", 0),
+        })
+
+    # Default to first setting (X:1) — matches what TheSession.org displays
+    default = settings[0]
 
     return {
         "session_id": tune_id,
         "title": title,
         "type": tune_type.lower() if tune_type else "",
-        "key": key_norm,
-        "mode": mode_norm,
-        "abc": abc,
+        "key": default["key"],
+        "mode": default["mode"],
+        "abc": default["abc"],
         "aliases": aliases,
+        "settings": settings,
     }
 
 
 @app.post("/api/thesession/import")
 async def thesession_import(body: dict):
-    """Fetch a tune from TheSession.org by ID and save the top-voted setting."""
+    """Fetch one or more settings from TheSession.org and save them to the library."""
     tune_id = body.get("tune_id")
+    setting_ids = body.get("setting_ids")  # optional list of setting IDs to import
     if not tune_id:
         raise HTTPException(400, "tune_id required")
 
@@ -631,14 +644,11 @@ async def thesession_import(body: dict):
             raise HTTPException(502, f"TheSession.org returned {exc.response.status_code}")
 
     data = resp.json()
-    settings = data.get("settings", [])
-    if not settings:
+    raw_settings = data.get("settings", [])
+    if not raw_settings:
         raise HTTPException(404, "No ABC settings found for this tune")
 
-    # Pick the setting with the most votes; fall back to first
-    best = max(settings, key=lambda s: s.get("votes", 0))
-    abc = best.get("abc", "")
-    key = best.get("key", "")
+    from backend.abc_parser import normalise_key
     tune_type = data.get("type", "")
     title = data.get("name", "")
     aliases = [
@@ -647,32 +657,67 @@ async def thesession_import(body: dict):
         if (a.get("name") if isinstance(a, dict) else a)
     ]
 
-    # Normalise key/mode from TheSession format (e.g. "Dmaj", "Ador")
-    from backend.abc_parser import normalise_key
-    key_norm, mode_norm = normalise_key(key) if key else (key, "")
+    # Determine which settings to import
+    if setting_ids:
+        to_import = [(i, s) for i, s in enumerate(raw_settings) if s.get("id") in setting_ids]
+        if not to_import:
+            raise HTTPException(400, "No matching settings found")
+    else:
+        # Default: first setting (X:1), matching what TheSession.org displays
+        to_import = [(0, raw_settings[0])]
+
+    import_date = date.today().isoformat()
+    results = []
 
     with _db() as conn:
-        # Avoid re-importing the same session_id
-        existing = conn.execute(
-            "SELECT id FROM tunes WHERE session_id = ?", (str(tune_id),)
-        ).fetchone()
-        if existing:
-            return {"status": "exists", "tune_id": existing["id"], "title": title}
+        for idx, s in to_import:
+            sid = s.get("id")
+            abc = s.get("abc", "")
+            key = s.get("key", "")
+            key_norm, mode_norm = normalise_key(key) if key else (key, "")
+            setting_index = idx + 1
 
-        import_date = date.today().isoformat()
-        cur = conn.execute(
-            "INSERT INTO tunes (session_id, title, type, key, mode, abc, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (str(tune_id), title, tune_type.lower() if tune_type else "", key_norm, mode_norm, abc,
-             f"Imported from TheSession.org: {import_date}"),
-        )
-        new_id = cur.lastrowid
-        for alias in aliases:
-            conn.execute(
-                "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?, ?)",
-                (new_id, alias),
+            # Deduplication: same tune + same setting
+            existing = conn.execute(
+                "SELECT id FROM tunes WHERE session_id = ? AND setting_id = ?",
+                (str(tune_id), str(sid))
+            ).fetchone()
+            if existing:
+                results.append({"status": "exists", "tune_id": existing["id"], "title": title})
+                continue
+
+            version_label = f"Setting {setting_index} · {key_norm}" if len(to_import) > 1 else ""
+            cur = conn.execute(
+                """INSERT INTO tunes
+                   (session_id, setting_id, title, type, key, mode, abc, notes, version_label)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (str(tune_id), str(sid), title, tune_type.lower() if tune_type else "",
+                 key_norm, mode_norm, abc,
+                 f"Imported from TheSession.org: {import_date}", version_label),
             )
+            new_id = cur.lastrowid
+            for alias in aliases:
+                conn.execute(
+                    "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?, ?)",
+                    (new_id, alias),
+                )
+            results.append({"status": "saved", "tune_id": new_id, "title": title})
 
-    return {"status": "imported", "tune_id": new_id, "title": title}
+    # Single result: return old-style response for backwards compatibility
+    if len(results) == 1:
+        r = results[0]
+        return {"status": r["status"], "tune_id": r["tune_id"], "title": r["title"]}
+
+    saved = [r for r in results if r["status"] == "saved"]
+    exists = [r for r in results if r["status"] == "exists"]
+    return {
+        "status": "multi",
+        "count": len(results),
+        "saved": len(saved),
+        "exists": len(exists),
+        "title": title,
+        "results": results,
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -1301,8 +1301,74 @@ function renderPreviewMusic(abc) {
   }
 }
 
+// ── TheSession settings state ─────────────────────────────────────────────────
+let _previewSettings    = [];       // all settings returned from API
+let _activeSettingId    = null;     // setting currently previewed
+let _checkedSettingIds  = new Set();// settings checked for import
+
+function _renderSettingsStrip(settings, activeId) {
+  return `
+    <div class="settings-strip-header">${settings.length} settings available on TheSession.org</div>
+    <div class="settings-list">
+      ${settings.map((s, i) => `
+        <div class="setting-row${s.id === activeId ? " active" : ""}" data-setting-id="${s.id}">
+          <input type="checkbox" class="setting-check" data-setting-id="${s.id}"
+                 ${s.id === activeId ? "checked" : ""}>
+          <span class="setting-label">Setting ${i + 1}</span>
+          <span class="badge badge-key">${escHtml(s.key)}</span>
+          <span class="setting-votes">${s.votes} vote${s.votes !== 1 ? "s" : ""}</span>
+          ${s.id === activeId ? '<span class="setting-previewing">Previewing ▶</span>' : ""}
+        </div>
+      `).join("")}
+    </div>`;
+}
+
+function _selectSetting(sid) {
+  _activeSettingId = sid;
+  const setting = _previewSettings.find(s => s.id === sid);
+  if (!setting) return;
+
+  // Update strip highlight + previewing label
+  const strip = document.getElementById("session-settings-strip");
+  strip.querySelectorAll(".setting-row").forEach(row => {
+    const rowSid = Number(row.dataset.settingId);
+    const isActive = rowSid === sid;
+    row.classList.toggle("active", isActive);
+    const existing = row.querySelector(".setting-previewing");
+    if (existing) existing.remove();
+    if (isActive) {
+      row.insertAdjacentHTML("beforeend", '<span class="setting-previewing">Previewing ▶</span>');
+    }
+  });
+
+  // Update key badge in header
+  const typeClass = typeBadgeClass(_previewTuneData.type);
+  document.getElementById("session-preview-badges").innerHTML =
+    (_previewTuneData.type ? `<span class="badge ${typeClass}">${escHtml(_previewTuneData.type)}</span>` : "") +
+    (setting.key ? `<span class="badge badge-key">${escHtml(setting.key)}</span>` : "");
+
+  // Update ABC tab
+  document.getElementById("preview-abc-text").textContent = setting.abc;
+
+  // Re-render sheet music
+  renderPreviewMusic(setting.abc);
+}
+
+function _updateSessionSaveBtn() {
+  const n = _checkedSettingIds.size;
+  const btn = document.getElementById("session-save-btn");
+  btn.textContent = n > 1 ? `Save ${n} settings` : "Save to Library";
+  btn.disabled = n === 0;
+}
+
 function showSessionPreview(tuneData) {
   _previewTuneData = tuneData;
+  _previewSettings = tuneData.settings || [];
+  _checkedSettingIds = new Set();
+
+  // Default: check and preview the first setting (X:1)
+  _activeSettingId = _previewSettings.length > 0 ? _previewSettings[0].id : null;
+  if (_activeSettingId !== null) _checkedSettingIds.add(_activeSettingId);
 
   document.getElementById("session-search-pane").classList.add("hidden");
   const preview = document.getElementById("session-preview");
@@ -1315,6 +1381,28 @@ function showSessionPreview(tuneData) {
     (tuneData.key  ? `<span class="badge badge-key">${escHtml(tuneData.key)}</span>` : "");
 
   document.getElementById("preview-abc-text").textContent = tuneData.abc;
+
+  // Settings strip
+  const strip = document.getElementById("session-settings-strip");
+  if (_previewSettings.length > 1) {
+    strip.innerHTML = _renderSettingsStrip(_previewSettings, _activeSettingId);
+    strip.classList.remove("hidden");
+    strip.querySelectorAll(".setting-row").forEach(row => {
+      row.addEventListener("click", e => {
+        if (e.target.classList.contains("setting-check")) return;
+        _selectSetting(Number(row.dataset.settingId));
+      });
+      const cb = row.querySelector(".setting-check");
+      cb.addEventListener("change", () => {
+        const sid = Number(cb.dataset.settingId);
+        if (cb.checked) _checkedSettingIds.add(sid);
+        else _checkedSettingIds.delete(sid);
+        _updateSessionSaveBtn();
+      });
+    });
+  } else {
+    strip.classList.add("hidden");
+  }
 
   // Reset tabs to Sheet Music
   preview.querySelectorAll("[data-preview-tab]").forEach(b => b.classList.remove("active"));
@@ -1879,6 +1967,9 @@ function closeImport() {
     _previewSynthCtrl = null;
   }
   _previewTuneData = null;
+  _previewSettings = [];
+  _activeSettingId = null;
+  _checkedSettingIds = new Set();
   document.getElementById("session-preview").classList.add("hidden");
   document.getElementById("session-search-pane").classList.remove("hidden");
 }
@@ -2162,26 +2253,51 @@ document.getElementById("session-preview-back").addEventListener("click", () => 
     _previewSynthCtrl = null;
   }
   _previewTuneData = null;
+  _previewSettings = [];
+  _activeSettingId = null;
+  _checkedSettingIds = new Set();
   document.getElementById("session-preview").classList.add("hidden");
   document.getElementById("session-search-pane").classList.remove("hidden");
 });
 
-// Save button: import the previewed tune into the library
+// Save button: import checked settings (or the previewed one if strip hidden)
 document.getElementById("session-save-btn").addEventListener("click", async () => {
   if (!_previewTuneData) return;
   const btn = document.getElementById("session-save-btn");
   const status = document.getElementById("session-save-status");
   btn.disabled = true;
   btn.textContent = "Saving…";
+
+  // Use checked settings if the strip is visible, otherwise let backend default to X:1
+  const settingIds = _previewSettings.length > 1 ? [..._checkedSettingIds] : null;
+
   try {
     const res = await fetch("/api/thesession/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tune_id: _previewTuneData.session_id }),
+      body: JSON.stringify({
+        tune_id: _previewTuneData.session_id,
+        ...(settingIds ? { setting_ids: settingIds } : {}),
+      }),
     });
     const data = await res.json();
     if (res.ok) {
-      if (data.status === "exists") {
+      if (data.status === "multi") {
+        const allExist = data.saved === 0;
+        btn.textContent = allExist ? "Already in library" : `Saved ${data.saved} ✓`;
+        btn.style.background = allExist ? "" : "var(--jig)";
+        btn.style.opacity = allExist ? ".5" : "";
+        status.textContent = allExist
+          ? "All selected settings are already in your library."
+          : data.exists > 0
+            ? `${data.saved} saved, ${data.exists} already in library.`
+            : `${data.saved} setting${data.saved !== 1 ? "s" : ""} of "${data.title}" saved!`;
+        status.className = "notes-status notes-saved";
+        if (data.saved > 0) {
+          await Promise.all([loadStats(), loadFilters()]);
+          if (state.view === "library") loadTunes();
+        }
+      } else if (data.status === "exists") {
         btn.textContent = "Already in library";
         btn.style.opacity = ".5";
         status.textContent = "Already in your library.";
@@ -2195,13 +2311,13 @@ document.getElementById("session-save-btn").addEventListener("click", async () =
         if (state.view === "library") loadTunes();
       }
     } else {
-      btn.textContent = "Save to Library";
+      btn.textContent = _checkedSettingIds.size > 1 ? `Save ${_checkedSettingIds.size} settings` : "Save to Library";
       btn.disabled = false;
       status.textContent = "Failed to save.";
       status.className = "notes-status notes-error";
     }
   } catch {
-    btn.textContent = "Save to Library";
+    btn.textContent = _checkedSettingIds.size > 1 ? `Save ${_checkedSettingIds.size} settings` : "Save to Library";
     btn.disabled = false;
     status.textContent = "Error saving.";
     status.className = "notes-status notes-error";

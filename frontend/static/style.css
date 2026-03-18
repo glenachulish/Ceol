@@ -1572,6 +1572,46 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 }
 .dropbox-setup-steps a:hover { text-decoration: underline; }
 
+/* ── TheSession settings strip ────────────────────────────── */
+.session-settings-strip {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .6rem .75rem;
+  margin-bottom: .75rem;
+}
+.settings-strip-header {
+  font-size: .78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: .45rem;
+}
+.settings-list { display: flex; flex-direction: column; gap: .15rem; }
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .35rem .45rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: .875rem;
+  transition: background .1s;
+  user-select: none;
+}
+.setting-row:hover { background: rgba(124,106,247,.1); }
+.setting-row.active { background: rgba(124,106,247,.15); }
+.setting-check { cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+.setting-label { font-weight: 600; min-width: 70px; }
+.setting-votes { color: var(--text-muted); font-size: .8rem; }
+.setting-previewing {
+  margin-left: auto;
+  font-size: .75rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* ── Tooltips ─────────────────────────────────────────────── */
 [data-tooltip] { position: relative; }
 [data-tooltip]::after {
