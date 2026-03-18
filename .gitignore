@@ -4,5 +4,6 @@ __pycache__/
 *.pyo
 data/ceol.db
 data/*.db
+data/ceol-*.db
 *.abc
 .env
