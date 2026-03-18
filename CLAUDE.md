@@ -6,7 +6,7 @@ cd "/Users/callummaclellan/Documents/Ceol Github"
 git pull origin claude/trad-music-web-app-fwneF
 ./run.sh
 ```
-Then open `http://localhost:8000` in the browser. Hard-refresh with **Cmd+Shift+R** after pulling new code.
+Then open `http://localhost:8001` in the browser. Hard-refresh with **Cmd+Shift+R** after pulling new code.
 
 ## Architecture
 - **Backend**: FastAPI (Python) in `backend/main.py` — REST API + serves frontend
