@@ -1076,17 +1076,14 @@ function _onMeasureClicked(m) {
   const { start, end } = _barSel;
 
   if (start === null) {
-    // Nothing selected → set start point
-    _barSel = { start: m, end: m };
-  } else if (start === end) {
-    // Waiting for end click
-    if (m === start) {
-      _clearBarSel(); return; // same bar → cancel
-    }
+    // First click: set start, wait for end click (end=null means pending)
+    _barSel = { start: m, end: null };
+  } else if (end === null) {
+    // Second click: confirm selection — same bar is valid (single-bar loop)
     _barSel = { start: Math.min(start, m), end: Math.max(start, m) };
   } else {
-    // Range already set → start fresh
-    _barSel = { start: m, end: m };
+    // Range already confirmed → start fresh
+    _barSel = { start: m, end: null };
   }
 
   _barSeekPending = true;   // arm the seek for the next Play press
@@ -1100,13 +1097,13 @@ function _updateBarHighlight() {
     .forEach(el => el.classList.remove("bar-selected", "bar-sel-start"));
   if (_barSel.start === null) return;
 
-  const isPending = _barSel.start === _barSel.end;
+  const isPending = _barSel.end === null;
   const cls = isPending ? "bar-sel-start" : "bar-selected";
-  for (let i = _barSel.start; i <= _barSel.end; i++) {
+  const lo = _barSel.start;
+  const hi = isPending ? _barSel.start : _barSel.end;
+  for (let i = lo; i <= hi; i++) {
     if (i >= _barMap.length) break;
     const { wrapper, measure } = _barMap[i];
-    // Query inside the specific wrapper element — unambiguous even when multiple
-    // wrappers share the same abcjs-lN class (voice-number, not visual-line).
     wrapper.querySelectorAll(`.abcjs-m${measure}`)
       .forEach(el => el.classList.add(cls));
   }
@@ -1117,16 +1114,17 @@ function _updateSelectionInfo() {
   if (!el) return;
   if (_barSel.start === null) { el.classList.add("hidden"); return; }
 
-  const isPending = _barSel.start === _barSel.end;
+  const isPending = _barSel.end === null;
   const lo = _barSel.start + 1;
-  const hi = _barSel.end + 1;
+  const hi = (isPending ? _barSel.start : _barSel.end) + 1;
 
   el.classList.remove("hidden");
   if (isPending) {
-    el.innerHTML = `<span>Bar ${lo} — now click another bar to set the end point</span>`
+    el.innerHTML = `<span>Bar ${lo} selected — click another bar to extend, or click again to loop just this bar</span>`
       + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
   } else {
-    el.innerHTML = `<span>Bars ${lo}–${hi} selected — press Play, then enable the Loop button to repeat</span>`
+    const label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
+    el.innerHTML = `<span>${label} selected — press Play, then enable the Loop button to repeat</span>`
       + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
   }
   el.querySelector(".bar-sel-clear").addEventListener("click", _clearBarSel);
@@ -1135,24 +1133,52 @@ function _updateSelectionInfo() {
 // Build the bar → MIDI-time map from ABCJS's pre-computed noteTimings.
 // TimingCallbacks stores all events (including repeats) in .noteTimings before
 // playback starts; iterating it gives the FIRST MIDI millisecond for each
-// visual bar without having to play through the audio.  This correctly handles
-// AABB-style tunes where the MIDI is twice as long as the visual bar count.
+// visual bar without having to play through the audio.
+//
+// Critical: abcjs-mN is per-staff-wrapper (each visual line resets to m0),
+// so we use the same (wrapper, measure) key as _barMap to resolve the correct
+// global bar index.  Without this, Part B bars are misidentified as Part A.
 function _buildBarTimingMap() {
   _barFirstMs = {};
-  const timings = _synthController && _synthController.timer && _synthController.timer.noteTimings;
-  if (!timings) return;
-  for (let i = 0; i < timings.length; i++) {
-    const ev = timings[i];
+  if (!_synthController || !_synthController.timer) return;
+  const events = _synthController.timer.noteTimings;
+  if (!events || !events.length) return;
+
+  // Ensure the bar map is built before we need it.
+  if (_barMap.length === 0) _barMap = _buildBarMap();
+  if (!_barMap.length) return;
+
+  // Build (wrapper element, measure index) → global bar index lookup.
+  const wrapperMeasureToIdx = new Map();
+  _barMap.forEach(({ wrapper, measure }, globalIdx) => {
+    let inner = wrapperMeasureToIdx.get(wrapper);
+    if (!inner) { inner = new Map(); wrapperMeasureToIdx.set(wrapper, inner); }
+    inner.set(measure, globalIdx);
+  });
+
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
     if (!ev || !ev.elements) continue;
     ev.elements.forEach(grp => {
       if (!grp) return;
       grp.forEach(el => {
         if (!el || !el.classList) return;
-        const cls = Array.from(el.classList).find(c => /^abcjs-m\d+$/.test(c));
-        if (!cls) return;
-        const idx = parseInt(cls.replace('abcjs-m', ''), 10);
-        if (!isNaN(idx) && !Object.prototype.hasOwnProperty.call(_barFirstMs, idx)) {
-          _barFirstMs[idx] = ev.milliseconds;
+        // Find abcjs-mN class for the measure-within-line index.
+        let measure = null;
+        for (const cls of el.classList) {
+          const hit = cls.match(/^abcjs-m(\d+)$/);
+          if (hit) { measure = parseInt(hit[1], 10); break; }
+        }
+        if (measure === null) return;
+        // Walk up to the containing staff-wrapper to resolve global index.
+        const wrapper = el.closest && el.closest('.abcjs-staff-wrapper');
+        if (!wrapper) return;
+        const inner = wrapperMeasureToIdx.get(wrapper);
+        if (!inner) return;
+        const globalIdx = inner.get(measure);
+        if (globalIdx === undefined) return;
+        if (!Object.prototype.hasOwnProperty.call(_barFirstMs, globalIdx)) {
+          _barFirstMs[globalIdx] = ev.milliseconds;
         }
       });
     });
@@ -1264,9 +1290,10 @@ function renderSheetMusic(abc) {
           });
         }
         // Bar-range loop: jump back once playback passes the end of the selection.
+        // Requires a confirmed selection (end !== null); single-bar loops work too.
         // endTimeMs uses the accurate MIDI map so it works in Part B of AABB tunes.
         if (!_loopSeeking
-            && _barSel.start !== null && _barSel.start !== _barSel.end
+            && _barSel.start !== null && _barSel.end !== null
             && ev && _synthController.isLooping) {
           // End time = start of the bar AFTER the selection (or last bar + 1 measure)
           const endTimeMs = Object.prototype.hasOwnProperty.call(_barFirstMs, _barSel.end + 1)
