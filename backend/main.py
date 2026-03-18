@@ -787,6 +787,54 @@ async def thesession_import(body: dict):
     }
 
 
+@app.post("/api/thesession/backfill-member-data")
+async def thesession_backfill_member_data():
+    """Backfill session_member and session_date for existing TheSession tunes."""
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, session_id, setting_id FROM tunes "
+            "WHERE session_id IS NOT NULL AND setting_id IS NOT NULL "
+            "AND (session_member IS NULL OR session_date IS NULL)"
+        ).fetchall()
+
+    if not rows:
+        return {"updated": 0, "message": "Nothing to backfill"}
+
+    # Group by session_id to minimise API calls
+    from collections import defaultdict
+    by_session: dict = defaultdict(list)
+    for row in rows:
+        by_session[row["session_id"]].append(row)
+
+    updated = 0
+    async with httpx.AsyncClient(headers=_SESSION_HEADERS, timeout=10) as client:
+        for session_id, tune_rows in by_session.items():
+            try:
+                resp = await client.get(
+                    f"{_SESSION_BASE}/tunes/{session_id}", params={"format": "json"}
+                )
+                resp.raise_for_status()
+            except Exception:
+                continue
+            data = resp.json()
+            settings_by_id = {str(s["id"]): s for s in data.get("settings", [])}
+            with _db() as conn:
+                for row in tune_rows:
+                    s = settings_by_id.get(str(row["setting_id"]))
+                    if not s:
+                        continue
+                    member_info = s.get("member") or {}
+                    member = member_info.get("name") if isinstance(member_info, dict) else None
+                    date = s.get("date")
+                    if member or date:
+                        conn.execute(
+                            "UPDATE tunes SET session_member = ?, session_date = ? WHERE id = ?",
+                            (member, date, row["id"]),
+                        )
+                        updated += 1
+
+    return {"updated": updated}
+
 # ---------------------------------------------------------------------------
 # Tune versions
 # ---------------------------------------------------------------------------

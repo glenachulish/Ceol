@@ -2341,6 +2341,21 @@ async function runSessionSearch() {
 sessionSearchBtn.addEventListener("click", runSessionSearch);
 sessionSearchInput.addEventListener("keydown", e => { if (e.key === "Enter") runSessionSearch(); });
 
+document.getElementById("session-backfill-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("session-backfill-btn");
+  const status = document.getElementById("session-backfill-status");
+  btn.disabled = true;
+  status.textContent = "Updating…";
+  try {
+    const res = await apiFetch("/api/thesession/backfill-member-data", { method: "POST" });
+    status.textContent = res.updated > 0 ? `Updated ${res.updated} tune${res.updated !== 1 ? "s" : ""}.` : "All tunes already up to date.";
+  } catch (err) {
+    status.textContent = "Error: " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // Preview tab switching
 document.querySelectorAll("[data-preview-tab]").forEach(btn => {
   btn.addEventListener("click", () => {
