@@ -1254,9 +1254,10 @@ function renderSheetMusic(abc) {
   }
 }
 
-// Expand |:PART_A:||:PART_B:| into PART_A|PART_A||PART_B|PART_B||
-// so ABCJS SynthController plays AABB without needing repeat-barline support.
-// Also inserts I:linebreak $ markers every 4 bars so the sheet music wraps.
+// Prepare ABC for rendering: add I:linebreak $ directive and insert $ markers
+// every 4 bars so the sheet music wraps to multiple staff lines.
+// Repeat barlines (|:, :|, ||) are kept intact so they display correctly;
+// ABCJS SynthController handles repeat playback natively.
 function expandAbcRepeats(abc) {
   const kIdx = abc.search(/^K:/m);
   if (kIdx < 0) return abc;
@@ -1265,23 +1266,14 @@ function expandAbcRepeats(abc) {
   // Add linebreak directive so $ in the body forces a new staff line.
   const header = abc.slice(0, kEnd + 1) + 'I:linebreak $\n';
   const body = abc.slice(kEnd + 1).trim();
-  let expanded;
-  if (!body.includes('|:') && !body.includes(':|')) {
-    expanded = body;
-  } else {
-    const parts = body.split(':||:');
-    expanded = parts.map(p =>
-      p.replace(/^\s*\|:/, '').replace(/:\|\s*$/, '').trim()
-    ).map(p => p + '|' + p).join('||') + '||';
-  }
-  return header + _insertLineBreaks(expanded, 4);
+  return header + _insertLineBreaks(body, 4);
 }
 
-// Insert $ after every nth simple barline so ABCJS wraps to a new staff line.
+// Insert $ after every nth barline so ABCJS wraps to a new staff line.
+// Counts all barline types: :|, ::, ||, |:, | (longest match first).
 function _insertLineBreaks(body, barsPerLine) {
   let count = 0;
-  // Match a | that is not part of ||, |:, or :|
-  return body.replace(/(?<!:)\|(?![|:])/g, (match) => {
+  return body.replace(/:\||::|[|]{2}:?|\|:?/g, (match) => {
     count++;
     return count % barsPerLine === 0 ? match + '$' : match;
   });
