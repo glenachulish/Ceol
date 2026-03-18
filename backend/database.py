@@ -143,6 +143,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE tunes ADD COLUMN on_hitlist INTEGER NOT NULL DEFAULT 0")
     if "setting_id" not in existing_cols:
         conn.execute("ALTER TABLE tunes ADD COLUMN setting_id TEXT")
+    if "session_member" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN session_member TEXT")
+    if "session_date" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN session_date TEXT")
 
 
 def init_db(db_path: Path = DB_PATH) -> None:

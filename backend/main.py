@@ -749,13 +749,18 @@ async def thesession_import(body: dict):
                 continue
 
             version_label = f"Setting {setting_index} · {key_norm}" if len(to_import) > 1 else ""
+            member_info = s.get("member") or {}
+            session_member = member_info.get("name") if isinstance(member_info, dict) else None
+            session_date = s.get("date")
             cur = conn.execute(
                 """INSERT INTO tunes
-                   (session_id, setting_id, title, type, key, mode, abc, notes, version_label)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (session_id, setting_id, title, type, key, mode, abc, notes, version_label,
+                    session_member, session_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (str(tune_id), str(sid), title, tune_type.lower() if tune_type else "",
                  key_norm, mode_norm, abc,
-                 f"Imported from TheSession.org: {import_date}", version_label),
+                 f"Imported from TheSession.org: {import_date}", version_label,
+                 session_member, session_date),
             )
             new_id = cur.lastrowid
             for alias in aliases:
@@ -796,7 +801,7 @@ def get_tune_versions(tune_id: int):
         if not parent:
             raise HTTPException(404, "Tune not found")
         versions = conn.execute(
-            "SELECT id, title, type, key, mode, version_label, notes "
+            "SELECT id, title, type, key, mode, version_label, notes, session_member, session_date "
             "FROM tunes WHERE parent_id = ? ORDER BY version_label COLLATE NOCASE",
             (tune_id,),
         ).fetchall()

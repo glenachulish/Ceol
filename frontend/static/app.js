@@ -2502,15 +2502,21 @@ async function renderVersionsPanel(parentId) {
       <h2 class="modal-title">${escHtml(parent.title)}</h2>
       <p class="versions-count">${versions.length} version${versions.length !== 1 ? "s" : ""}</p>
       <div class="versions-list">
-        ${versions.map(v => `
+        ${versions.map(v => {
+          const meta = [v.key, v.type].filter(Boolean).map(escHtml).join(" · ");
+          const sessionParts = [];
+          if (v.session_member) sessionParts.push(escHtml(v.session_member));
+          if (v.session_date) sessionParts.push(escHtml(v.session_date.slice(0, 10)));
+          const sessionInfo = sessionParts.length ? sessionParts.join(", ") : "";
+          return `
           <div class="version-item" data-id="${v.id}" role="button" tabindex="0">
             <div class="version-info">
               <span class="version-name">${escHtml(v.version_label || v.title)}</span>
-              <span class="version-meta">${[v.key, v.type].filter(Boolean).map(escHtml).join(" · ")}</span>
+              <span class="version-meta">${meta}${sessionInfo ? ` · <span class="version-session">TheSession: ${sessionInfo}</span>` : ""}</span>
             </div>
             <span class="version-arrow">→</span>
           </div>
-        `).join("")}
+        `;}).join("")}
       </div>
       <div class="modal-footer" style="margin-top:1.25rem">
         <button id="ungroup-btn" class="btn-danger btn-sm">Ungroup</button>
