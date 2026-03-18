@@ -1122,7 +1122,7 @@ function _updateSelectionInfo() {
     el.innerHTML = `<span>Bar ${lo} — now click another bar to set the end point</span>`
       + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
   } else {
-    el.innerHTML = `<span>Bars ${lo}–${hi} selected — enable Loop &#8635; to repeat</span>`
+    el.innerHTML = `<span>Bars ${lo}–${hi} selected — press Play, then enable the Loop button to repeat</span>`
       + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
   }
   el.querySelector(".bar-sel-clear").addEventListener("click", _clearBarSel);
@@ -1210,10 +1210,13 @@ function renderSheetMusic(abc) {
       onStart() {},
       onEvent(ev) {
         // One-shot seek: consume pending seek on first event after selection.
+        // We queue the seek via setTimeout so it fires OUTSIDE this ABCJS
+        // timer callback — calling seek() from inside onEvent mutates the
+        // timer's own state while it's mid-tick, which silently breaks the seek.
         if (_barSeekPending && _barSel.start !== null) {
           _barSeekPending = false;
-          _seekToBar(_barSel.start);
-          // Skip cursor update for this (now-stale) event position.
+          const barIdx = _barSel.start;
+          setTimeout(() => { if (_synthController) _seekToBar(barIdx); }, 0);
           return;
         }
 

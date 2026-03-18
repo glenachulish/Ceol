@@ -829,31 +829,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   margin-top: .5rem;
 }
 
-/* Note cursor highlight during playback — bright orange so it pops clearly
-   against the black notes on a white score background. The drop-shadow on
-   the note group adds a visible glow that makes the current note easy to
-   track at a glance even at small print sizes.
-   The .bar-selected.abcjs-highlight selectors (no space = same element) have
-   specificity 1,2,1 vs the bar-selected rule's 1,1,1, so the orange cursor
-   remains visible even when playing through a selected bar range. */
-#sheet-music-render .abcjs-highlight path,
-#sheet-music-render .abcjs-highlight rect,
-#sheet-music-render .abcjs-highlight ellipse,
-#sheet-music-render path.abcjs-highlight,
-#sheet-music-render rect.abcjs-highlight,
-#sheet-music-render ellipse.abcjs-highlight,
-#sheet-music-render .bar-selected.abcjs-highlight path,
-#sheet-music-render .bar-selected.abcjs-highlight rect,
-#sheet-music-render .bar-selected.abcjs-highlight ellipse,
-#sheet-music-render .bar-sel-start.abcjs-highlight path,
-#sheet-music-render .bar-sel-start.abcjs-highlight rect,
-#sheet-music-render .bar-sel-start.abcjs-highlight ellipse {
-  fill: #e65c00 !important;
-}
-#sheet-music-render g.abcjs-highlight {
-  filter: drop-shadow(0 0 5px rgba(230, 92, 0, 0.75));
-}
-
 /* Force all ABCJS SVG primitives to render in black.
    ABCJS defaults foregroundColor to "currentColor" which inherits the
    dark-theme CSS color (light text) — making notes appear tinted.
@@ -884,6 +859,22 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 #sheet-music-render ellipse.bar-sel-start {
   fill: var(--accent) !important;
   opacity: 1;
+}
+
+/* Note cursor highlight — placed AFTER bar-selected/bar-sel-start so that
+   when specificity is equal the cursor colour wins (last rule wins with
+   same specificity + !important).  The g.abcjs-highlight filter adds the
+   orange glow which is visible regardless of which fill rule applies. */
+#sheet-music-render .abcjs-highlight path,
+#sheet-music-render .abcjs-highlight rect,
+#sheet-music-render .abcjs-highlight ellipse,
+#sheet-music-render path.abcjs-highlight,
+#sheet-music-render rect.abcjs-highlight,
+#sheet-music-render ellipse.abcjs-highlight {
+  fill: #e65c00 !important;
+}
+#sheet-music-render g.abcjs-highlight {
+  filter: drop-shadow(0 0 6px rgba(230, 92, 0, 0.9));
 }
 
 /* Bar selection info strip */
@@ -918,6 +909,15 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 }
 .abcjs-inline-audio button:hover { border-color: var(--accent) !important; }
 .abcjs-inline-audio .abcjs-midi-progress-indicator { background: var(--accent) !important; }
+/* Loop button: glow accent colour when active so it's obvious loop is on */
+.abcjs-inline-audio .abcjs-midi-loop.abcjs-pushed {
+  background: color-mix(in srgb, var(--accent) 25%, var(--surface)) !important;
+  border-color: var(--accent) !important;
+}
+.abcjs-inline-audio .abcjs-midi-loop.abcjs-pushed g {
+  fill: var(--accent) !important;
+  stroke: var(--accent) !important;
+}
 
 /* ── Notes ────────────────────────────────────────────────── */
 .notes-textarea {
