@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 HOST="${HOST:-0.0.0.0}"   # bind to all interfaces so mobile can reach it
-PORT="${PORT:-8000}"
+PORT="${PORT:-8001}"
 
 echo "Starting Ceol on http://${HOST}:${PORT}"
 echo "  → Local:   http://localhost:${PORT}"
