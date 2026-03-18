@@ -1165,11 +1165,8 @@ function renderSheetMusic(abc) {
   // ABCJS stops propagation on its own SVG click handlers.
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
-  // Inject flute MIDI instrument into ABC before rendering
-  const abcWithFlute = abc.replace(/(K:[^\n]*)(\n|$)/, "$1\n%%MIDI program 73\n");
-
   try {
-    const visualObjs = ABCJS.renderAbc("sheet-music-render", abcWithFlute, {
+    const visualObjs = ABCJS.renderAbc("sheet-music-render", abc, {
       responsive: "resize",
       add_classes: true,
       paddingbottom: 10,
@@ -1248,7 +1245,7 @@ function renderSheetMusic(abc) {
       displayWarp: true,
     });
 
-    _synthController.setTune(_visualObj, false).catch(err => {
+    _synthController.setTune(_visualObj, false, { program: 73 }).catch(err => {
       console.warn("Audio init failed:", err);
     });
   } catch (err) {
@@ -1268,9 +1265,8 @@ function renderPreviewMusic(abc) {
   container.innerHTML = "";
   document.getElementById("preview-audio-container").innerHTML = "";
 
-  const abcWithFlute = abc.replace(/(K:[^\n]*)(\n|$)/, "$1\n%%MIDI program 73\n");
   try {
-    const visualObjs = ABCJS.renderAbc("preview-sheet-render", abcWithFlute, {
+    const visualObjs = ABCJS.renderAbc("preview-sheet-render", abc, {
       responsive: "resize",
       add_classes: true,
       paddingbottom: 10,
@@ -1292,7 +1288,7 @@ function renderPreviewMusic(abc) {
       displayProgress: true,
       displayWarp: true,
     });
-    _previewSynthCtrl.setTune(_previewVisualObj, false).catch(err => {
+    _previewSynthCtrl.setTune(_previewVisualObj, false, { program: 73 }).catch(err => {
       console.warn("Preview audio init failed:", err);
     });
   } catch (err) {
