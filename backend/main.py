@@ -549,6 +549,36 @@ _SESSION_BASE = "https://thesession.org"
 _SESSION_HEADERS = {"Accept": "application/json", "User-Agent": "Ceol/0.1 trad-music-app"}
 
 
+# Meter and default note-length for each TheSession tune type
+_TYPE_METER: dict[str, tuple[str, str]] = {
+    "reel":       ("4/4",  "1/8"),
+    "jig":        ("6/8",  "1/8"),
+    "slip jig":   ("9/8",  "1/8"),
+    "hornpipe":   ("4/4",  "1/8"),
+    "polka":      ("2/4",  "1/8"),
+    "waltz":      ("3/4",  "1/4"),
+    "strathspey": ("4/4",  "1/8"),
+    "mazurka":    ("3/4",  "1/8"),
+    "barndance":  ("4/4",  "1/8"),
+    "march":      ("4/4",  "1/8"),
+    "slide":      ("12/8", "1/8"),
+}
+
+
+def _build_session_abc(idx: int, title: str, tune_type: str,
+                       raw_key: str, notes: str, meter: str = "") -> str:
+    """Reconstruct a full ABC string from TheSession API fields."""
+    ttype = (tune_type or "").lower()
+    default_meter, note_len = _TYPE_METER.get(ttype, ("4/4", "1/8"))
+    if not meter:
+        meter = default_meter
+    lines = [f"X: {idx}", f"T: {title}"]
+    if ttype:
+        lines.append(f"R: {ttype}")
+    lines += [f"M: {meter}", f"L: {note_len}", f"K: {raw_key}"]
+    return "\n".join(lines) + "\n" + notes.strip()
+
+
 def _add_session_repeats(abc: str) -> str:
     """Add |: :| repeat barlines to TheSession ABC if missing.
 
@@ -628,10 +658,13 @@ async def thesession_fetch(tune_id: int):
     for i, s in enumerate(raw_settings):
         key = s.get("key", "")
         key_norm, mode_norm = normalise_key(key) if key else (key, "")
+        meter = s.get("meter") or data.get("meter", "")
+        full_abc = _build_session_abc(i + 1, title, tune_type, key,
+                                      s.get("abc", ""), meter)
         settings.append({
             "id": s.get("id"),
             "index": i + 1,
-            "abc": _add_session_repeats(s.get("abc", "")),
+            "abc": _add_session_repeats(full_abc),
             "key": key_norm,
             "mode": mode_norm,
             "votes": s.get("votes", 0),
@@ -698,10 +731,13 @@ async def thesession_import(body: dict):
     with _db() as conn:
         for idx, s in to_import:
             sid = s.get("id")
-            abc = _add_session_repeats(s.get("abc", ""))
             key = s.get("key", "")
             key_norm, mode_norm = normalise_key(key) if key else (key, "")
             setting_index = idx + 1
+            meter = s.get("meter") or data.get("meter", "")
+            full_abc = _build_session_abc(setting_index, title, tune_type,
+                                          key, s.get("abc", ""), meter)
+            abc = _add_session_repeats(full_abc)
 
             # Deduplication: same tune + same setting
             existing = conn.execute(
