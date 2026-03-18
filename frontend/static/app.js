@@ -989,6 +989,7 @@ let _visualObj = null;
 let _synthController = null;
 let _msPerMeasure = null;
 let _barSel = { start: null, end: null };
+let _loopSeeking = false;   // guard against rapid re-fires of the loop seek
 
 // ── TheSession preview state ──────────────────────────────────────────────────
 let _previewVisualObj = null;
@@ -1128,16 +1129,23 @@ function _updateSelectionInfo() {
 }
 
 function _seekToBar(barIndex) {
-  if (!_synthController || !_barMap.length) return;
-  // frac = barIndex / totalBars is equivalent to (barIndex * msPerBar) / totalDuration
-  // and works even when _msPerMeasure is unavailable.
-  const frac = Math.max(0, Math.min(1, barIndex / _barMap.length));
-  _synthController.seek(frac);
+  if (!_synthController) return;
+  if (_msPerMeasure) {
+    // Seek by absolute time in seconds.  This is correct even when the MIDI
+    // has repeat sections that double (or triple) the visual bar count, because
+    // we are pinning to an absolute offset from the beginning rather than a
+    // fraction of an unknown total duration.
+    _synthController.seek(barIndex * _msPerMeasure / 1000, "seconds");
+  } else if (_barMap.length) {
+    // No tempo info — fall back to a proportional fraction.
+    _synthController.seek(Math.max(0, Math.min(1, barIndex / _barMap.length)));
+  }
 }
 
 function _clearBarSel() {
   _barSel = { start: null, end: null };
   _barSeekPending = false;
+  _loopSeeking = false;
   _updateBarHighlight();
   _updateSelectionInfo();
 }
@@ -1158,6 +1166,7 @@ function renderSheetMusic(abc) {
   _visualObj = null;
   _synthController = null;
   _msPerMeasure = null;
+  _loopSeeking = false;
   const infoEl = document.getElementById("bar-selection-info");
   if (infoEl) infoEl.classList.add("hidden");
 
@@ -1196,20 +1205,14 @@ function renderSheetMusic(abc) {
       // e.percent so that timer.start(e.percent) restarts from the right place.
       // _barSeekPending is a one-shot flag so that pause→resume does not re-seek.
       onStart() {
-        if (!_barSeekPending || _barSel.start === null || !_barMap.length) return;
+        if (!_barSeekPending || _barSel.start === null) return;
         _barSeekPending = false;
-        const frac = Math.max(0, Math.min(1, _barSel.start / _barMap.length));
-        // setProgress sets e.percent = frac so that the ABCJS-internal
-        // timer.start(e.percent) fires the setProgress branch (which correctly
-        // sets startTime) rather than reset() (which snaps the cursor to bar 0).
-        const durMs = _msPerMeasure ? _barMap.length * _msPerMeasure : 30000;
-        _synthController.setProgress(frac, durMs);
-        // Seek the audio buffer *after* midiBuffer.start() has been called.
-        // During active playback seek() reliably stops the current buffer and
-        // restarts it from the target offset; calling it before start() can be
-        // silently ignored in some browsers.
-        const targetFrac = frac;
-        setTimeout(() => { if (_synthController) _synthController.seek(targetFrac); }, 0);
+        const barIdx = _barSel.start;
+        // Seek immediately (works when midiBuffer was pre-seeked before start).
+        _seekToBar(barIdx);
+        // Also seek after a short delay — by then midiBuffer.start() has fired
+        // in every browser, so this is the reliable backstop.
+        setTimeout(() => { if (_synthController) _seekToBar(barIdx); }, 50);
       },
       onEvent(ev) {
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")
@@ -1221,12 +1224,16 @@ function renderSheetMusic(abc) {
         }
         // Bar-range loop: when Loop is enabled and a range is selected, jump back
         // to the start bar once playback passes the end of the selected range.
-        if (_barSel.start !== null && _barSel.start !== _barSel.end
-            && ev && ev.measureStart && _msPerMeasure
-            && _synthController.isLooping) {
+        // Check on every event (not just measureStart) so short ranges aren't
+        // missed.  _loopSeeking debounces rapid re-fires after the seek.
+        if (!_loopSeeking
+            && _barSel.start !== null && _barSel.start !== _barSel.end
+            && ev && _msPerMeasure && _synthController.isLooping) {
           const endTimeMs = (_barSel.end + 1) * _msPerMeasure;
           if (ev.milliseconds >= endTimeMs) {
+            _loopSeeking = true;
             _seekToBar(_barSel.start);
+            setTimeout(() => { _loopSeeking = false; }, 300);
           }
         }
       },
