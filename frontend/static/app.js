@@ -1001,6 +1001,10 @@ let _barSeekPending = false;
 // Ordered map of every bar: [{line, measure}, …] sorted by line then measure.
 // ABCJS resets abcjs-mN per staff line, so we need (line, measure) as a pair.
 let _barMap = [];
+// Maps visual bar index → first MIDI millisecond for that bar.
+// Built from _synthController.timer.noteTimings on first Play; accounts for
+// AABB-style repeats where MIDI length > visual bar count × msPerMeasure.
+let _barFirstMs = {};
 
 // Build the bar map.  Each entry stores a direct reference to the wrapper
 // DOM element so that highlight queries are scoped to that exact element —
@@ -1128,20 +1132,48 @@ function _updateSelectionInfo() {
   el.querySelector(".bar-sel-clear").addEventListener("click", _clearBarSel);
 }
 
+// Build the bar → MIDI-time map from ABCJS's pre-computed noteTimings.
+// TimingCallbacks stores all events (including repeats) in .noteTimings before
+// playback starts; iterating it gives the FIRST MIDI millisecond for each
+// visual bar without having to play through the audio.  This correctly handles
+// AABB-style tunes where the MIDI is twice as long as the visual bar count.
+function _buildBarTimingMap() {
+  _barFirstMs = {};
+  const timings = _synthController && _synthController.timer && _synthController.timer.noteTimings;
+  if (!timings) return;
+  for (let i = 0; i < timings.length; i++) {
+    const ev = timings[i];
+    if (!ev || !ev.elements) continue;
+    ev.elements.forEach(grp => {
+      if (!grp) return;
+      grp.forEach(el => {
+        if (!el || !el.classList) return;
+        const cls = Array.from(el.classList).find(c => /^abcjs-m\d+$/.test(c));
+        if (!cls) return;
+        const idx = parseInt(cls.replace('abcjs-m', ''), 10);
+        if (!isNaN(idx) && !Object.prototype.hasOwnProperty.call(_barFirstMs, idx)) {
+          _barFirstMs[idx] = ev.milliseconds;
+        }
+      });
+    });
+  }
+}
+
+// Return the MIDI start time (ms) for visual bar barIndex, using the
+// pre-built timing map when available, or a linear estimate as fallback.
+function _barMs(barIndex) {
+  if (Object.prototype.hasOwnProperty.call(_barFirstMs, barIndex)) {
+    return _barFirstMs[barIndex];
+  }
+  return barIndex * (_msPerMeasure || 0);
+}
+
 function _seekToBar(barIndex) {
   if (!_synthController) return;
-  // ABCJS seek() only accepts a 0-1 fraction — passing "seconds" confuses the
-  // internal timer.  When midiBuffer is loaded we can compute the correct
-  // fraction from the actual MIDI total duration, which accounts for repeat
-  // sections (MIDI duration > visual-bar count × msPerMeasure).
   const buf = _synthController.midiBuffer;
-  if (_msPerMeasure && buf && buf.duration) {
-    const targetSec = barIndex * _msPerMeasure / 1000;
-    _synthController.seek(Math.max(0, Math.min(1, targetSec / buf.duration)));
-  } else if (_barMap.length) {
-    // midiBuffer not yet loaded (before first Play) — proportional fallback.
-    _synthController.seek(Math.max(0, Math.min(1, barIndex / _barMap.length)));
-  }
+  if (!buf || !buf.duration) return;
+  const frac = Math.max(0, Math.min(1, _barMs(barIndex) / (buf.duration * 1000)));
+  _synthController.seek(frac);
 }
 
 function _clearBarSel() {
@@ -1169,6 +1201,7 @@ function renderSheetMusic(abc) {
   _synthController = null;
   _msPerMeasure = null;
   _loopSeeking = false;
+  _barFirstMs = {};
   const infoEl = document.getElementById("bar-selection-info");
   if (infoEl) infoEl.classList.add("hidden");
 
@@ -1207,12 +1240,15 @@ function renderSheetMusic(abc) {
       // midiBuffer.duration is available for an accurate seek fraction).
       // Using onEvent rather than onStart avoids the ambiguous timing window
       // around when midiBuffer.start() is called.
-      onStart() {},
+      onStart() {
+        // Build the accurate bar→MIDI-time map from ABCJS's pre-computed
+        // noteTimings.  Called synchronously before the first onEvent so the
+        // map is ready when the pending seek fires.
+        _buildBarTimingMap();
+      },
       onEvent(ev) {
         // One-shot seek: consume pending seek on first event after selection.
-        // We queue the seek via setTimeout so it fires OUTSIDE this ABCJS
-        // timer callback — calling seek() from inside onEvent mutates the
-        // timer's own state while it's mid-tick, which silently breaks the seek.
+        // Queue via setTimeout so it fires OUTSIDE this ABCJS timer callback.
         if (_barSeekPending && _barSel.start !== null) {
           _barSeekPending = false;
           const barIdx = _barSel.start;
@@ -1227,14 +1263,15 @@ function renderSheetMusic(abc) {
             if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
           });
         }
-        // Bar-range loop: when Loop is enabled and a range is selected, jump back
-        // to the start bar once playback passes the end of the selected range.
-        // Check on every event (not just measureStart) so short ranges aren't
-        // missed.  _loopSeeking debounces rapid re-fires after the seek.
+        // Bar-range loop: jump back once playback passes the end of the selection.
+        // endTimeMs uses the accurate MIDI map so it works in Part B of AABB tunes.
         if (!_loopSeeking
             && _barSel.start !== null && _barSel.start !== _barSel.end
-            && ev && _msPerMeasure && _synthController.isLooping) {
-          const endTimeMs = (_barSel.end + 1) * _msPerMeasure;
+            && ev && _synthController.isLooping) {
+          // End time = start of the bar AFTER the selection (or last bar + 1 measure)
+          const endTimeMs = Object.prototype.hasOwnProperty.call(_barFirstMs, _barSel.end + 1)
+            ? _barFirstMs[_barSel.end + 1]
+            : _barMs(_barSel.end) + (_msPerMeasure || 0);
           if (ev.milliseconds >= endTimeMs) {
             _loopSeeking = true;
             _seekToBar(_barSel.start);
