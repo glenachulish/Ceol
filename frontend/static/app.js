@@ -1168,6 +1168,7 @@ function renderSheetMusic(abc) {
   try {
     const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
       responsive: "resize",
+      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1285,6 +1286,7 @@ function renderPreviewMusic(abc) {
   try {
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
       responsive: "resize",
+      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
