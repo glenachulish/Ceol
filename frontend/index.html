@@ -25,7 +25,7 @@
         <div class="library-menu-wrap">
           <button id="library-menu-btn" class="btn-secondary" data-tooltip-left data-tooltip="Backup, restore or delete your library">Library ▾</button>
           <div id="library-menu" class="library-menu hidden">
-            <button id="library-backup-btn" class="library-menu-item">💾 Backup</button>
+            <button id="library-backup-btn" class="library-menu-item">📤 Export Library</button>
             <button id="library-import-btn" class="library-menu-item">📂 Import Library</button>
             <hr class="library-menu-divider" />
             <button id="library-delete-btn" class="library-menu-item library-menu-danger">🗑 Delete Library</button>
@@ -339,18 +339,18 @@
     </div>
   </div>
 
-  <!-- ── Library Backup dialog ── -->
+  <!-- ── Export Library dialog ── -->
   <div id="backup-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal modal-narrow">
       <button class="modal-close" id="backup-close" aria-label="Close">✕</button>
-      <h2 class="modal-title">💾 Backup Library</h2>
-      <p class="library-dialog-desc">Save your entire library — tunes, sets, notes, and attachments — as a single file you can store anywhere.</p>
+      <h2 class="modal-title">📤 Export Library</h2>
+      <p class="library-dialog-desc">Save your entire library — tunes, sets, notes, and attachments — as a single .zip file.</p>
       <div class="library-field">
         <label class="library-label" for="backup-filename">File name</label>
         <input id="backup-filename" type="text" class="ff-url-input" autocomplete="off" spellcheck="false" />
       </div>
       <div class="library-actions">
-        <button id="backup-save-btn" class="btn-primary">Save backup</button>
+        <button id="backup-save-btn" class="btn-primary">Choose location &amp; save</button>
         <button id="backup-cancel-btn" class="btn-secondary">Cancel</button>
       </div>
     </div>
@@ -441,6 +441,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=56"></script>
+  <script src="/static/app.js?v=57"></script>
 </body>
 </html>
