@@ -1,12 +1,33 @@
 # Ceol – Trad Music Web App
 
-## How to run
+## Project layout
+
+Two versions live side by side on the Mac:
+
+| Version | Path | Purpose |
+|---------|------|---------|
+| **v1** | `~/Ceol/v1` | Stable, autostarts via launchd (`com.ceol.app`) |
+| **v2** | `~/Ceol/v2` | Active development |
+
+v1 autostarts on login — no manual action needed. To check its status:
 ```bash
-cd "/Users/callummaclellan/Documents/Ceol Github"
+launchctl print gui/501/com.ceol.app | grep -E "state|exit code"
+```
+
+## How to run (v2 dev)
+```bash
+cd ~/Ceol/v2
 git pull origin claude/trad-music-web-app-fwneF
-./run.sh
+.venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 Then open `http://localhost:8000` in the browser. Hard-refresh with **Cmd+Shift+R** after pulling new code.
+
+**Note:** v1 runs on port 8000. Stop it first if you need to run v2 on the same port:
+```bash
+launchctl bootout gui/501/com.ceol.app
+# when done developing, restart v1:
+launchctl bootstrap gui/501 ~/Library/LaunchAgents/com.ceol.app.plist
+```
 
 ## Architecture
 - **Backend**: FastAPI (Python) in `backend/main.py` — REST API + serves frontend
