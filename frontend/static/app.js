@@ -1254,28 +1254,34 @@ function renderSheetMusic(abc) {
   }
 }
 
-// Prepare ABC for rendering: add I:linebreak $ directive and insert $ markers
-// every 4 bars so the sheet music wraps to multiple staff lines.
-// Repeat barlines (|:, :|, ||) are kept intact so they display correctly;
-// ABCJS SynthController handles repeat playback natively.
+// Prepare ABC for rendering.
+// TheSession tunes use bare ! as linebreak markers between phrases.
+// ABCJS breaks staff lines at source newlines by default, so we convert
+// ! → \n. Repeat barlines (|:, :|) are left intact for correct display.
+// If a tune has no ! markers we fall back to inserting \n every 4 bars.
 function expandAbcRepeats(abc) {
   const kIdx = abc.search(/^K:/m);
   if (kIdx < 0) return abc;
   const kEnd = abc.indexOf('\n', kIdx);
   if (kEnd < 0) return abc;
-  // Add linebreak directive so $ in the body forces a new staff line.
-  const header = abc.slice(0, kEnd + 1) + 'I:linebreak $\n';
-  const body = abc.slice(kEnd + 1).trim();
-  return header + _insertLineBreaks(body, 4);
+  const header = abc.slice(0, kEnd + 1);
+  let body = abc.slice(kEnd + 1).trim();
+  if (body.includes('!')) {
+    // Convert TheSession linebreak markers to actual newlines.
+    body = body.replace(/\s*!\s*/g, '\n');
+  } else {
+    body = _insertLineBreaks(body, 4);
+  }
+  return header + body;
 }
 
-// Insert $ after every nth bar. Counts only measure-ENDING barlines:
-// :| (end repeat), || (double bar), | (plain bar) — but NOT opening |: .
+// Fallback: insert \n after every nth measure-ending barline
+// (:| , ||, plain |) so ABCJS wraps to a new staff line.
 function _insertLineBreaks(body, barsPerLine) {
   let count = 0;
   return body.replace(/:\||[|]{2}|\|(?!:)/g, (match) => {
     count++;
-    return count % barsPerLine === 0 ? match + '$' : match;
+    return count % barsPerLine === 0 ? match + '\n' : match;
   });
 }
 
