@@ -424,8 +424,27 @@ function renderTunes(data) {
     : "";
 
   if (!tunes.length) {
-    tuneList.innerHTML = '<p class="empty">No tunes match your search.</p>';
     pagination.innerHTML = "";
+    const noFilters = !state.q && !state.type && !state.key && !state.mode && !state.hitlist && !state.min_rating;
+    if (noFilters) {
+      tuneList.innerHTML = `
+        <div class="empty-library">
+          <div class="empty-library-icon">🎵</div>
+          <h2>Your library is empty</h2>
+          <p>Import your first tune to get started. You can add tunes from TheSession.org, a FlutefFling catalogue, an ABC file, or paste ABC notation directly.</p>
+          <div class="empty-library-actions">
+            <button class="btn-primary" id="empty-import-btn">Import Tunes</button>
+            <button class="btn-secondary" id="empty-help-btn">How does this work?</button>
+          </div>
+        </div>`;
+      document.getElementById("empty-import-btn").addEventListener("click", () => {
+        importOverlay.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+      });
+      document.getElementById("empty-help-btn").addEventListener("click", _openHelp);
+    } else {
+      tuneList.innerHTML = '<p class="empty">No tunes match your search.</p>';
+    }
     return;
   }
 
@@ -2745,6 +2764,24 @@ libDeleteConfirm.addEventListener("click", async () => {
     libDeleteConfirm.textContent = "Yes, delete everything";
   }
 });
+
+// ── Help modal ────────────────────────────────────────────────────────────────
+const helpBtn     = document.getElementById("help-btn");
+const helpOverlay = document.getElementById("help-overlay");
+const helpClose   = document.getElementById("help-close");
+
+function _openHelp() {
+  helpOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+function _closeHelp() {
+  helpOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+helpBtn.addEventListener("click", _openHelp);
+helpClose.addEventListener("click", _closeHelp);
+helpOverlay.addEventListener("click", e => { if (e.target === helpOverlay) _closeHelp(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !helpOverlay.classList.contains("hidden")) _closeHelp(); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {

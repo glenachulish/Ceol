@@ -15,14 +15,15 @@
         <span class="subtitle">Your trad music library</span>
       </div>
       <nav class="header-nav">
-        <button id="nav-library" class="nav-btn active">Library</button>
-        <button id="nav-sets" class="nav-btn">Sets</button>
-        <button id="nav-notes" class="nav-btn">Notes</button>
-        <button id="nav-achievements" class="nav-btn">Achievements</button>
+        <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
+        <button id="nav-sets" class="nav-btn" data-tooltip="Group tunes into practice sets">Sets</button>
+        <button id="nav-notes" class="nav-btn" data-tooltip="Freeform notes &amp; documents">Notes</button>
+        <button id="nav-achievements" class="nav-btn" data-tooltip="Track your progress over time">Achievements</button>
       </nav>
       <div class="header-actions">
+        <button id="help-btn" class="help-btn" aria-label="Help" data-tooltip="User guide">?</button>
         <div class="library-menu-wrap">
-          <button id="library-menu-btn" class="btn-secondary">Library ▾</button>
+          <button id="library-menu-btn" class="btn-secondary" data-tooltip-left data-tooltip="Backup, restore or delete your library">Library ▾</button>
           <div id="library-menu" class="library-menu hidden">
             <button id="library-backup-btn" class="library-menu-item">💾 Backup</button>
             <button id="library-import-btn" class="library-menu-item">📂 Import Library</button>
@@ -30,7 +31,7 @@
             <button id="library-delete-btn" class="library-menu-item library-menu-danger">🗑 Delete Library</button>
           </div>
         </div>
-        <button id="import-btn" class="btn-secondary">Import Tunes</button>
+        <button id="import-btn" class="btn-secondary" data-tooltip-left data-tooltip="Add tunes from a file, website or Dropbox">Import Tunes</button>
       </div>
     </div>
   </header>
@@ -63,9 +64,9 @@
             <option value="4">★★★★ +</option>
             <option value="5">★★★★★</option>
           </select>
-          <button id="filter-hitlist-btn" class="btn-secondary" title="Show only tunes on your hitlist">📌 Hitlist</button>
-          <button id="clear-btn" class="btn-secondary">Clear</button>
-          <button id="select-mode-btn" class="btn-secondary">Select</button>
+          <button id="filter-hitlist-btn" class="btn-secondary" data-tooltip="Show only tunes you&#39;ve flagged to learn">📌 Hitlist</button>
+          <button id="clear-btn" class="btn-secondary" data-tooltip="Clear all filters and search">Clear</button>
+          <button id="select-mode-btn" class="btn-secondary" data-tooltip="Select multiple tunes to group or delete">Select</button>
         </div>
         <div class="result-count" id="result-count"></div>
       </section>
@@ -386,7 +387,55 @@
     </div>
   </div>
 
+  <!-- ── Help guide modal ── -->
+  <div id="help-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="modal help-modal">
+      <button class="modal-close" id="help-close" aria-label="Close">✕</button>
+      <h2 class="modal-title" id="help-title">Ceol – User Guide</h2>
+      <p class="help-intro">Ceol is your personal trad music library. Here's a quick overview of everything it can do.</p>
+
+      <div class="help-section">
+        <h3>Navigation</h3>
+        <div class="help-row"><span class="help-label">Library</span><span class="help-desc">Browse, search and filter all your tunes. Click any tune to open it.</span></div>
+        <div class="help-row"><span class="help-label">Sets</span><span class="help-desc">Group tunes into named sets for a session or practice run. Play them in sequence.</span></div>
+        <div class="help-row"><span class="help-label">Notes</span><span class="help-desc">Freeform documents — ideas, practice notes, links, attachments.</span></div>
+        <div class="help-row"><span class="help-label">Achievements</span><span class="help-desc">Auto-logged progress events (rating changes, hitlist adds) plus your own notes.</span></div>
+      </div>
+
+      <div class="help-section">
+        <h3>Adding tunes</h3>
+        <div class="help-row"><span class="help-label">ABC File</span><span class="help-desc">Upload a <code>.abc</code> file to bulk-import many tunes at once.</span></div>
+        <div class="help-row"><span class="help-label">Paste ABC</span><span class="help-desc">Paste raw ABC notation directly. Each tune must start with <code>X:</code>.</span></div>
+        <div class="help-row"><span class="help-label">TheSession.org</span><span class="help-desc">Search the world's largest trad tune database, preview sheet music, then save.</span></div>
+        <div class="help-row"><span class="help-label">FlutefFling.scot</span><span class="help-desc">Browse the FlutefFling session catalogue and import tunes with one click.</span></div>
+        <div class="help-row"><span class="help-label">Dropbox</span><span class="help-desc">Connect a Dropbox folder and import <code>.abc</code> files or link audio files.</span></div>
+      </div>
+
+      <div class="help-section">
+        <h3>Library features</h3>
+        <div class="help-row"><span class="help-label">Search &amp; filters</span><span class="help-desc">Filter by title, type (reel, jig…), key, mode, or star rating.</span></div>
+        <div class="help-row"><span class="help-label">⭐ Star rating</span><span class="help-desc">Rate tunes 1–5 stars to track how well you know them. Achievements are logged when your rating improves.</span></div>
+        <div class="help-row"><span class="help-label">📌 Hitlist</span><span class="help-desc">Flag tunes you want to learn. Use the Hitlist button to filter to just those tunes.</span></div>
+        <div class="help-row"><span class="help-label">Select mode</span><span class="help-desc">Select 2+ tunes to group them as versions of the same tune, or delete in bulk.</span></div>
+      </div>
+
+      <div class="help-section">
+        <h3>Inside a tune</h3>
+        <div class="help-row"><span class="help-label">Sheet Music tab</span><span class="help-desc">Renders ABC notation with abcjs. For FlutefFling tunes, shows the PDF instead.</span></div>
+        <div class="help-row"><span class="help-label">Audio playback</span><span class="help-desc">Play the tune as MIDI. Set a bar range to loop a section for practice.</span></div>
+        <div class="help-row"><span class="help-label">Notes tab</span><span class="help-desc">Add free text notes. URLs are auto-linked — paste an MP3 or YouTube link to get an inline player.</span></div>
+        <div class="help-row"><span class="help-label">Versions</span><span class="help-desc">Group different settings of the same tune. Click a parent tune to see all its versions.</span></div>
+      </div>
+
+      <div class="help-section">
+        <h3>Library management</h3>
+        <div class="help-row"><span class="help-label">💾 Backup</span><span class="help-desc">Export your entire library — tunes, sets, notes, and attachments — as a <code>.zip</code> file.</span></div>
+        <div class="help-row"><span class="help-label">📂 Import Library</span><span class="help-desc">Restore from a backup file. <strong>Replaces</strong> your current library, so backup first.</span></div>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=44"></script>
+  <script src="/static/app.js?v=45"></script>
 </body>
 </html>

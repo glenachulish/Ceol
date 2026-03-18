@@ -1572,6 +1572,112 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 }
 .dropbox-setup-steps a:hover { text-decoration: underline; }
 
+/* ── Tooltips ─────────────────────────────────────────────── */
+[data-tooltip] { position: relative; }
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: .35rem .65rem;
+  border-radius: 5px;
+  font-size: .78rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 500;
+  box-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+[data-tooltip]:hover::after { opacity: 1; }
+[data-tooltip-left]::after { left: auto; right: 0; transform: none; }
+
+/* ── Help button ──────────────────────────────────────────── */
+.help-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 700;
+  transition: color .15s, border-color .15s, background .15s;
+  flex-shrink: 0;
+}
+.help-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(124,106,247,.12);
+}
+
+/* ── Help modal ───────────────────────────────────────────── */
+.help-modal { max-width: 680px; max-height: 80vh; overflow-y: auto; }
+.help-intro {
+  color: var(--text-muted);
+  font-size: .88rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.6;
+}
+.help-section { margin-bottom: 1.5rem; }
+.help-section:last-child { margin-bottom: 0; }
+.help-section h3 {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: .6rem;
+  padding-bottom: .4rem;
+  border-bottom: 1px solid var(--border);
+}
+.help-row {
+  display: flex;
+  gap: .75rem;
+  align-items: baseline;
+  padding: .3rem 0;
+  font-size: .875rem;
+  line-height: 1.5;
+}
+.help-row + .help-row { border-top: 1px solid rgba(46,51,80,.5); }
+.help-label {
+  flex-shrink: 0;
+  min-width: 140px;
+  font-weight: 600;
+  color: var(--text);
+}
+.help-desc { color: var(--text-muted); }
+
+/* ── Empty library state ──────────────────────────────────── */
+.empty-library {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  gap: .85rem;
+}
+.empty-library-icon { font-size: 3rem; line-height: 1; }
+.empty-library h2 { font-size: 1.2rem; font-weight: 600; color: var(--text); }
+.empty-library p {
+  color: var(--text-muted);
+  font-size: .9rem;
+  max-width: 380px;
+  line-height: 1.6;
+}
+.empty-library-actions {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: .25rem;
+}
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 600px) {
   .header-inner { flex-wrap: wrap; gap: .5rem; }
