@@ -968,6 +968,10 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .set-saved { color: var(--jig); }
 .set-error { color: var(--danger); }
 .modal-hint { font-size: .82rem; color: var(--text-muted); font-style: italic; }
+.info-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-bottom: 1rem; }
+.info-table th { text-align: left; white-space: nowrap; padding: .35rem .6rem .35rem 0; color: var(--text-muted); font-weight: 600; vertical-align: top; }
+.info-table td { padding: .35rem 0; word-break: break-all; }
+.info-table code { font-size: .8rem; background: var(--bg-alt,#f4f4f4); padding: .1rem .3rem; border-radius: 3px; }
 
 /* ── Import dialog ────────────────────────────────────────── */
 .import-desc {

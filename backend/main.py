@@ -44,6 +44,37 @@ STATIC_DIR = FRONTEND_DIR / "static"
 UPLOADS_DIR = Path(__file__).parent.parent / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
+APP_DIR = Path(__file__).parent.parent.resolve()
+
+
+def _rotate_db_backup() -> None:
+    """Keep the two most recent database backups, rotating on each startup."""
+    bak1 = DB_PATH.parent / "ceol.db.bak1"
+    bak2 = DB_PATH.parent / "ceol.db.bak2"
+    if bak1.exists():
+        shutil.copy2(bak1, bak2)
+    if DB_PATH.exists():
+        shutil.copy2(DB_PATH, bak1)
+
+
+def _write_info_file() -> None:
+    info_path = DB_PATH.parent / "app_info.txt"
+    info_path.write_text(
+        f"Ceol – Trad Music App\n"
+        f"=====================\n"
+        f"App directory : {APP_DIR}\n"
+        f"Database      : {DB_PATH.resolve()}\n"
+        f"Backup 1 (recent) : {DB_PATH.parent / 'ceol.db.bak1'}\n"
+        f"Backup 2 (older)  : {DB_PATH.parent / 'ceol.db.bak2'}\n"
+        f"Uploads       : {UPLOADS_DIR.resolve()}\n"
+        f"Web interface : http://localhost:8001\n",
+        encoding="utf-8",
+    )
+
+
+_rotate_db_backup()
+_write_info_file()
+
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
@@ -309,6 +340,20 @@ def get_filter_options():
             ).fetchall()
         ]
     return {"types": types, "keys": keys, "modes": modes}
+
+
+@app.get("/api/info")
+def get_info():
+    bak1 = DB_PATH.parent / "ceol.db.bak1"
+    bak2 = DB_PATH.parent / "ceol.db.bak2"
+    return {
+        "app_dir": str(APP_DIR),
+        "database": str(DB_PATH.resolve()),
+        "backup1": str(bak1.resolve()) if bak1.exists() else None,
+        "backup2": str(bak2.resolve()) if bak2.exists() else None,
+        "uploads": str(UPLOADS_DIR.resolve()),
+        "info_file": str((DB_PATH.parent / "app_info.txt").resolve()),
+    }
 
 
 @app.get("/api/stats")

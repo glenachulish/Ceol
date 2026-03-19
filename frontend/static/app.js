@@ -3331,6 +3331,28 @@ libDeleteConfirm.addEventListener("click", async () => {
 });
 
 // ── Help modal ────────────────────────────────────────────────────────────────
+// ── Info modal ───────────────────────────────────────────────────────────────
+const infoBtn = document.getElementById("info-btn");
+infoBtn.addEventListener("click", async () => {
+  const info = await fetch("/api/info").then(r => r.json());
+  const bak1 = info.backup1 ? `<code>${info.backup1}</code>` : "<em>none yet</em>";
+  const bak2 = info.backup2 ? `<code>${info.backup2}</code>` : "<em>none yet</em>";
+  modalContent.innerHTML = `
+    <h2 class="modal-title">App Info</h2>
+    <table class="info-table">
+      <tr><th>App directory</th><td><code>${info.app_dir}</code></td></tr>
+      <tr><th>Database</th><td><code>${info.database}</code></td></tr>
+      <tr><th>Backup 1 (most recent)</th><td>${bak1}</td></tr>
+      <tr><th>Backup 2 (older)</th><td>${bak2}</td></tr>
+      <tr><th>Uploads</th><td><code>${info.uploads}</code></td></tr>
+      <tr><th>Info file</th><td><code>${info.info_file}</code></td></tr>
+    </table>
+    <p class="modal-hint">Backups are created automatically each time the server starts.</p>
+  `;
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+});
+
 const helpBtn     = document.getElementById("help-btn");
 const helpOverlay = document.getElementById("help-overlay");
 const helpClose   = document.getElementById("help-close");
