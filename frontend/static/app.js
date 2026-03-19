@@ -170,20 +170,7 @@ bulkAddCollectionBtn.addEventListener("click", async () => {
 
   const cols = await apiFetch("/api/collections");
 
-  if (!cols.length) {
-    modalContent.innerHTML = `
-      <h2 class="modal-title">Add to Collection</h2>
-      <p>You have no collections yet. Go to the <strong>Collections</strong> tab to create one first.</p>
-      <div class="notes-actions" style="margin-top:1rem">
-        <button id="bulk-col-cancel" class="btn-secondary">Close</button>
-      </div>`;
-    modalOverlay.classList.remove("hidden");
-    document.body.style.overflow = "hidden";
-    document.getElementById("bulk-col-cancel").addEventListener("click", closeModal);
-    return;
-  }
-
-  const options = cols.map(c =>
+  const existingOptions = cols.map(c =>
     `<label class="bulk-col-option">
        <input type="radio" name="bulk-col" value="${c.id}" />
        ${escHtml(c.name)}
@@ -192,7 +179,16 @@ bulkAddCollectionBtn.addEventListener("click", async () => {
 
   modalContent.innerHTML = `
     <h2 class="modal-title">Add ${ids.length} tune${ids.length !== 1 ? "s" : ""} to Collection</h2>
-    <div class="bulk-col-list">${options}</div>
+    <div class="bulk-col-list">
+      ${existingOptions}
+      <label class="bulk-col-option">
+        <input type="radio" name="bulk-col" value="__new__" />
+        <em>Create new collection…</em>
+      </label>
+    </div>
+    <div id="bulk-col-new-form" class="hidden" style="margin-top:.75rem">
+      <input id="bulk-col-new-name" type="text" class="ff-url-input" placeholder="Collection name" />
+    </div>
     <div class="notes-actions" style="margin-top:1.25rem">
       <button id="bulk-col-confirm" class="btn-primary" disabled>Add to Collection</button>
       <button id="bulk-col-cancel" class="btn-secondary">Cancel</button>
@@ -202,19 +198,35 @@ bulkAddCollectionBtn.addEventListener("click", async () => {
   document.body.style.overflow = "hidden";
 
   const confirmBtn = document.getElementById("bulk-col-confirm");
+  const newForm = document.getElementById("bulk-col-new-form");
+  const newNameInput = document.getElementById("bulk-col-new-name");
+
   modalContent.querySelectorAll("input[name=bulk-col]").forEach(radio => {
-    radio.addEventListener("change", () => { confirmBtn.disabled = false; });
+    radio.addEventListener("change", () => {
+      confirmBtn.disabled = false;
+      newForm.classList.toggle("hidden", radio.value !== "__new__");
+      if (radio.value === "__new__") newNameInput.focus();
+    });
   });
   document.getElementById("bulk-col-cancel").addEventListener("click", closeModal);
 
   confirmBtn.addEventListener("click", async () => {
     const selected = modalContent.querySelector("input[name=bulk-col]:checked");
     if (!selected) return;
-    const colId = Number(selected.value);
     const status = document.getElementById("bulk-col-status");
     confirmBtn.disabled = true;
     confirmBtn.textContent = "Adding…";
     try {
+      let colId;
+      if (selected.value === "__new__") {
+        const name = newNameInput.value.trim();
+        if (!name) { newNameInput.focus(); confirmBtn.disabled = false; confirmBtn.textContent = "Add to Collection"; return; }
+        const created = await apiCreateCollection(name, "");
+        colId = created.id;
+        state.collections.push({ ...created, tune_count: 0 });
+      } else {
+        colId = Number(selected.value);
+      }
       await Promise.all(ids.map(id =>
         apiFetch(`/api/collections/${colId}/tunes`, {
           method: "POST",
@@ -1838,13 +1850,23 @@ function renderCollections(collections) {
         } else {
           tunesDiv.innerHTML = colData.tunes.map(t => `
             <div class="set-tune-row">
-              <span class="set-tune-title">${escHtml(t.title)}</span>
+              <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
               <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
               <span class="badge badge-key">${escHtml(t.key || "")}</span>
               <button class="btn-icon remove-from-col"
                 data-col-id="${id}" data-tune-id="${t.id}" title="Remove">✕</button>
             </div>
           `).join("");
+
+          tunesDiv.querySelectorAll(".tune-open-btn").forEach(tb => {
+            tb.addEventListener("click", async () => {
+              await Promise.all([fetchSets(), fetchCollections()]);
+              const tune = await fetchTune(tb.dataset.tuneId);
+              renderModal(tune);
+              modalOverlay.classList.remove("hidden");
+              document.body.style.overflow = "hidden";
+            });
+          });
 
           tunesDiv.querySelectorAll(".remove-from-col").forEach(rb => {
             rb.addEventListener("click", async () => {

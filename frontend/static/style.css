@@ -460,6 +460,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .set-tune-row:last-child { border-bottom: none; }
 .set-tune-pos { color: var(--text-muted); font-size: .8rem; min-width: 1.5rem; }
 .set-tune-title { flex: 1; font-size: .9rem; }
+button.set-tune-title {
+  background: none; border: none; padding: 0; text-align: left;
+  color: var(--accent); cursor: pointer; font-family: inherit;
+}
+button.set-tune-title:hover { text-decoration: underline; }
 .set-empty { color: var(--text-muted); font-size: .85rem; font-style: italic; padding: .5rem 0; }
 
 /* ── Modal ────────────────────────────────────────────────── */
