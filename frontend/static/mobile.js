@@ -1,0 +1,163 @@
+/* Ceòl Mobile – thin adapter loaded after app.js
+   Provides mobile-specific UI: bottom nav, filter drawer, hamburger menu.
+   All data logic is handled by app.js; this file only manages the mobile chrome. */
+
+(function () {
+  "use strict";
+
+  // ── Bottom navigation ────────────────────────────────────────────────────────
+  // app.js's switchView() already hides/shows the correct view panels.
+  // We just need to keep the bottom nav's .active state in sync.
+
+  const mNavBtns = document.querySelectorAll(".m-nav-btn");
+
+  function syncBottomNav(view) {
+    mNavBtns.forEach(btn =>
+      btn.classList.toggle("active", btn.dataset.view === view)
+    );
+  }
+
+  // Patch app.js's switchView to also sync the bottom nav.
+  // app.js declares switchView as a plain function so we can wrap it here.
+  const _appSwitchView = window.switchView;
+  window.switchView = function (view) {
+    _appSwitchView(view);
+    syncBottomNav(view);
+  };
+
+  mNavBtns.forEach(btn => {
+    btn.addEventListener("click", () => switchView(btn.dataset.view));
+  });
+
+  // Sync on page load (library is active by default)
+  syncBottomNav("library");
+
+  // ── Filter toggle ────────────────────────────────────────────────────────────
+  const mFilterToggle = document.getElementById("m-filter-toggle");
+  const mFilterDrawer = document.getElementById("m-filter-drawer");
+
+  // Drawer is visible by default on wider screens; hidden on narrow phones.
+  // We toggle it with the gear button.
+  let _filterOpen = window.innerWidth >= 520; // open by default on tablets
+  if (!_filterOpen) mFilterDrawer.classList.add("hidden");
+
+  mFilterToggle.addEventListener("click", () => {
+    _filterOpen = !_filterOpen;
+    mFilterDrawer.classList.toggle("hidden", !_filterOpen);
+    mFilterToggle.classList.toggle("active", _filterOpen);
+  });
+
+  // Also show a dot on the filter button when any filter is active
+  function _updateFilterIndicator() {
+    const hasFilter =
+      document.getElementById("filter-type").value ||
+      document.getElementById("filter-key").value ||
+      document.getElementById("filter-mode").value ||
+      document.getElementById("filter-rating").value ||
+      document.getElementById("filter-hitlist-btn").classList.contains("active");
+    mFilterToggle.style.borderColor = hasFilter ? "var(--accent)" : "";
+    mFilterToggle.style.color      = hasFilter ? "var(--accent)" : "";
+  }
+
+  ["filter-type", "filter-key", "filter-mode", "filter-rating"].forEach(id => {
+    document.getElementById(id).addEventListener("change", _updateFilterIndicator);
+  });
+  document.getElementById("filter-hitlist-btn").addEventListener("click", () => {
+    // slight delay so app.js's handler runs first
+    setTimeout(_updateFilterIndicator, 50);
+  });
+  document.getElementById("clear-btn").addEventListener("click", () => {
+    setTimeout(_updateFilterIndicator, 50);
+  });
+
+  // ── Hamburger menu ───────────────────────────────────────────────────────────
+  const mMenuBtn     = document.getElementById("m-menu-btn");
+  const mMenuOverlay = document.getElementById("m-menu-overlay");
+  const mMenuClose   = document.getElementById("m-menu-close");
+
+  function openMobileMenu() {
+    mMenuOverlay.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeMobileMenu() {
+    mMenuOverlay.classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+
+  mMenuBtn.addEventListener("click", openMobileMenu);
+  mMenuClose.addEventListener("click", closeMobileMenu);
+
+  // Close when tapping the dark overlay (outside the drawer)
+  mMenuOverlay.addEventListener("click", e => {
+    if (e.target === mMenuOverlay) closeMobileMenu();
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !mMenuOverlay.classList.contains("hidden")) {
+      closeMobileMenu();
+    }
+  });
+
+  // ── Menu item → delegate to hidden desktop buttons ───────────────────────────
+  // app.js attached its listeners to #info-btn, #help-btn, #library-backup-btn,
+  // etc. (which live in #m-compat). We just .click() those hidden buttons.
+
+  function _menuDelegate(mobileId, desktopId) {
+    const mobileBtn  = document.getElementById(mobileId);
+    const desktopBtn = document.getElementById(desktopId);
+    if (mobileBtn && desktopBtn) {
+      mobileBtn.addEventListener("click", () => {
+        closeMobileMenu();
+        desktopBtn.click();
+      });
+    }
+  }
+
+  _menuDelegate("m-info-btn",       "info-btn");
+  _menuDelegate("m-help-btn",       "help-btn");
+  _menuDelegate("m-backup-btn",     "library-backup-btn");
+  _menuDelegate("m-lib-import-btn", "library-import-btn");
+  _menuDelegate("m-lib-delete-btn", "library-delete-btn");
+
+  // TheCraic export is already handled by app.js via #thecraic-export-btn
+  // (which exists in the mobile.html hamburger menu directly).
+
+  // ── Scroll to top on view change ─────────────────────────────────────────────
+  // Smooth UX: scroll back to top of page whenever the user taps a nav button.
+  mNavBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
+  // ── Touch-friendly: close modal on back-swipe (Android) ──────────────────────
+  // Android's back button fires a popstate event when the history stack is used.
+  // Push a state when a modal opens; pop it (close modal) on back.
+  const _modalOverlay = document.getElementById("modal-overlay");
+  const _importOverlay = document.getElementById("import-overlay");
+
+  function _pushModalState() {
+    history.pushState({ ceolModal: true }, "");
+  }
+
+  // Observe modal visibility changes
+  const _modalObserver = new MutationObserver(() => {
+    const modalOpen = !_modalOverlay.classList.contains("hidden") ||
+                      !_importOverlay.classList.contains("hidden");
+    if (modalOpen) _pushModalState();
+  });
+  _modalObserver.observe(_modalOverlay,  { attributes: true, attributeFilter: ["class"] });
+  _modalObserver.observe(_importOverlay, { attributes: true, attributeFilter: ["class"] });
+
+  window.addEventListener("popstate", e => {
+    if (!_importOverlay.classList.contains("hidden")) {
+      _importOverlay.classList.add("hidden");
+      document.body.style.overflow = "";
+    } else if (!_modalOverlay.classList.contains("hidden")) {
+      // app.js's closeModal()
+      if (typeof closeModal === "function") closeModal();
+    }
+  });
+
+})();

@@ -1,0 +1,424 @@
+/* ── Ceòl Mobile – mobile-specific CSS ──────────────────────
+   Loaded in addition to style.css.
+   Targets mobile layout: bottom nav, compact header, full-screen modals.
+   ─────────────────────────────────────────────────────────── */
+
+/* ── Safe area + base ──────────────────────────────────────── */
+:root {
+  --m-header-h:    52px;
+  --m-nav-h:       56px;
+  --safe-top:      env(safe-area-inset-top, 0px);
+  --safe-bottom:   env(safe-area-inset-bottom, 0px);
+}
+
+.mobile-body {
+  /* Push content clear of header and bottom nav */
+  padding-top:    calc(var(--m-header-h) + var(--safe-top));
+  padding-bottom: calc(var(--m-nav-h) + var(--safe-bottom));
+}
+
+/* ── Override desktop header ───────────────────────────────── */
+.mobile-body > header:not(.m-header) { display: none; }
+
+/* ── Mobile header ─────────────────────────────────────────── */
+.m-header {
+  position: fixed;
+  top:  0;
+  left: 0;
+  right: 0;
+  height: calc(var(--m-header-h) + var(--safe-top));
+  padding-top: var(--safe-top);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left:  .75rem;
+  padding-right: .75rem;
+  z-index: 100;
+  gap: .5rem;
+}
+
+.m-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: .35rem;
+}
+
+.m-title-text {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.m-title-sub {
+  font-size: .7rem;
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  background: rgba(124,106,247,.15);
+  padding: .1em .4em;
+  border-radius: 4px;
+}
+
+.m-header-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius);
+  width: 2.2rem;
+  height: 2.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: color .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.m-header-btn:hover { color: var(--text); border-color: var(--accent); }
+
+.m-import-icon {
+  font-size: 1.3rem;
+  font-weight: 400;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.m-import-icon:hover { background: rgba(124,106,247,.12); }
+
+/* ── Main content ─────────────────────────────────────────── */
+.m-main {
+  max-width: 100%;
+  padding: .75rem .75rem 1rem;
+}
+
+.m-view { display: block; }
+.m-view.hidden { display: none !important; }
+
+/* ── Bottom navigation ─────────────────────────────────────── */
+.m-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--m-nav-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: stretch;
+  z-index: 100;
+}
+
+.m-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .15rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: .4rem .2rem;
+  font-size: inherit;
+  transition: color .15s;
+  min-height: 44px; /* accessibility minimum tap target */
+}
+
+.m-nav-btn.active {
+  color: var(--accent);
+}
+
+.m-nav-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.m-nav-label {
+  font-size: .6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  line-height: 1;
+}
+
+/* ── Filter bar (mobile) ────────────────────────────────────── */
+.m-filters { margin-bottom: .75rem; }
+
+.m-search-row {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  margin-bottom: .5rem;
+}
+
+.m-search-row input[type="search"] {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: .6rem .75rem;
+  font-size: .95rem;
+  outline: none;
+  min-height: 44px;
+}
+.m-search-row input[type="search"]:focus { border-color: var(--accent); }
+
+.m-filter-toggle-btn {
+  flex-shrink: 0;
+  min-height: 44px;
+  min-width: 44px;
+  padding: .5rem .75rem;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.m-filter-toggle-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(124,106,247,.1);
+}
+
+/* Filter drawer — hidden by default */
+.m-filter-drawer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .65rem .75rem;
+  margin-bottom: .5rem;
+  /* Smooth expand/collapse */
+  overflow: hidden;
+  transition: max-height .2s ease, opacity .2s ease, padding .2s ease;
+}
+.m-filter-drawer.hidden {
+  display: none !important;
+}
+
+.m-filter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .4rem;
+  margin-bottom: .5rem;
+}
+
+.m-filter-grid select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: .5rem .5rem;
+  font-size: .85rem;
+  outline: none;
+  cursor: pointer;
+  min-height: 40px;
+}
+.m-filter-grid select:focus { border-color: var(--accent); }
+
+.m-filter-actions {
+  display: flex;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+
+/* ── Tune cards (mobile tweaks) ─────────────────────────────── */
+/* On mobile: single column */
+.mobile-body .tune-list {
+  grid-template-columns: 1fr;
+  gap: .5rem;
+}
+
+.mobile-body .tune-card {
+  padding: .85rem 1rem .85rem 1.5rem;
+  /* larger tap target */
+}
+
+/* Star buttons: always visible on mobile (no hover) */
+.mobile-body .star-btn { color: var(--border); }
+.mobile-body .star-btn.filled { color: #f59e0b; }
+.mobile-body .hitlist-btn { opacity: 0; transition: opacity .15s; }
+.mobile-body .hitlist-btn.active { opacity: 1; }
+.mobile-body .tune-card:active .hitlist-btn { opacity: .5; }
+.mobile-body .tune-delete-btn { opacity: 0; }
+.mobile-body .tune-card:active .tune-delete-btn { opacity: 1; }
+
+/* ── Modals: full-screen on mobile ─────────────────────────── */
+.mobile-body .modal-overlay {
+  padding: 0;
+  align-items: flex-end; /* slide up from bottom */
+}
+
+.mobile-body .m-modal-fullscreen {
+  max-width: 100%;
+  max-height: 96vh;
+  border-radius: 16px 16px 0 0;
+  margin: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Pull handle hint */
+.mobile-body .m-modal-fullscreen::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: .6rem auto .3rem;
+}
+
+/* Narrow dialogs (backup, delete) still centered */
+.mobile-body .modal.modal-narrow {
+  max-width: 90vw;
+  border-radius: 12px;
+  margin: 0 auto;
+}
+.mobile-body .modal-overlay:has(.modal-narrow) {
+  align-items: center;
+}
+
+/* Import modal tabs: scrollable row on small screens */
+.m-import-tabs {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap !important;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.m-import-tabs::-webkit-scrollbar { display: none; }
+.m-import-tabs .tab-btn { flex-shrink: 0; }
+
+/* ── Hamburger menu drawer ──────────────────────────────────── */
+.m-menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 300;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.m-menu-overlay.hidden { display: none !important; }
+
+.m-menu-drawer {
+  background: var(--surface);
+  width: min(300px, 85vw);
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+  animation: slideInLeft .2s ease;
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+.m-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .85rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.m-menu-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.m-menu-items {
+  display: flex;
+  flex-direction: column;
+  padding: .5rem 0;
+  flex: 1;
+}
+
+.m-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: .9rem 1.1rem;
+  font-size: .95rem;
+  cursor: pointer;
+  transition: background .1s;
+  font-family: inherit;
+  text-decoration: none;
+}
+.m-menu-item:hover,
+.m-menu-item:active { background: rgba(255,255,255,.06); }
+.m-menu-danger { color: var(--danger); }
+.m-menu-link { color: var(--text-muted); font-size: .85rem; }
+
+.m-menu-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: .4rem 0;
+}
+
+.m-menu-footer {
+  border-top: 1px solid var(--border);
+  padding: .4rem 0;
+  margin-top: auto;
+}
+
+/* ── Notes layout: single column on mobile ─────────────────── */
+.mobile-body .notes-layout {
+  grid-template-columns: 1fr;
+  min-height: unset;
+}
+.mobile-body .notes-sidebar {
+  position: static;
+}
+
+/* ── Achievements: tighter layout ──────────────────────────── */
+.mobile-body .achievements-layout {
+  margin: 1rem auto;
+  padding: 0 .25rem;
+}
+
+/* ── Sheet music: ensure horizontal scroll ─────────────────── */
+.mobile-body .sheet-music-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Sets: full width ───────────────────────────────────────── */
+.mobile-body .view-header { margin: .5rem 0 .75rem; }
+
+/* ── Pagination: touch-friendly ─────────────────────────────── */
+.mobile-body .pagination button {
+  min-height: 40px;
+  min-width: 40px;
+}
+
+/* ── Stats bar: hidden on mobile (clutters header area) ──────── */
+.mobile-body .stats-bar { display: none; }
+
+/* ── Result count ──────────────────────────────────────────── */
+.mobile-body .result-count {
+  font-size: .78rem;
+  padding: 0 .1rem .25rem;
+}
+
+/* ── Bulk bar: tighter on mobile ───────────────────────────── */
+.mobile-body .bulk-bar {
+  gap: .35rem;
+  padding: .4rem .5rem;
+  flex-wrap: wrap;
+}
+
+/* ── Responsive breakpoint: tablet/large phone ─────────────── */
+@media (min-width: 520px) {
+  .mobile-body .tune-list {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+  .m-filter-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

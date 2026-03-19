@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Ceòl" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Ceòl Mobile – Trad Music</title>
+  <link rel="stylesheet" href="/static/style.css?v=37" />
+  <link rel="stylesheet" href="/static/abcjs-audio.css" />
+  <link rel="stylesheet" href="/static/mobile.css?v=1" />
+</head>
+<body class="mobile-body">
+
+  <!-- ── Mobile Header ─────────────────────────────────────── -->
+  <header class="m-header">
+    <button id="m-menu-btn" class="m-header-btn" aria-label="Menu">☰</button>
+    <div class="m-header-title">
+      <span class="m-title-text">Ceòl</span>
+      <span class="m-title-sub">Mobile</span>
+    </div>
+    <button id="import-btn" class="m-header-btn m-import-icon" aria-label="Import tunes">＋</button>
+  </header>
+
+  <!-- ── Main content ──────────────────────────────────────── -->
+  <main class="m-main">
+
+    <!-- ── Library view ── -->
+    <div id="view-library" class="m-view">
+      <section class="m-filters">
+        <div class="m-search-row">
+          <input id="search" type="search" placeholder="Search tunes…"
+                 autocomplete="off" spellcheck="false" />
+          <button id="m-filter-toggle" class="m-filter-toggle-btn btn-secondary"
+                  aria-label="Toggle filters" title="Filters">⚙</button>
+        </div>
+
+        <div id="m-filter-drawer" class="m-filter-drawer">
+          <div class="m-filter-grid">
+            <select id="filter-type"><option value="">All types</option></select>
+            <select id="filter-key"><option value="">All keys</option></select>
+            <select id="filter-mode"><option value="">All modes</option></select>
+            <select id="filter-rating">
+              <option value="">Any rating</option>
+              <option value="1">★ +</option>
+              <option value="2">★★ +</option>
+              <option value="3">★★★ +</option>
+              <option value="4">★★★★ +</option>
+              <option value="5">★★★★★</option>
+            </select>
+          </div>
+          <div class="m-filter-actions">
+            <button id="filter-hitlist-btn" class="btn-secondary btn-sm">📌 Hitlist</button>
+            <button id="clear-btn" class="btn-secondary btn-sm">Clear</button>
+            <button id="select-mode-btn" class="btn-secondary btn-sm">Select</button>
+          </div>
+        </div>
+
+        <div class="result-count" id="result-count"></div>
+      </section>
+
+      <!-- Bulk-action bar — visible only in select mode -->
+      <div id="bulk-bar" class="bulk-bar hidden">
+        <span id="bulk-count" class="bulk-count">0 selected</span>
+        <button id="bulk-select-all-btn" class="btn-secondary btn-sm">Select all</button>
+        <button id="bulk-merge-btn" class="btn-secondary btn-sm" disabled>Group versions</button>
+        <button id="bulk-add-set-btn" class="btn-secondary btn-sm" disabled>Add to set</button>
+        <button id="bulk-add-collection-btn" class="btn-secondary btn-sm" disabled>Collection</button>
+        <button id="bulk-delete-btn" class="btn-danger btn-sm" disabled>Delete</button>
+        <button id="bulk-cancel-btn" class="btn-secondary btn-sm">Cancel</button>
+      </div>
+
+      <section class="tune-list" id="tune-list">
+        <p class="loading">Loading tunes…</p>
+      </section>
+      <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- ── Sets view ── -->
+    <div id="view-sets" class="m-view hidden">
+      <div class="view-header">
+        <h2 class="section-title">Sets</h2>
+        <button id="new-set-btn" class="btn-primary">+ New Set</button>
+      </div>
+      <div id="new-set-form" class="new-set-form hidden">
+        <input id="new-set-name" type="text" placeholder="Set name…" maxlength="120" />
+        <input id="new-set-notes" type="text" placeholder="Notes (optional)…" />
+        <div class="form-actions">
+          <button id="create-set-btn" class="btn-primary">Create</button>
+          <button id="cancel-set-btn" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+      <div id="sets-list" class="sets-list">
+        <p class="loading">Loading sets…</p>
+      </div>
+    </div>
+
+    <!-- ── Collections view ── -->
+    <div id="view-collections" class="m-view hidden">
+      <div class="view-header">
+        <h2 class="section-title">Collections</h2>
+        <button id="new-collection-btn" class="btn-primary">+ New</button>
+      </div>
+      <div id="new-collection-form" class="new-set-form hidden">
+        <input id="new-collection-name" type="text" placeholder="Collection name…" maxlength="120" />
+        <input id="new-collection-desc" type="text" placeholder="Description (optional)…" />
+        <div class="form-actions">
+          <button id="create-collection-btn" class="btn-primary">Create</button>
+          <button id="cancel-collection-btn" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+      <div id="collections-list" class="sets-list">
+        <p class="loading">Loading collections…</p>
+      </div>
+    </div>
+
+    <!-- ── Notes view ── -->
+    <div id="view-notes" class="m-view hidden">
+      <div class="notes-layout">
+        <aside class="notes-sidebar">
+          <div class="notes-sidebar-header">
+            <h2 class="section-title">Notes</h2>
+            <button id="new-doc-btn" class="btn-primary">+ New</button>
+          </div>
+          <div id="notes-doc-list" class="notes-doc-list">
+            <p class="loading">Loading…</p>
+          </div>
+        </aside>
+        <div id="notes-editor" class="notes-editor">
+          <div class="notes-empty-state">
+            <p>Select a document or create a new one.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Achievements view ── -->
+    <div id="view-achievements" class="m-view hidden">
+      <div class="achievements-layout">
+        <div class="achievements-header">
+          <h2 class="section-title">Achievements</h2>
+          <p class="achievements-hint">Your progress log.</p>
+        </div>
+        <div class="achievements-add">
+          <textarea id="ach-textarea" class="notes-textarea" rows="2"
+            placeholder="Write your own achievement…"></textarea>
+          <button id="ach-add-btn" class="btn-primary">Add</button>
+          <span id="ach-status" class="notes-status"></span>
+        </div>
+        <div id="achievements-list" class="achievements-list">
+          <p class="loading">Loading…</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── Bottom Navigation ──────────────────────────────────── -->
+  <nav class="m-bottom-nav" aria-label="Main navigation">
+    <button class="m-nav-btn active" data-view="library" aria-label="Library">
+      <span class="m-nav-icon">♪</span>
+      <span class="m-nav-label">Library</span>
+    </button>
+    <button class="m-nav-btn" data-view="sets" aria-label="Sets">
+      <span class="m-nav-icon">≡</span>
+      <span class="m-nav-label">Sets</span>
+    </button>
+    <button class="m-nav-btn" data-view="collections" aria-label="Collections">
+      <span class="m-nav-icon">📁</span>
+      <span class="m-nav-label">Collections</span>
+    </button>
+    <button class="m-nav-btn" data-view="notes" aria-label="Notes">
+      <span class="m-nav-icon">📝</span>
+      <span class="m-nav-label">Notes</span>
+    </button>
+    <button class="m-nav-btn" data-view="achievements" aria-label="Achievements">
+      <span class="m-nav-icon">⭐</span>
+      <span class="m-nav-label">Progress</span>
+    </button>
+  </nav>
+
+  <!-- ── Hamburger menu drawer ────────────────────────────── -->
+  <div id="m-menu-overlay" class="m-menu-overlay hidden" role="dialog" aria-modal="true">
+    <div class="m-menu-drawer">
+      <div class="m-menu-header">
+        <span class="m-menu-title">Menu</span>
+        <button id="m-menu-close" class="m-header-btn" aria-label="Close menu">✕</button>
+      </div>
+      <nav class="m-menu-items">
+        <button id="m-info-btn" class="m-menu-item">ℹ App Info</button>
+        <button id="m-help-btn" class="m-menu-item">? Help</button>
+        <hr class="m-menu-divider" />
+        <button id="m-backup-btn" class="m-menu-item">📤 Export Library</button>
+        <button id="m-lib-import-btn" class="m-menu-item">📂 Import Library</button>
+        <button id="thecraic-export-btn" class="m-menu-item">📱 Export for TheCraic</button>
+        <hr class="m-menu-divider" />
+        <button id="m-lib-delete-btn" class="m-menu-item m-menu-danger">🗑 Delete Library</button>
+      </nav>
+      <div class="m-menu-footer">
+        <a href="/" class="m-menu-item m-menu-link">Switch to desktop version →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tune detail modal ──────────────────────────────────── -->
+  <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-wide m-modal-fullscreen">
+      <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Import modal ───────────────────────────────────────── -->
+  <div id="import-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-wide m-modal-fullscreen">
+      <button class="modal-close" id="import-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">Import Tunes</h2>
+
+      <div class="modal-tabs m-import-tabs">
+        <button class="tab-btn active" data-import-tab="file">ABC File</button>
+        <button class="tab-btn" data-import-tab="paste">Paste</button>
+        <button class="tab-btn" data-import-tab="thecraic">TheCraic</button>
+        <button class="tab-btn" data-import-tab="session">TheSession</button>
+        <button class="tab-btn" data-import-tab="flutefling">FlutefFling</button>
+        <button class="tab-btn" data-import-tab="dropbox">Dropbox</button>
+      </div>
+
+      <div id="import-tab-file" class="tab-panel">
+        <p class="import-desc">Choose an .abc file to bulk-import tunes into your library.</p>
+        <label class="import-drop">
+          <input type="file" id="import-file" accept=".abc,.txt" />
+          <span class="import-icon">📁</span>
+          <span class="import-label">Tap to choose a file</span>
+          <span id="import-filename" class="import-filename"></span>
+        </label>
+        <div id="import-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="import-submit" class="btn-primary" disabled>Import</button>
+        </div>
+      </div>
+
+      <div id="import-tab-paste" class="tab-panel hidden">
+        <p class="import-desc">Paste ABC notation. Each tune must start with <code>X:</code>.</p>
+        <textarea id="paste-abc-input" class="paste-abc-textarea" placeholder="X:1&#10;T:The Morning Dew&#10;…" rows="10"></textarea>
+        <div id="paste-abc-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="paste-abc-submit" class="btn-primary">Import</button>
+        </div>
+      </div>
+
+      <div id="import-tab-thecraic" class="tab-panel hidden">
+        <p class="import-desc">
+          Import an export from <strong>TheCraic</strong> iOS app (.abc file).<br>
+          In TheCraic: <em>Settings → Export → All Tunes</em>, then share the file here.
+        </p>
+        <label class="import-drop">
+          <input type="file" id="thecraic-import-file" accept=".abc" />
+          <span class="import-icon">📱</span>
+          <span class="import-label">Tap to choose TheCraic export</span>
+          <span id="thecraic-import-filename" class="import-filename"></span>
+        </label>
+        <div id="thecraic-import-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="thecraic-import-submit" class="btn-primary" disabled>Import from TheCraic</button>
+        </div>
+      </div>
+
+      <div id="import-tab-session" class="tab-panel hidden">
+        <div id="session-search-pane">
+          <p class="import-desc">Search TheSession.org and preview before saving.</p>
+          <div class="session-search-row">
+            <input id="session-search-input" type="search" placeholder="Search TheSession.org…" autocomplete="off" />
+            <button id="session-search-btn" class="btn-primary">Search</button>
+          </div>
+          <div id="session-results" class="session-results"></div>
+          <div style="margin-top:0.75rem">
+            <button id="session-backfill-btn" class="btn-secondary btn-sm">Update submitter info</button>
+            <span id="session-backfill-status" class="notes-status"></span>
+          </div>
+        </div>
+
+        <div id="session-preview" class="session-preview hidden">
+          <div class="session-preview-header">
+            <button id="session-preview-back" class="btn-secondary btn-sm">← Back</button>
+            <span id="session-preview-title" class="session-preview-title-text"></span>
+            <span id="session-preview-badges"></span>
+            <span id="session-preview-submitter" class="session-preview-submitter"></span>
+          </div>
+          <div id="session-settings-strip" class="session-settings-strip hidden"></div>
+          <div class="modal-tabs">
+            <button class="tab-btn active" data-preview-tab="sheet">Sheet Music</button>
+            <button class="tab-btn" data-preview-tab="abc">ABC</button>
+          </div>
+          <div id="preview-panel-sheet" class="preview-panel">
+            <div id="preview-sheet-render"></div>
+            <div id="preview-audio-container" class="audio-player-wrap"></div>
+          </div>
+          <div id="preview-panel-abc" class="preview-panel hidden">
+            <pre id="preview-abc-text" class="preview-abc-text"></pre>
+          </div>
+          <div class="session-preview-footer">
+            <button id="session-save-btn" class="btn-primary">Save to Library</button>
+            <a id="session-visit-btn" class="btn-secondary" target="_blank" rel="noopener noreferrer" href="#">View on TheSession ↗</a>
+            <span id="session-save-status" class="notes-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="import-tab-flutefling" class="tab-panel hidden">
+        <div class="ff-browse-section">
+          <div class="ff-browse-header">
+            <h3 class="ff-browse-title">Browse FlutefFling</h3>
+            <span id="ff-cat-count" class="ff-cat-count"></span>
+          </div>
+          <div class="ff-search-row">
+            <input id="ff-cat-search" type="search" class="ff-cat-search-input"
+              placeholder="Search by tune name…" autocomplete="off" />
+            <button id="ff-cat-refresh" class="btn-secondary ff-refresh-btn" title="Reload">↻</button>
+          </div>
+          <div id="ff-cat-status" class="ff-cat-status"></div>
+          <div id="ff-cat-list" class="ff-cat-list">
+            <p class="ff-cat-hint">Open this tab to load the FlutefFling catalogue</p>
+          </div>
+        </div>
+        <details class="ff-manual-details">
+          <summary class="ff-manual-summary">Or add manually by URL</summary>
+          <div class="ff-url-form" style="margin-top:.5rem">
+            <label class="ff-url-label" for="ff-abc-url">Sheet music PDF link</label>
+            <input id="ff-abc-url" type="url" class="ff-url-input"
+              placeholder="https://flutefling.scot/…pdf" autocomplete="off" spellcheck="false" />
+            <label class="ff-url-label" for="ff-mp3-url">MP3 link</label>
+            <input id="ff-mp3-url" type="url" class="ff-url-input"
+              placeholder="https://flutefling.scot/…mp3" autocomplete="off" spellcheck="false" />
+            <label class="ff-url-label" for="ff-title-input">Tune title <span class="ff-url-hint">(required)</span></label>
+            <input id="ff-title-input" type="text" class="ff-url-input"
+              placeholder="e.g. The Morning Dew" autocomplete="off" />
+            <button id="ff-add-btn" class="btn-primary ff-add-btn">Add to Library</button>
+          </div>
+          <div id="ff-status" class="ff-cat-status"></div>
+        </details>
+      </div>
+
+      <div id="import-tab-dropbox" class="tab-panel hidden">
+        <div id="dropbox-setup" class="hidden">
+          <p class="import-desc">Connect a Dropbox folder to browse and import tunes.</p>
+          <ol class="dropbox-setup-steps">
+            <li>Go to <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener">dropbox.com/developers/apps ↗</a></li>
+            <li>Create an app → <strong>Scoped access</strong> → <strong>Full Dropbox</strong></li>
+            <li>Under <em>Settings</em>, click <strong>Generate</strong> next to "Generated access token"</li>
+            <li>Paste the token below and click Save</li>
+          </ol>
+          <div class="ff-url-form">
+            <label class="ff-url-label" for="dropbox-token-input">Access token</label>
+            <input id="dropbox-token-input" type="password" class="ff-url-input"
+              placeholder="sl.u.AAAA…" autocomplete="off" spellcheck="false" />
+            <button id="dropbox-token-save" class="btn-primary">Save token</button>
+          </div>
+          <div id="dropbox-setup-status" class="ff-cat-status"></div>
+        </div>
+        <div id="dropbox-browser" class="hidden">
+          <div class="ff-browse-header">
+            <h3 class="ff-browse-title">Browse Dropbox</h3>
+            <button id="dropbox-token-change-btn" class="btn-secondary btn-sm">Change token</button>
+          </div>
+          <div class="ff-search-row">
+            <input id="dropbox-path-input" type="text" class="ff-cat-search-input"
+              placeholder="/Tradwinds" autocomplete="off" spellcheck="false" />
+            <button id="dropbox-browse-btn" class="btn-primary">Browse</button>
+          </div>
+          <div id="dropbox-status" class="ff-cat-status"></div>
+          <div id="dropbox-file-list" class="ff-cat-list">
+            <p class="ff-cat-hint">Enter a folder path above and click Browse</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Media player overlay (MP3 / YouTube) -->
+  <div id="media-overlay" class="media-overlay hidden" role="dialog" aria-modal="true">
+    <div class="media-overlay-inner">
+      <button id="media-overlay-close" class="media-overlay-close" aria-label="Close">✕ Close</button>
+      <div id="media-overlay-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Export Library dialog ── -->
+  <div id="backup-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-narrow">
+      <button class="modal-close" id="backup-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">📤 Export Library</h2>
+      <p class="library-dialog-desc">Save your entire library as a .zip file.</p>
+      <div class="library-field">
+        <label class="library-label" for="backup-filename">File name</label>
+        <input id="backup-filename" type="text" class="ff-url-input" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="library-actions">
+        <button id="backup-save-btn" class="btn-primary">Choose location &amp; save</button>
+        <button id="backup-cancel-btn" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Library Import dialog ── -->
+  <div id="lib-import-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-narrow">
+      <button class="modal-close" id="lib-import-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">📂 Import Library</h2>
+      <p class="library-dialog-desc">Load a Ceol backup file. <strong>This will replace your current library.</strong></p>
+      <label class="import-drop" style="margin-top:1rem">
+        <input type="file" id="lib-import-file" accept=".zip" />
+        <span class="import-icon">📁</span>
+        <span class="import-label">Tap to choose a .zip backup file</span>
+        <span id="lib-import-filename" class="import-filename"></span>
+      </label>
+      <div id="lib-import-result" class="import-result hidden"></div>
+      <div class="library-actions">
+        <button id="lib-import-submit" class="btn-primary" disabled>Import &amp; Replace</button>
+        <button id="lib-import-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Library Delete dialog ── -->
+  <div id="lib-delete-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-narrow">
+      <button class="modal-close" id="lib-delete-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">🗑 Delete Library</h2>
+      <p class="library-dialog-desc">This will permanently delete <strong>all tunes, sets, notes, and attachments</strong>. This cannot be undone.</p>
+      <div class="library-actions">
+        <button id="lib-delete-confirm" class="btn-danger">Yes, delete everything</button>
+        <button id="lib-delete-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Help guide modal ── -->
+  <div id="help-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal help-modal">
+      <button class="modal-close" id="help-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">Ceòl Mobile – Guide</h2>
+      <p class="help-intro">Your personal trad music library, optimised for mobile.</p>
+
+      <div class="help-section">
+        <h3>Navigation</h3>
+        <div class="help-row"><span class="help-label">♪ Library</span><span class="help-desc">Browse, search and filter all your tunes. Tap any tune to open it.</span></div>
+        <div class="help-row"><span class="help-label">≡ Sets</span><span class="help-desc">Group tunes into named sets for a session or practice run.</span></div>
+        <div class="help-row"><span class="help-label">📁 Collections</span><span class="help-desc">Thematic groupings — a tune can belong to multiple collections.</span></div>
+        <div class="help-row"><span class="help-label">📝 Notes</span><span class="help-desc">Freeform documents — ideas, practice notes, links, attachments.</span></div>
+        <div class="help-row"><span class="help-label">⭐ Progress</span><span class="help-desc">Auto-logged achievements plus your own notes.</span></div>
+        <div class="help-row"><span class="help-label">☰ Menu</span><span class="help-desc">Import tunes, export/import library backup, help.</span></div>
+      </div>
+
+      <div class="help-section">
+        <h3>Adding tunes</h3>
+        <div class="help-row"><span class="help-label">＋ button</span><span class="help-desc">Opens the Import dialog. Choose from ABC file, TheSession.org, FlutefFling, Dropbox, or paste ABC notation.</span></div>
+      </div>
+
+      <div class="help-section">
+        <h3>Library features</h3>
+        <div class="help-row"><span class="help-label">⚙ Filter</span><span class="help-desc">Tap the gear icon to expand filters: type, key, mode, star rating.</span></div>
+        <div class="help-row"><span class="help-label">⭐ Star rating</span><span class="help-desc">Rate tunes 1–5 stars. Tap a star inside any tune to update.</span></div>
+        <div class="help-row"><span class="help-label">📌 Hitlist</span><span class="help-desc">Flag tunes you want to learn. Filter to hitlist only via ⚙ Filters.</span></div>
+      </div>
+
+      <div class="help-section">
+        <h3>Inside a tune</h3>
+        <div class="help-row"><span class="help-label">Sheet Music</span><span class="help-desc">Renders ABC notation. Tap bars to set a practice loop range.</span></div>
+        <div class="help-row"><span class="help-label">Notes tab</span><span class="help-desc">Add free text notes. Paste an MP3 or YouTube link for inline playback.</span></div>
+        <div class="help-row"><span class="help-label">Versions</span><span class="help-desc">Different settings of the same tune, grouped together.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
+  <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
+
+  <!-- ── Desktop compatibility shim ────────────────────────────
+       app.js expects these IDs to exist. They are hidden on mobile;
+       the mobile UI (bottom nav, hamburger) delegates to them.
+       ─────────────────────────────────────────────────────── -->
+  <div id="m-compat" style="display:none" aria-hidden="true">
+    <!-- Desktop nav buttons (switchView uses these to mark .active) -->
+    <button id="nav-library">Library</button>
+    <button id="nav-sets">Sets</button>
+    <button id="nav-collections">Collections</button>
+    <button id="nav-notes">Notes</button>
+    <button id="nav-achievements">Achievements</button>
+    <!-- Stats bar -->
+    <div id="stats-bar"><span id="stats-text"></span></div>
+    <!-- Header action buttons -->
+    <button id="info-btn">Info</button>
+    <button id="help-btn">Help</button>
+    <!-- Library management menu -->
+    <button id="library-menu-btn">Library</button>
+    <div id="library-menu" class="library-menu hidden">
+      <button id="library-backup-btn">Export Library</button>
+      <button id="library-import-btn">Import Library</button>
+      <button id="library-delete-btn">Delete Library</button>
+    </div>
+  </div>
+
+  <script src="/static/abcjs-basic-min.js"></script>
+  <script src="/static/app.js?v=64"></script>
+  <script src="/static/mobile.js?v=1"></script>
+</body>
+</html>

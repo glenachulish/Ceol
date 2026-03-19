@@ -2329,3 +2329,11 @@ def serve_index():
         str(FRONTEND_DIR / "index.html"),
         headers={"Cache-Control": "no-store, must-revalidate"},
     )
+
+
+@app.get("/mobile")
+def serve_mobile():
+    return FileResponse(
+        str(FRONTEND_DIR / "mobile.html"),
+        headers={"Cache-Control": "no-store, must-revalidate"},
+    )
