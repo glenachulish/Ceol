@@ -27,8 +27,9 @@ const selectModeBtn    = document.getElementById("select-mode-btn");
 const bulkBar          = document.getElementById("bulk-bar");
 const bulkCount        = document.getElementById("bulk-count");
 const bulkSelectAllBtn = document.getElementById("bulk-select-all-btn");
-const bulkMergeBtn     = document.getElementById("bulk-merge-btn");
-const bulkDeleteBtn    = document.getElementById("bulk-delete-btn");
+const bulkMergeBtn          = document.getElementById("bulk-merge-btn");
+const bulkAddCollectionBtn  = document.getElementById("bulk-add-collection-btn");
+const bulkDeleteBtn         = document.getElementById("bulk-delete-btn");
 const bulkCancelBtn    = document.getElementById("bulk-cancel-btn");
 const tuneList         = document.getElementById("tune-list");
 const pagination    = document.getElementById("pagination");
@@ -102,6 +103,7 @@ function _updateBulkBar() {
   bulkCount.textContent = `${n} selected`;
   bulkDeleteBtn.disabled = n === 0;
   bulkMergeBtn.disabled = n < 2;
+  bulkAddCollectionBtn.disabled = n === 0;
   const total = tuneList.querySelectorAll(".tune-card").length;
   bulkSelectAllBtn.textContent = (n > 0 && n === total) ? "Deselect all" : "Select all";
 }
@@ -157,6 +159,76 @@ bulkDeleteBtn.addEventListener("click", async () => {
     bulkDeleteBtn.disabled = false;
     bulkDeleteBtn.textContent = "Delete selected";
   }
+});
+
+// ── Bulk add to collection ────────────────────────────────────────────────────
+
+bulkAddCollectionBtn.addEventListener("click", async () => {
+  const ids = [..._selectedIds].map(Number);
+  if (!ids.length) return;
+
+  const cols = await apiFetch("/api/collections").then(r => r.json());
+
+  if (!cols.length) {
+    modalContent.innerHTML = `
+      <h2 class="modal-title">Add to Collection</h2>
+      <p>You have no collections yet. Go to the <strong>Collections</strong> tab to create one first.</p>
+      <div class="notes-actions" style="margin-top:1rem">
+        <button id="bulk-col-cancel" class="btn-secondary">Close</button>
+      </div>`;
+    modalOverlay.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+    document.getElementById("bulk-col-cancel").addEventListener("click", closeModal);
+    return;
+  }
+
+  const options = cols.map(c =>
+    `<label class="bulk-col-option">
+       <input type="radio" name="bulk-col" value="${c.id}" />
+       ${escHtml(c.name)}
+     </label>`
+  ).join("");
+
+  modalContent.innerHTML = `
+    <h2 class="modal-title">Add ${ids.length} tune${ids.length !== 1 ? "s" : ""} to Collection</h2>
+    <div class="bulk-col-list">${options}</div>
+    <div class="notes-actions" style="margin-top:1.25rem">
+      <button id="bulk-col-confirm" class="btn-primary" disabled>Add to Collection</button>
+      <button id="bulk-col-cancel" class="btn-secondary">Cancel</button>
+      <span id="bulk-col-status" class="notes-status"></span>
+    </div>`;
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+
+  const confirmBtn = document.getElementById("bulk-col-confirm");
+  modalContent.querySelectorAll("input[name=bulk-col]").forEach(radio => {
+    radio.addEventListener("change", () => { confirmBtn.disabled = false; });
+  });
+  document.getElementById("bulk-col-cancel").addEventListener("click", closeModal);
+
+  confirmBtn.addEventListener("click", async () => {
+    const selected = modalContent.querySelector("input[name=bulk-col]:checked");
+    if (!selected) return;
+    const colId = Number(selected.value);
+    const status = document.getElementById("bulk-col-status");
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Adding…";
+    try {
+      await Promise.all(ids.map(id =>
+        apiFetch(`/api/collections/${colId}/tunes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tune_id: id }),
+        })
+      ));
+      status.textContent = `Added ${ids.length} tune${ids.length !== 1 ? "s" : ""}.`;
+      setTimeout(() => { closeModal(); _exitSelectMode(); }, 800);
+    } catch {
+      status.textContent = "Failed — please try again.";
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Add to Collection";
+    }
+  });
 });
 
 // ── Group tunes as versions ───────────────────────────────────────────────────

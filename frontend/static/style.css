@@ -662,6 +662,10 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .pdf-link-hint a { color: var(--reel); }
 
 /* ── Merge form ───────────────────────────────────────────── */
+.bulk-col-list { display: flex; flex-direction: column; gap: .4rem; margin: 1rem 0; max-height: 50vh; overflow-y: auto; }
+.bulk-col-option { display: flex; align-items: center; gap: .55rem; padding: .45rem .6rem; border-radius: 6px; cursor: pointer; }
+.bulk-col-option:hover { background: var(--bg-alt, #f4f4f4); }
+.bulk-col-option input { cursor: pointer; }
 .merge-form {
   display: flex;
   flex-direction: column;
