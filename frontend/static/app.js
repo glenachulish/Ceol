@@ -1835,7 +1835,8 @@ function buildTransitionAbc(tuneA, tuneB) {
   const key   = ((tuneA.abc || "").match(/^K:\s*(.+)$/m) || [])[1]?.trim() || "C";
   const meter = ((tuneA.abc || "").match(/^M:\s*(.+)$/m) || [])[1]?.trim() || "4/4";
   const len   = ((tuneA.abc || "").match(/^L:\s*(.+)$/m) || [])[1]?.trim() || "1/8";
-  return `X:1\nT:${tuneA.title} TRANSITION ${tuneB.title}\nM:${meter}\nL:${len}\nK:${key}\n|${[...lastTwo, ...firstTwo].join("|")}|`;
+  // Explicit newline between the two groups forces ABCJS to put each on its own staff line
+  return `X:1\nT:${tuneA.title} TRANSITION ${tuneB.title}\nM:${meter}\nL:${len}\nK:${key}\n|${lastTwo.join("|")}|\n|${firstTwo.join("|")}|`;
 }
 
 function buildFullSetAbc(tunes) {
@@ -1861,8 +1862,6 @@ function openSetMusicModal(title, abc, isTransition = false) {
     try {
       const visualObjs = ABCJS.renderAbc("set-music-render", expandAbcRepeats(abc), {
         responsive: "resize",
-        wrap: { preferredMeasuresPerLine: 3 },
-        staffwidth: 680,
         add_classes: true,
         paddingbottom: 20,
         paddingleft: 20,
