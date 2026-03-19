@@ -1236,12 +1236,10 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    // Use actual container width so abcjs wraps bars correctly.
-    // container.offsetWidth is reliable here because the modal is already open.
+    // Pass actual container width as a %%staffwidth directive inside the ABC.
+    // This is more reliable than the staffwidth render option + wrap algorithm.
     const staffwidth = Math.max(200, (container.offsetWidth || 560) - 32);
-    const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
-      staffwidth,
-      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
+    const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc, staffwidth), {
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1250,17 +1248,6 @@ function renderSheetMusic(abc) {
       selectTypes: false,
       foregroundColor: "#000000",
     });
-
-    // Safety: if the SVG is wider than the container, add viewBox so it scales down.
-    const svg = document.querySelector("#sheet-music-render svg");
-    if (svg) {
-      const svgW = parseFloat(svg.getAttribute("width") || "0");
-      if (svgW > container.offsetWidth) {
-        svg.setAttribute("viewBox", `0 0 ${svgW} ${svg.getAttribute("height") || svgW}`);
-        svg.setAttribute("width", "100%");
-        svg.removeAttribute("height");
-      }
-    }
 
     _visualObj = visualObjs[0];
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
@@ -1346,34 +1333,29 @@ function renderSheetMusic(abc) {
 }
 
 // Prepare ABC for rendering.
-// TheSession tunes use bare ! as linebreak markers between phrases.
-// ABCJS breaks staff lines at source newlines by default, so we convert
-// ! → \n. Repeat barlines (|:, :|) are left intact for correct display.
-// If a tune has no ! markers we fall back to inserting \n every 4 bars.
-function expandAbcRepeats(abc) {
+// Injects %%staffwidth and %%barsperline as ABC directives so abcjs handles
+// layout natively — no DOM timing issues, no wrap algorithm fragility.
+// TheSession tunes use bare ! as linebreak markers; we convert those to \n
+// and rely on abcjs honouring source line-breaks at the given staffwidth.
+function expandAbcRepeats(abc, staffwidth) {
   const kIdx = abc.search(/^K:/m);
   if (kIdx < 0) return abc;
   const kEnd = abc.indexOf('\n', kIdx);
   if (kEnd < 0) return abc;
   const header = abc.slice(0, kEnd + 1);
   let body = abc.slice(kEnd + 1).trim();
+
+  let directives = staffwidth ? `%%staffwidth ${Math.round(staffwidth)}\n` : '';
+
   if (body.includes('!')) {
-    // Convert TheSession linebreak markers to actual newlines.
+    // TheSession: explicit line-break markers → newlines; staffwidth controls staff width.
     body = body.replace(/\s*!\s*/g, '\n');
   } else {
-    body = _insertLineBreaks(body, 4);
+    // No explicit breaks: ask abcjs to place 4 bars per line automatically.
+    directives += '%%barsperline 4\n';
   }
-  return header + body;
-}
 
-// Fallback: insert \n after every nth measure-ending barline
-// (:| , ||, plain |) so ABCJS wraps to a new staff line.
-function _insertLineBreaks(body, barsPerLine) {
-  let count = 0;
-  return body.replace(/:\||[|]{2}|\|(?!:)/g, (match) => {
-    count++;
-    return count % barsPerLine === 0 ? match + '\n' : match;
-  });
+  return header + directives + body;
 }
 
 function renderPreviewMusic(abc) {
@@ -1389,9 +1371,7 @@ function renderPreviewMusic(abc) {
 
   try {
     const staffwidth = Math.max(200, (container.offsetWidth || 560) - 32);
-    const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
-      staffwidth,
-      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
+    const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc, staffwidth), {
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
