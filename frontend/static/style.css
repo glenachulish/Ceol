@@ -458,13 +458,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   border-bottom: 1px solid var(--border);
 }
 .set-tune-row:last-child { border-bottom: none; }
-.set-tune-row.dragging { opacity: .4; }
-.set-tune-row.drag-over { background: var(--surface2); border-radius: var(--radius); }
-.set-drag-handle {
-  cursor: grab; color: var(--text-muted); font-size: 1rem;
-  padding: 0 .2rem; user-select: none;
-}
-.set-drag-handle:active { cursor: grabbing; }
 .set-tune-pos { color: var(--text-muted); font-size: .8rem; min-width: 1.5rem; }
 .set-tune-title { flex: 1; font-size: .9rem; }
 button.set-tune-title {

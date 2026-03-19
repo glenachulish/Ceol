@@ -1916,8 +1916,9 @@ function renderSets(sets) {
   function _renderSetTunes(tunesDiv, id, tunes) {
     // Tune rows (draggable)
     tunesDiv.innerHTML = tunes.map((t, i) => `
-      <div class="set-tune-row" draggable="true" data-tune-id="${t.id}">
-        <span class="set-drag-handle" title="Drag to reorder">⠿</span>
+      <div class="set-tune-row" data-tune-id="${t.id}">
+        <button class="set-move-up btn-icon" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
+        <button class="set-move-down btn-icon" title="Move down" ${i === tunes.length - 1 ? "disabled" : ""}>↓</button>
         <span class="set-tune-pos">${i + 1}.</span>
         <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
         <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
@@ -1988,40 +1989,36 @@ function renderSets(sets) {
       });
     });
 
-    // Drag-and-drop reordering
-    let _dragSrc = null;
-    tunesDiv.querySelectorAll(".set-tune-row[draggable]").forEach(row => {
-      row.addEventListener("dragstart", e => {
-        _dragSrc = row;
-        row.classList.add("dragging");
-        e.dataTransfer.effectAllowed = "move";
+    // Up/down reordering
+    function _reorderRows() {
+      const rows = [...tunesDiv.querySelectorAll(".set-tune-row")];
+      rows.forEach((r, i) => {
+        r.querySelector(".set-tune-pos").textContent = `${i + 1}.`;
+        r.querySelector(".set-move-up").disabled = i === 0;
+        r.querySelector(".set-move-down").disabled = i === rows.length - 1;
       });
-      row.addEventListener("dragend", () => {
-        row.classList.remove("dragging");
-        tunesDiv.querySelectorAll(".set-tune-row").forEach(r => r.classList.remove("drag-over"));
-      });
-      row.addEventListener("dragover", e => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        if (row !== _dragSrc) {
-          tunesDiv.querySelectorAll(".set-tune-row").forEach(r => r.classList.remove("drag-over"));
-          row.classList.add("drag-over");
+      const newOrder = rows.map(r => Number(r.dataset.tuneId));
+      apiReorderSetTunes(id, newOrder).catch(() => {});
+    }
+
+    tunesDiv.querySelectorAll(".set-move-up").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const row = btn.closest(".set-tune-row");
+        const prev = row.previousElementSibling;
+        if (prev && prev.classList.contains("set-tune-row")) {
+          prev.before(row);
+          _reorderRows();
         }
       });
-      row.addEventListener("drop", async e => {
-        e.preventDefault();
-        if (!_dragSrc || _dragSrc === row) return;
-        const rows = [...tunesDiv.querySelectorAll(".set-tune-row[draggable]")];
-        const srcIdx = rows.indexOf(_dragSrc);
-        const tgtIdx = rows.indexOf(row);
-        if (srcIdx < tgtIdx) row.after(_dragSrc); else row.before(_dragSrc);
-        // Renumber positions
-        tunesDiv.querySelectorAll(".set-tune-row[draggable]").forEach((r, i) => {
-          const posEl = r.querySelector(".set-tune-pos");
-          if (posEl) posEl.textContent = `${i + 1}.`;
-        });
-        const newOrder = [...tunesDiv.querySelectorAll(".set-tune-row[draggable]")].map(r => Number(r.dataset.tuneId));
-        try { await apiReorderSetTunes(id, newOrder); } catch { /* non-critical */ }
+    });
+    tunesDiv.querySelectorAll(".set-move-down").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const row = btn.closest(".set-tune-row");
+        const next = row.nextElementSibling;
+        if (next && next.classList.contains("set-tune-row")) {
+          next.after(row);
+          _reorderRows();
+        }
       });
     });
   }
