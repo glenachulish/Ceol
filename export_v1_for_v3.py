@@ -78,37 +78,43 @@ def main() -> None:
     data: dict = {}
 
     # ── tunes (add source_url, clean TheCraic metadata from ABC) ─────────────
-    tunes_raw = conn.execute("""
-        SELECT id, craic_id, session_id, title, type, key, mode, abc, notes,
-               imported_at, created_at, updated_at,
-               parent_id, version_label, rating, on_hitlist
-        FROM tunes ORDER BY id
-    """).fetchall()
+    # Discover which columns actually exist (schema varies across v1 versions)
+    existing_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(tunes)").fetchall()
+    }
+
+    def col(row, name, default=None):
+        return row[name] if name in existing_cols else default
+
+    tunes_raw = conn.execute("SELECT * FROM tunes ORDER BY id").fetchall()
 
     tunes_out = []
     for t in tunes_raw:
-        clean_ab, source_url = clean_abc(t["abc"])
+        clean_ab, source_url = clean_abc(col(t, "abc", "") or "")
         tunes_out.append({
             "id":            t["id"],
-            "craic_id":      t["craic_id"],
-            "session_id":    t["session_id"],
+            "craic_id":      col(t, "craic_id"),
+            "session_id":    col(t, "session_id"),
             "title":         t["title"],
-            "type":          t["type"],
-            "key":           t["key"],
-            "mode":          t["mode"],
-            "abc":           clean_ab,
-            "notes":         t["notes"] or None,
+            "type":          col(t, "type"),
+            "key":           col(t, "key"),
+            "mode":          col(t, "mode"),
+            "abc":           clean_ab or None,
+            "notes":         col(t, "notes") or None,
             "source_url":    source_url,
-            "imported_at":   t["imported_at"],
-            "created_at":    t["created_at"],
-            "updated_at":    t["updated_at"],
-            "parent_id":     t["parent_id"],
-            "version_label": t["version_label"] or "",
-            "rating":        t["rating"] or 0,
-            "on_hitlist":    t["on_hitlist"] or 0,
+            "imported_at":   col(t, "imported_at"),
+            "created_at":    col(t, "created_at"),
+            "updated_at":    col(t, "updated_at"),
+            "parent_id":     col(t, "parent_id"),
+            "version_label": col(t, "version_label") or "",
+            "rating":        col(t, "rating") or 0,
+            "on_hitlist":    col(t, "on_hitlist") or 0,
         })
     data["tunes"] = tunes_out
     print(f"  tunes:          {len(tunes_out)}")
+    if existing_cols:
+        print(f"  (columns found: {', '.join(sorted(existing_cols))})")
 
     # ── remaining tables copied as-is ─────────────────────────────────────────
     for table in ["tune_aliases", "tags", "tune_tags", "sets", "set_tunes",
