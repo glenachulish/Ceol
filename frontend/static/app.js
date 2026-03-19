@@ -1914,7 +1914,33 @@ function renderSets(sets) {
   `).join("");
 
   function _renderSetTunes(tunesDiv, id, tunes) {
-    // Tune rows (draggable)
+    // Build a lookup map so transitions can be rebuilt after reordering
+    const tuneMap = new Map(tunes.map(t => [String(t.id), t]));
+
+    function _rebuildTransitions() {
+      tunesDiv.querySelectorAll(".set-transition-row").forEach(r => r.remove());
+      const rows = [...tunesDiv.querySelectorAll(".set-tune-row")];
+      const footer = tunesDiv.querySelector(".set-add-tune-row");
+      for (let i = 0; i < rows.length - 1; i++) {
+        const a = tuneMap.get(rows[i].dataset.tuneId);
+        const b = tuneMap.get(rows[i + 1].dataset.tuneId);
+        if (!a?.abc || !b?.abc) continue;
+        const transAbc = buildTransitionAbc(a, b);
+        if (!transAbc) continue;
+        const tr = document.createElement("div");
+        tr.className = "set-transition-row";
+        tr.innerHTML = `
+          <span class="set-transition-label">${escHtml(a.title)} <em>TRANSITION</em> ${escHtml(b.title)}</span>
+          <button class="btn-secondary btn-sm set-transition-play-btn">Play</button>
+          <button class="btn-secondary btn-sm set-transition-music-btn">Music</button>`;
+        if (footer) footer.before(tr); else tunesDiv.appendChild(tr);
+        const open = () => openSetMusicModal(`${a.title} TRANSITION ${b.title}`, transAbc);
+        tr.querySelector(".set-transition-play-btn").addEventListener("click", open);
+        tr.querySelector(".set-transition-music-btn").addEventListener("click", open);
+      }
+    }
+
+    // Tune rows
     tunesDiv.innerHTML = tunes.map((t, i) => `
       <div class="set-tune-row" data-tune-id="${t.id}">
         <button class="set-move-up btn-icon" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
@@ -1928,35 +1954,7 @@ function renderSets(sets) {
       </div>
     `).join("");
 
-    // Transition rows
-    for (let i = 0; i < tunes.length - 1; i++) {
-      const a = tunes[i], b = tunes[i + 1];
-      if (a.abc && b.abc) {
-        const transAbc = buildTransitionAbc(a, b);
-        if (transAbc) {
-          const tr = document.createElement("div");
-          tr.className = "set-transition-row";
-          tr.innerHTML = `
-            <span class="set-transition-label">${escHtml(a.title)} <em>TRANSITION</em> ${escHtml(b.title)}</span>
-            <button class="btn-secondary btn-sm set-transition-play-btn">Play</button>
-            <button class="btn-secondary btn-sm set-transition-music-btn">Music</button>`;
-          tunesDiv.appendChild(tr);
-          tr.querySelector(".set-transition-play-btn").addEventListener("click", () => {
-            openSetMusicModal(`${a.title} TRANSITION ${b.title}`, transAbc);
-            // After modal renders, trigger audio
-            requestAnimationFrame(() => {
-              const playBtn = modalContent.querySelector("#set-music-render");
-              if (playBtn && typeof ABCJS !== "undefined" && ABCJS.synth?.supportsAudio()) {
-                // auto-start would require more setup; just show music for now
-              }
-            });
-          });
-          tr.querySelector(".set-transition-music-btn").addEventListener("click", () => {
-            openSetMusicModal(`${a.title} TRANSITION ${b.title}`, transAbc);
-          });
-        }
-      }
-    }
+    _rebuildTransitions();
 
     // Clickable tune titles
     tunesDiv.querySelectorAll(".tune-open-btn").forEach(tb => {
@@ -1997,6 +1995,7 @@ function renderSets(sets) {
         r.querySelector(".set-move-up").disabled = i === 0;
         r.querySelector(".set-move-down").disabled = i === rows.length - 1;
       });
+      _rebuildTransitions();
       const newOrder = rows.map(r => Number(r.dataset.tuneId));
       apiReorderSetTunes(id, newOrder).catch(() => {});
     }
