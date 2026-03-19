@@ -28,6 +28,7 @@ const bulkBar          = document.getElementById("bulk-bar");
 const bulkCount        = document.getElementById("bulk-count");
 const bulkSelectAllBtn = document.getElementById("bulk-select-all-btn");
 const bulkMergeBtn          = document.getElementById("bulk-merge-btn");
+const bulkAddSetBtn         = document.getElementById("bulk-add-set-btn");
 const bulkAddCollectionBtn  = document.getElementById("bulk-add-collection-btn");
 const bulkDeleteBtn         = document.getElementById("bulk-delete-btn");
 const bulkCancelBtn         = document.getElementById("bulk-cancel-btn");
@@ -103,6 +104,7 @@ function _updateBulkBar() {
   bulkCount.textContent = `${n} selected`;
   bulkDeleteBtn.disabled = n === 0;
   bulkMergeBtn.disabled = n < 2;
+  bulkAddSetBtn.disabled = n === 0;
   bulkAddCollectionBtn.disabled = n === 0;
   const total = tuneList.querySelectorAll(".tune-card").length;
   bulkSelectAllBtn.textContent = (n > 0 && n === total) ? "Deselect all" : "Select all";
@@ -160,6 +162,88 @@ bulkDeleteBtn.addEventListener("click", async () => {
     bulkDeleteBtn.disabled = false;
     bulkDeleteBtn.textContent = "Delete selected";
   }
+});
+
+// ── Bulk add to set ───────────────────────────────────────────────────────────
+
+bulkAddSetBtn.addEventListener("click", async () => {
+  const ids = [..._selectedIds].map(Number);
+  if (!ids.length) return;
+
+  const sets = await apiFetch("/api/sets");
+
+  const existingOptions = sets.map(s =>
+    `<label class="bulk-col-option">
+       <input type="radio" name="bulk-set" value="${s.id}" />
+       ${escHtml(s.name)}
+     </label>`
+  ).join("");
+
+  modalContent.innerHTML = `
+    <h2 class="modal-title">Add ${ids.length} tune${ids.length !== 1 ? "s" : ""} to Set</h2>
+    <div class="bulk-col-list">
+      ${existingOptions}
+      <label class="bulk-col-option">
+        <input type="radio" name="bulk-set" value="__new__" />
+        <em>Create new set…</em>
+      </label>
+    </div>
+    <div id="bulk-set-new-form" class="hidden" style="margin-top:.75rem">
+      <input id="bulk-set-new-name" type="text" class="ff-url-input" placeholder="Set name" />
+    </div>
+    <div class="notes-actions" style="margin-top:1.25rem">
+      <button id="bulk-set-confirm" class="btn-primary" disabled>Add to Set</button>
+      <button id="bulk-set-cancel" class="btn-secondary">Cancel</button>
+      <span id="bulk-set-status" class="notes-status"></span>
+    </div>`;
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+
+  const confirmBtn = document.getElementById("bulk-set-confirm");
+  const newForm = document.getElementById("bulk-set-new-form");
+  const newNameInput = document.getElementById("bulk-set-new-name");
+
+  modalContent.querySelectorAll("input[name=bulk-set]").forEach(radio => {
+    radio.addEventListener("change", () => {
+      confirmBtn.disabled = false;
+      newForm.classList.toggle("hidden", radio.value !== "__new__");
+      if (radio.value === "__new__") newNameInput.focus();
+    });
+  });
+  document.getElementById("bulk-set-cancel").addEventListener("click", closeModal);
+
+  confirmBtn.addEventListener("click", async () => {
+    const selected = modalContent.querySelector("input[name=bulk-set]:checked");
+    if (!selected) return;
+    const status = document.getElementById("bulk-set-status");
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Adding…";
+    try {
+      let setId;
+      if (selected.value === "__new__") {
+        const name = newNameInput.value.trim();
+        if (!name) { newNameInput.focus(); confirmBtn.disabled = false; confirmBtn.textContent = "Add to Set"; return; }
+        const created = await apiCreateSet(name, "");
+        setId = created.id;
+        state.sets.push({ ...created, tune_count: 0 });
+      } else {
+        setId = Number(selected.value);
+      }
+      await Promise.all(ids.map(id =>
+        apiFetch(`/api/sets/${setId}/tunes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tune_id: id }),
+        })
+      ));
+      status.textContent = `Added ${ids.length} tune${ids.length !== 1 ? "s" : ""}.`;
+      setTimeout(() => { closeModal(); _exitSelectMode(); }, 800);
+    } catch {
+      status.textContent = "Failed — please try again.";
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Add to Set";
+    }
+  });
 });
 
 // ── Bulk add to collection ────────────────────────────────────────────────────
@@ -427,6 +511,14 @@ async function apiAddTuneToSet(setId, tuneId) {
 
 async function apiRemoveTuneFromSet(setId, tuneId) {
   return apiFetch(`/api/sets/${setId}/tunes/${tuneId}`, { method: "DELETE" });
+}
+
+async function apiReorderSetTunes(setId, orderedTuneIds) {
+  return apiFetch(`/api/sets/${setId}/tunes/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ order: orderedTuneIds }),
+  });
 }
 
 async function fetchCollections() {
@@ -1721,6 +1813,56 @@ function showSessionPreview(tuneData) {
   requestAnimationFrame(() => renderPreviewMusic(tuneData.abc));
 }
 
+// ── ABC utilities for sets ────────────────────────────────────────────────────
+
+function extractBars(abc) {
+  if (!abc) return [];
+  const kMatch = abc.match(/^K:[^\n]*/m);
+  if (!kMatch) return [];
+  let music = abc.slice(abc.indexOf(kMatch[0]) + kMatch[0].length);
+  music = music.replace(/^[A-Za-z]:[^\n]*/gm, "").replace(/%[^\n]*/g, "").replace(/\s+/g, " ").trim();
+  return music.split("|")
+    .map(b => b.replace(/^[:\[\]]+/, "").replace(/[:\[\]]+$/, "").trim())
+    .filter(b => b.length > 0);
+}
+
+function buildTransitionAbc(tuneA, tuneB) {
+  const barsA = extractBars(tuneA.abc);
+  const barsB = extractBars(tuneB.abc);
+  if (!barsA.length || !barsB.length) return null;
+  const lastTwo = barsA.slice(Math.max(0, barsA.length - 2));
+  const firstTwo = barsB.slice(0, Math.min(2, barsB.length));
+  const key   = ((tuneA.abc || "").match(/^K:\s*(.+)$/m) || [])[1]?.trim() || "C";
+  const meter = ((tuneA.abc || "").match(/^M:\s*(.+)$/m) || [])[1]?.trim() || "4/4";
+  const len   = ((tuneA.abc || "").match(/^L:\s*(.+)$/m) || [])[1]?.trim() || "1/8";
+  return `X:1\nT:${tuneA.title} TRANSITION ${tuneB.title}\nM:${meter}\nL:${len}\nK:${key}\n|${[...lastTwo, ...firstTwo].join("|")}|`;
+}
+
+function buildFullSetAbc(tunes) {
+  return tunes.filter(t => t.abc).map((t, i) =>
+    t.abc.replace(/^X:\s*\d+/m, `X:${i + 1}`)
+  ).join("\n\n");
+}
+
+function openSetMusicModal(title, abc) {
+  modalContent.innerHTML = `
+    <h2 class="modal-title">${escHtml(title)}</h2>
+    <div id="set-music-render" style="margin-top:.75rem"></div>`;
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  requestAnimationFrame(() => {
+    if (typeof ABCJS !== "undefined") {
+      ABCJS.renderAbc("set-music-render", expandAbcRepeats(abc), {
+        responsive: "resize",
+        wrap: { preferredMeasuresPerLine: 4 },
+        add_classes: true,
+        paddingbottom: 10,
+      });
+      _patchSvgViewBox("set-music-render");
+    }
+  });
+}
+
 function renderSets(sets) {
   if (!sets.length) {
     setsList.innerHTML = '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
@@ -1736,6 +1878,7 @@ function renderSets(sets) {
         </div>
         <div class="set-card-actions">
           <button class="btn-secondary set-expand-btn" data-set-id="${s.id}">View</button>
+          <button class="btn-secondary set-music-btn" data-set-id="${s.id}" title="View full set sheet music">Sheet music</button>
           <button class="btn-danger set-delete-btn" data-set-id="${s.id}" title="Delete set">✕</button>
         </div>
       </div>
@@ -1743,6 +1886,119 @@ function renderSets(sets) {
       <div class="set-tunes-list hidden" id="set-tunes-${s.id}"></div>
     </div>
   `).join("");
+
+  function _renderSetTunes(tunesDiv, id, tunes) {
+    // Tune rows (draggable)
+    tunesDiv.innerHTML = tunes.map((t, i) => `
+      <div class="set-tune-row" draggable="true" data-tune-id="${t.id}">
+        <span class="set-drag-handle" title="Drag to reorder">⠿</span>
+        <span class="set-tune-pos">${i + 1}.</span>
+        <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
+        <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+        <span class="badge badge-key">${escHtml(t.key || "")}</span>
+        <button class="btn-icon remove-from-set"
+          data-set-id="${id}" data-tune-id="${t.id}" title="Remove">✕</button>
+      </div>
+    `).join("");
+
+    // Transition rows
+    for (let i = 0; i < tunes.length - 1; i++) {
+      const a = tunes[i], b = tunes[i + 1];
+      if (a.abc && b.abc) {
+        const transAbc = buildTransitionAbc(a, b);
+        if (transAbc) {
+          const tr = document.createElement("div");
+          tr.className = "set-transition-row";
+          tr.innerHTML = `
+            <span class="set-transition-label">${escHtml(a.title)} <em>TRANSITION</em> ${escHtml(b.title)}</span>
+            <button class="btn-secondary btn-sm set-transition-play-btn">Play</button>
+            <button class="btn-secondary btn-sm set-transition-music-btn">Music</button>`;
+          tunesDiv.appendChild(tr);
+          tr.querySelector(".set-transition-play-btn").addEventListener("click", () => {
+            openSetMusicModal(`${a.title} TRANSITION ${b.title}`, transAbc);
+            // After modal renders, trigger audio
+            requestAnimationFrame(() => {
+              const playBtn = modalContent.querySelector("#set-music-render");
+              if (playBtn && typeof ABCJS !== "undefined" && ABCJS.synth?.supportsAudio()) {
+                // auto-start would require more setup; just show music for now
+              }
+            });
+          });
+          tr.querySelector(".set-transition-music-btn").addEventListener("click", () => {
+            openSetMusicModal(`${a.title} TRANSITION ${b.title}`, transAbc);
+          });
+        }
+      }
+    }
+
+    // Clickable tune titles
+    tunesDiv.querySelectorAll(".tune-open-btn").forEach(tb => {
+      tb.addEventListener("click", async () => {
+        await Promise.all([fetchSets(), fetchCollections()]);
+        const tune = await fetchTune(tb.dataset.tuneId);
+        renderModal(tune);
+        modalOverlay.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+      });
+    });
+
+    // Remove buttons
+    tunesDiv.querySelectorAll(".remove-from-set").forEach(rb => {
+      rb.addEventListener("click", async () => {
+        rb.disabled = true;
+        try {
+          await apiRemoveTuneFromSet(rb.dataset.setId, rb.dataset.tuneId);
+          rb.closest(".set-tune-row").remove();
+          const set = state.sets.find(s => String(s.id) === String(id));
+          if (set) {
+            set.tune_count = Math.max(0, (set.tune_count || 1) - 1);
+            const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
+            if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
+          }
+        } catch {
+          alert("Failed to remove tune. Please try again.");
+          rb.disabled = false;
+        }
+      });
+    });
+
+    // Drag-and-drop reordering
+    let _dragSrc = null;
+    tunesDiv.querySelectorAll(".set-tune-row[draggable]").forEach(row => {
+      row.addEventListener("dragstart", e => {
+        _dragSrc = row;
+        row.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      });
+      row.addEventListener("dragend", () => {
+        row.classList.remove("dragging");
+        tunesDiv.querySelectorAll(".set-tune-row").forEach(r => r.classList.remove("drag-over"));
+      });
+      row.addEventListener("dragover", e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (row !== _dragSrc) {
+          tunesDiv.querySelectorAll(".set-tune-row").forEach(r => r.classList.remove("drag-over"));
+          row.classList.add("drag-over");
+        }
+      });
+      row.addEventListener("drop", async e => {
+        e.preventDefault();
+        if (!_dragSrc || _dragSrc === row) return;
+        const rows = [...tunesDiv.querySelectorAll(".set-tune-row[draggable]")];
+        const srcIdx = rows.indexOf(_dragSrc);
+        const tgtIdx = rows.indexOf(row);
+        if (srcIdx < tgtIdx) row.after(_dragSrc); else row.before(_dragSrc);
+        // Renumber positions
+        tunesDiv.querySelectorAll(".set-tune-row[draggable]").forEach((r, i) => {
+          const posEl = r.querySelector(".set-tune-pos");
+          if (posEl) posEl.textContent = `${i + 1}.`;
+        });
+        const newOrder = [...tunesDiv.querySelectorAll(".set-tune-row[draggable]")].map(r => Number(r.dataset.tuneId));
+        try { await apiReorderSetTunes(id, newOrder); } catch { /* non-critical */ }
+      });
+    });
+  }
 
   setsList.querySelectorAll(".set-expand-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -1754,42 +2010,25 @@ function renderSets(sets) {
         btn.textContent = "Hide";
         const setData = await apiGetSet(id);
         if (!setData.tunes || !setData.tunes.length) {
-          tunesDiv.innerHTML = '<p class="set-empty">No tunes yet – open a tune and use "Add to set".</p>';
+          tunesDiv.innerHTML = '<p class="set-empty">No tunes yet – open a tune or use "Add to set".</p>';
         } else {
-          tunesDiv.innerHTML = setData.tunes.map((t, i) => `
-            <div class="set-tune-row">
-              <span class="set-tune-pos">${i + 1}.</span>
-              <span class="set-tune-title">${escHtml(t.title)}</span>
-              <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
-              <span class="badge badge-key">${escHtml(t.key || "")}</span>
-              <button class="btn-icon remove-from-set"
-                data-set-id="${id}" data-tune-id="${t.id}" title="Remove">✕</button>
-            </div>
-          `).join("");
-
-          tunesDiv.querySelectorAll(".remove-from-set").forEach(rb => {
-            rb.addEventListener("click", async () => {
-              rb.disabled = true;
-              try {
-                await apiRemoveTuneFromSet(rb.dataset.setId, rb.dataset.tuneId);
-                rb.closest(".set-tune-row").remove();
-                const set = state.sets.find(s => String(s.id) === String(id));
-                if (set) {
-                  set.tune_count = Math.max(0, (set.tune_count || 1) - 1);
-                  const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
-                  if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
-                }
-              } catch {
-                alert("Failed to remove tune. Please try again.");
-                rb.disabled = false;
-              }
-            });
-          });
+          _renderSetTunes(tunesDiv, id, setData.tunes);
         }
       } else {
         tunesDiv.classList.add("hidden");
         btn.textContent = "View";
       }
+    });
+  });
+
+  // Full set sheet music
+  setsList.querySelectorAll(".set-music-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.setId;
+      const setData = await apiGetSet(id);
+      const tunes = (setData.tunes || []).filter(t => t.abc);
+      if (!tunes.length) { alert("No ABC notation found for tunes in this set."); return; }
+      openSetMusicModal(setData.name, buildFullSetAbc(tunes));
     });
   });
 

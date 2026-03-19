@@ -458,6 +458,13 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   border-bottom: 1px solid var(--border);
 }
 .set-tune-row:last-child { border-bottom: none; }
+.set-tune-row.dragging { opacity: .4; }
+.set-tune-row.drag-over { background: var(--surface2); border-radius: var(--radius); }
+.set-drag-handle {
+  cursor: grab; color: var(--text-muted); font-size: 1rem;
+  padding: 0 .2rem; user-select: none;
+}
+.set-drag-handle:active { cursor: grabbing; }
 .set-tune-pos { color: var(--text-muted); font-size: .8rem; min-width: 1.5rem; }
 .set-tune-title { flex: 1; font-size: .9rem; }
 button.set-tune-title {
@@ -465,6 +472,22 @@ button.set-tune-title {
   color: var(--accent); cursor: pointer; font-family: inherit;
 }
 button.set-tune-title:hover { text-decoration: underline; }
+.set-transition-row {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .3rem .4rem .3rem 1.8rem;
+  margin: .25rem 0;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  border-left: 3px solid var(--accent);
+}
+.set-transition-label {
+  flex: 1;
+  font-size: .82rem;
+  color: var(--text-muted);
+}
+.set-transition-label em { font-style: normal; font-weight: 600; color: var(--accent); }
 .set-empty { color: var(--text-muted); font-size: .85rem; font-style: italic; padding: .5rem 0; }
 
 /* ── Modal ────────────────────────────────────────────────── */

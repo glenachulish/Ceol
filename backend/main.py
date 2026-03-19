@@ -418,6 +418,10 @@ class SetTuneAdd(BaseModel):
     tune_id: int
 
 
+class SetReorder(BaseModel):
+    order: list[int]  # tune_ids in new order
+
+
 @app.get("/api/sets")
 def list_sets():
     with _db() as conn:
@@ -455,7 +459,7 @@ def get_set(set_id: int):
             raise HTTPException(404, "Set not found")
         tunes = conn.execute(
             """
-            SELECT t.id, t.title, t.type, t.key, t.mode, st.position, st.key_override
+            SELECT t.id, t.title, t.type, t.key, t.mode, t.abc, st.position, st.key_override
             FROM set_tunes st
             JOIN tunes t ON t.id = st.tune_id
             WHERE st.set_id = ?
@@ -510,6 +514,17 @@ def remove_tune_from_set(set_id: int, tune_id: int):
         )
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Tune not in set")
+    return {"ok": True}
+
+
+@app.put("/api/sets/{set_id}/tunes/reorder")
+def reorder_set_tunes(set_id: int, body: SetReorder):
+    with _db() as conn:
+        for pos, tune_id in enumerate(body.order):
+            conn.execute(
+                "UPDATE set_tunes SET position=? WHERE set_id=? AND tune_id=?",
+                (pos, set_id, tune_id),
+            )
     return {"ok": True}
 
 
