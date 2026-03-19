@@ -1236,8 +1236,13 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
+    // Compute staffwidth from known CSS layout — no DOM measurement so timing
+    // doesn't matter. Modal: max-width 680px, border 2px, padding 48px.
+    // sheet-music-wrap: padding 16px. abcjs internal padding: 30px.
+    const effectiveModalW = Math.min(680, window.innerWidth - 32); // overlay: 1rem each side
+    const staffwidth = Math.max(200, effectiveModalW - 50 - 16 - 30);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
-      staffwidth: 680,
+      staffwidth,
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1245,19 +1250,6 @@ function renderSheetMusic(abc) {
       paddingtop: 10,
       selectTypes: false,
       foregroundColor: "#000000",
-    });
-
-    // Make the SVG scale responsively: add viewBox so CSS max-width scales
-    // content rather than clipping it (abcjs renders with no viewBox by default).
-    container.querySelectorAll("svg").forEach(svg => {
-      const w = svg.getAttribute("width");
-      const h = svg.getAttribute("height");
-      if (w && h && !svg.getAttribute("viewBox")) {
-        svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-        svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
-        svg.style.width = "100%";
-        svg.style.height = "auto";
-      }
     });
 
     _visualObj = visualObjs[0];
@@ -1386,8 +1378,10 @@ function renderPreviewMusic(abc) {
   document.getElementById("preview-audio-container").innerHTML = "";
 
   try {
+    const effectiveModalW = Math.min(680, window.innerWidth - 32);
+    const staffwidth = Math.max(200, effectiveModalW - 50 - 16 - 30);
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
-      staffwidth: 680,
+      staffwidth,
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1395,16 +1389,6 @@ function renderPreviewMusic(abc) {
       paddingtop: 10,
       selectTypes: false,
       foregroundColor: "#000000",
-    });
-    container.querySelectorAll("svg").forEach(svg => {
-      const w = svg.getAttribute("width");
-      const h = svg.getAttribute("height");
-      if (w && h && !svg.getAttribute("viewBox")) {
-        svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-        svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
-        svg.style.width = "100%";
-        svg.style.height = "auto";
-      }
     });
     _previewVisualObj = visualObjs[0];
 
