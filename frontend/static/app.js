@@ -1236,10 +1236,12 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    // Render at natural width — abcjs respects ABC newlines as system breaks.
-    // _insertLineBreaks already puts breaks every 4 bars.
-    // After render, add viewBox + width="100%" so the SVG scales to fit without clipping.
+    // Use actual container width so abcjs wraps bars correctly.
+    // container.offsetWidth is reliable here because the modal is already open.
+    const staffwidth = Math.max(200, (container.offsetWidth || 560) - 32);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
+      staffwidth,
+      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1249,13 +1251,12 @@ function renderSheetMusic(abc) {
       foregroundColor: "#000000",
     });
 
-    // Make SVG responsive: viewBox preserves layout, width=100% scales to container.
+    // Safety: if the SVG is wider than the container, add viewBox so it scales down.
     const svg = document.querySelector("#sheet-music-render svg");
     if (svg) {
-      const w = svg.getAttribute("width");
-      const h = svg.getAttribute("height");
-      if (w && h) {
-        svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      const svgW = parseFloat(svg.getAttribute("width") || "0");
+      if (svgW > container.offsetWidth) {
+        svg.setAttribute("viewBox", `0 0 ${svgW} ${svg.getAttribute("height") || svgW}`);
         svg.setAttribute("width", "100%");
         svg.removeAttribute("height");
       }
@@ -1387,7 +1388,10 @@ function renderPreviewMusic(abc) {
   document.getElementById("preview-audio-container").innerHTML = "";
 
   try {
+    const staffwidth = Math.max(200, (container.offsetWidth || 560) - 32);
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
+      staffwidth,
+      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1396,16 +1400,6 @@ function renderPreviewMusic(abc) {
       selectTypes: false,
       foregroundColor: "#000000",
     });
-    const previewSvg = document.querySelector("#preview-sheet-render svg");
-    if (previewSvg) {
-      const w = previewSvg.getAttribute("width");
-      const h = previewSvg.getAttribute("height");
-      if (w && h) {
-        previewSvg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-        previewSvg.setAttribute("width", "100%");
-        previewSvg.removeAttribute("height");
-      }
-    }
     _previewVisualObj = visualObjs[0];
 
     if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
