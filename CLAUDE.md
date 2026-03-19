@@ -2,8 +2,8 @@
 
 ## How to run
 ```bash
-cd "/Users/callummaclellan/Documents/Ceol Github"
-git pull origin claude/trad-music-web-app-fwneF
+cd /Users/callummaclellan/Ceol/v3
+git pull --rebase origin claude/develop-ceol-v2-GVdsA
 ./run.sh
 ```
 Then open `http://localhost:8001` in the browser. Hard-refresh with **Cmd+Shift+R** after pulling new code.
