@@ -1844,21 +1844,47 @@ function buildFullSetAbc(tunes) {
   ).join("\n\n");
 }
 
+let _setMusicSynth = null;
+
 function openSetMusicModal(title, abc) {
+  if (_setMusicSynth) { try { _setMusicSynth.stop(); } catch {} _setMusicSynth = null; }
+
   modalContent.innerHTML = `
     <h2 class="modal-title">${escHtml(title)}</h2>
-    <div id="set-music-render" style="margin-top:.75rem"></div>`;
+    <div id="set-music-render" style="margin-top:.75rem"></div>
+    <div id="set-music-audio" style="margin-top:.75rem"></div>`;
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+
   requestAnimationFrame(() => {
-    if (typeof ABCJS !== "undefined") {
-      ABCJS.renderAbc("set-music-render", expandAbcRepeats(abc), {
+    if (typeof ABCJS === "undefined") return;
+    try {
+      const visualObjs = ABCJS.renderAbc("set-music-render", expandAbcRepeats(abc), {
         responsive: "resize",
         wrap: { preferredMeasuresPerLine: 4 },
         add_classes: true,
         paddingbottom: 10,
+        paddingleft: 15,
+        paddingright: 15,
+        paddingtop: 10,
+        foregroundColor: "#000000",
       });
       _patchSvgViewBox("set-music-render");
+
+      if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+      _setMusicSynth = new ABCJS.synth.SynthController();
+      _setMusicSynth.load("#set-music-audio", null, {
+        displayLoop: false,
+        displayRestart: true,
+        displayPlay: true,
+        displayProgress: true,
+        displayWarp: true,
+      });
+      _setMusicSynth.setTune(visualObjs[0], false, { program: 73 }).catch(err => {
+        console.warn("Set music audio init failed:", err);
+      });
+    } catch (err) {
+      console.warn("Set music render failed:", err);
     }
   });
 }
@@ -2613,6 +2639,7 @@ document.addEventListener("keydown", e => {
 
 function closeModal() {
   if (_synthController) _synthController.pause();
+  if (_setMusicSynth) { try { _setMusicSynth.stop(); } catch {} _setMusicSynth = null; }
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }
