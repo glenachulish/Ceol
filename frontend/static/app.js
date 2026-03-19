@@ -1409,6 +1409,15 @@ let _previewSettings    = [];       // all settings returned from API
 let _activeSettingId    = null;     // setting currently previewed
 let _checkedSettingIds  = new Set();// settings checked for import
 
+function _updatePreviewSubmitter(sid) {
+  const el = document.getElementById("session-preview-submitter");
+  if (!el) return;
+  const setting = _previewSettings.find(s => s.id === sid);
+  if (!setting) { el.textContent = ""; return; }
+  const parts = [setting.member, setting.date ? setting.date.slice(0, 10) : null].filter(Boolean);
+  el.textContent = parts.length ? `Submitted by ${parts.join(", ")}` : "";
+}
+
 function _renderSettingsStrip(settings, activeId) {
   return `
     <div class="settings-strip-header">${settings.length} settings available on TheSession.org</div>
@@ -1457,6 +1466,9 @@ function _selectSetting(sid) {
   // Update ABC tab
   document.getElementById("preview-abc-text").textContent = setting.abc;
 
+  // Update submitter info in header
+  _updatePreviewSubmitter(sid);
+
   // Re-render sheet music
   renderPreviewMusic(setting.abc);
 }
@@ -1490,6 +1502,9 @@ function showSessionPreview(tuneData) {
     (tuneData.key  ? `<span class="badge badge-key">${escHtml(tuneData.key)}</span>` : "");
 
   document.getElementById("preview-abc-text").textContent = tuneData.abc;
+
+  // Submitter info for the active (first) setting
+  _updatePreviewSubmitter(_activeSettingId);
 
   // Settings strip
   const strip = document.getElementById("session-settings-strip");
