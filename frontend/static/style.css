@@ -906,6 +906,7 @@ button.set-tune-title:hover { text-decoration: underline; }
 #sheet-music-render path.abcjs-highlight,
 #sheet-music-render rect.abcjs-highlight,
 #sheet-music-render ellipse.abcjs-highlight,
+#set-music-render { background: #fff; border-radius: var(--radius); padding: .5rem; }
 #set-music-render .abcjs-highlight path,
 #set-music-render .abcjs-highlight rect,
 #set-music-render .abcjs-highlight ellipse,
