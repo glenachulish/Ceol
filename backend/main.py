@@ -702,6 +702,8 @@ async def import_thecraic(file: UploadFile = File(...)):
 
     tunes = parse_thecraic_export(text)
     imported = skipped = updated = 0
+    # Map collection name -> (collection_id, set of tune_ids already added)
+    collection_cache: dict[str, int] = {}
 
     with _db() as conn:
         for tune in tunes:
@@ -724,6 +726,7 @@ async def import_thecraic(file: UploadFile = File(...)):
                     "UPDATE tunes SET on_hitlist=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                     (tune.on_hitlist, existing_id),
                 )
+                tune_db_id = existing_id
                 updated += 1
             else:
                 cur = conn.execute(
@@ -733,15 +736,38 @@ async def import_thecraic(file: UploadFile = File(...)):
                     (tune.craic_id, tune.title, tune.type, tune.key, tune.mode,
                      tune.abc, tune.source_url, tune.on_hitlist),
                 )
-                tune_id = cur.lastrowid
+                tune_db_id = cur.lastrowid
                 for alias in tune.aliases:
                     conn.execute(
                         "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?,?)",
-                        (tune_id, alias),
+                        (tune_db_id, alias),
                     )
                 imported += 1
 
-    return {"imported": imported, "updated": updated, "skipped": skipped}
+            # Add to collection if the tune was inside a collection block
+            if tune.collection:
+                col_name = tune.collection
+                if col_name not in collection_cache:
+                    # Find existing collection or create it
+                    row = conn.execute(
+                        "SELECT id FROM collections WHERE name = ?", (col_name,)
+                    ).fetchone()
+                    if row:
+                        collection_cache[col_name] = row["id"]
+                    else:
+                        cur2 = conn.execute(
+                            "INSERT INTO collections (name) VALUES (?)", (col_name,)
+                        )
+                        collection_cache[col_name] = cur2.lastrowid
+                col_id = collection_cache[col_name]
+                conn.execute(
+                    "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id) VALUES (?,?)",
+                    (col_id, tune_db_id),
+                )
+
+    collections_created = len(collection_cache)
+    return {"imported": imported, "updated": updated, "skipped": skipped,
+            "collections_created": collections_created}
 
 
 @app.get("/api/export/thecraic")
@@ -750,34 +776,85 @@ def export_thecraic(filename: str = Query(None)):
     Export the full library as a TheCraic-compatible .abc file.
 
     Each tune is wrapped with %%thecraic: metadata so TheCraic can read
-    the favourite (hitlist) flag.  Ceol-only fields (rating, notes, sets)
-    are not included — TheCraic has no concept of them.
+    the favourite (hitlist) flag.  Collections are exported as
+    %%thecraic:collectionstart="Name " / %%thecraic:collectionend="Name " blocks.
+    Each tune appears once: inside its first collection block if it belongs to
+    any collection, otherwise in the uncollected section at the end.
     """
     today = date.today().isoformat()
     export_time = f"{today} 00:00:00 +0000"
     safe_filename = filename or f"ceol-export-{today}.abc"
 
     with _db() as conn:
-        tunes = conn.execute(
-            "SELECT title, type, key, mode, abc, source_url, on_hitlist "
-            "FROM tunes WHERE parent_id IS NULL OR parent_id = 0 "
-            "ORDER BY title"
+        # All top-level tunes
+        all_tunes = conn.execute(
+            "SELECT id, abc, source_url, on_hitlist "
+            "FROM tunes WHERE parent_id IS NULL OR parent_id = 0"
         ).fetchall()
+
+        # Collections with their tunes (ordered by collection name, then tune title)
+        collections = conn.execute(
+            "SELECT id, name FROM collections ORDER BY name COLLATE NOCASE"
+        ).fetchall()
+
+        col_tunes: dict[int, list[dict]] = {}
+        for col in collections:
+            rows = conn.execute(
+                """SELECT t.id, t.abc, t.source_url, t.on_hitlist
+                   FROM collection_tunes ct
+                   JOIN tunes t ON t.id = ct.tune_id
+                   WHERE ct.collection_id = ?
+                   ORDER BY t.title COLLATE NOCASE""",
+                (col["id"],),
+            ).fetchall()
+            col_tunes[col["id"]] = [dict(r) for r in rows]
+
+    # Determine which tune IDs are in at least one collection
+    tune_ids_in_collections: set[int] = set()
+    for tunes_list in col_tunes.values():
+        for t in tunes_list:
+            tune_ids_in_collections.add(t["id"])
+
+    total_tunes = len(all_tunes)
+    num_collections = len(collections)
 
     lines: list[str] = [
         "%abc-2.1",
         "I:abc-creator Ceol",
-        f"%%thecraic:exported {len(tunes)} tunes 0 collections {export_time}",
+        f"%%thecraic:exported {total_tunes} tunes {num_collections} collections {export_time}",
         "",
     ]
-    for t in tunes:
+
+    # Output collection blocks first
+    for col in collections:
+        col_name = col["name"]
+        tunes_in_col = col_tunes[col["id"]]
+        if not tunes_in_col:
+            continue
+        lines.append(f'%%thecraic:collectionstart="{col_name} "')
+        lines.append("")
+        for t in tunes_in_col:
+            block = build_thecraic_block(
+                abc=t["abc"],
+                source_url=t["source_url"],
+                on_hitlist=t["on_hitlist"] or 0,
+            )
+            lines.append(block)
+            lines.append("")
+        lines.append(f'%%thecraic:collectionend="{col_name} "')
+        lines.append("")
+
+    # Output tunes not in any collection
+    for t in all_tunes:
+        if t["id"] in tune_ids_in_collections:
+            continue
         block = build_thecraic_block(
             abc=t["abc"],
             source_url=t["source_url"],
             on_hitlist=t["on_hitlist"] or 0,
         )
         lines.append(block)
-        lines.append("")   # blank line between tunes
+        lines.append("")
 
     output = "\n".join(lines)
     buf = io.BytesIO(output.encode("utf-8"))

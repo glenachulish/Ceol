@@ -126,6 +126,7 @@ class Tune:
     aliases: list[str] = field(default_factory=list)
     source_url: Optional[str] = None   # %%thecraic:sourceurl or TheSession URL
     on_hitlist: int = 0                # %%thecraic:isfavorite
+    collection: Optional[str] = None   # %%thecraic:collectionstart name
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +254,9 @@ def _is_web_url(url: Optional[str]) -> bool:
     return bool(url and (url.startswith("http://") or url.startswith("https://")))
 
 
+_COLLECTION_NAME_RE = re.compile(r'^%%thecraic:collection(?:start|end)="(.*?)\s*"$')
+
+
 def parse_thecraic_export(content: str) -> list["Tune"]:
     """
     Parse a TheCraic iOS .abc export file.
@@ -267,15 +271,32 @@ def parse_thecraic_export(content: str) -> list["Tune"]:
         ...
     The metadata block and tune ABC are separated by no blank line, so they
     arrive in the same blank-line-delimited chunk.
+
+    Collections are delimited by:
+        %%thecraic:collectionstart="Name "
+        ...tunes...
+        %%thecraic:collectionend="Name "
     """
     content = content.replace("\r\n", "\n").replace("\r", "\n")
     raw_blocks = re.split(r"\n{2,}", content)
     tunes: list[Tune] = []
+    current_collection: Optional[str] = None
 
     for block in raw_blocks:
         block = block.strip()
         if not block:
             continue
+
+        # Check for collection start/end markers (blocks without X:)
+        for line in block.splitlines():
+            stripped = line.strip()
+            m = _COLLECTION_NAME_RE.match(stripped)
+            if m:
+                if "collectionstart" in stripped:
+                    current_collection = m.group(1).strip()
+                elif "collectionend" in stripped:
+                    current_collection = None
+
         # Must contain X: to be a tune
         if not re.search(r"^X:", block, re.MULTILINE):
             continue
@@ -312,6 +333,7 @@ def parse_thecraic_export(content: str) -> list["Tune"]:
         # Discard device-local paths — they're meaningless outside the device
         tune.source_url = source_url if _is_web_url(source_url) else None
         tune.on_hitlist = on_hitlist
+        tune.collection = current_collection
         tunes.append(tune)
 
     return tunes
