@@ -3059,11 +3059,13 @@ libImportSubmit.addEventListener("click", async () => {
   form.append("file", f);
 
   try {
-    await apiFetch("/api/library/import", { method: "POST", body: form });
-    libImportResult.textContent = "✓ Library imported successfully. Reloading…";
+    const res = await apiFetch("/api/library/import", { method: "POST", body: form });
+    const tuneCount = res.counts?.tunes ?? "?";
+    const errs = res.errors?.length ? `\nFirst errors: ${res.errors.join("; ")}` : "";
+    libImportResult.textContent = `✓ Imported ${tuneCount} tunes. Reloading…${errs}`;
     libImportResult.className = "import-result";
     libImportResult.classList.remove("hidden");
-    setTimeout(() => location.reload(), 1200);
+    setTimeout(() => location.reload(), 3000);
   } catch (err) {
     libImportResult.textContent = `Error: ${err.message}`;
     libImportResult.className = "import-result import-error";

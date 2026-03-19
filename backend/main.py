@@ -1986,7 +1986,10 @@ async def import_library(file: UploadFile = File(...)):
                     pass
 
             # Insert in forward dependency order, preserving original IDs
+            errors: list[str] = []
+            counts: dict[str, int] = {}
             for table in _LIBRARY_TABLES:
+                ok = 0
                 for row in data.get(table, []):
                     cols = list(row.keys())
                     placeholders = ", ".join("?" for _ in cols)
@@ -1997,8 +2000,11 @@ async def import_library(file: UploadFile = File(...)):
                             f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})",
                             values,
                         )
-                    except Exception:
-                        pass  # skip rows that can't be inserted (e.g. FK missing)
+                        ok += 1
+                    except Exception as e:
+                        if len(errors) < 5:
+                            errors.append(f"{table}[id={row.get('id')}]: {e}")
+                counts[table] = ok
 
             conn.commit()
         finally:
@@ -2012,7 +2018,7 @@ async def import_library(file: UploadFile = File(...)):
                     dest = UPLOADS_DIR / fname
                     dest.write_bytes(z.read(name))
 
-    return {"status": "ok"}
+    return {"status": "ok", "counts": counts, "errors": errors}
 
 
 @app.delete("/api/library")
