@@ -1236,9 +1236,8 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    const staffwidth = Math.max(300, Math.floor(container.getBoundingClientRect().width) - 30);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
-      staffwidth,
+      staffwidth: 680,
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1246,6 +1245,19 @@ function renderSheetMusic(abc) {
       paddingtop: 10,
       selectTypes: false,
       foregroundColor: "#000000",
+    });
+
+    // Make the SVG scale responsively: add viewBox so CSS max-width scales
+    // content rather than clipping it (abcjs renders with no viewBox by default).
+    container.querySelectorAll("svg").forEach(svg => {
+      const w = svg.getAttribute("width");
+      const h = svg.getAttribute("height");
+      if (w && h && !svg.getAttribute("viewBox")) {
+        svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+        svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+        svg.style.width = "100%";
+        svg.style.height = "auto";
+      }
     });
 
     _visualObj = visualObjs[0];
@@ -1374,9 +1386,8 @@ function renderPreviewMusic(abc) {
   document.getElementById("preview-audio-container").innerHTML = "";
 
   try {
-    const staffwidth = Math.max(300, Math.floor(container.getBoundingClientRect().width) - 30);
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
-      staffwidth,
+      staffwidth: 680,
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1384,6 +1395,16 @@ function renderPreviewMusic(abc) {
       paddingtop: 10,
       selectTypes: false,
       foregroundColor: "#000000",
+    });
+    container.querySelectorAll("svg").forEach(svg => {
+      const w = svg.getAttribute("width");
+      const h = svg.getAttribute("height");
+      if (w && h && !svg.getAttribute("viewBox")) {
+        svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+        svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
+        svg.style.width = "100%";
+        svg.style.height = "auto";
+      }
     });
     _previewVisualObj = visualObjs[0];
 
