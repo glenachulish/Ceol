@@ -1905,9 +1905,9 @@ function openSetMusicModal(title, abc, isTransition = false) {
         displayProgress: true,
         displayWarp: true,
       });
-      _setMusicSynth.setTune(visualObjs[0], false, { program: 73 }).catch(err => {
-        console.warn("Set music audio init failed:", err);
-      });
+      _setMusicSynth.setTune(visualObjs[0], false, { program: 73 })
+        .then(() => _setMusicSynth.setWarp(50))
+        .catch(err => { console.warn("Set music audio init failed:", err); });
     } catch (err) {
       console.warn("Set music render failed:", err);
     }
