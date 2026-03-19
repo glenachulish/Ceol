@@ -907,6 +907,12 @@ button.set-tune-title:hover { text-decoration: underline; }
 #sheet-music-render rect.abcjs-highlight,
 #sheet-music-render ellipse.abcjs-highlight,
 #set-music-render { background: #fff; border-radius: var(--radius); padding: .5rem; }
+#set-music-render .transition-part-a path,
+#set-music-render .transition-part-a rect,
+#set-music-render .transition-part-a ellipse { fill: #1a6fb0 !important; }
+#set-music-render .transition-part-b path,
+#set-music-render .transition-part-b rect,
+#set-music-render .transition-part-b ellipse { fill: #2a8a3e !important; }
 #set-music-render .abcjs-highlight path,
 #set-music-render .abcjs-highlight rect,
 #set-music-render .abcjs-highlight ellipse,

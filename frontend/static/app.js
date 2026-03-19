@@ -1846,7 +1846,7 @@ function buildFullSetAbc(tunes) {
 
 let _setMusicSynth = null;
 
-function openSetMusicModal(title, abc) {
+function openSetMusicModal(title, abc, isTransition = false) {
   if (_setMusicSynth) { try { _setMusicSynth.stop(); } catch {} _setMusicSynth = null; }
 
   modalContent.innerHTML = `
@@ -1872,6 +1872,12 @@ function openSetMusicModal(title, abc) {
         scale: 1.4,
       });
       _patchSvgViewBox("set-music-render");
+
+      if (isTransition) {
+        const wrappers = document.querySelectorAll("#set-music-render .abcjs-staff-wrapper");
+        if (wrappers.length >= 1) wrappers[0].classList.add("transition-part-a");
+        if (wrappers.length >= 2) wrappers[1].classList.add("transition-part-b");
+      }
 
       if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
@@ -1953,7 +1959,7 @@ function renderSets(sets) {
           <button class="btn-secondary btn-sm set-transition-play-btn">Play</button>
           <button class="btn-secondary btn-sm set-transition-music-btn">Music</button>`;
         if (footer) footer.before(tr); else tunesDiv.appendChild(tr);
-        const open = () => openSetMusicModal(`${a.title} TRANSITION ${b.title}`, transAbc);
+        const open = () => openSetMusicModal(`${a.title} TRANSITION ${b.title}`, transAbc, true);
         tr.querySelector(".set-transition-play-btn").addEventListener("click", open);
         tr.querySelector(".set-transition-music-btn").addEventListener("click", open);
       }
