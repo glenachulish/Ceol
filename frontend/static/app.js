@@ -1236,12 +1236,13 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    // Compute staffwidth from known CSS layout — no DOM measurement so timing
-    // doesn't matter. Modal: max-width 680px, border 2px, padding 48px.
-    // sheet-music-wrap: padding 16px. abcjs internal padding: 30px.
-    const staffwidth = 500;
+    // staffwidth + wrap are both required for abcjs 6.x to wrap bars to multiple lines.
+    // Modal: max-width 680px, border 2px, padding 48px. sheet-music-wrap: padding 16px.
+    const effectiveModalW = Math.min(680, window.innerWidth - 32);
+    const staffwidth = Math.max(200, effectiveModalW - 50 - 16 - 30);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
       staffwidth,
+      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1381,6 +1382,7 @@ function renderPreviewMusic(abc) {
     const staffwidth = Math.max(200, effectiveModalW - 50 - 16 - 30);
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
       staffwidth,
+      wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
