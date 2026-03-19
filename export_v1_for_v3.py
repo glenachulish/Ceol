@@ -11,6 +11,7 @@ Settings → Library → Import in the v3 app.
 Adjust V1_DB below if your v1 database is in a different location.
 """
 
+import argparse
 import io
 import json
 import re
@@ -19,7 +20,11 @@ import zipfile
 from datetime import date
 from pathlib import Path
 
-V1_DB = Path("/Users/callummaclellan/Ceol/v1/data/ceol.db")
+_parser = argparse.ArgumentParser()
+_parser.add_argument("--db", type=Path, default=Path("/Users/callummaclellan/Ceol/v1/data/ceol.db"))
+_args, _ = _parser.parse_known_args()
+
+V1_DB = _args.db
 OUT   = Path(f"ceol-v1-export-{date.today().isoformat()}.zip")
 
 
