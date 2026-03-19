@@ -1236,8 +1236,9 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
+    const staffwidth = Math.max(300, (container.closest(".sheet-music-wrap") || container).clientWidth - 30);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
-      staffwidth: 680,
+      staffwidth,
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1373,8 +1374,9 @@ function renderPreviewMusic(abc) {
   document.getElementById("preview-audio-container").innerHTML = "";
 
   try {
+    const staffwidth = Math.max(300, (container.closest(".sheet-music-wrap") || container).clientWidth - 30);
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
-      staffwidth: 680,
+      staffwidth,
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
