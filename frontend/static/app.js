@@ -1236,11 +1236,10 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    // staffwidth 740 fits comfortably in the 860px modal. wrap puts ~4 bars
-    // per line. viewBox is patched on afterwards so CSS max-width scales the
-    // SVG contents proportionally rather than clipping them.
+    // responsive:"resize" makes abcjs use the container's actual clientWidth
+    // as staffwidth automatically. wrap handles multi-line layout.
     const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
-      staffwidth: 740,
+      responsive: "resize",
       wrap: { preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
@@ -1377,7 +1376,7 @@ function renderPreviewMusic(abc) {
 
   try {
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
-      staffwidth: 740,
+      responsive: "resize",
       wrap: { preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
