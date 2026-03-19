@@ -1861,19 +1861,38 @@ function openSetMusicModal(title, abc) {
     try {
       const visualObjs = ABCJS.renderAbc("set-music-render", expandAbcRepeats(abc), {
         responsive: "resize",
-        wrap: { preferredMeasuresPerLine: 4 },
+        wrap: { preferredMeasuresPerLine: 2 },
+        staffwidth: 680,
         add_classes: true,
-        paddingbottom: 10,
-        paddingleft: 15,
-        paddingright: 15,
-        paddingtop: 10,
+        paddingbottom: 20,
+        paddingleft: 20,
+        paddingright: 20,
+        paddingtop: 20,
         foregroundColor: "#000000",
+        scale: 1.4,
       });
       _patchSvgViewBox("set-music-render");
 
       if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+
+      const cursorControl = {
+        onEvent(ev) {
+          document.querySelectorAll("#set-music-render .abcjs-highlight")
+            .forEach(el => el.classList.remove("abcjs-highlight"));
+          if (ev && ev.elements) {
+            ev.elements.forEach(grp => {
+              if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
+            });
+          }
+        },
+        onFinished() {
+          document.querySelectorAll("#set-music-render .abcjs-highlight")
+            .forEach(el => el.classList.remove("abcjs-highlight"));
+        },
+      };
+
       _setMusicSynth = new ABCJS.synth.SynthController();
-      _setMusicSynth.load("#set-music-audio", null, {
+      _setMusicSynth.load("#set-music-audio", cursorControl, {
         displayLoop: false,
         displayRestart: true,
         displayPlay: true,

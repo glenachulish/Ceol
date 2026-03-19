@@ -905,10 +905,17 @@ button.set-tune-title:hover { text-decoration: underline; }
 #sheet-music-render .abcjs-highlight ellipse,
 #sheet-music-render path.abcjs-highlight,
 #sheet-music-render rect.abcjs-highlight,
-#sheet-music-render ellipse.abcjs-highlight {
+#sheet-music-render ellipse.abcjs-highlight,
+#set-music-render .abcjs-highlight path,
+#set-music-render .abcjs-highlight rect,
+#set-music-render .abcjs-highlight ellipse,
+#set-music-render path.abcjs-highlight,
+#set-music-render rect.abcjs-highlight,
+#set-music-render ellipse.abcjs-highlight {
   fill: #e65c00 !important;
 }
-#sheet-music-render g.abcjs-highlight {
+#sheet-music-render g.abcjs-highlight,
+#set-music-render g.abcjs-highlight {
   filter: drop-shadow(0 0 6px rgba(230, 92, 0, 0.9));
 }
 
