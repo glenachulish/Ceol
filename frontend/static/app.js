@@ -1830,8 +1830,8 @@ function buildTransitionAbc(tuneA, tuneB) {
   const barsA = extractBars(tuneA.abc);
   const barsB = extractBars(tuneB.abc);
   if (!barsA.length || !barsB.length) return null;
-  const lastTwo = barsA.slice(Math.max(0, barsA.length - 2));
-  const firstTwo = barsB.slice(0, Math.min(2, barsB.length));
+  const lastTwo = barsA.slice(Math.max(0, barsA.length - 3));
+  const firstTwo = barsB.slice(0, Math.min(3, barsB.length));
   const key   = ((tuneA.abc || "").match(/^K:\s*(.+)$/m) || [])[1]?.trim() || "C";
   const meter = ((tuneA.abc || "").match(/^M:\s*(.+)$/m) || [])[1]?.trim() || "4/4";
   const len   = ((tuneA.abc || "").match(/^L:\s*(.+)$/m) || [])[1]?.trim() || "1/8";
@@ -1861,7 +1861,7 @@ function openSetMusicModal(title, abc, isTransition = false) {
     try {
       const visualObjs = ABCJS.renderAbc("set-music-render", expandAbcRepeats(abc), {
         responsive: "resize",
-        wrap: { preferredMeasuresPerLine: 2 },
+        wrap: { preferredMeasuresPerLine: 3 },
         staffwidth: 680,
         add_classes: true,
         paddingbottom: 20,
