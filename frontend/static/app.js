@@ -12,6 +12,7 @@ const state = {
   hitlist: false,
   min_rating: 0,
   sets: [],
+  collections: [],
 };
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
@@ -38,9 +39,11 @@ const modalOverlay  = document.getElementById("modal-overlay");
 const modalContent  = document.getElementById("modal-content");
 const modalClose    = document.getElementById("modal-close");
 const viewLibrary   = document.getElementById("view-library");
-const viewSets      = document.getElementById("view-sets");
+const viewSets           = document.getElementById("view-sets");
+const viewCollections    = document.getElementById("view-collections");
 const navLibrary    = document.getElementById("nav-library");
 const navSets       = document.getElementById("nav-sets");
+const navCollections= document.getElementById("nav-collections");
 const importBtn     = document.getElementById("import-btn");
 const importOverlay = document.getElementById("import-overlay");
 const importClose   = document.getElementById("import-close");
@@ -53,8 +56,15 @@ const newSetForm    = document.getElementById("new-set-form");
 const newSetName    = document.getElementById("new-set-name");
 const newSetNotes   = document.getElementById("new-set-notes");
 const createSetBtn  = document.getElementById("create-set-btn");
-const cancelSetBtn  = document.getElementById("cancel-set-btn");
-const setsList      = document.getElementById("sets-list");
+const cancelSetBtn       = document.getElementById("cancel-set-btn");
+const setsList           = document.getElementById("sets-list");
+const newCollectionBtn   = document.getElementById("new-collection-btn");
+const newCollectionForm  = document.getElementById("new-collection-form");
+const newCollectionName  = document.getElementById("new-collection-name");
+const newCollectionDesc  = document.getElementById("new-collection-desc");
+const createCollectionBtn= document.getElementById("create-collection-btn");
+const cancelCollectionBtn= document.getElementById("cancel-collection-btn");
+const collectionsList    = document.getElementById("collections-list");
 const viewNotes         = document.getElementById("view-notes");
 const navNotes          = document.getElementById("nav-notes");
 const viewAchievements  = document.getElementById("view-achievements");
@@ -334,6 +344,44 @@ async function apiRemoveTuneFromSet(setId, tuneId) {
   return apiFetch(`/api/sets/${setId}/tunes/${tuneId}`, { method: "DELETE" });
 }
 
+async function fetchCollections() {
+  const collections = await apiFetch("/api/collections");
+  state.collections = collections;
+  return collections;
+}
+
+async function apiCreateCollection(name, description) {
+  return apiFetch("/api/collections", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description }),
+  });
+}
+
+async function apiDeleteCollection(id) {
+  return apiFetch(`/api/collections/${id}`, { method: "DELETE" });
+}
+
+async function apiGetCollection(id) {
+  return apiFetch(`/api/collections/${id}`);
+}
+
+async function apiAddTuneToCollection(colId, tuneId) {
+  return apiFetch(`/api/collections/${colId}/tunes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tune_id: tuneId }),
+  });
+}
+
+async function apiRemoveTuneFromCollection(colId, tuneId) {
+  return apiFetch(`/api/collections/${colId}/tunes/${tuneId}`, { method: "DELETE" });
+}
+
+async function apiGetTuneCollections(tuneId) {
+  return apiFetch(`/api/tunes/${tuneId}/collections`);
+}
+
 async function apiSaveNotes(tuneId, notes) {
   return apiFetch(`/api/tunes/${tuneId}/notes`, {
     method: "PATCH",
@@ -391,8 +439,8 @@ async function apiDeleteTune(id) {
 // ── View switching ────────────────────────────────────────────────────────────
 function switchView(view) {
   state.view = view;
-  [viewLibrary, viewSets, viewNotes, viewAchievements].forEach(v => v.classList.add("hidden"));
-  [navLibrary, navSets, navNotes, navAchievements].forEach(n => n.classList.remove("active"));
+  [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements].forEach(v => v.classList.add("hidden"));
+  [navLibrary, navSets, navCollections, navNotes, navAchievements].forEach(n => n.classList.remove("active"));
 
   if (view === "library") {
     viewLibrary.classList.remove("hidden");
@@ -404,6 +452,10 @@ function switchView(view) {
     viewSets.classList.remove("hidden");
     navSets.classList.add("active");
     loadSets();
+  } else if (view === "collections") {
+    viewCollections.classList.remove("hidden");
+    navCollections.classList.add("active");
+    loadCollections();
   } else if (view === "notes") {
     viewNotes.classList.remove("hidden");
     navNotes.classList.add("active");
@@ -597,6 +649,20 @@ function renderModal(tune, onBack = null) {
       </div>`
     : `<p class="modal-hint">Go to Sets to create a set, then add this tune to it.</p>`;
 
+  const collectionsOptions = state.collections
+    .map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`)
+    .join("");
+  const collectionsFooter = state.collections.length
+    ? `<div class="modal-sets-row">
+        <select id="col-select" class="set-select">
+          <option value="">Add to a collection…</option>
+          ${collectionsOptions}
+        </select>
+        <button id="add-to-col-btn" class="btn-secondary">+ Add</button>
+        <span id="col-status" class="set-status"></span>
+      </div>`
+    : `<p class="modal-hint">Go to Collections to create one, then add this tune to it.</p>`;
+
   modalContent.innerHTML = `
     ${backBtn}
     <h2 class="modal-title">${escHtml(tune.title)}</h2>
@@ -683,6 +749,7 @@ function renderModal(tune, onBack = null) {
 
     <div class="modal-footer">
       ${setsFooter}
+      ${collectionsFooter}
       <div class="modal-danger-row">
         <button id="modal-hitlist-btn" class="btn-secondary${tune.on_hitlist ? " hitlist-active" : ""}">
           📌 ${tune.on_hitlist ? "On Hitlist" : "Add to Hitlist"}
@@ -833,6 +900,26 @@ function renderModal(tune, onBack = null) {
       } catch {
         setStatus.textContent = "Failed.";
         setStatus.className = "set-status set-error";
+      }
+    });
+  }
+
+  // Add to collection
+  const addToColBtn = document.getElementById("add-to-col-btn");
+  if (addToColBtn) {
+    addToColBtn.addEventListener("click", async () => {
+      const colId = document.getElementById("col-select").value;
+      const colStatus = document.getElementById("col-status");
+      if (!colId) return;
+      try {
+        const result = await apiAddTuneToCollection(colId, tune.id);
+        colStatus.textContent = result.added ? "Added!" : "Already in collection.";
+        colStatus.className = "set-status set-saved";
+        setTimeout(() => { colStatus.textContent = ""; }, 2000);
+        await fetchCollections();
+      } catch {
+        colStatus.textContent = "Failed.";
+        colStatus.className = "set-status set-error";
       }
     });
   }
@@ -1641,6 +1728,107 @@ function renderSets(sets) {
   });
 }
 
+function renderCollections(collections) {
+  if (!collections.length) {
+    collectionsList.innerHTML = '<p class="empty">No collections yet. Create one to group tunes by theme!</p>';
+    return;
+  }
+
+  collectionsList.innerHTML = collections.map(c => `
+    <div class="set-card" data-col-id="${c.id}">
+      <div class="set-card-header">
+        <div class="set-card-info">
+          <span class="set-name">${escHtml(c.name)}</span>
+          <span class="set-count">${c.tune_count} tune${c.tune_count !== 1 ? "s" : ""}</span>
+        </div>
+        <div class="set-card-actions">
+          <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
+          <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">✕</button>
+        </div>
+      </div>
+      ${c.description ? `<p class="set-notes">${escHtml(c.description)}</p>` : ""}
+      <div class="set-tunes-list hidden" id="col-tunes-${c.id}"></div>
+    </div>
+  `).join("");
+
+  collectionsList.querySelectorAll(".col-expand-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.colId;
+      const tunesDiv = document.getElementById(`col-tunes-${id}`);
+      if (tunesDiv.classList.contains("hidden")) {
+        tunesDiv.innerHTML = '<p class="loading" style="padding:.5rem">Loading…</p>';
+        tunesDiv.classList.remove("hidden");
+        btn.textContent = "Hide";
+        const colData = await apiGetCollection(id);
+        if (!colData.tunes || !colData.tunes.length) {
+          tunesDiv.innerHTML = '<p class="set-empty">No tunes yet – open a tune and use "Add to collection".</p>';
+        } else {
+          tunesDiv.innerHTML = colData.tunes.map(t => `
+            <div class="set-tune-row">
+              <span class="set-tune-title">${escHtml(t.title)}</span>
+              <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+              <span class="badge badge-key">${escHtml(t.key || "")}</span>
+              <button class="btn-icon remove-from-col"
+                data-col-id="${id}" data-tune-id="${t.id}" title="Remove">✕</button>
+            </div>
+          `).join("");
+
+          tunesDiv.querySelectorAll(".remove-from-col").forEach(rb => {
+            rb.addEventListener("click", async () => {
+              rb.disabled = true;
+              try {
+                await apiRemoveTuneFromCollection(rb.dataset.colId, rb.dataset.tuneId);
+                rb.closest(".set-tune-row").remove();
+                const col = state.collections.find(c => String(c.id) === String(id));
+                if (col) {
+                  col.tune_count = Math.max(0, (col.tune_count || 1) - 1);
+                  const countEl = document.querySelector(`[data-col-id="${id}"] .set-count`);
+                  if (countEl) countEl.textContent = `${col.tune_count} tune${col.tune_count !== 1 ? "s" : ""}`;
+                }
+              } catch {
+                alert("Failed to remove tune. Please try again.");
+                rb.disabled = false;
+              }
+            });
+          });
+        }
+      } else {
+        tunesDiv.classList.add("hidden");
+        btn.textContent = "View";
+      }
+    });
+  });
+
+  collectionsList.querySelectorAll(".col-delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const name = btn.closest(".set-card").querySelector(".set-name").textContent;
+      if (!confirm(`Delete collection "${name}"?`)) return;
+      btn.disabled = true;
+      try {
+        await apiDeleteCollection(btn.dataset.colId);
+        btn.closest(".set-card").remove();
+        state.collections = state.collections.filter(c => String(c.id) !== String(btn.dataset.colId));
+        if (!collectionsList.querySelector(".set-card")) {
+          collectionsList.innerHTML = '<p class="empty">No collections yet. Create one to group tunes by theme!</p>';
+        }
+      } catch {
+        alert("Failed to delete collection. Please try again.");
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+async function loadCollections() {
+  collectionsList.innerHTML = '<p class="loading">Loading collections…</p>';
+  try {
+    const collections = await fetchCollections();
+    renderCollections(collections);
+  } catch {
+    collectionsList.innerHTML = '<p class="empty">Failed to load collections.</p>';
+  }
+}
+
 // ── Loaders ───────────────────────────────────────────────────────────────────
 async function loadFilters() {
   let types, keys, modes;
@@ -2008,7 +2196,7 @@ tuneList.addEventListener("click", async e => {
     renderVersionsPanel(card.dataset.id);
     return;
   }
-  await fetchSets(); // ensure fresh sets for "add to set" dropdown
+  await Promise.all([fetchSets(), fetchCollections()]); // ensure fresh data for modal dropdowns
   const tune = await fetchTune(card.dataset.id);
   renderModal(tune);
   modalOverlay.classList.remove("hidden");
@@ -2036,6 +2224,7 @@ function closeModal() {
 // ── Nav ───────────────────────────────────────────────────────────────────────
 navLibrary.addEventListener("click",      () => switchView("library"));
 navSets.addEventListener("click",         () => switchView("sets"));
+navCollections.addEventListener("click",  () => switchView("collections"));
 navNotes.addEventListener("click",        () => switchView("notes"));
 navAchievements.addEventListener("click", () => switchView("achievements"));
 
@@ -2075,6 +2264,36 @@ createSetBtn.addEventListener("click", async () => {
 });
 
 newSetName.addEventListener("keydown", e => { if (e.key === "Enter") createSetBtn.click(); });
+
+// ── Collections form ──────────────────────────────────────────────────────────
+newCollectionBtn.addEventListener("click", () => {
+  newCollectionForm.classList.remove("hidden");
+  newCollectionName.focus();
+});
+
+cancelCollectionBtn.addEventListener("click", () => {
+  newCollectionForm.classList.add("hidden");
+  newCollectionName.value = "";
+  newCollectionDesc.value = "";
+});
+
+createCollectionBtn.addEventListener("click", async () => {
+  const name = newCollectionName.value.trim();
+  if (!name) { newCollectionName.focus(); return; }
+  createCollectionBtn.disabled = true;
+  try {
+    const col = await apiCreateCollection(name, newCollectionDesc.value.trim());
+    state.collections.push({ ...col, tune_count: 0 });
+    newCollectionForm.classList.add("hidden");
+    newCollectionName.value = "";
+    newCollectionDesc.value = "";
+    loadCollections();
+  } finally {
+    createCollectionBtn.disabled = false;
+  }
+});
+
+newCollectionName.addEventListener("keydown", e => { if (e.key === "Enter") createCollectionBtn.click(); });
 
 // ── Import ────────────────────────────────────────────────────────────────────
 importBtn.addEventListener("click", () => {
@@ -3131,6 +3350,6 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !helpOverl
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (async () => {
-  await Promise.allSettled([loadFilters(), loadStats(), fetchSets()]);
+  await Promise.allSettled([loadFilters(), loadStats(), fetchSets(), fetchCollections()]);
   await loadTunes();
 })();

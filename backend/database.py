@@ -62,6 +62,21 @@ CREATE TABLE IF NOT EXISTS tune_tags (
     PRIMARY KEY (tune_id, tag_id)
 );
 
+-- Collections: thematic groupings of tunes (many-to-many)
+CREATE TABLE IF NOT EXISTS collections (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    description TEXT,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS collection_tunes (
+    collection_id INTEGER REFERENCES collections(id) ON DELETE CASCADE,
+    tune_id       INTEGER REFERENCES tunes(id) ON DELETE CASCADE,
+    added_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (collection_id, tune_id)
+);
+
 -- Musical theory / reference notes
 CREATE TABLE IF NOT EXISTS theory_notes (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,6 +165,27 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE tunes ADD COLUMN session_date TEXT")
     if "source_url" not in existing_cols:
         conn.execute("ALTER TABLE tunes ADD COLUMN source_url TEXT")
+
+    # Collections tables (added v3)
+    existing_tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    if "collections" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE collections (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT NOT NULL,
+                description TEXT,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+    if "collection_tunes" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE collection_tunes (
+                collection_id INTEGER REFERENCES collections(id) ON DELETE CASCADE,
+                tune_id       INTEGER REFERENCES tunes(id) ON DELETE CASCADE,
+                added_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (collection_id, tune_id)
+            )
+        """)
 
 
 def init_db(db_path: Path = DB_PATH) -> None:

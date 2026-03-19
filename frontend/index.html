@@ -17,6 +17,7 @@
       <nav class="header-nav">
         <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
         <button id="nav-sets" class="nav-btn" data-tooltip="Group tunes into practice sets">Sets</button>
+        <button id="nav-collections" class="nav-btn" data-tooltip="Organise tunes into themed collections">Collections</button>
         <button id="nav-notes" class="nav-btn" data-tooltip="Freeform notes &amp; documents">Notes</button>
         <button id="nav-achievements" class="nav-btn" data-tooltip="Track your progress over time">Achievements</button>
       </nav>
@@ -126,6 +127,25 @@
       </div>
       <div id="sets-list" class="sets-list">
         <p class="loading">Loading sets…</p>
+      </div>
+    </div>
+
+    <!-- ── Collections view ── -->
+    <div id="view-collections" class="hidden">
+      <div class="view-header">
+        <h2 class="section-title">Collections</h2>
+        <button id="new-collection-btn" class="btn-primary">+ New Collection</button>
+      </div>
+      <div id="new-collection-form" class="new-set-form hidden">
+        <input id="new-collection-name" type="text" placeholder="Collection name…" maxlength="120" />
+        <input id="new-collection-desc" type="text" placeholder="Description (optional)…" />
+        <div class="form-actions">
+          <button id="create-collection-btn" class="btn-primary">Create</button>
+          <button id="cancel-collection-btn" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+      <div id="collections-list" class="sets-list">
+        <p class="loading">Loading collections…</p>
       </div>
     </div>
 

@@ -469,6 +469,141 @@ def remove_tune_from_set(set_id: int, tune_id: int):
 
 
 # ---------------------------------------------------------------------------
+# Collections endpoints
+# ---------------------------------------------------------------------------
+
+class CollectionCreate(BaseModel):
+    name: str
+    description: str = ""
+
+
+class CollectionTuneAdd(BaseModel):
+    tune_id: int
+
+
+@app.get("/api/collections")
+def list_collections():
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, description, created_at FROM collections ORDER BY name COLLATE NOCASE"
+        ).fetchall()
+        result = []
+        for r in rows:
+            c = dict(r)
+            c["tune_count"] = conn.execute(
+                "SELECT COUNT(*) FROM collection_tunes WHERE collection_id = ?", (c["id"],)
+            ).fetchone()[0]
+            result.append(c)
+    return result
+
+
+@app.post("/api/collections", status_code=201)
+def create_collection(body: CollectionCreate):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Collection name is required")
+    with _db() as conn:
+        cur = conn.execute(
+            "INSERT INTO collections (name, description) VALUES (?, ?)",
+            (name, body.description),
+        )
+        col_id = cur.lastrowid
+    return {"id": col_id, "name": name, "description": body.description, "tune_count": 0}
+
+
+@app.get("/api/collections/{col_id}")
+def get_collection(col_id: int):
+    with _db() as conn:
+        c = conn.execute("SELECT * FROM collections WHERE id = ?", (col_id,)).fetchone()
+        if not c:
+            raise HTTPException(404, "Collection not found")
+        tunes = conn.execute(
+            """
+            SELECT t.id, t.title, t.type, t.key, t.mode, ct.added_at
+            FROM collection_tunes ct
+            JOIN tunes t ON t.id = ct.tune_id
+            WHERE ct.collection_id = ?
+            ORDER BY t.title COLLATE NOCASE
+            """,
+            (col_id,),
+        ).fetchall()
+    result = dict(c)
+    result["tunes"] = [dict(t) for t in tunes]
+    return result
+
+
+@app.patch("/api/collections/{col_id}")
+def update_collection(col_id: int, body: CollectionCreate):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Collection name is required")
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM collections WHERE id = ?", (col_id,)).fetchone():
+            raise HTTPException(404, "Collection not found")
+        conn.execute(
+            "UPDATE collections SET name = ?, description = ? WHERE id = ?",
+            (name, body.description, col_id),
+        )
+    return {"ok": True}
+
+
+@app.delete("/api/collections/{col_id}")
+def delete_collection(col_id: int):
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM collections WHERE id = ?", (col_id,)).fetchone():
+            raise HTTPException(404, "Collection not found")
+        conn.execute("DELETE FROM collection_tunes WHERE collection_id = ?", (col_id,))
+        conn.execute("DELETE FROM collections WHERE id = ?", (col_id,))
+    return {"ok": True}
+
+
+@app.post("/api/collections/{col_id}/tunes")
+def add_tune_to_collection(col_id: int, body: CollectionTuneAdd):
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM collections WHERE id = ?", (col_id,)).fetchone():
+            raise HTTPException(404, "Collection not found")
+        if not conn.execute("SELECT 1 FROM tunes WHERE id = ?", (body.tune_id,)).fetchone():
+            raise HTTPException(404, "Tune not found")
+        if conn.execute(
+            "SELECT 1 FROM collection_tunes WHERE collection_id = ? AND tune_id = ?",
+            (col_id, body.tune_id),
+        ).fetchone():
+            return {"ok": True, "added": False}
+        conn.execute(
+            "INSERT INTO collection_tunes (collection_id, tune_id) VALUES (?, ?)",
+            (col_id, body.tune_id),
+        )
+    return {"ok": True, "added": True}
+
+
+@app.delete("/api/collections/{col_id}/tunes/{tune_id}")
+def remove_tune_from_collection(col_id: int, tune_id: int):
+    with _db() as conn:
+        cur = conn.execute(
+            "DELETE FROM collection_tunes WHERE collection_id = ? AND tune_id = ?",
+            (col_id, tune_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Tune not in collection")
+    return {"ok": True}
+
+
+@app.get("/api/tunes/{tune_id}/collections")
+def get_tune_collections(tune_id: int):
+    with _db() as conn:
+        rows = conn.execute(
+            """
+            SELECT c.id, c.name FROM collections c
+            JOIN collection_tunes ct ON ct.collection_id = c.id
+            WHERE ct.tune_id = ?
+            ORDER BY c.name COLLATE NOCASE
+            """,
+            (tune_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
 # Import endpoint
 # ---------------------------------------------------------------------------
 
@@ -1924,6 +2059,7 @@ async def dropbox_proxy_file(path: str = Query(...)):
 
 _LIBRARY_TABLES = [
     "tunes", "tune_aliases", "tags", "tune_tags", "sets", "set_tunes",
+    "collections", "collection_tunes",
     "achievements", "note_documents", "note_attachments", "app_settings",
     "theory_notes",
 ]
