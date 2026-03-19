@@ -30,7 +30,7 @@ const bulkSelectAllBtn = document.getElementById("bulk-select-all-btn");
 const bulkMergeBtn          = document.getElementById("bulk-merge-btn");
 const bulkAddCollectionBtn  = document.getElementById("bulk-add-collection-btn");
 const bulkDeleteBtn         = document.getElementById("bulk-delete-btn");
-const bulkCancelBtn    = document.getElementById("bulk-cancel-btn");
+const bulkCancelBtn         = document.getElementById("bulk-cancel-btn");
 const tuneList         = document.getElementById("tune-list");
 const pagination    = document.getElementById("pagination");
 const resultCount   = document.getElementById("result-count");
@@ -139,6 +139,7 @@ bulkSelectAllBtn.addEventListener("click", () => {
   _updateBulkBar();
 });
 
+
 bulkDeleteBtn.addEventListener("click", async () => {
   const ids = [..._selectedIds];
   if (!ids.length) return;
@@ -167,7 +168,7 @@ bulkAddCollectionBtn.addEventListener("click", async () => {
   const ids = [..._selectedIds].map(Number);
   if (!ids.length) return;
 
-  const cols = await apiFetch("/api/collections").then(r => r.json());
+  const cols = await apiFetch("/api/collections");
 
   if (!cols.length) {
     modalContent.innerHTML = `

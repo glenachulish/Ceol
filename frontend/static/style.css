@@ -306,8 +306,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   font-size: .85rem;
   color: var(--text-muted);
   margin-right: auto;
-}
-/* Dim delete button on tune cards in select mode (selection replaces individual delete) */
+}/* Dim delete button on tune cards in select mode (selection replaces individual delete) */
 .tune-list.select-mode .tune-delete-btn { display: none; }
 /* Pointer cursor stays on cards in select mode */
 .tune-list.select-mode .tune-card { cursor: pointer; user-select: none; }
