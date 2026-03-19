@@ -2000,6 +2000,70 @@ function renderSets(sets) {
     });
   }
 
+  function _appendAddTuneFooter(tunesDiv, id) {
+    const footer = document.createElement("div");
+    footer.className = "set-add-tune-row";
+    footer.innerHTML = `
+      <input type="text" class="set-add-tune-input ff-url-input" placeholder="Search tunes to add…" />
+      <div class="set-add-tune-results"></div>`;
+    tunesDiv.appendChild(footer);
+
+    const input = footer.querySelector(".set-add-tune-input");
+    const results = footer.querySelector(".set-add-tune-results");
+    let _debounce = null;
+
+    input.addEventListener("input", () => {
+      clearTimeout(_debounce);
+      const q = input.value.trim();
+      if (!q) { results.innerHTML = ""; return; }
+      _debounce = setTimeout(async () => {
+        const tunes = await apiFetch(`/api/tunes?search=${encodeURIComponent(q)}&page_size=8`);
+        const list = tunes.tunes || tunes;
+        if (!list.length) { results.innerHTML = '<p class="set-add-tune-none">No tunes found</p>'; return; }
+        results.innerHTML = list.map(t =>
+          `<button class="set-add-tune-result" data-tune-id="${t.id}">
+             ${escHtml(t.title)}
+             <span class="badge ${typeBadgeClass(t.type)}" style="margin-left:.4rem">${escHtml(t.type || "")}</span>
+             <span class="badge badge-key">${escHtml(t.key || "")}</span>
+           </button>`
+        ).join("");
+        results.querySelectorAll(".set-add-tune-result").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            try {
+              await apiFetch(`/api/sets/${id}/tunes`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tune_id: Number(btn.dataset.tuneId) }),
+              });
+              input.value = "";
+              results.innerHTML = "";
+              // Refresh the set tunes list
+              const setData = await apiGetSet(id);
+              const emptyMsg = tunesDiv.querySelector(".set-empty");
+              if (emptyMsg) emptyMsg.remove();
+              // Remove existing tune rows and re-render above footer
+              tunesDiv.querySelectorAll(".set-tune-row, .set-transition-row").forEach(r => r.remove());
+              footer.before(document.createTextNode(""));
+              _renderSetTunes(tunesDiv, id, setData.tunes);
+              // Move footer back to end
+              tunesDiv.appendChild(footer);
+              const set = state.sets.find(s => String(s.id) === String(id));
+              if (set) {
+                set.tune_count = setData.tunes.length;
+                const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
+                if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
+              }
+            } catch {
+              btn.disabled = false;
+              alert("Could not add tune — it may already be in the set.");
+            }
+          });
+        });
+      }, 250);
+    });
+  }
+
   setsList.querySelectorAll(".set-expand-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.setId;
@@ -2009,11 +2073,11 @@ function renderSets(sets) {
         tunesDiv.classList.remove("hidden");
         btn.textContent = "Hide";
         const setData = await apiGetSet(id);
-        if (!setData.tunes || !setData.tunes.length) {
-          tunesDiv.innerHTML = '<p class="set-empty">No tunes yet – open a tune or use "Add to set".</p>';
-        } else {
+        tunesDiv.innerHTML = "";
+        if (setData.tunes && setData.tunes.length) {
           _renderSetTunes(tunesDiv, id, setData.tunes);
         }
+        _appendAddTuneFooter(tunesDiv, id);
       } else {
         tunesDiv.classList.add("hidden");
         btn.textContent = "View";

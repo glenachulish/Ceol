@@ -489,6 +489,17 @@ button.set-tune-title:hover { text-decoration: underline; }
 }
 .set-transition-label em { font-style: normal; font-weight: 600; color: var(--accent); }
 .set-empty { color: var(--text-muted); font-size: .85rem; font-style: italic; padding: .5rem 0; }
+.set-add-tune-row { margin-top: .6rem; padding-top: .5rem; border-top: 1px solid var(--border); }
+.set-add-tune-input { width: 100%; box-sizing: border-box; font-size: .85rem; }
+.set-add-tune-results { margin-top: .3rem; display: flex; flex-direction: column; gap: .15rem; }
+.set-add-tune-result {
+  display: flex; align-items: center; gap: .3rem;
+  background: none; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: .3rem .5rem; text-align: left; cursor: pointer; font-size: .85rem;
+  font-family: inherit; color: var(--text);
+}
+.set-add-tune-result:hover { background: var(--surface2); }
+.set-add-tune-none { font-size: .82rem; color: var(--text-muted); margin: .25rem 0; }
 
 /* ── Modal ────────────────────────────────────────────────── */
 .modal-overlay {
