@@ -124,6 +124,8 @@ class Tune:
     mode: Optional[str] = None      # e.g. "major"
     abc: str = ""
     aliases: list[str] = field(default_factory=list)
+    source_url: Optional[str] = None   # %%thecraic:sourceurl or TheSession URL
+    on_hitlist: int = 0                # %%thecraic:isfavorite
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +239,99 @@ def parse_abc_file(path: str) -> list["Tune"]:
             tunes.append(_parse_tune_block(block))
 
     return tunes
+
+
+# ---------------------------------------------------------------------------
+# TheCraic export parser
+# ---------------------------------------------------------------------------
+
+_THECRAIC_META_RE = re.compile(r"^%%thecraic:(\w+)(?:=(.*))?$")
+_LOCAL_PATH_RE = re.compile(r"^/private/|^/var/|^/tmp/|^[A-Za-z]:\\")
+
+
+def _is_web_url(url: Optional[str]) -> bool:
+    return bool(url and (url.startswith("http://") or url.startswith("https://")))
+
+
+def parse_thecraic_export(content: str) -> list["Tune"]:
+    """
+    Parse a TheCraic iOS .abc export file.
+
+    Each tune block looks like:
+        %%thecraic:starttunemetadata
+        %%thecraic:sourceurl=<url>
+        %%thecraic:isfavorite=0|1
+        %%thecraic:endtunemetadata
+        X: <id>
+        T: <title>
+        ...
+    The metadata block and tune ABC are separated by no blank line, so they
+    arrive in the same blank-line-delimited chunk.
+    """
+    content = content.replace("\r\n", "\n").replace("\r", "\n")
+    raw_blocks = re.split(r"\n{2,}", content)
+    tunes: list[Tune] = []
+
+    for block in raw_blocks:
+        block = block.strip()
+        if not block:
+            continue
+        # Must contain X: to be a tune
+        if not re.search(r"^X:", block, re.MULTILINE):
+            continue
+
+        source_url: Optional[str] = None
+        on_hitlist = 0
+        abc_lines: list[str] = []
+        in_meta = False
+
+        for line in block.splitlines():
+            stripped = line.strip()
+            if stripped == "%%thecraic:starttunemetadata":
+                in_meta = True
+                continue
+            if stripped == "%%thecraic:endtunemetadata":
+                in_meta = False
+                continue
+            if in_meta:
+                m = _THECRAIC_META_RE.match(stripped)
+                if m:
+                    key, val = m.group(1), (m.group(2) or "").strip()
+                    if key == "sourceurl":
+                        source_url = val or None
+                    elif key == "isfavorite":
+                        on_hitlist = 1 if val == "1" else 0
+                continue
+            abc_lines.append(line)
+
+        abc_text = "\n".join(abc_lines).strip()
+        if not abc_text:
+            continue
+
+        tune = _parse_tune_block(abc_text)
+        # Discard device-local paths — they're meaningless outside the device
+        tune.source_url = source_url if _is_web_url(source_url) else None
+        tune.on_hitlist = on_hitlist
+        tunes.append(tune)
+
+    return tunes
+
+
+def build_thecraic_block(
+    abc: str,
+    source_url: Optional[str] = None,
+    on_hitlist: int = 0,
+) -> str:
+    """Wrap an ABC tune with %%thecraic: metadata for export back to TheCraic."""
+    url_line = f"%%thecraic:sourceurl={source_url}" if source_url else "%%thecraic:sourceurl="
+    fav_line = f"%%thecraic:isfavorite={1 if on_hitlist else 0}"
+    return (
+        "%%thecraic:starttunemetadata\n"
+        f"{url_line}\n"
+        f"{fav_line}\n"
+        "%%thecraic:endtunemetadata\n"
+        f"{abc}"
+    )
 
 
 if __name__ == "__main__":

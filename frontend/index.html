@@ -27,6 +27,7 @@
           <div id="library-menu" class="library-menu hidden">
             <button id="library-backup-btn" class="library-menu-item">📤 Export Library</button>
             <button id="library-import-btn" class="library-menu-item">📂 Import Library</button>
+            <button id="thecraic-export-btn" class="library-menu-item">📱 Export for TheCraic</button>
             <hr class="library-menu-divider" />
             <button id="library-delete-btn" class="library-menu-item library-menu-danger">🗑 Delete Library</button>
           </div>
@@ -166,6 +167,7 @@
       <div class="modal-tabs">
         <button class="tab-btn active" data-import-tab="file">ABC File</button>
         <button class="tab-btn" data-import-tab="paste">Paste ABC</button>
+        <button class="tab-btn" data-import-tab="thecraic">TheCraic</button>
         <button class="tab-btn" data-import-tab="session">TheSession.org</button>
         <button class="tab-btn" data-import-tab="flutefling">FlutefFling.scot</button>
         <button class="tab-btn" data-import-tab="dropbox">Dropbox</button>
@@ -193,6 +195,26 @@
         <div id="paste-abc-result" class="import-result hidden"></div>
         <div class="import-actions">
           <button id="paste-abc-submit" class="btn-primary">Import</button>
+        </div>
+      </div>
+
+      <!-- TheCraic tab -->
+      <div id="import-tab-thecraic" class="tab-panel hidden">
+        <p class="import-desc">
+          Import an export from <strong>TheCraic</strong> iOS app (.abc file).<br>
+          In TheCraic: <em>Settings → Export → All Tunes</em>, then share the file here.<br>
+          Tunes already in Ceol (matched by source URL) will have their
+          <strong>favourite</strong> status synced rather than being duplicated.
+        </p>
+        <label class="import-drop">
+          <input type="file" id="thecraic-import-file" accept=".abc" />
+          <span class="import-icon">📱</span>
+          <span class="import-label">Click to choose TheCraic export file</span>
+          <span id="thecraic-import-filename" class="import-filename"></span>
+        </label>
+        <div id="thecraic-import-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="thecraic-import-submit" class="btn-primary" disabled>Import from TheCraic</button>
         </div>
       </div>
 

@@ -28,7 +28,12 @@ import time as _time
 from html.parser import HTMLParser as _HTMLParser
 from urllib.parse import urljoin
 
-from backend.abc_parser import parse_abc_file, parse_abc_string
+from backend.abc_parser import (
+    build_thecraic_block,
+    parse_abc_file,
+    parse_abc_string,
+    parse_thecraic_export,
+)
 from backend.database import DB_PATH, get_connection, init_db
 
 app = FastAPI(title="Ceol", version="0.1.0")
@@ -539,6 +544,114 @@ def import_abc_text(body: ImportTextBody):
                 )
             imported += 1
     return {"imported": imported, "skipped": skipped}
+
+
+# ---------------------------------------------------------------------------
+# TheCraic iOS app — import & export
+# ---------------------------------------------------------------------------
+
+@app.post("/api/import/thecraic")
+async def import_thecraic(file: UploadFile = File(...)):
+    """
+    Import a TheCraic iOS export (.abc file).
+
+    Deduplication: tunes with a web source_url already in the DB are updated
+    (on_hitlist synced) rather than re-inserted.  Tunes with device-local
+    source paths are always inserted as new.
+    """
+    content = await file.read()
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    tunes = parse_thecraic_export(text)
+    imported = skipped = updated = 0
+
+    with _db() as conn:
+        for tune in tunes:
+            if not tune.title:
+                skipped += 1
+                continue
+
+            # Try to match an existing tune by source_url (web URLs only)
+            existing_id = None
+            if tune.source_url:
+                row = conn.execute(
+                    "SELECT id FROM tunes WHERE source_url = ?", (tune.source_url,)
+                ).fetchone()
+                if row:
+                    existing_id = row["id"]
+
+            if existing_id:
+                # Update hitlist status only — don't overwrite user's notes/rating
+                conn.execute(
+                    "UPDATE tunes SET on_hitlist=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (tune.on_hitlist, existing_id),
+                )
+                updated += 1
+            else:
+                cur = conn.execute(
+                    """INSERT INTO tunes
+                       (craic_id, title, type, key, mode, abc, source_url, on_hitlist)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (tune.craic_id, tune.title, tune.type, tune.key, tune.mode,
+                     tune.abc, tune.source_url, tune.on_hitlist),
+                )
+                tune_id = cur.lastrowid
+                for alias in tune.aliases:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?,?)",
+                        (tune_id, alias),
+                    )
+                imported += 1
+
+    return {"imported": imported, "updated": updated, "skipped": skipped}
+
+
+@app.get("/api/export/thecraic")
+def export_thecraic(filename: str = Query(None)):
+    """
+    Export the full library as a TheCraic-compatible .abc file.
+
+    Each tune is wrapped with %%thecraic: metadata so TheCraic can read
+    the favourite (hitlist) flag.  Ceol-only fields (rating, notes, sets)
+    are not included — TheCraic has no concept of them.
+    """
+    today = date.today().isoformat()
+    export_time = f"{today} 00:00:00 +0000"
+    safe_filename = filename or f"ceol-export-{today}.abc"
+
+    with _db() as conn:
+        tunes = conn.execute(
+            "SELECT title, type, key, mode, abc, source_url, on_hitlist "
+            "FROM tunes WHERE parent_id IS NULL OR parent_id = 0 "
+            "ORDER BY title"
+        ).fetchall()
+
+    lines: list[str] = [
+        "%abc-2.1",
+        "I:abc-creator Ceol",
+        f"%%thecraic:exported {len(tunes)} tunes 0 collections {export_time}",
+        "",
+    ]
+    for t in tunes:
+        block = build_thecraic_block(
+            abc=t["abc"],
+            source_url=t["source_url"],
+            on_hitlist=t["on_hitlist"] or 0,
+        )
+        lines.append(block)
+        lines.append("")   # blank line between tunes
+
+    output = "\n".join(lines)
+    buf = io.BytesIO(output.encode("utf-8"))
+
+    return StreamingResponse(
+        buf,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'},
+    )
 
 
 # ---------------------------------------------------------------------------

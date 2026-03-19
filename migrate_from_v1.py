@@ -80,19 +80,14 @@ def migrate():
     for t in tunes:
         clean_ab, source_url = clean_abc(t["abc"])
 
-        notes = t["notes"] or ""
-        if source_url:
-            prefix = f"Source: {source_url}"
-            notes = f"{prefix}\n\n{notes}".strip() if notes else prefix
-
         cur = dst.execute(
             """INSERT INTO tunes
-               (craic_id, session_id, title, type, key, mode, abc, notes,
+               (craic_id, session_id, title, type, key, mode, abc, notes, source_url,
                 imported_at, created_at, updated_at, version_label, rating, on_hitlist)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 t["craic_id"], t["session_id"], t["title"], t["type"],
-                t["key"], t["mode"], clean_ab, notes or None,
+                t["key"], t["mode"], clean_ab, t["notes"] or None, source_url,
                 t["imported_at"], t["created_at"], t["updated_at"],
                 t["version_label"] or "", t["rating"] or 0, t["on_hitlist"] or 0,
             ),

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS tunes (
     mode        TEXT,
     abc         TEXT NOT NULL,
     notes       TEXT,
+    source_url  TEXT,
     imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -147,6 +148,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE tunes ADD COLUMN session_member TEXT")
     if "session_date" not in existing_cols:
         conn.execute("ALTER TABLE tunes ADD COLUMN session_date TEXT")
+    if "source_url" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN source_url TEXT")
 
 
 def init_db(db_path: Path = DB_PATH) -> None:

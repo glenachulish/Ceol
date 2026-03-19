@@ -2306,6 +2306,66 @@ pasteAbcSubmit.addEventListener("click", async () => {
   }
 });
 
+// ── TheCraic import ───────────────────────────────────────────────────────────
+const theCraicFile   = document.getElementById("thecraic-import-file");
+const theCraicName   = document.getElementById("thecraic-import-filename");
+const theCraicSubmit = document.getElementById("thecraic-import-submit");
+const theCraicResult = document.getElementById("thecraic-import-result");
+
+theCraicFile.addEventListener("change", () => {
+  const f = theCraicFile.files[0];
+  theCraicName.textContent = f ? f.name : "";
+  theCraicSubmit.disabled = !f;
+});
+
+theCraicSubmit.addEventListener("click", async () => {
+  const f = theCraicFile.files[0];
+  if (!f) return;
+  theCraicSubmit.disabled = true;
+  theCraicSubmit.textContent = "Importing…";
+  theCraicResult.classList.add("hidden");
+  try {
+    const form = new FormData();
+    form.append("file", f);
+    const res = await fetch("/api/import/thecraic", { method: "POST", body: form });
+    const data = await res.json();
+    if (res.ok) {
+      const parts = [];
+      if (data.imported) parts.push(`${data.imported} new tune${data.imported !== 1 ? "s" : ""} added`);
+      if (data.updated)  parts.push(`${data.updated} updated (favourite status synced)`);
+      if (data.skipped)  parts.push(`${data.skipped} skipped`);
+      theCraicResult.textContent = parts.length ? parts.join(", ") + "." : "Nothing to import.";
+      theCraicResult.className = "import-result import-success";
+      theCraicResult.classList.remove("hidden");
+      await Promise.all([loadStats(), loadFilters()]);
+      if (state.view === "library") loadTunes();
+    } else {
+      theCraicResult.textContent = `Error: ${data.detail || "Import failed."}`;
+      theCraicResult.className = "import-result import-error";
+      theCraicResult.classList.remove("hidden");
+    }
+  } catch (err) {
+    theCraicResult.textContent = "Network error. Is the server running?";
+    theCraicResult.className = "import-result import-error";
+    theCraicResult.classList.remove("hidden");
+  } finally {
+    theCraicSubmit.disabled = false;
+    theCraicSubmit.textContent = "Import from TheCraic";
+  }
+});
+
+// ── TheCraic export ───────────────────────────────────────────────────────────
+document.getElementById("thecraic-export-btn").addEventListener("click", () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const url = `/api/export/thecraic?filename=${encodeURIComponent(`ceol-export-${today}.abc`)}`;
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ceol-export-${today}.abc`;
+  a.click();
+  // Close the menu
+  document.getElementById("library-menu").classList.add("hidden");
+});
+
 // ── TheSession.org search + import ───────────────────────────────────────────
 const sessionSearchInput = document.getElementById("session-search-input");
 const sessionSearchBtn   = document.getElementById("session-search-btn");
