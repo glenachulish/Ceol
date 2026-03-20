@@ -132,6 +132,10 @@
   color: var(--accent);
 }
 
+/* Dim emoji icons when inactive so only the active tab stands out */
+.m-nav-btn:not(.active) .m-nav-icon { opacity: 0.35; }
+.m-nav-btn.active .m-nav-icon       { opacity: 1; }
+
 .m-nav-icon {
   font-size: 1.25rem;
   line-height: 1;
@@ -382,10 +386,15 @@
   padding: 0 .25rem;
 }
 
-/* ── Sheet music: ensure horizontal scroll ─────────────────── */
+/* ── Sheet music: ensure horizontal scroll, no right clip ──── */
 .mobile-body .sheet-music-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  border-radius: 0;
 }
 
 /* ── Sets: full width ───────────────────────────────────────── */
