@@ -1626,6 +1626,8 @@ function renderSheetMusic(abc) {
 
 // Prepare ABC for rendering.
 // TheSession tunes use bare ! as linebreak markers; convert to \n.
+// Standard ABC also uses !decoration! pairs (e.g. !roll!, !trill!, !cut!).
+// We must preserve those and only replace standalone bare ! markers.
 function expandAbcRepeats(abc) {
   const kIdx = abc.search(/^K:/m);
   if (kIdx < 0) return abc;
@@ -1634,7 +1636,11 @@ function expandAbcRepeats(abc) {
   const header = abc.slice(0, kEnd + 1);
   let body = abc.slice(kEnd + 1).trim();
   if (body.includes('!')) {
-    body = body.replace(/\s*!\s*/g, '\n');
+    // Protect !decoration! pairs with a placeholder, replace bare !, then restore.
+    body = body
+      .replace(/![a-zA-Z][a-zA-Z0-9_-]*!/g, m => `\x00${m.slice(1, -1)}\x00`)
+      .replace(/\s*!\s*/g, '\n')
+      .replace(/\x00([^\x00]*)\x00/g, '!$1!');
   }
   return header + body;
 }
