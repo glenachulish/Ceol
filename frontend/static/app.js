@@ -1659,6 +1659,9 @@ function expandAbcRepeats(abc) {
       (_, pre, n, suf) => parseInt(n, 10) > 127 ? `${pre}73${suf}` : _)
     .replace(/^%%MIDI\s+volume\s+\S+\s*$/gim, '')
     .replace(/^%%MIDI\s+velocity\s+\S+\s*$/gim, '')
+    // Strip chord/bass accompaniment directives — abcjs may fail silently
+    // trying to load accompaniment samples for these, blocking melody audio.
+    .replace(/^%%MIDI\s+(bassprog|chordprog|bassvol|chordvol|chordname)\s+.*$/gim, '')
     .replace(/^%abcjs_soundfont\s+\S+\s*$/gim, '');
   const header = normaliseMidi(abc.slice(0, kEnd + 1));
   let body = normaliseMidi(abc.slice(kEnd + 1).trim());
