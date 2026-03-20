@@ -1646,20 +1646,19 @@ function expandAbcRepeats(abc) {
   if (kIdx < 0) return abc;
   const kEnd = abc.indexOf('\n', kIdx);
   if (kEnd < 0) return abc;
-  // Strip MIDI directives that break our synth:
-  //  - %%MIDI program X  — some imports use out-of-range values (e.g. 141)
-  //    that have no samples; we pass program:73 (flute) to setTune instead.
-  //  - %abcjs_soundfont   — we haven't loaded an alternative soundfont.
-  //  - %%MIDI volume X   — some imports set this to 0, producing silence.
-  //  - %%MIDI velocity X — overrides note velocity; can produce near-silence.
-  // Apply to both header and body sections.
-  const stripMidi = s => s
-    .replace(/^%%MIDI\s+program\s+\S+\s*$/gim, '')
+  // Strip/normalise MIDI directives that break our synth setup.
+  // IMPORTANT: %%MIDI program is REPLACED (not removed) because abcjs uses
+  // it as a rendering hint too — removing it entirely blanks the sheet music.
+  // We replace any out-of-range value (>127) with 73 (flute).
+  // Volume/velocity directives are stripped outright (we add our own below).
+  const normaliseMidi = s => s
+    .replace(/^(%%MIDI\s+program\s+)(\d+)(\s*)$/gim,
+      (_, pre, n, suf) => parseInt(n, 10) > 127 ? `${pre}73${suf}` : _)
     .replace(/^%%MIDI\s+volume\s+\S+\s*$/gim, '')
     .replace(/^%%MIDI\s+velocity\s+\S+\s*$/gim, '')
     .replace(/^%abcjs_soundfont\s+\S+\s*$/gim, '');
-  const header = stripMidi(abc.slice(0, kEnd + 1));
-  let body = stripMidi(abc.slice(kEnd + 1).trim());
+  const header = normaliseMidi(abc.slice(0, kEnd + 1));
+  let body = normaliseMidi(abc.slice(kEnd + 1).trim());
 
   if (body.includes('!')) {
     // Protect !decoration! pairs with a placeholder, replace bare !, then restore.
