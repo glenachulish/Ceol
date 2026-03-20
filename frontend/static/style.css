@@ -534,6 +534,7 @@ button.set-tune-title:hover { text-decoration: underline; }
 }
 .set-add-tune-result:hover { background: var(--surface2); }
 .set-add-tune-none { font-size: .82rem; color: var(--text-muted); margin: .25rem 0; }
+.set-add-tune-ver-label { font-size: .8rem; color: var(--text-muted); margin: .15rem 0 .2rem; }
 
 /* ── Modal ────────────────────────────────────────────────── */
 .modal-overlay {
@@ -781,6 +782,31 @@ button.set-tune-title:hover { text-decoration: underline; }
   margin: .1rem 0 .4rem;
 }
 
+/* Version switcher strip (shown when a tune has sibling versions) */
+.modal-versions-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin: .4rem 0 .5rem;
+}
+.modal-ver-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 20px;
+  padding: .25rem .75rem;
+  font-size: .8rem;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.modal-ver-btn:hover { border-color: var(--accent); color: var(--text); }
+.modal-ver-btn.active {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface2));
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* ── Media overlay ────────────────────────────────────────── */
 .media-overlay {
   position: fixed;
@@ -946,7 +972,9 @@ button.set-tune-title:hover { text-decoration: underline; }
 #sheet-music-render .abcjs-highlight ellipse,
 #sheet-music-render path.abcjs-highlight,
 #sheet-music-render rect.abcjs-highlight,
-#sheet-music-render ellipse.abcjs-highlight,
+#sheet-music-render ellipse.abcjs-highlight {
+  fill: #e65c00 !important;
+}
 #set-music-render { background: #fff; border-radius: var(--radius); padding: .5rem; }
 #set-music-render .transition-part-a path,
 #set-music-render .transition-part-a rect,

@@ -771,7 +771,7 @@ function renderNotesHtml(text) {
   return parts.join("").replace(/\n/g, "<br>");
 }
 
-function renderModal(tune, onBack = null) {
+function renderModal(tune, onBack = null, siblings = null) {
   const typeClass = typeBadgeClass(tune.type);
   const typeBadge = tune.type
     ? `<span class="badge ${typeClass}">${escHtml(tune.type)}</span>`
@@ -784,6 +784,17 @@ function renderModal(tune, onBack = null) {
     : "";
   const versionLine = tune.version_label
     ? `<p class="modal-version-label">${escHtml(tune.version_label)}</p>`
+    : "";
+
+  const siblingsStrip = siblings && siblings.length > 1
+    ? `<div class="modal-versions-strip" id="modal-versions-strip">
+        ${siblings.map((v, i) => {
+          const label = v.version_label || `Version ${i + 1}`;
+          const meta = [v.key, v.type].filter(Boolean).join(" · ");
+          return `<button class="modal-ver-btn${v.id === tune.id ? " active" : ""}"
+                    data-ver-id="${v.id}" title="${escHtml(meta)}">${escHtml(label)}</button>`;
+        }).join("")}
+      </div>`
     : "";
 
   const ratingLabels = ["Not yet rated","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
@@ -844,6 +855,7 @@ function renderModal(tune, onBack = null) {
     ${backBtn}
     <h2 class="modal-title">${escHtml(tune.title)}</h2>
     ${versionLine}
+    ${siblingsStrip}
     <div class="modal-meta">${typeBadge}${keyBadge}</div>
     ${ratingRow}
     ${aliasLine}
@@ -939,6 +951,20 @@ function renderModal(tune, onBack = null) {
   // Back button (from versions panel)
   if (onBack) {
     document.getElementById("modal-back-btn").addEventListener("click", onBack);
+  }
+
+  // Version switcher strip
+  if (siblings && siblings.length > 1) {
+    modalContent.querySelectorAll(".modal-ver-btn").forEach(btn => {
+      if (Number(btn.dataset.verId) === tune.id) return; // already showing
+      btn.addEventListener("click", async () => {
+        const t = await fetchTune(btn.dataset.verId);
+        renderModal(t, onBack, siblings);
+        requestAnimationFrame(() => {
+          if (t.abc) renderSheetMusic(t.abc);
+        });
+      });
+    });
   }
 
   // Modal star rating
@@ -2067,42 +2093,73 @@ function renderSets(sets) {
         const list = tunes.tunes || tunes;
         if (!list.length) { results.innerHTML = '<p class="set-add-tune-none">No tunes found</p>'; return; }
         results.innerHTML = list.map(t =>
-          `<button class="set-add-tune-result" data-tune-id="${t.id}">
+          `<button class="set-add-tune-result" data-tune-id="${t.id}" data-version-count="${t.version_count || 0}">
              ${escHtml(t.title)}
              <span class="badge ${typeBadgeClass(t.type)}" style="margin-left:.4rem">${escHtml(t.type || "")}</span>
              <span class="badge badge-key">${escHtml(t.key || "")}</span>
+             ${(t.version_count || 0) > 0 ? `<span class="badge badge-versions" style="margin-left:.2rem">${t.version_count} versions</span>` : ""}
            </button>`
         ).join("");
+
+        // Helper: add a specific tune ID to the set and refresh the list
+        const _doAdd = async (tuneId) => {
+          await apiFetch(`/api/sets/${id}/tunes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tune_id: Number(tuneId) }),
+          });
+          input.value = "";
+          results.innerHTML = "";
+          const setData = await apiGetSet(id);
+          const emptyMsg = tunesDiv.querySelector(".set-empty");
+          if (emptyMsg) emptyMsg.remove();
+          tunesDiv.querySelectorAll(".set-tune-row, .set-transition-row").forEach(r => r.remove());
+          footer.before(document.createTextNode(""));
+          _renderSetTunes(tunesDiv, id, setData.tunes);
+          tunesDiv.appendChild(footer);
+          const set = state.sets.find(s => String(s.id) === String(id));
+          if (set) {
+            set.tune_count = setData.tunes.length;
+            const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
+            if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
+          }
+        };
+
         results.querySelectorAll(".set-add-tune-result").forEach(btn => {
           btn.addEventListener("click", async () => {
-            btn.disabled = true;
-            try {
-              await apiFetch(`/api/sets/${id}/tunes`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ tune_id: Number(btn.dataset.tuneId) }),
+            const vCount = Number(btn.dataset.versionCount || 0);
+            if (vCount > 0) {
+              // Show inline version picker
+              btn.disabled = true;
+              const { versions } = await apiFetch(`/api/tunes/${btn.dataset.tuneId}/versions`);
+              results.innerHTML = `
+                <p class="set-add-tune-ver-label">Choose a version to add:</p>
+                ${versions.map((v, i) => {
+                  const meta = [v.key, v.type].filter(Boolean).map(escHtml).join(" · ");
+                  const label = v.version_label || `Version ${i + 1}`;
+                  const isDefault = i === 0;
+                  return `<button class="set-add-tune-result set-add-ver-btn" data-ver-id="${v.id}">
+                    ${escHtml(label)}
+                    <span style="color:var(--text-muted);font-size:.8rem;margin-left:.4rem">${escHtml(meta)}</span>
+                    ${isDefault ? '<span class="badge" style="margin-left:.4rem;background:var(--surface2)">default</span>' : ""}
+                  </button>`;
+                }).join("")}
+                <button class="set-add-tune-cancel" style="margin-top:.3rem;font-size:.8rem;color:var(--text-muted);background:none;border:none;cursor:pointer">Cancel</button>`;
+              results.querySelector(".set-add-tune-cancel").addEventListener("click", () => {
+                results.innerHTML = "";
+                input.value = "";
               });
-              input.value = "";
-              results.innerHTML = "";
-              // Refresh the set tunes list
-              const setData = await apiGetSet(id);
-              const emptyMsg = tunesDiv.querySelector(".set-empty");
-              if (emptyMsg) emptyMsg.remove();
-              // Remove existing tune rows and re-render above footer
-              tunesDiv.querySelectorAll(".set-tune-row, .set-transition-row").forEach(r => r.remove());
-              footer.before(document.createTextNode(""));
-              _renderSetTunes(tunesDiv, id, setData.tunes);
-              // Move footer back to end
-              tunesDiv.appendChild(footer);
-              const set = state.sets.find(s => String(s.id) === String(id));
-              if (set) {
-                set.tune_count = setData.tunes.length;
-                const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
-                if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
-              }
-            } catch {
-              btn.disabled = false;
-              alert("Could not add tune — it may already be in the set.");
+              results.querySelectorAll(".set-add-ver-btn").forEach(vBtn => {
+                vBtn.addEventListener("click", async () => {
+                  vBtn.disabled = true;
+                  try { await _doAdd(vBtn.dataset.verId); }
+                  catch { vBtn.disabled = false; alert("Could not add tune — it may already be in the set."); }
+                });
+              });
+            } else {
+              btn.disabled = true;
+              try { await _doAdd(btn.dataset.tuneId); }
+              catch { btn.disabled = false; alert("Could not add tune — it may already be in the set."); }
             }
           });
         });
@@ -2637,7 +2694,15 @@ tuneList.addEventListener("click", async e => {
 
   if (!card) return;
   if (Number(card.dataset.versions || 0) > 0) {
-    renderVersionsPanel(card.dataset.id);
+    // Auto-open the first version with a switcher strip for the others
+    const { versions } = await apiFetch(`/api/tunes/${card.dataset.id}/versions`);
+    if (versions.length > 0) {
+      await Promise.all([fetchSets(), fetchCollections()]);
+      const firstTune = await fetchTune(versions[0].id);
+      renderModal(firstTune, null, versions);
+      modalOverlay.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+    }
     return;
   }
   await Promise.all([fetchSets(), fetchCollections()]); // ensure fresh data for modal dropdowns
