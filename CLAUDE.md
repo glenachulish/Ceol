@@ -8,6 +8,13 @@ git pull --rebase origin claude/develop-ceol-v2-GVdsA
 ```
 Then open `http://localhost:8001` in the browser. Hard-refresh with **Cmd+Shift+R** after pulling new code.
 
+**Always give the user this full block** at the end of every code push:
+```bash
+cd /Users/callummaclellan/Ceol/v3
+git pull --rebase origin claude/develop-ceol-v2-GVdsA
+./run.sh
+```
+
 ## Architecture
 - **Backend**: FastAPI (Python) in `backend/main.py` — REST API + serves frontend
 - **Database**: SQLite at `data/ceol.db` — auto-migrates on startup
