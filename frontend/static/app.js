@@ -1540,8 +1540,6 @@ function renderSheetMusic(abc) {
 
   try {
     const _processedAbc = expandAbcRepeats(abc);
-    // Temporary diagnostic — open browser console (⌥⌘I) to inspect.
-    console.log('[Ceol] processed ABC →\n' + _processedAbc);
     // responsive:"resize" makes abcjs use the container's actual clientWidth
     // as staffwidth automatically. wrap handles multi-line layout.
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
@@ -1556,7 +1554,6 @@ function renderSheetMusic(abc) {
       foregroundColor: "#000000",
     });
     _patchSvgViewBox("sheet-music-render");
-    console.log('[Ceol] renderAbc returned', visualObjs.length, 'obj(s); lines:', visualObjs[0] && visualObjs[0].lines && visualObjs[0].lines.length);
 
     _visualObj = visualObjs[0];
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
@@ -1632,9 +1629,9 @@ function renderSheetMusic(abc) {
       displayWarp: true,
     });
 
-    _synthController.setTune(_visualObj, false, { program: 73 })
-      .then(() => console.log('[Ceol] setTune OK'))
-      .catch(err => console.warn('[Ceol] setTune FAILED:', err));
+    _synthController.setTune(_visualObj, false, { program: 73 }).catch(err => {
+      console.warn("Audio init failed:", err);
+    });
   } catch (err) {
     console.warn("Sheet music render failed:", err);
     if (container) container.textContent = "(Could not render sheet music)";
@@ -1666,6 +1663,10 @@ function expandAbcRepeats(abc) {
     .replace(/^%abcjs_soundfont\s+\S+\s*$/gim, '');
   const header = normaliseMidi(abc.slice(0, kEnd + 1));
   let body = normaliseMidi(abc.slice(kEnd + 1).trim());
+  // Remove %%MIDI program from the note body — abcjs silently returns 0 lines
+  // when this directive appears after the K: line. Playback uses { program: 73 }
+  // passed directly to setTune, so removing it here has no effect on audio.
+  body = body.replace(/^%%MIDI\s+program\s+\d+\s*$/gim, '');
 
   if (body.includes('!')) {
     // Protect !decoration! pairs with a placeholder, replace bare !, then restore.
