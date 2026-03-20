@@ -1539,9 +1539,12 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
+    const _processedAbc = expandAbcRepeats(abc);
+    // Temporary diagnostic — open browser console (⌥⌘I) to inspect.
+    console.log('[Ceol] processed ABC →\n' + _processedAbc);
     // responsive:"resize" makes abcjs use the container's actual clientWidth
     // as staffwidth automatically. wrap handles multi-line layout.
-    const visualObjs = ABCJS.renderAbc("sheet-music-render", expandAbcRepeats(abc), {
+    const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
       responsive: "resize",
       wrap: { preferredMeasuresPerLine: 4 },
       add_classes: true,

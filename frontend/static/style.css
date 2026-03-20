@@ -1812,6 +1812,13 @@ button.set-tune-title:hover { text-decoration: underline; }
 [data-tooltip]:hover::after { opacity: 1; }
 [data-tooltip-left]::after { left: auto; right: 0; transform: none; }
 
+/* Tooltips inside the sticky header must appear below, not above,
+   otherwise they're clipped by the browser chrome. */
+.header-inner [data-tooltip]::after {
+  bottom: auto;
+  top: calc(100% + 7px);
+}
+
 /* ── Help button ──────────────────────────────────────────── */
 .help-btn {
   background: transparent;
