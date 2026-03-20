@@ -1542,6 +1542,7 @@ function renderSheetMusic(abc) {
   try {
     const _processedAbc = expandAbcRepeats(abc);
     console.log('[Ceol] processed →', JSON.stringify(_processedAbc.slice(0, 120)));
+    console.log('[Ceol] container.clientWidth =', container.clientWidth, '| offsetWidth =', container.offsetWidth, '| parent =', container.parentElement && container.parentElement.clientWidth);
     // responsive:"resize" makes abcjs use the container's actual clientWidth
     // as staffwidth automatically. wrap handles multi-line layout.
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
