@@ -1543,6 +1543,11 @@ function renderSheetMusic(abc) {
     const _processedAbc = expandAbcRepeats(abc);
     console.log('[Ceol] processed →', JSON.stringify(_processedAbc.slice(0, 120)));
     console.log('[Ceol] container.clientWidth =', container.clientWidth, '| offsetWidth =', container.offsetWidth, '| parent =', container.parentElement && container.parentElement.clientWidth);
+    // Test raw ABC (no expandAbcRepeats) in a temp div to isolate the issue
+    const _tmp = document.createElement('div'); document.body.appendChild(_tmp);
+    const _rawObjs = ABCJS.renderAbc(_tmp, abc, { staffwidth: 600, add_classes: true });
+    console.log('[Ceol] raw ABC lines:', _rawObjs[0] && _rawObjs[0].lines && _rawObjs[0].lines.length, '| svg:', !!_tmp.querySelector('svg'));
+    document.body.removeChild(_tmp);
     // responsive:"resize" makes abcjs use the container's actual clientWidth
     // as staffwidth automatically. wrap handles multi-line layout.
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
@@ -1557,7 +1562,8 @@ function renderSheetMusic(abc) {
       foregroundColor: "#000000",
     });
     _patchSvgViewBox("sheet-music-render");
-    console.log('[Ceol] lines:', visualObjs[0] && visualObjs[0].lines && visualObjs[0].lines.length, '| warnings:', visualObjs[0] && visualObjs[0].warnings);
+    const _svg = container.querySelector('svg');
+    console.log('[Ceol] lines:', visualObjs[0] && visualObjs[0].lines && visualObjs[0].lines.length, '| warnings:', visualObjs[0] && visualObjs[0].warnings, '| svg in DOM:', !!_svg, _svg && `${_svg.clientWidth}x${_svg.clientHeight}`);
 
     _visualObj = visualObjs[0];
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
