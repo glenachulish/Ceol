@@ -1556,6 +1556,7 @@ function renderSheetMusic(abc) {
       foregroundColor: "#000000",
     });
     _patchSvgViewBox("sheet-music-render");
+    console.log('[Ceol] renderAbc returned', visualObjs.length, 'obj(s); lines:', visualObjs[0] && visualObjs[0].lines && visualObjs[0].lines.length);
 
     _visualObj = visualObjs[0];
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
@@ -1631,9 +1632,9 @@ function renderSheetMusic(abc) {
       displayWarp: true,
     });
 
-    _synthController.setTune(_visualObj, false, { program: 73 }).catch(err => {
-      console.warn("Audio init failed:", err);
-    });
+    _synthController.setTune(_visualObj, false, { program: 73 })
+      .then(() => console.log('[Ceol] setTune OK'))
+      .catch(err => console.warn('[Ceol] setTune FAILED:', err));
   } catch (err) {
     console.warn("Sheet music render failed:", err);
     if (container) container.textContent = "(Could not render sheet music)";
