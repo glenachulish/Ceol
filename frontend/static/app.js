@@ -1647,26 +1647,17 @@ function expandAbcRepeats(abc) {
   if (kIdx < 0) return abc;
   const kEnd = abc.indexOf('\n', kIdx);
   if (kEnd < 0) return abc;
-  // Strip/normalise MIDI directives that break our synth setup.
-  // IMPORTANT: %%MIDI program is REPLACED (not removed) because abcjs uses
-  // it as a rendering hint too — removing it entirely blanks the sheet music.
-  // We replace any out-of-range value (>127) with 73 (flute).
-  // Volume/velocity directives are stripped outright (we add our own below).
-  const normaliseMidi = s => s
-    .replace(/^(%%MIDI\s+program\s+)(\d+)(\s*)$/gim,
-      (_, pre, n, suf) => parseInt(n, 10) > 127 ? `${pre}73${suf}` : _)
-    .replace(/^%%MIDI\s+volume\s+\S+\s*$/gim, '')
-    .replace(/^%%MIDI\s+velocity\s+\S+\s*$/gim, '')
-    // Strip chord/bass accompaniment directives — abcjs may fail silently
-    // trying to load accompaniment samples for these, blocking melody audio.
-    .replace(/^%%MIDI\s+(bassprog|chordprog|bassvol|chordvol|chordname)\s+.*$/gim, '')
+  // abcjs silently produces 0 rendered lines when ANY %%MIDI directive appears
+  // in the note body (after K:). Strip all of them from the body; inject the
+  // ones we need into the header (before K:) where abcjs expects them.
+  const stripMidi = s => s
+    .replace(/^%%MIDI\s+.*$/gim, '')
     .replace(/^%abcjs_soundfont\s+\S+\s*$/gim, '');
-  const header = normaliseMidi(abc.slice(0, kEnd + 1));
-  let body = normaliseMidi(abc.slice(kEnd + 1).trim());
-  // Remove %%MIDI program from the note body — abcjs silently returns 0 lines
-  // when this directive appears after the K: line. Playback uses { program: 73 }
-  // passed directly to setTune, so removing it here has no effect on audio.
-  body = body.replace(/^%%MIDI\s+program\s+\d+\s*$/gim, '');
+  let header = stripMidi(abc.slice(0, kEnd + 1));
+  // Inject %%MIDI volume 120 just before the K: line so abcjs sees it as a
+  // header directive and still guarantees full playback volume.
+  header = header.replace(/^(K:.*)$/m, '%%MIDI volume 120\n$1');
+  let body = stripMidi(abc.slice(kEnd + 1).trim());
 
   if (body.includes('!')) {
     // Protect !decoration! pairs with a placeholder, replace bare !, then restore.
@@ -1676,9 +1667,7 @@ function expandAbcRepeats(abc) {
       .replace(/\x00([^\x00]*)\x00/g, '!$1!');
   }
 
-  // Guarantee a full-volume MIDI channel so imported dynamics directives or
-  // quiet-default programs don't produce inaudible output.
-  return header + '%%MIDI volume 120\n' + body;
+  return header + '\n' + body;
 }
 
 // After abcjs renders, add viewBox to the SVG so CSS max-width scales
