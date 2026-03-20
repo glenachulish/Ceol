@@ -943,7 +943,9 @@ function renderModal(tune, onBack = null, siblings = null) {
         <button id="modal-hitlist-btn" class="btn-secondary${tune.on_hitlist ? " hitlist-active" : ""}">
           📌 ${tune.on_hitlist ? "On Hitlist" : "Add to Hitlist"}
         </button>
-        <button id="delete-tune-modal-btn" class="btn-danger" data-tune-id="${tune.id}">Delete from Library</button>
+        <button id="delete-tune-modal-btn" class="btn-danger" data-tune-id="${tune.id}">
+          ${tune.parent_id ? "Delete this version" : "Delete from Library"}
+        </button>
       </div>
     </div>
   `;
@@ -1254,14 +1256,25 @@ function renderModal(tune, onBack = null, siblings = null) {
 
   // Delete tune from modal
   document.getElementById("delete-tune-modal-btn").addEventListener("click", async (ev) => {
-    if (!confirm(`Delete "${tune.title}" from your library? This cannot be undone.`)) return;
+    const isVersion = !!tune.parent_id;
+    const msg = isVersion
+      ? `Delete this version ("${tune.version_label || tune.title}") from your library? The other versions will not be affected. This cannot be undone.`
+      : `Delete "${tune.title}" from your library? This cannot be undone.`;
+    if (!confirm(msg)) return;
     ev.currentTarget.disabled = true;
     try {
       await apiDeleteTune(tune.id);
-      closeModal();
-      loadTunes();
+      await Promise.all([loadTunes(), loadStats()]);
+      // If this was a version, re-open the parent's versions panel so the
+      // user can see the remaining versions rather than a blank modal.
+      if (isVersion) {
+        if (onBack) onBack();
+        else renderVersionsPanel(tune.parent_id);
+      } else {
+        closeModal();
+      }
     } catch {
-      alert("Failed to delete tune. Please try again.");
+      alert("Failed to delete. Please try again.");
       ev.currentTarget.disabled = false;
     }
   });
@@ -1635,6 +1648,12 @@ function expandAbcRepeats(abc) {
   if (kEnd < 0) return abc;
   const header = abc.slice(0, kEnd + 1);
   let body = abc.slice(kEnd + 1).trim();
+
+  // Strip any %%MIDI volume directives from the source ABC — some imports set
+  // this to 0 or a very low value, producing silent playback.  We inject our
+  // own full-volume directive below so playback is always audible.
+  body = body.replace(/^%%MIDI\s+volume\s+\S+\s*$/gim, '');
+
   if (body.includes('!')) {
     // Protect !decoration! pairs with a placeholder, replace bare !, then restore.
     body = body
@@ -1642,7 +1661,10 @@ function expandAbcRepeats(abc) {
       .replace(/\s*!\s*/g, '\n')
       .replace(/\x00([^\x00]*)\x00/g, '!$1!');
   }
-  return header + body;
+
+  // Guarantee a full-volume MIDI channel so imported dynamics directives or
+  // quiet-default programs don't produce inaudible output.
+  return header + '%%MIDI volume 120\n' + body;
 }
 
 // After abcjs renders, add viewBox to the SVG so CSS max-width scales
