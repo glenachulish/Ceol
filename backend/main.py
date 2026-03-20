@@ -2337,3 +2337,12 @@ def serve_mobile():
         str(FRONTEND_DIR / "mobile.html"),
         headers={"Cache-Control": "no-store, must-revalidate"},
     )
+
+
+@app.get("/sw.js")
+def serve_sw():
+    return FileResponse(
+        str(STATIC_DIR / "sw.js"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store, must-revalidate"},
+    )
