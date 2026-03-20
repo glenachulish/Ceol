@@ -1281,7 +1281,6 @@ function renderModal(tune, onBack = null, siblings = null) {
 
   // Render sheet music after paint (skip if no ABC — PDF or empty)
   requestAnimationFrame(() => {
-    console.log('[Ceol] tune.abc =', JSON.stringify((tune.abc || '').slice(0, 80)));
     if (tune.abc) {
       renderSheetMusic(tune.abc);
     }
@@ -1541,18 +1540,12 @@ function renderSheetMusic(abc) {
 
   try {
     const _processedAbc = expandAbcRepeats(abc);
-    console.log('[Ceol] processed →', JSON.stringify(_processedAbc.slice(0, 120)));
-    console.log('[Ceol] container.clientWidth =', container.clientWidth, '| offsetWidth =', container.offsetWidth, '| parent =', container.parentElement && container.parentElement.clientWidth);
-    // Test raw ABC (no expandAbcRepeats) in a temp div to isolate the issue
-    const _tmp = document.createElement('div'); document.body.appendChild(_tmp);
-    const _rawObjs = ABCJS.renderAbc(_tmp, abc, { staffwidth: 600, add_classes: true });
-    console.log('[Ceol] raw ABC lines:', _rawObjs[0] && _rawObjs[0].lines && _rawObjs[0].lines.length, '| svg:', !!_tmp.querySelector('svg'));
-    document.body.removeChild(_tmp);
-    // responsive:"resize" makes abcjs use the container's actual clientWidth
-    // as staffwidth automatically. wrap handles multi-line layout.
+    // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
+    // when called from inside a modal (ResizeObserver quirk). Fall back to measured width.
+    const _staffWidth = Math.max(300, container.clientWidth - 30);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
-      responsive: "resize",
-      wrap: { preferredMeasuresPerLine: 4 },
+      staffwidth: _staffWidth,
+      wrap: { preferredMeasuresPerLine: 4, minSpacing: 1.8, maxSpacing: 2.7 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1562,8 +1555,6 @@ function renderSheetMusic(abc) {
       foregroundColor: "#000000",
     });
     _patchSvgViewBox("sheet-music-render");
-    const _svg = container.querySelector('svg');
-    console.log('[Ceol] lines:', visualObjs[0] && visualObjs[0].lines && visualObjs[0].lines.length, '| warnings:', visualObjs[0] && visualObjs[0].warnings, '| svg in DOM:', !!_svg, _svg && `${_svg.clientWidth}x${_svg.clientHeight}`);
 
     _visualObj = visualObjs[0];
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
