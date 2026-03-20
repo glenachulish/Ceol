@@ -1646,13 +1646,20 @@ function expandAbcRepeats(abc) {
   if (kIdx < 0) return abc;
   const kEnd = abc.indexOf('\n', kIdx);
   if (kEnd < 0) return abc;
-  const header = abc.slice(0, kEnd + 1);
-  let body = abc.slice(kEnd + 1).trim();
-
-  // Strip any %%MIDI volume directives from the source ABC — some imports set
-  // this to 0 or a very low value, producing silent playback.  We inject our
-  // own full-volume directive below so playback is always audible.
-  body = body.replace(/^%%MIDI\s+volume\s+\S+\s*$/gim, '');
+  // Strip MIDI directives that break our synth:
+  //  - %%MIDI program X  — some imports use out-of-range values (e.g. 141)
+  //    that have no samples; we pass program:73 (flute) to setTune instead.
+  //  - %abcjs_soundfont   — we haven't loaded an alternative soundfont.
+  //  - %%MIDI volume X   — some imports set this to 0, producing silence.
+  //  - %%MIDI velocity X — overrides note velocity; can produce near-silence.
+  // Apply to both header and body sections.
+  const stripMidi = s => s
+    .replace(/^%%MIDI\s+program\s+\S+\s*$/gim, '')
+    .replace(/^%%MIDI\s+volume\s+\S+\s*$/gim, '')
+    .replace(/^%%MIDI\s+velocity\s+\S+\s*$/gim, '')
+    .replace(/^%abcjs_soundfont\s+\S+\s*$/gim, '');
+  const header = stripMidi(abc.slice(0, kEnd + 1));
+  let body = stripMidi(abc.slice(kEnd + 1).trim());
 
   if (body.includes('!')) {
     // Protect !decoration! pairs with a placeholder, replace bare !, then restore.
