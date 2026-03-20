@@ -1281,6 +1281,7 @@ function renderModal(tune, onBack = null, siblings = null) {
 
   // Render sheet music after paint (skip if no ABC — PDF or empty)
   requestAnimationFrame(() => {
+    console.log('[Ceol] tune.abc =', JSON.stringify((tune.abc || '').slice(0, 80)));
     if (tune.abc) {
       renderSheetMusic(tune.abc);
     }
@@ -1540,6 +1541,7 @@ function renderSheetMusic(abc) {
 
   try {
     const _processedAbc = expandAbcRepeats(abc);
+    console.log('[Ceol] processed →', JSON.stringify(_processedAbc.slice(0, 120)));
     // responsive:"resize" makes abcjs use the container's actual clientWidth
     // as staffwidth automatically. wrap handles multi-line layout.
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
@@ -1554,6 +1556,7 @@ function renderSheetMusic(abc) {
       foregroundColor: "#000000",
     });
     _patchSvgViewBox("sheet-music-render");
+    console.log('[Ceol] lines:', visualObjs[0] && visualObjs[0].lines && visualObjs[0].lines.length, '| warnings:', visualObjs[0] && visualObjs[0].warnings);
 
     _visualObj = visualObjs[0];
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
