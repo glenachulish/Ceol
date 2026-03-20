@@ -11,9 +11,13 @@
   <title>Ceòl Mobile – Trad Music</title>
   <link rel="manifest" href="/static/manifest.json" />
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
-  <link rel="stylesheet" href="/static/style.css?v=37" />
+  <!-- Apply saved theme before paint to avoid flash -->
+  <script>
+    (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);})();
+  </script>
+  <link rel="stylesheet" href="/static/style.css?v=38" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=1" />
+  <link rel="stylesheet" href="/static/mobile.css?v=2" />
 </head>
 <body class="mobile-body">
 
@@ -192,6 +196,15 @@
         <button id="m-menu-close" class="m-header-btn" aria-label="Close menu">✕</button>
       </div>
       <nav class="m-menu-items">
+        <div class="m-menu-theme-row">
+          <span class="m-menu-theme-label">Appearance</span>
+          <div class="m-theme-seg" role="group" aria-label="Colour theme">
+            <button class="m-theme-btn" data-theme="auto"  aria-pressed="false">Auto</button>
+            <button class="m-theme-btn" data-theme="light" aria-pressed="false">Light</button>
+            <button class="m-theme-btn" data-theme="dark"  aria-pressed="false">Dark</button>
+          </div>
+        </div>
+        <hr class="m-menu-divider" />
         <button id="m-info-btn" class="m-menu-item">ℹ App Info</button>
         <button id="m-help-btn" class="m-menu-item">? Help</button>
         <hr class="m-menu-divider" />
@@ -508,7 +521,7 @@
 
   <script src="/static/abcjs-basic-min.js"></script>
   <script src="/static/app.js?v=64"></script>
-  <script src="/static/mobile.js?v=1"></script>
+  <script src="/static/mobile.js?v=2"></script>
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});

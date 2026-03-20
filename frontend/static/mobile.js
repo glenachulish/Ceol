@@ -5,6 +5,32 @@
 (function () {
   "use strict";
 
+  // ── Theme (light / dark / auto) ──────────────────────────────────────────
+  const THEME_KEY = "ceol-theme";
+
+  function applyTheme(pref) {
+    const root = document.documentElement;
+    if (pref === "light" || pref === "dark") {
+      root.setAttribute("data-theme", pref);
+    } else {
+      root.removeAttribute("data-theme"); // auto = let media query decide
+    }
+    document.querySelectorAll(".m-theme-btn").forEach(btn => {
+      btn.setAttribute("aria-pressed", String(btn.dataset.theme === pref));
+    });
+  }
+
+  // Apply saved preference immediately (before paint)
+  applyTheme(localStorage.getItem(THEME_KEY) || "auto");
+
+  document.querySelectorAll(".m-theme-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const pref = btn.dataset.theme;
+      localStorage.setItem(THEME_KEY, pref);
+      applyTheme(pref);
+    });
+  });
+
   // ── Bottom navigation ────────────────────────────────────────────────────────
   // app.js's switchView() already hides/shows the correct view panels.
   // We just need to keep the bottom nav's .active state in sync.

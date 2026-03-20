@@ -365,6 +365,39 @@
   margin: .4rem 0;
 }
 
+/* ── Theme segmented control ──────────────────────────────── */
+.m-menu-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .55rem 1rem;
+}
+.m-menu-theme-label {
+  font-size: .88rem;
+  color: var(--text-muted);
+}
+.m-theme-seg {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.m-theme-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: .8rem;
+  padding: .35rem .7rem;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  border-right: 1px solid var(--border);
+}
+.m-theme-btn:last-child { border-right: none; }
+.m-theme-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
 .m-menu-footer {
   border-top: 1px solid var(--border);
   padding: .4rem 0;
