@@ -297,7 +297,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   border: none;
   cursor: pointer;
   font-size: 1.4rem;
-  color: var(--border);
+  color: color-mix(in srgb, var(--text-muted) 50%, transparent);
   padding: 0;
   line-height: 1;
   transition: color .1s, transform .1s;
@@ -1019,14 +1019,39 @@ button.set-tune-title:hover { text-decoration: underline; }
   padding: .5rem .75rem !important;
 }
 .abcjs-inline-audio button {
-  background: var(--surface) !important;
-  border: 1px solid var(--border) !important;
+  background: color-mix(in srgb, var(--text) 10%, var(--surface2)) !important;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, var(--border)) !important;
   border-radius: 4px !important;
   color: var(--text) !important;
   cursor: pointer !important;
 }
-.abcjs-inline-audio button:hover { border-color: var(--accent) !important; }
+.abcjs-inline-audio button:hover {
+  border-color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface2)) !important;
+}
+/* SVG icons inside buttons (play/pause/loop/restart) */
+.abcjs-inline-audio button svg g,
+.abcjs-inline-audio button svg path,
+.abcjs-inline-audio button svg polygon,
+.abcjs-inline-audio button svg rect {
+  fill: var(--text) !important;
+}
+/* Progress track */
+.abcjs-inline-audio .abcjs-midi-progress {
+  background: color-mix(in srgb, var(--text) 18%, var(--surface2)) !important;
+}
 .abcjs-inline-audio .abcjs-midi-progress-indicator { background: var(--accent) !important; }
+/* Time clock and BPM warp */
+.abcjs-inline-audio .abcjs-midi-clock {
+  color: var(--text) !important;
+}
+.abcjs-inline-audio .abcjs-tempo-wrapper { color: var(--text) !important; }
+.abcjs-inline-audio input[type="number"] {
+  background: color-mix(in srgb, var(--text) 8%, var(--surface2)) !important;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, var(--border)) !important;
+  color: var(--text) !important;
+  border-radius: 3px !important;
+}
 /* Loop button: glow accent colour when active so it's obvious loop is on */
 .abcjs-inline-audio .abcjs-midi-loop.abcjs-pushed {
   background: color-mix(in srgb, var(--accent) 25%, var(--surface)) !important;
