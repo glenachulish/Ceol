@@ -1544,8 +1544,6 @@ function renderSheetMusic(abc) {
     // when called from inside a modal (ResizeObserver quirk).
     // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
     // Fallback to 600 so narrow/unmeasured containers still render full staves.
-    console.log('[Ceol] raw ABC →\n' + abc);
-    console.log('[Ceol] processed ABC →\n' + _processedAbc);
     const _staffWidth = Math.max(600, container.clientWidth - 30);
     console.log('[Ceol] renderSheetMusic clientW:', container.clientWidth, 'staffW:', _staffWidth);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
@@ -1656,8 +1654,8 @@ function expandAbcRepeats(abc) {
   const kEnd = abc.indexOf('\n', kIdx);
   if (kEnd < 0) return abc;
   // abcjs silently produces 0 rendered lines when ANY %%MIDI directive appears
-  // in the note body (after K:). Strip all of them from the body; inject the
-  // ones we need into the header (before K:) where abcjs expects them.
+  // anywhere in the ABC, or when I:linebreak overrides prevent normal wrapping.
+  // Strip all such directives so abcjs sees clean ABC.
   const stripMidi = s => s
     .replace(/^%%MIDI\s+.*$/gim, '')
     .replace(/^%abcjs_soundfont\s+\S+\s*$/gim, '')
@@ -1666,10 +1664,7 @@ function expandAbcRepeats(abc) {
     // everything on one infinite line and produces 0 staff lines. Strip the
     // directive so abcjs falls back to its default newline-based line breaking.
     .replace(/^I:linebreak\s+.*$/gim, '');
-  let header = stripMidi(abc.slice(0, kEnd + 1));
-  // Inject %%MIDI volume 120 just before the K: line so abcjs sees it as a
-  // header directive and still guarantees full playback volume.
-  header = header.replace(/^(K:.*)$/m, '%%MIDI volume 120\n$1');
+  const header = stripMidi(abc.slice(0, kEnd + 1));
   let body = stripMidi(abc.slice(kEnd + 1).trim());
 
   if (body.includes('!')) {
