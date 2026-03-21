@@ -3919,6 +3919,42 @@ libDeleteConfirm.addEventListener("click", async () => {
   }
 });
 
+// ── Theme toggle ─────────────────────────────────────────────────────────────
+(function () {
+  const THEMES = ['dark', 'light', 'auto'];
+  const ICONS  = { dark: '🌙', light: '☀️', auto: '🔁' };
+  const LABELS = { dark: 'Dark theme', light: 'Light theme', auto: 'Auto (follows OS)' };
+
+  function getTheme() {
+    return localStorage.getItem('ceol-theme') || 'auto';
+  }
+  function applyTheme(theme) {
+    if (theme === 'auto') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+    document.querySelectorAll('#theme-toggle-btn').forEach(btn => {
+      btn.textContent = ICONS[theme];
+      btn.setAttribute('data-tooltip', LABELS[theme]);
+      btn.setAttribute('aria-label', LABELS[theme]);
+    });
+  }
+  function cycleTheme() {
+    const current = getTheme();
+    const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
+    localStorage.setItem('ceol-theme', next);
+    applyTheme(next);
+  }
+
+  // Apply saved theme immediately on load
+  applyTheme(getTheme());
+
+  document.querySelectorAll('#theme-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', cycleTheme);
+  });
+})();
+
 // ── Help modal ────────────────────────────────────────────────────────────────
 // ── Info modal ───────────────────────────────────────────────────────────────
 const infoBtn = document.getElementById("info-btn");
