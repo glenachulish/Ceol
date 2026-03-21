@@ -1660,7 +1660,12 @@ function expandAbcRepeats(abc) {
   // ones we need into the header (before K:) where abcjs expects them.
   const stripMidi = s => s
     .replace(/^%%MIDI\s+.*$/gim, '')
-    .replace(/^%abcjs_soundfont\s+\S+\s*$/gim, '');
+    .replace(/^%abcjs_soundfont\s+\S+\s*$/gim, '')
+    // I:linebreak overrides (e.g. "I:linebreak $") tell abcjs to only break
+    // staves at that character. If the body has none of them, abcjs renders
+    // everything on one infinite line and produces 0 staff lines. Strip the
+    // directive so abcjs falls back to its default newline-based line breaking.
+    .replace(/^I:linebreak\s+.*$/gim, '');
   let header = stripMidi(abc.slice(0, kEnd + 1));
   // Inject %%MIDI volume 120 just before the K: line so abcjs sees it as a
   // header directive and still guarantees full playback volume.
