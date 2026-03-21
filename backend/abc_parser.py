@@ -209,6 +209,26 @@ def normalise_type(raw: str) -> str:
     return _TYPE_MAP.get(raw.strip().lower(), raw.strip().lower())
 
 
+def classify_key(abc: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """
+    Extract key and mode from the K: field in ABC notation.
+
+    Returns (key, mode) as normalised strings, or (None, None) if absent.
+    This is a re-extraction useful for tunes whose key column was never
+    populated (e.g. manually added tunes, or old imports with no K:).
+    """
+    if not abc:
+        return (None, None)
+    for line in abc.splitlines():
+        if line.upper().startswith("K:"):
+            key_raw = line[2:].strip()
+            key_raw = key_raw.split("%")[0].strip()  # strip inline comments
+            key_raw = key_raw.split()[0] if key_raw else key_raw
+            if key_raw:
+                return normalise_key(key_raw)
+    return (None, None)
+
+
 def classify_type(abc: Optional[str], title: Optional[str] = None) -> Optional[str]:
     """
     Infer the tune type from ABC headers and/or title.

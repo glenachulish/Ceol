@@ -430,23 +430,45 @@ function debounce(fn, ms) {
 
 function typeBadgeClass(type) {
   const map = {
-    reel: "badge-reel",
-    jig: "badge-jig",
-    hornpipe: "badge-hornpipe",
-    "slip jig": "badge-slip-jig",
-    polka: "badge-polka",
+    "reel":        "badge-reel",
+    "jig":         "badge-jig",
+    "hornpipe":    "badge-hornpipe",
+    "slip jig":    "badge-slip-jig",
+    "polka":       "badge-polka",
+    "march":       "badge-march",
+    "waltz":       "badge-waltz",
+    "strathspey":  "badge-strathspey",
+    "slide":       "badge-slide",
+    "hop jig":     "badge-hop-jig",
+    "air":         "badge-air",
+    "slow air":    "badge-slow-air",
+    "mazurka":     "badge-mazurka",
+    "barndance":   "badge-barndance",
+    "schottische": "badge-schottische",
+    "highland":    "badge-highland",
+    "set dance":   "badge-set-dance",
   };
   return map[type] || "badge-other";
 }
 
 function keyBadgeClass(key) {
   if (!key) return "badge-key";
-  const m = key.trim().match(/^(HP|[A-G])/i);
+  // Match root note including accidentals: HP, or A-G optionally followed by # or b
+  const m = key.trim().match(/^(HP|[A-G][#b]?)/i);
   if (!m) return "badge-key";
-  const note = m[1].toUpperCase();
+  const note = m[1];
+  // Normalise to badge class key
+  const upper = note.toUpperCase();
+  if (upper === "HP") return "badge-key-HP";
+  if (upper === "F#" || upper === "GB") return "badge-key-Fs";
+  if (upper === "BB" || upper === "A#") return "badge-key-Bb";
+  if (upper === "EB" || upper === "D#") return "badge-key-Eb";
+  if (upper === "AB" || upper === "G#") return "badge-key-A";  // Ab → A family
+  if (upper === "DB" || upper === "C#") return "badge-key-C";  // Db/C# → C family
+  if (upper === "GB" || upper === "F#") return "badge-key-Fs"; // duplicate catch
   const map = { C:"badge-key-C", D:"badge-key-D", E:"badge-key-E", F:"badge-key-F",
-                G:"badge-key-G", A:"badge-key-A", B:"badge-key-B", H:"badge-key-HP" };
-  return map[note] || "badge-key";
+                G:"badge-key-G", A:"badge-key-A", B:"badge-key-B" };
+  return map[upper[0]] || "badge-key";
 }
 
 function escHtml(s) {
@@ -1306,14 +1328,30 @@ function renderModal(tune, onBack = null, siblings = null) {
 
 // ── Inline type/key editing in modal ─────────────────────────────────────────
 const TUNE_TYPES = [
-  "reel","jig","hornpipe","slip jig","polka","waltz","march",
-  "strathspey","air","slide","mazurka","schottische","barndance","highland","lowland",
+  // Most common
+  "reel","jig","hornpipe","slip jig","polka","waltz","march","strathspey",
+  // Compound / regional
+  "slide","hop jig","air","slow air",
+  // Less common
+  "mazurka","barndance","schottische","highland","set dance",
 ];
 const KEY_SUGGESTIONS = [
-  "D major","G major","A major","C major","E minor","B minor","F# minor",
-  "A dorian","D dorian","E dorian","G dorian","B dorian",
-  "A mixolydian","D mixolydian","G mixolydian",
-  "Bb major","F major","Eb major","A minor",
+  // D group — very common
+  "D major","D mixolydian","D dorian","D minor",
+  // G group
+  "G major","G mixolydian","G dorian",
+  // A group
+  "A major","A mixolydian","A dorian","A minor",
+  // E group
+  "E minor","E dorian",
+  // B group
+  "B minor","B dorian",
+  // C group
+  "C major",
+  // F group
+  "F major","F# minor",
+  // Flat keys
+  "Bb major","Eb major",
 ];
 
 function updateCardMeta(tuneId, field, value) {
@@ -4108,9 +4146,9 @@ infoBtn.addEventListener("click", async () => {
     <p class="modal-hint">Backups are created automatically each time the server starts.</p>
     <hr class="modal-divider">
     <h3 class="modal-section-title">Library tools</h3>
-    <p class="modal-hint">Auto-classify reads each tune's ABC notation (R: and M: fields) and title
-      to set the tune type. Run this after importing new tunes, or force a full
-      re-scan to fix any wrong labels.</p>
+    <p class="modal-hint">Auto-classify reads each tune's ABC notation (R:, M:, K: fields) and title
+      to set the tune type and key. Run this after importing new tunes, or force
+      a full re-scan to correct any wrong labels.</p>
     <div class="info-tools-row">
       <button id="classify-new-btn" class="btn-secondary">Classify untyped tunes</button>
       <button id="classify-all-btn" class="btn-secondary">Re-classify all tunes</button>
@@ -4127,8 +4165,14 @@ infoBtn.addEventListener("click", async () => {
     status.textContent = "Working…";
     try {
       const res = await apiFetch(`/api/classify-types${force ? "?force=true" : ""}`, { method: "POST" });
-      status.textContent = `Done — ${res.classified} tune${res.classified !== 1 ? "s" : ""} updated (${res.total} checked).`;
-      if (res.classified > 0) { await loadTunes(); await loadFilters(); }
+      const changed = res.types_set + res.keys_set;
+      const parts = [];
+      if (res.types_set) parts.push(`${res.types_set} type${res.types_set !== 1 ? "s" : ""}`);
+      if (res.keys_set)  parts.push(`${res.keys_set} key${res.keys_set !== 1 ? "s" : ""}`);
+      status.textContent = changed
+        ? `Done — set ${parts.join(" and ")} across ${res.total} checked.`
+        : `Nothing to update (${res.total} checked).`;
+      if (changed > 0) { await loadTunes(); await loadFilters(); }
     } catch (e) {
       status.textContent = `Error: ${e.message}`;
     } finally {
