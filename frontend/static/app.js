@@ -865,19 +865,10 @@ function renderModal(tune, onBack = null, siblings = null) {
     const m = tune.notes.match(/sheet music \(PDF\):\s*(https?:\/\/\S+)/);
     return m ? m[1] : null;
   })();
-  const setsOptions = state.sets
-    .map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`)
-    .join("");
-  const setsFooter = state.sets.length
-    ? `<div class="modal-sets-row">
-        <select id="set-select" class="set-select">
-          <option value="">Add to a set…</option>
-          ${setsOptions}
-        </select>
-        <button id="add-to-set-btn" class="btn-secondary">+ Add</button>
-        <span id="set-status" class="set-status"></span>
-      </div>`
-    : `<p class="modal-hint">Go to Sets to create a set, then add this tune to it.</p>`;
+  const setsFooter = `<div class="modal-sets-row">
+      <button id="add-to-set-btn" class="btn-secondary btn-sm">+ Add to a set…</button>
+      <button id="create-set-from-tune-btn" class="btn-secondary btn-sm">+ Create new set</button>
+    </div>`;
 
   const collectionsOptions = state.collections
     .map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`)
@@ -1134,25 +1125,13 @@ function renderModal(tune, onBack = null, siblings = null) {
     }
   });
 
-  // Add to set
-  const addToSetBtn = document.getElementById("add-to-set-btn");
-  if (addToSetBtn) {
-    addToSetBtn.addEventListener("click", async () => {
-      const setId = document.getElementById("set-select").value;
-      const setStatus = document.getElementById("set-status");
-      if (!setId) return;
-      try {
-        const result = await apiAddTuneToSet(setId, tune.id);
-        setStatus.textContent = result.added ? "Added!" : "Already in set.";
-        setStatus.className = "set-status set-saved";
-        setTimeout(() => { setStatus.textContent = ""; }, 2000);
-        await fetchSets();
-      } catch {
-        setStatus.textContent = "Failed.";
-        setStatus.className = "set-status set-error";
-      }
-    });
-  }
+  // Add to set — opens set picker panel
+  document.getElementById("add-to-set-btn")
+    .addEventListener("click", () => showSetPickerPanel(tune, onBack, siblings));
+
+  // Create new set from this tune
+  document.getElementById("create-set-from-tune-btn")
+    .addEventListener("click", () => showCreateSetPanel(tune, onBack, siblings));
 
   // Add to collection
   const addToColBtn = document.getElementById("add-to-col-btn");
@@ -2156,6 +2135,184 @@ function openSetMusicModal(title, abc, isTransition = false) {
     } catch (err) {
       console.warn("Set music render failed:", err);
     }
+  });
+}
+
+// ── Add-to-set flow panels ────────────────────────────────────────────────────
+
+// Panel 1: list of existing sets to choose from
+function showSetPickerPanel(tune, onBack, siblings) {
+  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); }); };
+  const rows = state.sets.map(s => `
+    <button class="set-picker-row" data-set-id="${s.id}">
+      <span class="set-picker-name">${escHtml(s.name)}</span>
+      <span class="set-picker-count">${s.tune_count || 0} tune${s.tune_count !== 1 ? "s" : ""}</span>
+      <span class="set-picker-arrow">›</span>
+    </button>`).join("");
+
+  modalContent.innerHTML = `
+    <button class="modal-back-btn" id="modal-back-btn">← Back</button>
+    <h2 class="modal-title">Add to a set</h2>
+    <p class="modal-hint">Choose a set to preview where <strong>${escHtml(tune.title)}</strong> will sit.</p>
+    <div class="set-picker-list">${rows || '<p class="modal-hint">No sets yet — use "Create new set" instead.</p>'}</div>
+    <div style="margin-top:1rem">
+      <button id="picker-create-btn" class="btn-secondary btn-sm">+ Create new set instead</button>
+    </div>`;
+
+  document.getElementById("modal-back-btn").addEventListener("click", backToTune);
+  document.getElementById("picker-create-btn").addEventListener("click", () => showCreateSetPanel(tune, onBack, siblings));
+  modalContent.querySelectorAll(".set-picker-row").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const setId = Number(btn.dataset.setId);
+      const setData = await apiGetSet(setId);
+      showSetPreviewPanel(tune, setData, onBack, siblings);
+    });
+  });
+}
+
+// Panel 2: preview the set with the new tune appended, allow reorder + playback
+function showSetPreviewPanel(tune, setData, onBack, siblings) {
+  const backToPicker = () => showSetPickerPanel(tune, onBack, siblings);
+  const backToTune   = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); }); };
+
+  // Working copy of the order; new tune is appended at the end
+  let previewOrder = [...(setData.tunes || []), { ...tune, _isNew: true }];
+
+  function renderPreview() {
+    const rows = previewOrder.map((t, i) => `
+      <div class="set-preview-row${t._isNew ? " set-preview-new" : ""}" data-idx="${i}">
+        <span class="set-preview-pos">${i + 1}</span>
+        <span class="set-preview-title">${escHtml(t.title)}${t._isNew ? ' <span class="set-preview-new-badge">new</span>' : ""}</span>
+        <span class="set-preview-meta">${escHtml([t.type, t.key].filter(Boolean).join(" · "))}</span>
+        <div class="set-preview-btns">
+          <button class="set-prev-up btn-sm" data-idx="${i}" ${i === 0 ? "disabled" : ""} title="Move up">↑</button>
+          <button class="set-prev-dn btn-sm" data-idx="${i}" ${i === previewOrder.length - 1 ? "disabled" : ""} title="Move down">↓</button>
+        </div>
+      </div>`).join("");
+
+    modalContent.innerHTML = `
+      <button class="modal-back-btn" id="modal-back-btn">← Back</button>
+      <h2 class="modal-title">Add to "${escHtml(setData.name)}"</h2>
+      <p class="modal-hint">Drag <strong>${escHtml(tune.title)}</strong> into position, preview the set, then confirm.</p>
+      <div class="set-preview-list" id="set-preview-list">${rows}</div>
+      <div class="set-preview-actions">
+        <button id="set-preview-play-btn" class="btn-secondary"${previewOrder.some(t => t.abc) ? "" : " disabled"}>▶ Preview playback</button>
+        <button id="set-preview-confirm-btn" class="btn-primary">Add to set</button>
+        <button id="set-preview-cancel-btn" class="btn-secondary">Cancel</button>
+        <span id="set-preview-status" class="set-status"></span>
+      </div>`;
+
+    document.getElementById("modal-back-btn").addEventListener("click", backToPicker);
+    document.getElementById("set-preview-cancel-btn").addEventListener("click", backToTune);
+
+    // Move up/down
+    modalContent.querySelectorAll(".set-prev-up").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const i = Number(btn.dataset.idx);
+        [previewOrder[i - 1], previewOrder[i]] = [previewOrder[i], previewOrder[i - 1]];
+        renderPreview();
+      });
+    });
+    modalContent.querySelectorAll(".set-prev-dn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const i = Number(btn.dataset.idx);
+        [previewOrder[i], previewOrder[i + 1]] = [previewOrder[i + 1], previewOrder[i]];
+        renderPreview();
+      });
+    });
+
+    // Preview playback — build combined ABC and open music modal with back callback
+    document.getElementById("set-preview-play-btn").addEventListener("click", () => {
+      const abc = buildFullSetAbc(previewOrder);
+      if (!abc) return;
+      openSetMusicModal(`Preview: ${setData.name}`, abc);
+      // Inject a back button into the music modal
+      const backBtn = document.createElement("button");
+      backBtn.className = "modal-back-btn";
+      backBtn.textContent = "← Back to preview";
+      backBtn.addEventListener("click", () => {
+        if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
+        renderPreview();
+      });
+      modalContent.prepend(backBtn);
+    });
+
+    // Confirm — add tune at the correct position then reorder
+    document.getElementById("set-preview-confirm-btn").addEventListener("click", async () => {
+      const status = document.getElementById("set-preview-status");
+      const btn = document.getElementById("set-preview-confirm-btn");
+      btn.disabled = true;
+      status.textContent = "Adding…";
+      try {
+        await apiAddTuneToSet(setData.id, tune.id);
+        // Reorder to match preview (new tune may have been moved)
+        const newOrder = previewOrder.map(t => t.id);
+        await apiReorderSetTunes(setData.id, newOrder);
+        await fetchSets();
+        status.textContent = "Added!";
+        status.className = "set-status set-saved";
+        setTimeout(backToTune, 900);
+      } catch (e) {
+        status.textContent = e.message || "Failed.";
+        status.className = "set-status set-error";
+        btn.disabled = false;
+      }
+    });
+  }
+
+  renderPreview();
+}
+
+// Panel 3: create a new set with this tune as the first entry
+function showCreateSetPanel(tune, onBack, siblings) {
+  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); }); };
+  const defaultName = `${tune.title} Set`;
+
+  modalContent.innerHTML = `
+    <button class="modal-back-btn" id="modal-back-btn">← Back</button>
+    <h2 class="modal-title">Create new set</h2>
+    <p class="modal-hint"><strong>${escHtml(tune.title)}</strong> will be added as the first tune.</p>
+    <div class="create-set-form">
+      <label class="create-set-label">Set name</label>
+      <input id="create-set-name-input" class="create-set-input" type="text" value="${escHtml(defaultName)}" maxlength="120">
+      <div class="create-set-actions">
+        <button id="create-set-confirm-btn" class="btn-primary">Create set</button>
+        <button id="create-set-cancel-btn" class="btn-secondary">Cancel</button>
+        <span id="create-set-status" class="set-status"></span>
+      </div>
+    </div>`;
+
+  const nameInput = document.getElementById("create-set-name-input");
+  nameInput.focus();
+  nameInput.select();
+
+  document.getElementById("modal-back-btn").addEventListener("click", backToTune);
+  document.getElementById("create-set-cancel-btn").addEventListener("click", backToTune);
+
+  document.getElementById("create-set-confirm-btn").addEventListener("click", async () => {
+    const name = nameInput.value.trim();
+    const status = document.getElementById("create-set-status");
+    const btn = document.getElementById("create-set-confirm-btn");
+    if (!name) { nameInput.focus(); return; }
+    btn.disabled = true;
+    status.textContent = "Creating…";
+    try {
+      const newSet = await apiCreateSet(name, "");
+      await apiAddTuneToSet(newSet.id, tune.id);
+      state.sets.push({ ...newSet, tune_count: 1 });
+      await fetchSets();
+      status.textContent = "Set created!";
+      status.className = "set-status set-saved";
+      setTimeout(backToTune, 900);
+    } catch (e) {
+      status.textContent = e.message || "Failed.";
+      status.className = "set-status set-error";
+      btn.disabled = false;
+    }
+  });
+
+  nameInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("create-set-confirm-btn").click();
   });
 }
 
