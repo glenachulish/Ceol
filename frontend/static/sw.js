@@ -3,7 +3,7 @@
    API calls (/api/*) always go network-first so data stays fresh.
    ---------------------------------------------------------------- */
 
-const CACHE  = "ceol-v1";
+const CACHE  = "ceol-v2";
 const SHELL  = [
   "/mobile",
   "/static/style.css",
@@ -45,12 +45,27 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // For everything else: try cache first, fall back to network
+  // HTML pages: network-first so updated HTML (with new asset versions) is
+  // always picked up; fall back to cache only when offline.
+  const isHtml = url.pathname === "/mobile" || url.pathname === "/";
+  if (isHtml) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Static assets: cache-first (versioned URLs bust the cache when needed)
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
       return fetch(event.request).then(response => {
-        // Cache successful GET responses
         if (response.ok && event.request.method === "GET") {
           const clone = response.clone();
           caches.open(CACHE).then(cache => cache.put(event.request, clone));
