@@ -159,7 +159,7 @@ def list_tunes(
     hitlist: Optional[int] = Query(None, description="1 = hitlist only"),
     min_rating: Optional[int] = Query(None, ge=1, le=5, description="Minimum star rating"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=5000),
+    page_size: int = Query(50, ge=1, le=10000),
 ):
     conditions: list[str] = ["t.parent_id IS NULL"]
     params: list = []
