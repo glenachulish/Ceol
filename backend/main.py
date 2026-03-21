@@ -14,6 +14,7 @@ import shutil
 import tempfile
 import uuid
 import zipfile
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 from typing import Optional
@@ -72,8 +73,40 @@ def _write_info_file() -> None:
     )
 
 
+def _do_auto_group(conn) -> int:
+    """Group standalone tunes that share the same title. Returns count of new groups created."""
+    rows = conn.execute(
+        "SELECT id, title, type, key, abc FROM tunes WHERE parent_id IS NULL ORDER BY id"
+    ).fetchall()
+    groups: dict = defaultdict(list)
+    for row in rows:
+        groups[row["title"].strip().lower()].append(dict(row))
+    grouped = 0
+    for tunes in groups.values():
+        if len(tunes) < 2:
+            continue
+        title = tunes[0]["title"]
+        cur = conn.execute(
+            "INSERT INTO tunes (title, type, key, mode, abc, notes) VALUES (?, '', '', '', '', '')",
+            (title,),
+        )
+        parent_id = cur.lastrowid
+        default_id = next((t["id"] for t in tunes if t["abc"].strip()), tunes[0]["id"])
+        for i, tune in enumerate(tunes):
+            key_part = f" · {tune['key']}" if tune["key"] else ""
+            label = f"Setting {i + 1}{key_part}"
+            conn.execute(
+                "UPDATE tunes SET parent_id = ?, version_label = ?, is_default = ? WHERE id = ?",
+                (parent_id, label, 1 if tune["id"] == default_id else 0, tune["id"]),
+            )
+        grouped += 1
+    return grouped
+
+
 _rotate_db_backup()
 _write_info_file()
+with get_connection() as _startup_conn:
+    _do_auto_group(_startup_conn)
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -1292,37 +1325,8 @@ def set_default_version(tune_id: int):
 @app.post("/api/tunes/auto-group")
 def auto_group_tunes():
     """Find standalone tunes sharing the same title and group them as versions."""
-    from collections import defaultdict
     with _db() as conn:
-        rows = conn.execute(
-            "SELECT id, title, type, key, abc FROM tunes WHERE parent_id IS NULL ORDER BY id"
-        ).fetchall()
-
-        groups: dict[str, list] = defaultdict(list)
-        for row in rows:
-            groups[row["title"].strip().lower()].append(dict(row))
-
-        grouped = 0
-        for tunes in groups.values():
-            if len(tunes) < 2:
-                continue
-            title = tunes[0]["title"]
-            cur = conn.execute(
-                "INSERT INTO tunes (title, type, key, mode, abc, notes) VALUES (?, '', '', '', '', '')",
-                (title,),
-            )
-            parent_id = cur.lastrowid
-            # Prefer a tune with ABC as the default; fall back to the first
-            default_id = next((t["id"] for t in tunes if t["abc"].strip()), tunes[0]["id"])
-            for i, tune in enumerate(tunes):
-                key_part = f" · {tune['key']}" if tune["key"] else ""
-                label = f"Setting {i + 1}{key_part}"
-                conn.execute(
-                    "UPDATE tunes SET parent_id = ?, version_label = ?, is_default = ? WHERE id = ?",
-                    (parent_id, label, 1 if tune["id"] == default_id else 0, tune["id"]),
-                )
-            grouped += 1
-
+        grouped = _do_auto_group(conn)
     return {"grouped": grouped}
 
 
