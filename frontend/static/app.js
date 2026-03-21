@@ -616,6 +616,7 @@ async function apiDeleteTune(id) {
 // ── View switching ────────────────────────────────────────────────────────────
 function switchView(view) {
   state.view = view;
+  if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements].forEach(v => v.classList.add("hidden"));
   [navLibrary, navSets, navCollections, navNotes, navAchievements].forEach(n => n.classList.remove("active"));
 
@@ -1913,7 +1914,7 @@ function buildFullSetAbc(tunes) {
 let _setMusicSynth = null;
 
 function openSetMusicModal(title, abc, isTransition = false) {
-  if (_setMusicSynth) { try { _setMusicSynth.stop(); } catch {} _setMusicSynth = null; }
+  if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
 
   modalContent.innerHTML = `
     <h2 class="modal-title">${escHtml(title)}</h2>
@@ -2763,7 +2764,7 @@ document.addEventListener("keydown", e => {
 
 function closeModal() {
   if (_synthController) _synthController.pause();
-  if (_setMusicSynth) { try { _setMusicSynth.stop(); } catch {} _setMusicSynth = null; }
+  if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }
