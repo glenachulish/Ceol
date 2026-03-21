@@ -1544,10 +1544,9 @@ function renderSheetMusic(abc) {
     // when called from inside a modal (ResizeObserver quirk).
     // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
     // Fallback to 600 so narrow/unmeasured containers still render full staves.
-    const _staffWidth = Math.max(600, container.clientWidth - 30);
-    console.log('[Ceol] renderSheetMusic clientW:', container.clientWidth, 'staffW:', _staffWidth);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
-      staffwidth: _staffWidth,
+      responsive: "resize",
+      wrap: { preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1556,8 +1555,6 @@ function renderSheetMusic(abc) {
       selectTypes: false,
       foregroundColor: "#000000",
     });
-    const _svg = document.querySelector('#sheet-music-render svg');
-    console.log('[Ceol] lines:', visualObjs[0]?.lines?.length, '| svg:', _svg ? `${_svg.getAttribute('width')}x${_svg.getAttribute('height')}` : 'none');
     _patchSvgViewBox("sheet-music-render");
 
     _visualObj = visualObjs[0];
@@ -1566,7 +1563,6 @@ function renderSheetMusic(abc) {
       : null;
     // _barMap is built lazily on first click, after any responsive re-render.
 
-    console.log('[Ceol] synth available:', !!ABCJS.synth, '| supportsAudio:', ABCJS.synth?.supportsAudio?.());
     if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) {
       const el = document.getElementById("audio-unavailable");
       if (el) el.classList.remove("hidden");
@@ -1675,7 +1671,11 @@ function expandAbcRepeats(abc) {
       .replace(/\x00([^\x00]*)\x00/g, '!$1!');
   }
 
-  return header + '\n' + body;
+  // header already ends with '\n' (includes the K: line + its newline).
+  // Do NOT add an extra '\n' — a blank line in ABC separates tunes, which
+  // causes abcjs to treat the note body as a second tune with no header
+  // and render 0 staff lines for the first tune.
+  return header + body;
 }
 
 // After abcjs renders, add viewBox to the SVG so CSS max-width scales
@@ -1704,9 +1704,9 @@ function renderPreviewMusic(abc) {
   document.getElementById("preview-audio-container").innerHTML = "";
 
   try {
-    const _prevW = Math.max(500, container.clientWidth - 30);
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
-      staffwidth: _prevW,
+      responsive: "resize",
+      wrap: { preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
