@@ -10,9 +10,12 @@
 <body>
   <header>
     <div class="header-inner">
-      <div class="header-brand">
-        <h1>🎵 Ceòl <span class="version-tag">v3</span></h1>
-        <span class="subtitle">Your trad music library</span>
+      <div class="header-top-row">
+        <div class="header-brand">
+          <h1>🎵 Ceòl <span class="version-tag">v3</span></h1>
+          <span class="subtitle">Your trad music library</span>
+        </div>
+        <button id="info-btn" class="help-btn" aria-label="App info" data-tooltip="App &amp; database location">ℹ</button>
       </div>
       <nav class="header-nav">
         <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
@@ -20,7 +23,6 @@
         <button id="nav-collections" class="nav-btn" data-tooltip="Organise tunes into themed collections">Collections</button>
       </nav>
       <div class="header-actions">
-        <button id="info-btn" class="help-btn" aria-label="App info" data-tooltip="App &amp; database location">ℹ</button>
         <div class="library-menu-wrap">
           <button id="nav-more-btn" class="btn-secondary" data-tooltip-left data-tooltip="Notes, Achievements &amp; Help">More ▾</button>
           <div id="nav-more-menu" class="library-menu hidden">
@@ -498,6 +500,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=91"></script>
+  <script src="/static/app.js?v=92"></script>
 </body>
 </html>

@@ -86,7 +86,9 @@ header {
   max-width: 1200px;
   margin: auto;
 }
-.header-brand { display: flex; align-items: baseline; gap: .75rem; flex: 1 0 100%; } /* always own row */
+.header-top-row { display: flex; align-items: center; flex: 1 0 100%; } /* always own full-width row */
+.header-top-row #info-btn { margin-left: auto; } /* push ℹ to the right */
+.header-brand { display: flex; align-items: baseline; gap: .75rem; }
 h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
 .subtitle { color: var(--text-muted); font-size: .9rem; }
 .version-tag { font-size: .65rem; font-weight: 500; color: var(--text-muted); vertical-align: middle; letter-spacing: .04em; }
@@ -1907,7 +1909,6 @@ button.set-tune-title:hover { text-decoration: underline; }
   /* Compact action buttons so all fit on one row at 375px */
   .header-actions { gap: .3rem; }
   .header-actions .btn-secondary { padding: .35rem .55rem; font-size: .8rem; }
-  .header-actions .help-btn { width: 1.7rem; height: 1.7rem; font-size: .8rem; }
   .tune-list { grid-template-columns: 1fr; }
   .filter-row select { flex: 1 1 140px; }
   .modal-wide { max-width: 100%; }
