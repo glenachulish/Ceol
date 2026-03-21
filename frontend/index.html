@@ -10,12 +10,9 @@
 <body>
   <header>
     <div class="header-inner">
-      <div class="header-top-row">
-        <div class="header-brand">
-          <h1>🎵 Ceòl <span class="version-tag">v3</span></h1>
-          <span class="subtitle">Your trad music library</span>
-        </div>
-        <button id="info-btn" class="help-btn" aria-label="App info" data-tooltip="App &amp; database location">ℹ</button>
+      <div class="header-brand">
+        <h1>🎵 Ceòl <span class="version-tag">v3</span></h1>
+        <span class="subtitle">Your trad music library</span>
       </div>
       <nav class="header-nav">
         <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
@@ -23,6 +20,7 @@
         <button id="nav-collections" class="nav-btn" data-tooltip="Organise tunes into themed collections">Collections</button>
       </nav>
       <div class="header-actions">
+        <button id="info-btn" class="help-btn" aria-label="App info" data-tooltip="App &amp; database location">ℹ</button>
         <button id="help-btn" class="help-btn" aria-label="Help" data-tooltip="User guide">?</button>
         <div class="library-menu-wrap">
           <button id="nav-more-btn" class="btn-secondary" data-tooltip-left data-tooltip="Notes &amp; Achievements">More ▾</button>
@@ -499,6 +497,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=89"></script>
+  <script src="/static/app.js?v=90"></script>
 </body>
 </html>
