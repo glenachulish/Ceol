@@ -37,10 +37,18 @@
 
   const mNavBtns = document.querySelectorAll(".m-nav-btn");
 
+  // Views in the "More" drawer don't have a direct nav button, so highlight
+  // the More button itself when one of those views is active.
+  const moreViews = new Set(["notes", "achievements"]);
+
   function syncBottomNav(view) {
-    mNavBtns.forEach(btn =>
-      btn.classList.toggle("active", btn.dataset.view === view)
-    );
+    mNavBtns.forEach(btn => {
+      if (btn.id === "m-more-btn") {
+        btn.classList.toggle("active", moreViews.has(view));
+      } else {
+        btn.classList.toggle("active", btn.dataset.view === view);
+      }
+    });
   }
 
   // Patch app.js's switchView to also sync the bottom nav.
@@ -112,6 +120,7 @@
   }
 
   mMenuBtn.addEventListener("click", openMobileMenu);
+  document.getElementById("m-more-btn").addEventListener("click", openMobileMenu);
   mMenuClose.addEventListener("click", closeMobileMenu);
 
   // Close when tapping the dark overlay (outside the drawer)
@@ -139,6 +148,14 @@
       });
     }
   }
+
+  // View-switch items in the drawer (Notes, Achievements)
+  document.querySelectorAll(".m-menu-view-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      closeMobileMenu();
+      switchView(btn.dataset.view);
+    });
+  });
 
   _menuDelegate("m-info-btn",       "info-btn");
   _menuDelegate("m-help-btn",       "help-btn");

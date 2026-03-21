@@ -358,6 +358,15 @@
 .m-menu-item:active { background: rgba(255,255,255,.06); }
 .m-menu-danger { color: var(--danger); }
 .m-menu-link { color: var(--text-muted); font-size: .85rem; }
+.m-menu-section-label {
+  display: block;
+  padding: .35rem 1.1rem .1rem;
+  font-size: .7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+}
 
 .m-menu-divider {
   border: none;
