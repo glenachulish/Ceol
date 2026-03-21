@@ -439,6 +439,16 @@ function typeBadgeClass(type) {
   return map[type] || "badge-other";
 }
 
+function keyBadgeClass(key) {
+  if (!key) return "badge-key";
+  const m = key.trim().match(/^(HP|[A-G])/i);
+  if (!m) return "badge-key";
+  const note = m[1].toUpperCase();
+  const map = { C:"badge-key-C", D:"badge-key-D", E:"badge-key-E", F:"badge-key-F",
+                G:"badge-key-G", A:"badge-key-A", B:"badge-key-B", H:"badge-key-HP" };
+  return map[note] || "badge-key";
+}
+
 function escHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -684,10 +694,10 @@ function renderTunes(data) {
   tuneList.innerHTML = tunes.map(t => {
     const typeClass = typeBadgeClass(t.type);
     const typeLabel = t.type
-      ? `<span class="badge ${typeClass}">${escHtml(t.type)}</span>`
+      ? `<span class="badge ${typeClass}" data-badge="type">${escHtml(t.type)}</span>`
       : "";
     const keyLabel = t.key
-      ? `<span class="badge badge-key">${escHtml(t.key)}</span>`
+      ? `<span class="badge ${keyBadgeClass(t.key)}" data-badge="key">${escHtml(t.key)}</span>`
       : "";
     const vCount = t.version_count || 0;
     const versionBadge = vCount > 0
@@ -778,11 +788,11 @@ function renderNotesHtml(text) {
 function renderModal(tune, onBack = null, siblings = null) {
   const typeClass = typeBadgeClass(tune.type);
   const typeBadge = tune.type
-    ? `<span class="badge ${typeClass}">${escHtml(tune.type)}</span>`
-    : "";
+    ? `<span class="badge ${typeClass} badge-editable" data-field="type">${escHtml(tune.type)}</span>`
+    : `<button class="badge-add-field" data-field="type">+ type</button>`;
   const keyBadge = tune.key
-    ? `<span class="badge badge-key">${escHtml(tune.key)}</span>`
-    : "";
+    ? `<span class="badge ${keyBadgeClass(tune.key)} badge-editable" data-field="key">${escHtml(tune.key)}</span>`
+    : `<button class="badge-add-field" data-field="key">+ key</button>`;
   const backBtn = onBack
     ? `<button id="modal-back-btn" class="modal-back-btn btn-secondary btn-sm">← Back</button>`
     : "";
@@ -860,7 +870,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     <h2 class="modal-title">${escHtml(tune.title)}</h2>
     ${versionLine}
     ${siblingsStrip}
-    <div class="modal-meta">${typeBadge}${keyBadge}</div>
+    <div class="modal-meta" id="modal-typkey-meta">${typeBadge}${keyBadge}</div>
     ${ratingRow}
     ${aliasLine}
     ${importedLine}
@@ -953,6 +963,9 @@ function renderModal(tune, onBack = null, siblings = null) {
       </div>
     </div>
   `;
+
+  // Editable type/key badges
+  initMetaEdit(tune);
 
   // Back button (from versions panel)
   if (onBack) {
@@ -1289,6 +1302,126 @@ function renderModal(tune, onBack = null, siblings = null) {
       renderSheetMusic(tune.abc);
     }
   });
+}
+
+// ── Inline type/key editing in modal ─────────────────────────────────────────
+const TUNE_TYPES = [
+  "reel","jig","hornpipe","slip jig","polka","waltz","march",
+  "strathspey","air","slide","mazurka","schottische","barndance","highland","lowland",
+];
+const KEY_SUGGESTIONS = [
+  "D major","G major","A major","C major","E minor","B minor","F# minor",
+  "A dorian","D dorian","E dorian","G dorian","B dorian",
+  "A mixolydian","D mixolydian","G mixolydian",
+  "Bb major","F major","Eb major","A minor",
+];
+
+function updateCardMeta(tuneId, field, value) {
+  const card = tuneList.querySelector(`.tune-card[data-id="${tuneId}"]`);
+  if (!card) return;
+  const meta = card.querySelector(".card-meta");
+  if (!meta) return;
+  const existing = meta.querySelector(`[data-badge="${field}"]`);
+  if (!value) { if (existing) existing.remove(); return; }
+  const cls = field === "type" ? typeBadgeClass(value) : keyBadgeClass(value);
+  const span = document.createElement("span");
+  span.className = `badge ${cls}`;
+  span.dataset.badge = field;
+  span.textContent = value;
+  if (existing) {
+    meta.replaceChild(span, existing);
+  } else {
+    const vBadge = meta.querySelector(".badge-versions");
+    if (field === "type") meta.prepend(span);
+    else if (vBadge) meta.insertBefore(span, vBadge);
+    else meta.appendChild(span);
+  }
+}
+
+function initMetaEdit(tune) {
+  const metaRow = document.getElementById("modal-typkey-meta");
+  if (!metaRow) return;
+
+  function badgeHtml(field, value) {
+    if (!value) return `<button class="badge-add-field" data-field="${field}">+ ${field}</button>`;
+    const cls = field === "type" ? typeBadgeClass(value) : keyBadgeClass(value);
+    return `<span class="badge ${cls} badge-editable" data-field="${field}">${escHtml(value)}</span>`;
+  }
+
+  function rebuild(newType, newKey) {
+    if (newType !== undefined) tune.type = newType;
+    if (newKey  !== undefined) tune.key  = newKey;
+    metaRow.innerHTML = badgeHtml("type", tune.type) + badgeHtml("key", tune.key);
+    attach();
+  }
+
+  function startEdit(el, field) {
+    const currentVal = el.tagName === "SPAN" ? el.textContent.trim() : "";
+    let editor;
+    if (field === "type") {
+      editor = document.createElement("select");
+      editor.className = "badge-inline-edit";
+      const blank = new Option("— choose type —", "");
+      if (!currentVal) blank.selected = true;
+      editor.add(blank);
+      TUNE_TYPES.forEach(t => {
+        const opt = new Option(t, t);
+        if (t === currentVal) opt.selected = true;
+        editor.add(opt);
+      });
+    } else {
+      editor = document.createElement("input");
+      editor.type = "text";
+      editor.value = currentVal;
+      editor.placeholder = "e.g. D major";
+      editor.className = "badge-inline-edit";
+      editor.style.width = "9rem";
+      const dl = document.createElement("datalist");
+      dl.id = "_key-dl";
+      KEY_SUGGESTIONS.forEach(k => dl.add(new Option(k)));
+      editor.setAttribute("list", "_key-dl");
+      el.insertAdjacentElement("beforebegin", dl);
+    }
+    el.replaceWith(editor);
+    editor.focus();
+
+    let saved = false;
+    const save = async () => {
+      if (saved) return;
+      saved = true;
+      const val = editor.value.trim();
+      if (!val) { rebuild(); return; }           // cancelled — restore
+      if (val === currentVal) { rebuild(); return; }
+      const patch = { [field]: val };
+      if (field === "key") {
+        const mode = val.split(/\s+/).slice(1).join(" ").toLowerCase();
+        if (mode) patch.mode = mode;
+      }
+      try {
+        await apiFetch(`/api/tunes/${tune.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        });
+        if (field === "type") rebuild(val, undefined);
+        else                  rebuild(undefined, val);
+        updateCardMeta(tune.id, field, val);
+      } catch { rebuild(); }
+    };
+
+    editor.addEventListener("blur", save);
+    editor.addEventListener("keydown", e => {
+      if (e.key === "Enter")  { e.preventDefault(); editor.blur(); }
+      if (e.key === "Escape") { saved = true; rebuild(); }
+    });
+  }
+
+  function attach() {
+    metaRow.querySelectorAll("[data-field]").forEach(el => {
+      el.addEventListener("click", () => startEdit(el, el.dataset.field));
+    });
+  }
+
+  attach();
 }
 
 // ── Bar-range selection (practice loop) ──────────────────────────────────────

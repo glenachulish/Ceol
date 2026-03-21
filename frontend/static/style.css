@@ -20,6 +20,10 @@
   --danger:    #ef4444;
   --radius:    8px;
   --shadow:    0 4px 24px rgba(0,0,0,.45);
+  /* key-note colours */
+  --key-C: #fb7185; --key-D: #fb923c; --key-E: #a3e635;
+  --key-F: #c084fc; --key-G: #4ade80; --key-A: #38bdf8;
+  --key-B: #fde047; --key-HP:#94a3b8;
 }
 
 /* Light theme overrides */
@@ -39,6 +43,10 @@
   --polka:     #6d28d9;
   --other:     #475569;
   --shadow:    0 4px 24px rgba(0,0,0,.12);
+  /* key-note colours (light) */
+  --key-C: #be123c; --key-D: #c2750a; --key-E: #4d7c0f;
+  --key-F: #7c3aed; --key-G: #15803d; --key-A: #0369a1;
+  --key-B: #a16207; --key-HP:#475569;
 }
 
 /* Auto mode: follow OS when no explicit override is set */
@@ -59,6 +67,10 @@
     --polka:     #6d28d9;
     --other:     #475569;
     --shadow:    0 4px 24px rgba(0,0,0,.12);
+    /* key-note colours (auto-light) */
+    --key-C: #be123c; --key-D: #c2750a; --key-E: #4d7c0f;
+    --key-F: #7c3aed; --key-G: #15803d; --key-A: #0369a1;
+    --key-B: #a16207; --key-HP:#475569;
   }
 }
 
@@ -410,8 +422,43 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .badge-slip-jig { background: rgba(244,114,182,.15); color: var(--slip-jig); }
 .badge-polka    { background: rgba(167,139,250,.15); color: var(--polka); }
 .badge-other    { background: rgba(148,163,184,.12); color: var(--other); }
-.badge-key      { background: rgba(94,234,212,.1); color: var(--accent2); font-weight: 400; }
 .badge-versions { background: rgba(167,139,250,.15); color: var(--polka); font-weight: 600; }
+/* key-note badge colours */
+.badge-key      { background: rgba(94,234,212,.1);   color: var(--accent2); font-weight: 400; }
+.badge-key-C    { background: rgba(251,113,133,.12); color: var(--key-C);  font-weight: 400; }
+.badge-key-D    { background: rgba(251,146,60,.12);  color: var(--key-D);  font-weight: 400; }
+.badge-key-E    { background: rgba(163,230,53,.12);  color: var(--key-E);  font-weight: 400; }
+.badge-key-F    { background: rgba(192,132,252,.12); color: var(--key-F);  font-weight: 400; }
+.badge-key-G    { background: rgba(74,222,128,.12);  color: var(--key-G);  font-weight: 400; }
+.badge-key-A    { background: rgba(56,189,248,.12);  color: var(--key-A);  font-weight: 400; }
+.badge-key-B    { background: rgba(253,224,71,.12);  color: var(--key-B);  font-weight: 400; }
+.badge-key-HP   { background: rgba(148,163,184,.12); color: var(--key-HP); font-weight: 400; }
+/* editable badges */
+.badge-editable { cursor: pointer; transition: opacity .15s; }
+.badge-editable:hover { opacity: .75; outline: 1px dashed currentColor; outline-offset: 2px; }
+.badge-add-field {
+  cursor: pointer;
+  display: inline-flex; align-items: center;
+  font-size: .72rem; font-weight: 500;
+  color: var(--text-muted);
+  padding: .18em .55em;
+  border-radius: 99px;
+  border: 1px dashed var(--text-muted);
+  background: transparent;
+  opacity: .55;
+  transition: opacity .15s;
+}
+.badge-add-field:hover { opacity: 1; }
+.badge-inline-edit {
+  font-size: .78rem;
+  padding: .2em .45em;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
 
 .loading {
   color: var(--text-muted);
