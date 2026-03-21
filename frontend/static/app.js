@@ -2829,6 +2829,11 @@ filterHitlistBtn.addEventListener("click", () => {
 
 // ── Print list ────────────────────────────────────────────────────────────────
 document.getElementById("print-btn").addEventListener("click", async () => {
+  // Open the window synchronously (must happen before any await to avoid popup blockers)
+  const win = window.open("", "_blank");
+  if (!win) { alert("Please allow popups for this page to use Print."); return; }
+  win.document.write("<p>Loading…</p>");
+
   const params = new URLSearchParams({ page: 1, page_size: 9999 });
   if (state.q)          params.set("q",          state.q);
   if (state.type)       params.set("type",        state.type);
@@ -2895,7 +2900,6 @@ document.getElementById("print-btn").addEventListener("click", async () => {
 </body>
 </html>`;
 
-  const win = window.open("", "_blank");
   win.document.write(html);
   win.document.close();
   win.focus();
