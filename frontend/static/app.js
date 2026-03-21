@@ -826,8 +826,15 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${siblings.map((v, i) => {
           const label = v.version_label || `Version ${i + 1}`;
           const meta = [v.key, v.type].filter(Boolean).join(" · ");
-          return `<button class="modal-ver-btn${v.id === tune.id ? " active" : ""}"
-                    data-ver-id="${v.id}" title="${escHtml(meta)}">${escHtml(label)}</button>`;
+          const isActive = v.id === tune.id;
+          let tip = meta ? meta + "\n" : "";
+          if (v.is_default) {
+            tip += "★ Default — opens first when you click the card";
+          } else {
+            tip += "Click to view this version\nTo make it the default, click ← Back then \"Set default\"";
+          }
+          return `<button class="modal-ver-btn${isActive ? " active" : ""}${v.is_default ? " is-default" : ""}"
+                    data-ver-id="${v.id}" title="${escHtml(tip)}">${escHtml(label)}</button>`;
         }).join("")}
       </div>`
     : "";

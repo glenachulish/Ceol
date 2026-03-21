@@ -898,6 +898,11 @@ button.set-tune-title:hover { text-decoration: underline; }
   color: var(--accent);
   font-weight: 600;
 }
+.modal-ver-btn.is-default::after {
+  content: " ★";
+  font-size: .7em;
+  opacity: .7;
+}
 
 /* ── Media overlay ────────────────────────────────────────── */
 .media-overlay {
