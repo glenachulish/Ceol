@@ -1,15 +1,15 @@
 /* Ceòl – Service Worker
-   Caches the app shell for fast startup and basic offline support.
-   API calls (/api/*) always go network-first so data stays fresh.
+   Only caches large infrequently-changed assets (abcjs, icons, manifest).
+   HTML, CSS, and JS are always fetched from the network so code updates
+   are picked up immediately without any cache-busting dance.
+   API calls are always network-only.
    ---------------------------------------------------------------- */
 
-const CACHE  = "ceol-v2";
-const SHELL  = [
-  "/mobile",
-  "/static/style.css",
-  "/static/mobile.css",
-  "/static/app.js",
-  "/static/mobile.js",
+const CACHE = "ceol-v3";
+
+// Only pre-cache the truly static, rarely-changing assets.
+// HTML/CSS/JS are intentionally excluded — always fetch fresh.
+const PRECACHE = [
   "/static/abcjs-basic-min.js",
   "/static/abcjs-audio.css",
   "/static/manifest.json",
@@ -17,10 +17,10 @@ const SHELL  = [
   "/static/icons/icon-512.png",
 ];
 
-// ── Install: pre-cache the app shell ──────────────────────────────
+// ── Install ────────────────────────────────────────────────────────
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(SHELL))
+    caches.open(CACHE).then(cache => cache.addAll(PRECACHE))
   );
   self.skipWaiting();
 });
@@ -35,33 +35,29 @@ self.addEventListener("activate", event => {
   self.clients.claim();
 });
 
-// ── Fetch: network-first for API, cache-first for shell ──────────
+// ── Fetch ──────────────────────────────────────────────────────────
 self.addEventListener("fetch", event => {
   const url = new URL(event.request.url);
 
-  // Always hit the network for API calls (data must be live)
+  // API: always network
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  // HTML pages: network-first so updated HTML (with new asset versions) is
-  // always picked up; fall back to cache only when offline.
-  const isHtml = url.pathname === "/mobile" || url.pathname === "/";
-  if (isHtml) {
+  // HTML pages + versioned CSS/JS: always network-first.
+  // The ?v= query strings on CSS/JS ensure the browser HTTP cache is busted,
+  // and the SW never serves a stale copy of these files.
+  const isStaticAsset = url.pathname.startsWith("/static/");
+  const isVersioned   = url.search.includes("v=");
+  if (!isStaticAsset || isVersioned) {
     event.respondWith(
-      fetch(event.request).then(response => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => caches.match(event.request))
+      fetch(event.request).catch(() => caches.match(event.request))
     );
     return;
   }
 
-  // Static assets: cache-first (versioned URLs bust the cache when needed)
+  // Unversioned static assets (abcjs, icons, manifest): cache-first
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
