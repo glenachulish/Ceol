@@ -1541,11 +1541,12 @@ function renderSheetMusic(abc) {
   try {
     const _processedAbc = expandAbcRepeats(abc);
     // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
-    // when called from inside a modal (ResizeObserver quirk). Fall back to measured width.
-    const _staffWidth = Math.max(300, container.clientWidth - 30);
+    // when called from inside a modal (ResizeObserver quirk).
+    // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
+    // Fallback to 600 so narrow/unmeasured containers still render full staves.
+    const _staffWidth = Math.max(600, container.clientWidth - 30);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
       staffwidth: _staffWidth,
-      wrap: { preferredMeasuresPerLine: 4, minSpacing: 1.8, maxSpacing: 2.7 },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -1697,9 +1698,9 @@ function renderPreviewMusic(abc) {
   document.getElementById("preview-audio-container").innerHTML = "";
 
   try {
+    const _prevW = Math.max(500, container.clientWidth - 30);
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
-      responsive: "resize",
-      wrap: { preferredMeasuresPerLine: 4 },
+      staffwidth: _prevW,
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
