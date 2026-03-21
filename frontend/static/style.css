@@ -11,34 +11,13 @@
   --accent2:   #5eead4;
   --text:      #e2e8f0;
   --text-muted:#8892aa;
-  --reel:       #f59e42;
-  --jig:        #34d399;
-  --hornpipe:   #60a5fa;
-  --slip-jig:   #f472b6;
-  --polka:      #a78bfa;
-  --march:      #fbbf24;
-  --waltz:      #fb7185;
-  --strathspey: #22d3ee;
-  --slide:      #a3e635;
-  --hop-jig:    #6ee7b7;
-  --air:        #c4b5fd;
-  --slow-air:   #f0abfc;
-  --mazurka:    #2dd4bf;
-  --barndance:  #fde68a;
-  --schottische:#818cf8;
-  --highland:   #7dd3fc;
-  --set-dance:  #f87171;
   --other:     #94a3b8;
   --danger:    #ef4444;
   --radius:    8px;
   --shadow:    0 4px 24px rgba(0,0,0,.45);
-  /* key-note colours */
-  --key-C:  #fb7185; --key-D:  #fb923c; --key-E: #a3e635;
-  --key-F:  #c084fc; --key-G:  #4ade80; --key-A: #38bdf8;
-  --key-B:  #fde047; --key-HP: #94a3b8;
-  --key-Fs: #fef08a; /* F# — lemon yellow, distinct from B-yellow */
-  --key-Bb: #fed7aa; /* Bb  — warm peach */
-  --key-Eb: #a5f3fc; /* Eb  — light aqua */
+  /* UI accent text colours (non-badge) */
+  --reel: #f87171;  /* red text for links/highlights  */
+  --jig:  #4ade80;  /* green text for success messages */
 }
 
 /* Light theme overrides */
@@ -51,32 +30,10 @@
   --accent2:   #0d9488;
   --text:      #1a1d2e;
   --text-muted:#5a6180;
-  --reel:       #c2750a;
-  --jig:        #0f7a58;
-  --hornpipe:   #1d5fbd;
-  --slip-jig:   #be185d;
-  --polka:      #6d28d9;
-  --march:      #b45309;
-  --waltz:      #e11d48;
-  --strathspey: #0891b2;
-  --slide:      #65a30d;
-  --hop-jig:    #059669;
-  --air:        #6d28d9; /* shares purple family but lighter shade via badge bg */
-  --slow-air:   #a21caf;
-  --mazurka:    #0d9488;
-  --barndance:  #92400e;
-  --schottische:#4338ca;
-  --highland:   #0284c7;
-  --set-dance:  #dc2626;
   --other:     #475569;
   --shadow:    0 4px 24px rgba(0,0,0,.12);
-  /* key-note colours (light) */
-  --key-C:  #be123c; --key-D:  #c2750a; --key-E: #4d7c0f;
-  --key-F:  #7c3aed; --key-G:  #15803d; --key-A: #0369a1;
-  --key-B:  #a16207; --key-HP: #475569;
-  --key-Fs: #713f12; /* F# light */
-  --key-Bb: #7c2d12; /* Bb  light */
-  --key-Eb: #164e63; /* Eb  light */
+  --reel: #dc2626;
+  --jig:  #16a34a;
 }
 
 /* Auto mode: follow OS when no explicit override is set */
@@ -90,32 +47,10 @@
     --accent2:   #0d9488;
     --text:      #1a1d2e;
     --text-muted:#5a6180;
-    --reel:       #c2750a;
-    --jig:        #0f7a58;
-    --hornpipe:   #1d5fbd;
-    --slip-jig:   #be185d;
-    --polka:      #6d28d9;
-    --march:      #b45309;
-    --waltz:      #e11d48;
-    --strathspey: #0891b2;
-    --slide:      #65a30d;
-    --hop-jig:    #059669;
-    --air:        #6d28d9;
-    --slow-air:   #a21caf;
-    --mazurka:    #0d9488;
-    --barndance:  #92400e;
-    --schottische:#4338ca;
-    --highland:   #0284c7;
-    --set-dance:  #dc2626;
     --other:     #475569;
     --shadow:    0 4px 24px rgba(0,0,0,.12);
-    /* key-note colours (auto-light) */
-    --key-C:  #be123c; --key-D:  #c2750a; --key-E: #4d7c0f;
-    --key-F:  #7c3aed; --key-G:  #15803d; --key-A: #0369a1;
-    --key-B:  #a16207; --key-HP: #475569;
-    --key-Fs: #713f12;
-    --key-Bb: #7c2d12;
-    --key-Eb: #164e63;
+    --reel: #dc2626;
+    --jig:  #16a34a;
   }
 }
 
@@ -460,39 +395,44 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   font-weight: 600;
   text-transform: capitalize;
   letter-spacing: .02em;
+  color: #111;
 }
-.badge-reel       { background: rgba(245,158,66,.15);  color: var(--reel); }
-.badge-jig        { background: rgba(52,211,153,.15);  color: var(--jig); }
-.badge-hornpipe   { background: rgba(96,165,250,.15);  color: var(--hornpipe); }
-.badge-slip-jig   { background: rgba(244,114,182,.15); color: var(--slip-jig); }
-.badge-polka      { background: rgba(167,139,250,.15); color: var(--polka); }
-.badge-march      { background: rgba(251,191,36,.15);  color: var(--march); }
-.badge-waltz      { background: rgba(251,113,133,.15); color: var(--waltz); }
-.badge-strathspey { background: rgba(34,211,238,.15);  color: var(--strathspey); }
-.badge-slide      { background: rgba(163,230,53,.15);  color: var(--slide); }
-.badge-hop-jig    { background: rgba(110,231,183,.15); color: var(--hop-jig); }
-.badge-air        { background: rgba(196,181,253,.15); color: var(--air); }
-.badge-slow-air   { background: rgba(240,171,252,.15); color: var(--slow-air); }
-.badge-mazurka    { background: rgba(45,212,191,.15);  color: var(--mazurka); }
-.badge-barndance  { background: rgba(253,230,138,.15); color: var(--barndance); }
-.badge-schottische{ background: rgba(129,140,248,.15); color: var(--schottische); }
-.badge-highland   { background: rgba(125,211,252,.15); color: var(--highland); }
-.badge-set-dance  { background: rgba(248,113,113,.15); color: var(--set-dance); }
-.badge-other      { background: rgba(148,163,184,.12); color: var(--other); }
-.badge-versions   { background: rgba(167,139,250,.15); color: var(--polka); font-weight: 600; }
-/* key-note badge colours */
-.badge-key      { background: rgba(94,234,212,.1);   color: var(--accent2); font-weight: 400; }
-.badge-key-C    { background: rgba(251,113,133,.12); color: var(--key-C);  font-weight: 400; }
-.badge-key-D    { background: rgba(251,146,60,.12);  color: var(--key-D);  font-weight: 400; }
-.badge-key-E    { background: rgba(163,230,53,.12);  color: var(--key-E);  font-weight: 400; }
-.badge-key-F    { background: rgba(192,132,252,.12); color: var(--key-F);  font-weight: 400; }
-.badge-key-G    { background: rgba(74,222,128,.12);  color: var(--key-G);  font-weight: 400; }
-.badge-key-A    { background: rgba(56,189,248,.12);  color: var(--key-A);  font-weight: 400; }
-.badge-key-B    { background: rgba(253,224,71,.12);  color: var(--key-B);  font-weight: 400; }
-.badge-key-HP   { background: rgba(148,163,184,.12); color: var(--key-HP); font-weight: 400; }
-.badge-key-Fs   { background: rgba(254,240,138,.12); color: var(--key-Fs); font-weight: 400; } /* F# */
-.badge-key-Bb   { background: rgba(253,215,170,.12); color: var(--key-Bb); font-weight: 400; } /* Bb */
-.badge-key-Eb   { background: rgba(165,243,252,.12); color: var(--key-Eb); font-weight: 400; } /* Eb */
+/* ── Type badges: primary/vivid fills, black text ──────────── */
+/* Red family → reel & set dance; Green family → jig types;    */
+/* Blue family → march, hornpipe, highland; Yellow → hornpipe;  */
+/* Orange → polka; Violet → waltz; Cyan → strathspey; etc.     */
+.badge-reel       { background: #f87171; } /* vivid red          */
+.badge-jig        { background: #4ade80; } /* vivid green        */
+.badge-hornpipe   { background: #fde047; } /* yellow             */
+.badge-slip-jig   { background: #86efac; } /* soft green         */
+.badge-polka      { background: #fdba74; } /* orange             */
+.badge-march      { background: #60a5fa; } /* blue               */
+.badge-waltz      { background: #c4b5fd; } /* violet             */
+.badge-strathspey { background: #67e8f9; } /* cyan               */
+.badge-slide      { background: #bef264; } /* lime               */
+.badge-hop-jig    { background: #6ee7b7; } /* mint               */
+.badge-air        { background: #bae6fd; } /* sky                */
+.badge-slow-air   { background: #fda4af; } /* rose               */
+.badge-mazurka    { background: #5eead4; } /* teal               */
+.badge-barndance  { background: #fcd34d; } /* amber              */
+.badge-schottische{ background: #a5b4fc; } /* indigo             */
+.badge-highland   { background: #93c5fd; } /* sky blue           */
+.badge-set-dance  { background: #f9a8d4; } /* pink               */
+.badge-other      { background: #e2e8f0; }
+.badge-versions   { background: #c4b5fd; font-weight: 700; }   /* violet */
+/* ── Key badges: pastel fills, black text ──────────────────── */
+.badge-key        { background: #e0f2fe; }
+.badge-key-C      { background: #ffd6d6; } /* rose   */
+.badge-key-D      { background: #ffe0cc; } /* peach  */
+.badge-key-E      { background: #d4f7b7; } /* lime   */
+.badge-key-F      { background: #ead6ff; } /* lilac  */
+.badge-key-G      { background: #c9f7d9; } /* mint   */
+.badge-key-A      { background: #c4e8ff; } /* sky    */
+.badge-key-B      { background: #fffacc; } /* lemon  */
+.badge-key-HP     { background: #e5e7eb; } /* grey   */
+.badge-key-Fs     { background: #fff0a0; } /* gold   */
+.badge-key-Bb     { background: #ffd5e0; } /* blush  */
+.badge-key-Eb     { background: #c8f5f7; } /* aqua   */
 /* editable badges */
 .badge-editable { cursor: pointer; transition: opacity .15s; }
 .badge-editable:hover { opacity: .75; outline: 1px dashed currentColor; outline-offset: 2px; }

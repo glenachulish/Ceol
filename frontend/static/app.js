@@ -465,7 +465,6 @@ function keyBadgeClass(key) {
   if (upper === "EB" || upper === "D#") return "badge-key-Eb";
   if (upper === "AB" || upper === "G#") return "badge-key-A";  // Ab → A family
   if (upper === "DB" || upper === "C#") return "badge-key-C";  // Db/C# → C family
-  if (upper === "GB" || upper === "F#") return "badge-key-Fs"; // duplicate catch
   const map = { C:"badge-key-C", D:"badge-key-D", E:"badge-key-E", F:"badge-key-F",
                 G:"badge-key-G", A:"badge-key-A", B:"badge-key-B" };
   return map[upper[0]] || "badge-key";

@@ -201,8 +201,16 @@ def list_tunes(
 
         rows = conn.execute(
             f"""
-            SELECT t.id, t.craic_id, t.session_id, t.title, t.type,
-                   t.key, t.mode, t.notes, t.imported_at, t.created_at,
+            SELECT t.id, t.craic_id, t.session_id, t.title,
+                   COALESCE(NULLIF(t.type,''),
+                     (SELECT v.type FROM tunes v
+                      WHERE v.parent_id = t.id AND v.type != ''
+                      ORDER BY v.id LIMIT 1)) AS type,
+                   COALESCE(NULLIF(t.key,''),
+                     (SELECT v.key FROM tunes v
+                      WHERE v.parent_id = t.id AND v.key != ''
+                      ORDER BY v.id LIMIT 1)) AS key,
+                   t.mode, t.notes, t.imported_at, t.created_at,
                    t.rating, t.on_hitlist,
                    (SELECT COUNT(*) FROM tunes v WHERE v.parent_id = t.id) AS version_count
             FROM tunes t
