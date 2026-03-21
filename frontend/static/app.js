@@ -71,6 +71,8 @@ const viewNotes         = document.getElementById("view-notes");
 const navNotes          = document.getElementById("nav-notes");
 const viewAchievements  = document.getElementById("view-achievements");
 const navAchievements   = document.getElementById("nav-achievements");
+const navMoreBtn        = document.getElementById("nav-more-btn");
+const navMoreMenu       = document.getElementById("nav-more-menu");
 const notesDocList  = document.getElementById("notes-doc-list");
 const notesEditor   = document.getElementById("notes-editor");
 const newDocBtn     = document.getElementById("new-doc-btn");
@@ -618,7 +620,9 @@ function switchView(view) {
   state.view = view;
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements].forEach(v => v.classList.add("hidden"));
-  [navLibrary, navSets, navCollections, navNotes, navAchievements].forEach(n => n.classList.remove("active"));
+  [navLibrary, navSets, navCollections].forEach(n => n.classList.remove("active"));
+  if (navMoreBtn) navMoreBtn.classList.toggle("active", view === "notes" || view === "achievements");
+  if (navMoreMenu) navMoreMenu.classList.add("hidden"); // close dropdown on view switch
 
   if (view === "library") {
     viewLibrary.classList.remove("hidden");
@@ -2777,6 +2781,15 @@ navSets.addEventListener("click",         () => switchView("sets"));
 navCollections.addEventListener("click",  () => switchView("collections"));
 navNotes.addEventListener("click",        () => switchView("notes"));
 navAchievements.addEventListener("click", () => switchView("achievements"));
+
+// More ▾ dropdown (desktop nav)
+if (navMoreBtn && navMoreMenu) {
+  navMoreBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    navMoreMenu.classList.toggle("hidden");
+  });
+  document.addEventListener("click", () => navMoreMenu.classList.add("hidden"));
+}
 
 // ── New note document ─────────────────────────────────────────────────────────
 newDocBtn.addEventListener("click", async () => {
