@@ -2743,7 +2743,8 @@ tuneList.addEventListener("click", async e => {
       await Promise.all([fetchSets(), fetchCollections()]);
       const defaultVer = versions.find(v => v.is_default) || versions[0];
       const firstTune = await fetchTune(defaultVer.id);
-      renderModal(firstTune, null, versions);
+      const parentId = Number(card.dataset.id);
+      renderModal(firstTune, () => renderVersionsPanel(parentId), versions);
       modalOverlay.classList.remove("hidden");
       document.body.style.overflow = "hidden";
     }
