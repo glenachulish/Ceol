@@ -85,6 +85,7 @@ header {
   max-width: 1200px;
   margin: auto;
 }
+.header-top-row { display: contents; } /* transparent at desktop — children flow directly in header-inner */
 .header-brand { display: flex; align-items: baseline; gap: .75rem; }
 h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
 .subtitle { color: var(--text-muted); font-size: .9rem; }
@@ -1904,6 +1905,8 @@ button.set-tune-title:hover { text-decoration: underline; }
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 600px) {
   .header-inner { flex-wrap: wrap; gap: .5rem; }
+  .header-top-row { display: flex; align-items: center; flex: 1 0 100%; } /* own full-width row */
+  .header-top-row #info-btn { margin-left: auto; } /* push ℹ to the right of the brand row */
   .header-nav { margin-left: 0; }
   .tune-list { grid-template-columns: 1fr; }
   .filter-row select { flex: 1 1 140px; }
