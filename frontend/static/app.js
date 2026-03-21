@@ -4106,9 +4106,37 @@ infoBtn.addEventListener("click", async () => {
       <tr><th>Info file</th><td><code>${info.info_file}</code></td></tr>
     </table>
     <p class="modal-hint">Backups are created automatically each time the server starts.</p>
+    <hr class="modal-divider">
+    <h3 class="modal-section-title">Library tools</h3>
+    <p class="modal-hint">Auto-classify reads each tune's ABC notation (R: and M: fields) and title
+      to set the tune type. Run this after importing new tunes, or force a full
+      re-scan to fix any wrong labels.</p>
+    <div class="info-tools-row">
+      <button id="classify-new-btn" class="btn-secondary">Classify untyped tunes</button>
+      <button id="classify-all-btn" class="btn-secondary">Re-classify all tunes</button>
+      <span id="classify-status" class="set-status"></span>
+    </div>
   `;
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+
+  async function runClassify(force) {
+    const status = document.getElementById("classify-status");
+    const btn = document.getElementById(force ? "classify-all-btn" : "classify-new-btn");
+    btn.disabled = true;
+    status.textContent = "Working…";
+    try {
+      const res = await apiFetch(`/api/classify-types${force ? "?force=true" : ""}`, { method: "POST" });
+      status.textContent = `Done — ${res.classified} tune${res.classified !== 1 ? "s" : ""} updated (${res.total} checked).`;
+      if (res.classified > 0) { await loadTunes(); await loadFilters(); }
+    } catch (e) {
+      status.textContent = `Error: ${e.message}`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  document.getElementById("classify-new-btn").addEventListener("click", () => runClassify(false));
+  document.getElementById("classify-all-btn").addEventListener("click", () => runClassify(true));
 });
 
 const helpBtn     = document.getElementById("help-btn");

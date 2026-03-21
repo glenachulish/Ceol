@@ -31,6 +31,7 @@ from urllib.parse import urljoin
 
 from backend.abc_parser import (
     build_thecraic_block,
+    classify_type,
     parse_abc_file,
     parse_abc_string,
     parse_thecraic_export,
@@ -39,6 +40,26 @@ from backend.database import DB_PATH, get_connection, init_db
 
 app = FastAPI(title="Ceol", version="0.1.0")
 init_db()
+
+# Auto-classify any tunes that have no type yet
+def _auto_classify_untyped() -> int:
+    """Set type for tunes that have no type, using ABC + title heuristics."""
+    count = 0
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, title, abc FROM tunes WHERE type IS NULL OR type = ''"
+        ).fetchall()
+        for tune_id, title, abc in rows:
+            t = classify_type(abc, title)
+            if t:
+                conn.execute(
+                    "UPDATE tunes SET type = ?, updated_at = datetime('now') WHERE id = ?",
+                    (t, tune_id),
+                )
+                count += 1
+    return count
+
+_auto_classify_untyped()
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 STATIC_DIR = FRONTEND_DIR / "static"
@@ -373,6 +394,34 @@ def get_filter_options():
             ).fetchall()
         ]
     return {"types": types, "keys": keys, "modes": modes}
+
+
+@app.post("/api/classify-types")
+def api_classify_types(force: bool = False):
+    """
+    Infer and set the type field for tunes using ABC R:/M: headers and title
+    keywords.  By default only processes tunes with no type set; pass
+    ?force=true to re-classify every tune (useful for fixing wrong labels).
+    """
+    count = 0
+    details: list[dict] = []
+    with get_connection() as conn:
+        if force:
+            rows = conn.execute("SELECT id, title, abc, type FROM tunes").fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, title, abc, type FROM tunes WHERE type IS NULL OR type = ''"
+            ).fetchall()
+        for tune_id, title, abc, old_type in rows:
+            t = classify_type(abc, title)
+            if t and t != old_type:
+                conn.execute(
+                    "UPDATE tunes SET type = ?, updated_at = datetime('now') WHERE id = ?",
+                    (t, tune_id),
+                )
+                details.append({"id": tune_id, "title": title, "type": t, "was": old_type})
+                count += 1
+    return {"classified": count, "total": len(rows), "details": details}
 
 
 @app.get("/api/info")

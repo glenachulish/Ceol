@@ -134,34 +134,118 @@ class Tune:
 # ---------------------------------------------------------------------------
 
 _TYPE_MAP = {
-    "r":        "reel",
-    "reel":     "reel",
-    "j":        "jig",
-    "jig":      "jig",
-    "sj":       "slip jig",
-    "slip jig": "slip jig",
-    "h":        "hornpipe",
-    "hornpipe": "hornpipe",
-    "p":        "polka",
-    "polka":    "polka",
-    "w":        "waltz",
-    "waltz":    "waltz",
-    "m":        "march",
-    "march":    "march",
-    "sl":       "slide",
-    "slide":    "slide",
-    "sg":       "strathspey",
-    "strathspey": "strathspey",
-    "a":        "air",
-    "air":      "air",
-    "slow air": "slow air",
-    "mazurka":  "mazurka",
-    "barndance": "barndance",
+    # single-letter / shorthand shorthands
+    "r":           "reel",
+    "j":           "jig",
+    "sj":          "slip jig",
+    "hj":          "hop jig",
+    "h":           "hornpipe",
+    "p":           "polka",
+    "w":           "waltz",
+    "m":           "march",
+    "sl":          "slide",
+    "sg":          "strathspey",
+    "a":           "air",
+    # full names (TheSession & common sources)
+    "reel":        "reel",
+    "jig":         "jig",
+    "slip jig":    "slip jig",
+    "slip-jig":    "slip jig",
+    "hop jig":     "hop jig",
+    "hornpipe":    "hornpipe",
+    "horn pipe":   "hornpipe",
+    "polka":       "polka",
+    "waltz":       "waltz",
+    "march":       "march",
+    "slide":       "slide",
+    "strathspey":  "strathspey",
+    "air":         "air",
+    "slow air":    "slow air",
+    "mazurka":     "mazurka",
+    "barndance":   "barndance",
+    "barn dance":  "barndance",
+    "schottische": "schottische",
+    "highland":    "highland",
+    "highlands":   "highland",
+    "set dance":   "set dance",
 }
+
+# Meter → most likely type when R: is absent.
+# 4/4 defaults to reel (overwhelmingly most common in trad sessions).
+_METER_TYPE_MAP = {
+    "6/8":  "jig",
+    "9/8":  "slip jig",
+    "12/8": "slide",
+    "2/4":  "polka",
+    "3/4":  "waltz",
+    "3/8":  "mazurka",
+    "4/4":  "reel",
+    "c":    "reel",   # ABC common-time symbol
+    "c|":   "reel",   # ABC cut-time symbol (often used for reels)
+}
+
+# Title keywords searched in priority order (most specific first).
+_TITLE_KEYWORDS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\bhornpipe\b",    re.I), "hornpipe"),
+    (re.compile(r"\bslip[\s-]?jig\b", re.I), "slip jig"),
+    (re.compile(r"\bhop[\s-]?jig\b",  re.I), "hop jig"),
+    (re.compile(r"\bstrathspey\b",  re.I), "strathspey"),
+    (re.compile(r"\bschottische\b", re.I), "schottische"),
+    (re.compile(r"\bmazurka\b",     re.I), "mazurka"),
+    (re.compile(r"\bbarndance\b|\bbarn\s+dance\b", re.I), "barndance"),
+    (re.compile(r"\bpolka\b",       re.I), "polka"),
+    (re.compile(r"\bwaltz\b",       re.I), "waltz"),
+    (re.compile(r"\bslide\b",       re.I), "slide"),
+    (re.compile(r"\bmarch\b",       re.I), "march"),
+    (re.compile(r"\bhighland\b",    re.I), "highland"),
+    (re.compile(r"\bslow\s+air\b",  re.I), "slow air"),
+    (re.compile(r"\bair\b",         re.I), "air"),
+    (re.compile(r"\bjig\b",         re.I), "jig"),
+    (re.compile(r"\breel\b",        re.I), "reel"),
+]
 
 
 def normalise_type(raw: str) -> str:
     return _TYPE_MAP.get(raw.strip().lower(), raw.strip().lower())
+
+
+def classify_type(abc: Optional[str], title: Optional[str] = None) -> Optional[str]:
+    """
+    Infer the tune type from ABC headers and/or title.
+
+    Priority:
+      1. R: (Rhythm) field in the ABC — most authoritative.
+      2. Title keyword match (e.g. "The Kerry Polka", "Tommy's Hornpipe").
+      3. M: (Meter) field — gives a good default for unambiguous meters
+         (6/8 → jig, 9/8 → slip jig, 12/8 → slide, 2/4 → polka, 3/4 → waltz,
+          4/4/C/C| → reel as the most common trad default).
+
+    Returns a canonical type string, or None if nothing can be inferred.
+    """
+    # 1. R: field
+    if abc:
+        for line in abc.splitlines():
+            if line.upper().startswith("R:"):
+                val = line[2:].strip()
+                if val:
+                    return normalise_type(val)
+
+    # 2. Title keywords
+    if title:
+        for pattern, ttype in _TITLE_KEYWORDS:
+            if pattern.search(title):
+                return ttype
+
+    # 3. M: field
+    if abc:
+        for line in abc.splitlines():
+            if line.upper().startswith("M:"):
+                meter = line[2:].strip().lower()
+                inferred = _METER_TYPE_MAP.get(meter)
+                if inferred:
+                    return inferred
+
+    return None
 
 
 # ---------------------------------------------------------------------------
