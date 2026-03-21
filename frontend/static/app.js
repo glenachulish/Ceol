@@ -2867,7 +2867,7 @@ document.getElementById("print-btn").addEventListener("click", async () => {
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Ceol — ${escHtml(filterDesc)}</title>
+  <title>Ceòl —${escHtml(filterDesc)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, "Segoe UI", sans-serif; font-size: 11pt;
@@ -2891,7 +2891,7 @@ document.getElementById("print-btn").addEventListener("click", async () => {
   </style>
 </head>
 <body>
-  <h1>Ceol — Tune List</h1>
+  <h1>Ceòl —Tune List</h1>
   <p class="meta">${escHtml(filterDesc)} &nbsp;·&nbsp; ${tunes.length} tune${tunes.length !== 1 ? "s" : ""} &nbsp;·&nbsp; ${escHtml(dateStr)}</p>
   <table>
     <thead><tr><th>#</th><th>Title</th><th>Type</th><th>Key</th></tr></thead>
