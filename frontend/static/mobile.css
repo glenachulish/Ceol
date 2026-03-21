@@ -15,6 +15,7 @@
   /* Push content clear of header and bottom nav */
   padding-top:    calc(var(--m-header-h) + var(--safe-top));
   padding-bottom: calc(var(--m-nav-h) + var(--safe-bottom));
+  overflow-x: hidden; /* prevent any child from causing horizontal scroll */
 }
 
 /* ── Override desktop header ───────────────────────────────── */

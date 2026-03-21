@@ -17,7 +17,7 @@
   </script>
   <link rel="stylesheet" href="/static/style.css?v=41" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=4" />
+  <link rel="stylesheet" href="/static/mobile.css?v=5" />
 </head>
 <body class="mobile-body">
 
@@ -524,7 +524,16 @@
   <script src="/static/mobile.js?v=3"></script>
   <script>
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker.register("/sw.js").then(reg => {
+        // When a new SW activates (e.g. after a code update), reload so the
+        // fresh HTML/JS/CSS is fetched instead of any stale cached version.
+        reg.addEventListener("updatefound", () => {
+          const sw = reg.installing;
+          sw.addEventListener("statechange", () => {
+            if (sw.state === "activated") window.location.reload();
+          });
+        });
+      }).catch(() => {});
     }
   </script>
 </body>
