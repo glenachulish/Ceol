@@ -90,10 +90,13 @@
 /* ── Main content ─────────────────────────────────────────── */
 .m-main {
   max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
   padding: .75rem .75rem 1rem;
 }
 
-.m-view { display: block; }
+.m-view { display: block; width: 100%; box-sizing: border-box; }
 .m-view.hidden { display: none !important; }
 
 /* ── Bottom navigation ─────────────────────────────────────── */
@@ -424,7 +427,10 @@
 
 /* ── Achievements: tighter layout ──────────────────────────── */
 .mobile-body .achievements-layout {
-  margin: 1rem auto;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 1rem 0;
   padding: 0 .25rem;
 }
 
