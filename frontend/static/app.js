@@ -2827,6 +2827,81 @@ filterHitlistBtn.addEventListener("click", () => {
   loadTunes();
 });
 
+// ── Print list ────────────────────────────────────────────────────────────────
+document.getElementById("print-btn").addEventListener("click", async () => {
+  const params = new URLSearchParams({ page: 1, page_size: 9999 });
+  if (state.q)          params.set("q",          state.q);
+  if (state.type)       params.set("type",        state.type);
+  if (state.key)        params.set("key",         state.key);
+  if (state.mode)       params.set("mode",        state.mode);
+  if (state.hitlist)    params.set("hitlist",     "1");
+  if (state.min_rating) params.set("min_rating",  state.min_rating);
+
+  const { tunes } = await apiFetch(`/api/tunes?${params}`);
+
+  // Build a human-readable description of the active filters
+  const parts = [];
+  if (state.q)          parts.push(`"${state.q}"`);
+  if (state.type)       parts.push(state.type.charAt(0).toUpperCase() + state.type.slice(1) + "s");
+  if (state.key)        parts.push(state.key);
+  if (state.mode)       parts.push(state.mode);
+  if (state.hitlist)    parts.push("Hitlist");
+  if (state.min_rating) parts.push(`${state.min_rating}★+`);
+  const filterDesc = parts.length ? parts.join(" · ") : "Full library";
+  const dateStr = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+
+  const rows = tunes.map((t, i) => `
+    <tr>
+      <td class="num">${i + 1}</td>
+      <td class="title">${escHtml(t.title)}</td>
+      <td>${escHtml(t.type || "")}</td>
+      <td>${escHtml(t.key  || "")}</td>
+    </tr>`).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ceol — ${escHtml(filterDesc)}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, "Segoe UI", sans-serif; font-size: 11pt;
+           color: #111; background: #fff; padding: 1.8cm 2cm; }
+    h1   { font-size: 18pt; font-weight: 700; margin-bottom: .25rem; }
+    .meta { font-size: 9.5pt; color: #555; margin-bottom: 1.4rem; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { text-align: left; font-size: 8.5pt; text-transform: uppercase;
+               letter-spacing: .07em; color: #555; padding: 0 .6rem .4rem 0;
+               border-bottom: 2px solid #111; }
+    tbody tr:nth-child(even) { background: #f7f7f7; }
+    td   { padding: .32rem .6rem .32rem 0; vertical-align: top;
+           border-bottom: 1px solid #e5e5e5; }
+    tr:last-child td { border-bottom: none; }
+    td.num   { color: #aaa; font-size: 8.5pt; width: 2rem; padding-left: .1rem; }
+    td.title { font-weight: 600; }
+    @media print {
+      body { padding: 1cm 1.2cm; }
+      tbody tr:nth-child(even) { background: #f5f5f5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Ceol — Tune List</h1>
+  <p class="meta">${escHtml(filterDesc)} &nbsp;·&nbsp; ${tunes.length} tune${tunes.length !== 1 ? "s" : ""} &nbsp;·&nbsp; ${escHtml(dateStr)}</p>
+  <table>
+    <thead><tr><th>#</th><th>Title</th><th>Type</th><th>Key</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  win.print();
+});
+
 clearBtn.addEventListener("click", () => {
   searchEl.value = "";
   filterType.value = filterKey.value = filterMode.value = filterRating.value = "";
