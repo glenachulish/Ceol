@@ -789,6 +789,14 @@ button.set-tune-title:hover { text-decoration: underline; }
   margin-right: .25rem;
   flex-shrink: 0;
 }
+.version-hint {
+  display: none;
+  font-size: .75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.version-item:hover .version-hint,
+.version-item:focus .version-hint { display: block; }
 .version-set-default {
   margin-right: .25rem;
   flex-shrink: 0;

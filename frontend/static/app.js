@@ -3394,6 +3394,7 @@ async function renderVersionsPanel(parentId) {
             <div class="version-info">
               <span class="version-name">${v.is_default ? '<span class="version-default-star" title="Default version">⭐</span> ' : ''}${escHtml(v.version_label || v.title)}</span>
               <span class="version-meta">${meta}${sessionInfo ? ` · <span class="version-session">TheSession: ${sessionInfo}</span>` : ""}</span>
+              ${v.is_default ? '' : '<span class="version-hint">Click "Set default" to open this version first</span>'}
             </div>
             ${v.is_default
               ? '<span class="version-default-badge">default</span>'
