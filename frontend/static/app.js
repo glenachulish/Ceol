@@ -1545,6 +1545,7 @@ function renderSheetMusic(abc) {
     // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
     // Fallback to 600 so narrow/unmeasured containers still render full staves.
     const _staffWidth = Math.max(600, container.clientWidth - 30);
+    console.log('[Ceol] renderSheetMusic clientW:', container.clientWidth, 'staffW:', _staffWidth);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
       staffwidth: _staffWidth,
       add_classes: true,
@@ -1555,6 +1556,8 @@ function renderSheetMusic(abc) {
       selectTypes: false,
       foregroundColor: "#000000",
     });
+    const _svg = document.querySelector('#sheet-music-render svg');
+    console.log('[Ceol] lines:', visualObjs[0]?.lines?.length, '| svg:', _svg ? `${_svg.getAttribute('width')}x${_svg.getAttribute('height')}` : 'none');
     _patchSvgViewBox("sheet-music-render");
 
     _visualObj = visualObjs[0];
@@ -1563,6 +1566,7 @@ function renderSheetMusic(abc) {
       : null;
     // _barMap is built lazily on first click, after any responsive re-render.
 
+    console.log('[Ceol] synth available:', !!ABCJS.synth, '| supportsAudio:', ABCJS.synth?.supportsAudio?.());
     if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) {
       const el = document.getElementById("audio-unavailable");
       if (el) el.classList.remove("hidden");
