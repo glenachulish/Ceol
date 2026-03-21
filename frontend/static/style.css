@@ -88,7 +88,21 @@ header {
 }
 .header-top-row { display: flex; align-items: center; flex: 1 0 100%; } /* always own full-width row */
 .header-top-row #info-btn { margin-left: auto; } /* push ℹ to the right */
-.header-brand { display: flex; align-items: baseline; gap: .75rem; }
+.header-brand { display: flex; align-items: center; gap: .75rem; }
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #111;
+  font-size: 1.25rem;
+  line-height: 1;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
 h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
 .subtitle { color: var(--text-muted); font-size: .9rem; }
 .version-tag { font-size: .65rem; font-weight: 500; color: var(--text-muted); vertical-align: middle; letter-spacing: .04em; }
