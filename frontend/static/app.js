@@ -1544,6 +1544,8 @@ function renderSheetMusic(abc) {
     // when called from inside a modal (ResizeObserver quirk).
     // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
     // Fallback to 600 so narrow/unmeasured containers still render full staves.
+    console.log('[Ceol] raw ABC →\n' + abc);
+    console.log('[Ceol] processed ABC →\n' + _processedAbc);
     const _staffWidth = Math.max(600, container.clientWidth - 30);
     console.log('[Ceol] renderSheetMusic clientW:', container.clientWidth, 'staffW:', _staffWidth);
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
