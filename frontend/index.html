@@ -18,17 +18,17 @@
         <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
         <button id="nav-sets" class="nav-btn" data-tooltip="Group tunes into practice sets">Sets</button>
         <button id="nav-collections" class="nav-btn" data-tooltip="Organise tunes into themed collections">Collections</button>
-        <div class="library-menu-wrap">
-          <button id="nav-more-btn" class="nav-btn" data-tooltip="Notes, Achievements &amp; more">More ▾</button>
-          <div id="nav-more-menu" class="library-menu hidden" style="right:auto;left:0">
-            <button id="nav-notes" class="library-menu-item">📝 Notes</button>
-            <button id="nav-achievements" class="library-menu-item">⭐ Achievements</button>
-          </div>
-        </div>
       </nav>
       <div class="header-actions">
         <button id="info-btn" class="help-btn" aria-label="App info" data-tooltip="App &amp; database location">ℹ</button>
         <button id="help-btn" class="help-btn" aria-label="Help" data-tooltip="User guide">?</button>
+        <div class="library-menu-wrap">
+          <button id="nav-more-btn" class="btn-secondary" data-tooltip-left data-tooltip="Notes &amp; Achievements">More ▾</button>
+          <div id="nav-more-menu" class="library-menu hidden">
+            <button id="nav-notes" class="library-menu-item">📝 Notes</button>
+            <button id="nav-achievements" class="library-menu-item">⭐ Achievements</button>
+          </div>
+        </div>
         <div class="library-menu-wrap">
           <button id="library-menu-btn" class="btn-secondary" data-tooltip-left data-tooltip="Backup, restore or delete your library">Database ▾</button>
           <div id="library-menu" class="library-menu hidden">
@@ -497,6 +497,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=87"></script>
+  <script src="/static/app.js?v=88"></script>
 </body>
 </html>

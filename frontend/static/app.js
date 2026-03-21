@@ -621,8 +621,7 @@ function switchView(view) {
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements].forEach(v => v.classList.add("hidden"));
   [navLibrary, navSets, navCollections].forEach(n => n.classList.remove("active"));
-  if (navMoreBtn) navMoreBtn.classList.toggle("active", view === "notes" || view === "achievements");
-  if (navMoreMenu) navMoreMenu.classList.add("hidden"); // close dropdown on view switch
+  if (navMoreMenu) navMoreMenu.classList.add("hidden");
 
   if (view === "library") {
     viewLibrary.classList.remove("hidden");
