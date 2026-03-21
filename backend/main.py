@@ -1237,8 +1237,8 @@ def get_tune_versions(tune_id: int):
         if not parent:
             raise HTTPException(404, "Tune not found")
         versions = conn.execute(
-            "SELECT id, title, type, key, mode, version_label, notes, session_member, session_date "
-            "FROM tunes WHERE parent_id = ? ORDER BY version_label COLLATE NOCASE",
+            "SELECT id, title, type, key, mode, version_label, notes, session_member, session_date, is_default "
+            "FROM tunes WHERE parent_id = ? ORDER BY is_default DESC, version_label COLLATE NOCASE",
             (tune_id,),
         ).fetchall()
     return {"parent": dict(parent), "versions": [dict(v) for v in versions]}
@@ -1266,12 +1266,64 @@ def group_tunes(body: GroupTunesBody):
             (title,),
         )
         parent_id = cur.lastrowid
-        for tune_id, label in zip(body.tune_ids, body.labels):
+        for i, (tune_id, label) in enumerate(zip(body.tune_ids, body.labels)):
             conn.execute(
-                "UPDATE tunes SET parent_id = ?, version_label = ? WHERE id = ?",
-                (parent_id, label.strip(), tune_id),
+                "UPDATE tunes SET parent_id = ?, version_label = ?, is_default = ? WHERE id = ?",
+                (parent_id, label.strip(), 1 if i == 0 else 0, tune_id),
             )
     return {"id": parent_id, "title": title}
+
+
+@app.patch("/api/tunes/{tune_id}/set-default")
+def set_default_version(tune_id: int):
+    """Mark this version as the default (clears any previous default for the same parent)."""
+    with _db() as conn:
+        tune = conn.execute(
+            "SELECT parent_id FROM tunes WHERE id = ?", (tune_id,)
+        ).fetchone()
+        if not tune or not tune["parent_id"]:
+            raise HTTPException(400, "Tune is not a version under a parent")
+        parent_id = tune["parent_id"]
+        conn.execute("UPDATE tunes SET is_default = 0 WHERE parent_id = ?", (parent_id,))
+        conn.execute("UPDATE tunes SET is_default = 1 WHERE id = ?", (tune_id,))
+    return {"ok": True}
+
+
+@app.post("/api/tunes/auto-group")
+def auto_group_tunes():
+    """Find standalone tunes sharing the same title and group them as versions."""
+    from collections import defaultdict
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, title, type, key, abc FROM tunes WHERE parent_id IS NULL ORDER BY id"
+        ).fetchall()
+
+        groups: dict[str, list] = defaultdict(list)
+        for row in rows:
+            groups[row["title"].strip().lower()].append(dict(row))
+
+        grouped = 0
+        for tunes in groups.values():
+            if len(tunes) < 2:
+                continue
+            title = tunes[0]["title"]
+            cur = conn.execute(
+                "INSERT INTO tunes (title, type, key, mode, abc, notes) VALUES (?, '', '', '', '', '')",
+                (title,),
+            )
+            parent_id = cur.lastrowid
+            # Prefer a tune with ABC as the default; fall back to the first
+            default_id = next((t["id"] for t in tunes if t["abc"].strip()), tunes[0]["id"])
+            for i, tune in enumerate(tunes):
+                key_part = f" · {tune['key']}" if tune["key"] else ""
+                label = f"Setting {i + 1}{key_part}"
+                conn.execute(
+                    "UPDATE tunes SET parent_id = ?, version_label = ?, is_default = ? WHERE id = ?",
+                    (parent_id, label, 1 if tune["id"] == default_id else 0, tune["id"]),
+                )
+            grouped += 1
+
+    return {"grouped": grouped}
 
 
 # ---------------------------------------------------------------------------

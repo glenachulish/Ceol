@@ -2741,7 +2741,8 @@ tuneList.addEventListener("click", async e => {
     const { versions } = await apiFetch(`/api/tunes/${card.dataset.id}/versions`);
     if (versions.length > 0) {
       await Promise.all([fetchSets(), fetchCollections()]);
-      const firstTune = await fetchTune(versions[0].id);
+      const defaultVer = versions.find(v => v.is_default) || versions[0];
+      const firstTune = await fetchTune(defaultVer.id);
       renderModal(firstTune, null, versions);
       modalOverlay.classList.remove("hidden");
       document.body.style.overflow = "hidden";
@@ -3390,9 +3391,12 @@ async function renderVersionsPanel(parentId) {
           return `
           <div class="version-item" data-id="${v.id}" role="button" tabindex="0">
             <div class="version-info">
-              <span class="version-name">${escHtml(v.version_label || v.title)}</span>
+              <span class="version-name">${v.is_default ? '<span class="version-default-star" title="Default version">⭐</span> ' : ''}${escHtml(v.version_label || v.title)}</span>
               <span class="version-meta">${meta}${sessionInfo ? ` · <span class="version-session">TheSession: ${sessionInfo}</span>` : ""}</span>
             </div>
+            ${v.is_default
+              ? '<span class="version-default-badge">default</span>'
+              : `<button class="version-set-default btn-sm btn-secondary" data-id="${v.id}" title="Open this version by default">Set default</button>`}
             <span class="version-arrow">→</span>
           </div>
         `;}).join("")}
@@ -3402,6 +3406,15 @@ async function renderVersionsPanel(parentId) {
         <span class="modal-hint" style="margin-left:.5rem">Ungroup removes the container but keeps all versions as individual tunes.</span>
       </div>
     `;
+
+    // Set-default buttons (stop propagation so they don't also open the tune)
+    modalContent.querySelectorAll(".version-set-default").forEach(btn => {
+      btn.addEventListener("click", async e => {
+        e.stopPropagation();
+        await apiFetch(`/api/tunes/${btn.dataset.id}/set-default`, { method: "PATCH" });
+        renderVersionsPanel(parentId); // re-render with updated star
+      });
+    });
 
     // Each version opens the full tune modal with a ← Back button
     modalContent.querySelectorAll(".version-item").forEach(item => {
@@ -3728,6 +3741,7 @@ const libraryMenu       = document.getElementById("library-menu");
 const libraryBackupBtn  = document.getElementById("library-backup-btn");
 const libraryImportBtn  = document.getElementById("library-import-btn");
 const libraryDeleteBtn  = document.getElementById("library-delete-btn");
+const autoGroupBtn      = document.getElementById("auto-group-btn");
 
 // Dropdown toggle
 libraryMenuBtn.addEventListener("click", e => {
@@ -3747,6 +3761,17 @@ const backupCancelBtn  = document.getElementById("backup-cancel-btn");
 function _todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
+
+autoGroupBtn.addEventListener("click", async () => {
+  libraryMenu.classList.add("hidden");
+  const { grouped } = await apiFetch("/api/tunes/auto-group", { method: "POST" });
+  if (grouped === 0) {
+    alert("No duplicate tune names found — nothing to group.");
+  } else {
+    alert(`Grouped ${grouped} set${grouped !== 1 ? "s" : ""} of duplicate tunes.`);
+    await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+  }
+});
 
 libraryBackupBtn.addEventListener("click", () => {
   libraryMenu.classList.add("hidden");

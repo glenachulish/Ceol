@@ -165,6 +165,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE tunes ADD COLUMN session_date TEXT")
     if "source_url" not in existing_cols:
         conn.execute("ALTER TABLE tunes ADD COLUMN source_url TEXT")
+    if "is_default" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0")
 
     # Collections tables (added v3)
     existing_tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
