@@ -217,9 +217,15 @@ def _dedup_versions(conn) -> int:
                     seen_abc[norm] = v["id"]
 
         for vid in to_delete:
+            # Unlink any child tunes that reference this one as their parent
+            conn.execute(
+                "UPDATE tunes SET parent_id = NULL, version_label = '', is_default = 0 "
+                "WHERE parent_id = ?", (vid,)
+            )
             conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (vid,))
             conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (vid,))
             conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (vid,))
+            conn.execute("DELETE FROM collection_tunes WHERE tune_id = ?", (vid,))
             conn.execute("DELETE FROM tunes WHERE id = ?", (vid,))
             removed += 1
 
