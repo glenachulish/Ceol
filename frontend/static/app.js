@@ -875,7 +875,7 @@ function renderModal(tune, onBack = null, siblings = null) {
   // Extract PDF and MP3 URLs from notes (FlutefFling, Dropbox, or any source)
   const pdfUrl = (() => {
     if (!tune.notes) return null;
-    const m = tune.notes.match(/sheet music \(PDF\):\s*(https?:\/\/\S+)/);
+    const m = tune.notes.match(/sheet music \(PDF\):\s*(\S+)/);
     return m ? m[1] : null;
   })();
   const setsFooter = `<div class="modal-sets-row">
