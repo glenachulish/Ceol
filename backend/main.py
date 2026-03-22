@@ -3119,6 +3119,8 @@ async def transcribe_image(tune_id: int):
     """
     import base64
     import json
+    import ssl
+    import certifi
     import urllib.request
     import urllib.error
 
@@ -3198,8 +3200,9 @@ Rules:
         },
         method="POST",
     )
+    ssl_ctx = ssl.create_default_context(cafile=certifi.where())
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=60, context=ssl_ctx) as resp:
             result = json.loads(resp.read())
     except urllib.error.HTTPError as e:
         body = e.read().decode()
