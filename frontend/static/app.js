@@ -2294,14 +2294,16 @@ function openFullSetModal(setData) {
   requestAnimationFrame(() => {
     if (typeof ABCJS === "undefined") return;
 
-    // Render each tune individually
+    const TUNE_COLORS = ['#7c6af7', '#0d9488', '#f472b6', '#fb923c'];
+
+    // Render individual reference sheets with each tune's colour
     tunesWithAbc.forEach((t, i) => {
       const id = `set-tune-render-${i}`;
       try {
         ABCJS.renderAbc(id, expandAbcRepeats(t.abc), {
           responsive: "resize", add_classes: true,
           paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
-          foregroundColor: "#000000", scale: 1.1,
+          foregroundColor: TUNE_COLORS[i % TUNE_COLORS.length], scale: 1.1,
         });
         _patchSvgViewBox(id);
       } catch (err) {
@@ -2311,44 +2313,46 @@ function openFullSetModal(setData) {
       }
     });
 
-    // Render the combined full-set ABC into the visible "Full set" section
-    const playbackAbc = buildCombinedPlaybackAbc(tunesWithAbc);
-    if (!playbackAbc) return;
+    // Render each tune with its colour into the Full Set section
+    const fullRenderDiv = document.getElementById("set-full-render");
+    if (fullRenderDiv) {
+      fullRenderDiv.innerHTML = tunesWithAbc.map((_, i) =>
+        `<div id="set-full-tune-${i}" class="set-full-tune-block"></div>`
+      ).join("");
 
-    try {
-      const fullVisual = ABCJS.renderAbc("set-full-render", playbackAbc, {
-        responsive: "resize", add_classes: true,
-        paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
-        foregroundColor: "#000000", scale: 1.0,
-      });
-      _patchSvgViewBox("set-full-render");
-      if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
-
-      const cursorControl = {
-        onEvent(ev) {
-          document.querySelectorAll("#set-full-render .abcjs-highlight")
-            .forEach(el => el.classList.remove("abcjs-highlight"));
-          if (ev?.elements) ev.elements.forEach(grp => {
-            if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
+      tunesWithAbc.forEach((t, i) => {
+        const id = `set-full-tune-${i}`;
+        try {
+          ABCJS.renderAbc(id, expandAbcRepeats(t.abc), {
+            responsive: "resize", add_classes: true,
+            paddingbottom: 4, paddingleft: 10, paddingright: 10, paddingtop: 4,
+            foregroundColor: TUNE_COLORS[i % TUNE_COLORS.length], scale: 1.0,
           });
-        },
-        onFinished() {
-          document.querySelectorAll("#set-full-render .abcjs-highlight")
-            .forEach(el => el.classList.remove("abcjs-highlight"));
-        },
-      };
-
-      _setMusicSynth = new ABCJS.synth.SynthController();
-      _setMusicSynth.load("#set-full-audio", cursorControl, {
-        displayLoop: false, displayRestart: true, displayPlay: true,
-        displayProgress: true, displayWarp: true,
+          _patchSvgViewBox(id);
+        } catch (err) {
+          console.warn(`Full set tune ${i} colour render failed:`, err);
+        }
       });
-      _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
-        .then(() => _setMusicSynth.setWarp(50))
-        .catch(err => console.warn("Full set audio init failed:", err));
-    } catch (err) {
-      console.warn("Full set combined render failed:", err);
     }
+
+    // Build combined ABC for audio only (hidden — no visible render needed)
+    const playbackAbc = buildCombinedPlaybackAbc(tunesWithAbc);
+    if (!playbackAbc || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+
+    const hiddenDiv = document.createElement("div");
+    hiddenDiv.style.display = "none";
+    modalContent.appendChild(hiddenDiv);
+    const playbackVisual = ABCJS.renderAbc(hiddenDiv, playbackAbc, {});
+    if (!playbackVisual.length) return;
+
+    _setMusicSynth = new ABCJS.synth.SynthController();
+    _setMusicSynth.load("#set-full-audio", null, {
+      displayLoop: false, displayRestart: true, displayPlay: true,
+      displayProgress: true, displayWarp: true,
+    });
+    _setMusicSynth.setTune(playbackVisual[0], false, { program: 73 })
+      .then(() => _setMusicSynth.setWarp(50))
+      .catch(err => console.warn("Full set audio init failed:", err));
   });
 }
 
