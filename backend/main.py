@@ -157,6 +157,7 @@ def list_tunes(
     key: Optional[str] = Query(None, description="Filter by key"),
     mode: Optional[str] = Query(None, description="Filter by mode"),
     hitlist: Optional[int] = Query(None, description="1 = hitlist only"),
+    favourite: Optional[int] = Query(None, description="1 = favourites only"),
     min_rating: Optional[int] = Query(None, ge=1, le=5, description="Minimum star rating"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=10000),
@@ -187,6 +188,10 @@ def list_tunes(
     if hitlist:
         conditions.append("t.on_hitlist = 1")
 
+    if favourite:
+        conditions.append("t.is_favourite = 1")
+
+
     if min_rating is not None:
         conditions.append("t.rating >= ?")
         params.append(min_rating)
@@ -211,7 +216,7 @@ def list_tunes(
                       WHERE v.parent_id = t.id AND v.key != ''
                       ORDER BY v.id LIMIT 1)) AS key,
                    t.mode, t.notes, t.imported_at, t.created_at,
-                   t.rating, t.on_hitlist,
+                   t.rating, t.on_hitlist, t.is_favourite,
                    (SELECT COUNT(*) FROM tunes v WHERE v.parent_id = t.id) AS version_count
             FROM tunes t
             {where}
@@ -314,6 +319,7 @@ class TuneUpdate(BaseModel):
     version_label: Optional[str] = None
     rating: Optional[int] = None
     on_hitlist: Optional[int] = None
+    is_favourite: Optional[int] = None
 
 
 @app.patch("/api/tunes/{tune_id}")
@@ -340,7 +346,7 @@ def update_tune(tune_id: int, body: TuneUpdate):
             raise HTTPException(404, "Tune not found")
 
         # Auto-log achievements
-        rating_labels = ["Not yet rated","Just starting","Getting there",
+        rating_labels = ["Unrated","Just starting","Getting there",
                          "Almost there","Know it well","Nailed it!"]
         if "rating" in fields:
             new_r, old_r = fields["rating"], old["rating"] or 0
@@ -348,7 +354,7 @@ def update_tune(tune_id: int, body: TuneUpdate):
                 conn.execute(
                     "INSERT INTO achievements (type, tune_id, tune_title, note) VALUES (?,?,?,?)",
                     ("rating_up", tune_id, old["title"],
-                     f"Rating improved to {rating_labels[new_r]} ({new_r}★) — {old['title']}"),
+                     f"Mastery improved to {rating_labels[new_r]} ({new_r}★) — {old['title']}"),
                 )
         if "on_hitlist" in fields:
             if fields["on_hitlist"] == 1 and not old["on_hitlist"]:
@@ -550,7 +556,7 @@ class SetReorder(BaseModel):
 def list_sets():
     with _db() as conn:
         rows = conn.execute(
-            "SELECT id, name, notes, created_at FROM sets ORDER BY name COLLATE NOCASE"
+            "SELECT id, name, notes, is_favourite, created_at FROM sets ORDER BY name COLLATE NOCASE"
         ).fetchall()
         result = []
         for r in rows:
@@ -560,6 +566,28 @@ def list_sets():
             ).fetchone()[0]
             result.append(s)
     return result
+
+
+class SetUpdate(BaseModel):
+    name: Optional[str] = None
+    notes: Optional[str] = None
+    is_favourite: Optional[int] = None
+
+
+@app.patch("/api/sets/{set_id}")
+def update_set(set_id: int, body: SetUpdate):
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(400, "No fields to update")
+    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    values = list(fields.values()) + [set_id]
+    with _db() as conn:
+        cur = conn.execute(
+            f"UPDATE sets SET {set_clause} WHERE id = ?", values
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Set not found")
+    return {"ok": True}
 
 
 @app.post("/api/sets", status_code=201)

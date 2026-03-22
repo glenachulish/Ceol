@@ -167,6 +167,13 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE tunes ADD COLUMN source_url TEXT")
     if "is_default" not in existing_cols:
         conn.execute("ALTER TABLE tunes ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0")
+    if "is_favourite" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN is_favourite INTEGER NOT NULL DEFAULT 0")
+
+    # sets table migrations
+    existing_set_cols = {row[1] for row in conn.execute("PRAGMA table_info(sets)").fetchall()}
+    if "is_favourite" not in existing_set_cols:
+        conn.execute("ALTER TABLE sets ADD COLUMN is_favourite INTEGER NOT NULL DEFAULT 0")
 
     # Collections tables (added v3)
     existing_tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}

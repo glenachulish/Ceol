@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=52" />
+  <link rel="stylesheet" href="/static/style.css?v=53" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -72,14 +72,15 @@
           <select id="filter-key"><option value="">All keys</option></select>
           <select id="filter-mode"><option value="">All modes</option></select>
           <select id="filter-rating">
-            <option value="">Any rating</option>
-            <option value="1">★ +</option>
-            <option value="2">★★ +</option>
-            <option value="3">★★★ +</option>
-            <option value="4">★★★★ +</option>
-            <option value="5">★★★★★</option>
+            <option value="">Any mastery</option>
+            <option value="1">★ + mastery</option>
+            <option value="2">★★ + mastery</option>
+            <option value="3">★★★ + mastery</option>
+            <option value="4">★★★★ + mastery</option>
+            <option value="5">★★★★★ mastered</option>
           </select>
           <button id="filter-hitlist-btn" class="btn-secondary" data-tooltip="Show only tunes you&#39;ve flagged to learn">📌 Hitlist</button>
+          <button id="filter-favourite-btn" class="btn-secondary" data-tooltip="Show only your favourite tunes">👍 Favourites</button>
           <button id="clear-btn" class="btn-secondary" data-tooltip="Clear all filters and search">Clear</button>
           <button id="print-btn" class="btn-secondary" data-tooltip="Print the current tune list">Print list</button>
           <button id="select-mode-btn" class="btn-secondary" data-tooltip="Select multiple tunes to group or delete">Select</button>
@@ -505,6 +506,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=113"></script>
+  <script src="/static/app.js?v=114"></script>
 </body>
 </html>

@@ -10,6 +10,7 @@ const state = {
   key: "",
   mode: "",
   hitlist: false,
+  favourite: false,
   min_rating: 0,
   sets: [],
   collections: [],
@@ -21,8 +22,9 @@ const filterType       = document.getElementById("filter-type");
 const filterKey        = document.getElementById("filter-key");
 const filterMode       = document.getElementById("filter-mode");
 const filterRating     = document.getElementById("filter-rating");
-const filterHitlistBtn = document.getElementById("filter-hitlist-btn");
-const clearBtn         = document.getElementById("clear-btn");
+const filterHitlistBtn   = document.getElementById("filter-hitlist-btn");
+const filterFavouriteBtn = document.getElementById("filter-favourite-btn");
+const clearBtn           = document.getElementById("clear-btn");
 const selectModeBtn    = document.getElementById("select-mode-btn");
 const bulkBar          = document.getElementById("bulk-bar");
 const bulkCount        = document.getElementById("bulk-count");
@@ -500,6 +502,7 @@ async function fetchTunes() {
   if (state.key)        params.set("key",         state.key);
   if (state.mode)       params.set("mode",        state.mode);
   if (state.hitlist)    params.set("hitlist",     "1");
+  if (state.favourite)  params.set("favourite",   "1");
   if (state.min_rating) params.set("min_rating",  state.min_rating);
   return apiFetch(`/api/tunes?${params}`);
 }
@@ -689,7 +692,7 @@ function renderTunes(data) {
 
   if (!tunes.length) {
     pagination.innerHTML = "";
-    const noFilters = !state.q && !state.type && !state.key && !state.mode && !state.hitlist && !state.min_rating;
+    const noFilters = !state.q && !state.type && !state.key && !state.mode && !state.hitlist && !state.favourite && !state.min_rating;
     if (noFilters) {
       tuneList.innerHTML = `
         <div class="empty-library">
@@ -728,12 +731,15 @@ function renderTunes(data) {
     const stars = [1,2,3,4,5].map(n =>
       `<button class="star-btn${rating >= n ? " filled" : ""}" data-n="${n}" tabindex="-1">★</button>`
     ).join("");
+    const isFav = t.is_favourite || 0;
     return `
       <article class="tune-card${t.on_hitlist ? " on-hitlist" : ""}" data-id="${t.id}" data-versions="${vCount}"
-               data-rating="${rating}" data-hitlist="${t.on_hitlist || 0}"
+               data-rating="${rating}" data-hitlist="${t.on_hitlist || 0}" data-favourite="${isFav}"
                tabindex="0" role="button" aria-label="${escHtml(t.title)}">
         <button class="hitlist-btn${t.on_hitlist ? " active" : ""}"
                 title="${t.on_hitlist ? "Remove from hitlist" : "Add to hitlist"}">📌</button>
+        <button class="fav-btn${isFav ? " active" : ""}"
+                title="${isFav ? "Remove from favourites" : "Add to favourites"}">👍</button>
         <div class="card-title${t.on_hitlist ? " hitlist-title" : ""}">${escHtml(t.title)}</div>
         <div class="card-meta">${typeLabel}${keyLabel}${versionBadge}</div>
         <div class="card-stars">${stars}</div>
@@ -839,13 +845,14 @@ function renderModal(tune, onBack = null, siblings = null) {
       </div>`
     : "";
 
-  const ratingLabels = ["Not yet rated","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
+  const ratingLabels = ["Unrated","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
   const modalRating = tune.rating || 0;
   const modalStars = [1,2,3,4,5].map(n =>
-    `<button class="modal-star-btn${modalRating >= n ? " filled" : ""}" data-n="${n}">★</button>`
+    `<button class="modal-star-btn${modalRating >= n ? " filled" : ""}" data-n="${n}" title="Mastery: ${ratingLabels[n]}">★</button>`
   ).join("");
   const ratingRow = `
     <div class="modal-rating-row">
+      <span class="modal-rating-section-label">Mastery</span>
       <div class="modal-stars" id="modal-stars">${modalStars}</div>
       <span class="modal-rating-label" id="modal-rating-label">${ratingLabels[modalRating]}</span>
     </div>`;
@@ -976,6 +983,9 @@ function renderModal(tune, onBack = null, siblings = null) {
         <button id="modal-hitlist-btn" class="btn-secondary${tune.on_hitlist ? " hitlist-active" : ""}">
           📌 ${tune.on_hitlist ? "On Hitlist" : "Add to Hitlist"}
         </button>
+        <button id="modal-fav-btn" class="btn-secondary${tune.is_favourite ? " fav-active" : ""}">
+          👍 ${tune.is_favourite ? "Favourite" : "Add to Favourites"}
+        </button>
         <button id="delete-tune-modal-btn" class="btn-danger" data-tune-id="${tune.id}">
           ${tune.parent_id ? "Delete this version" : "Delete from Library"}
         </button>
@@ -1055,6 +1065,31 @@ function renderModal(tune, onBack = null, siblings = null) {
         if (hBtn) {
           hBtn.classList.toggle("active", Boolean(on_hitlist));
           hBtn.title = on_hitlist ? "Remove from hitlist" : "Add to hitlist";
+        }
+      }
+    } catch { /* ignore */ }
+  });
+
+  // Modal favourite toggle
+  const modalFavBtn = document.getElementById("modal-fav-btn");
+  let _modalFav = tune.is_favourite || 0;
+  modalFavBtn.addEventListener("click", async () => {
+    const is_favourite = _modalFav ? 0 : 1;
+    try {
+      await apiFetch(`/api/tunes/${tune.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_favourite }),
+      });
+      _modalFav = is_favourite;
+      modalFavBtn.textContent = `👍 ${is_favourite ? "Favourite" : "Add to Favourites"}`;
+      modalFavBtn.classList.toggle("fav-active", Boolean(is_favourite));
+      const card = tuneList.querySelector(`.tune-card[data-id="${tune.id}"]`);
+      if (card) {
+        card.dataset.favourite = is_favourite;
+        const fBtn = card.querySelector(".fav-btn");
+        if (fBtn) {
+          fBtn.classList.toggle("active", Boolean(is_favourite));
+          fBtn.title = is_favourite ? "Remove from favourites" : "Add to favourites";
         }
       }
     } catch { /* ignore */ }
@@ -2580,13 +2615,15 @@ function renderSets(sets) {
   }
 
   setsList.innerHTML = sets.map(s => `
-    <div class="set-card" data-set-id="${s.id}">
+    <div class="set-card" data-set-id="${s.id}" data-favourite="${s.is_favourite || 0}">
       <div class="set-card-header">
         <div class="set-card-info">
           <span class="set-name">${escHtml(s.name)}</span>
           <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
         </div>
         <div class="set-card-actions">
+          <button class="set-fav-btn${s.is_favourite ? " active" : ""}" data-set-id="${s.id}"
+                  title="${s.is_favourite ? "Remove from favourites" : "Add to favourites"}">👍</button>
           <button class="btn-secondary set-expand-btn" data-set-id="${s.id}">View</button>
           <button class="btn-secondary set-music-btn" data-set-id="${s.id}" title="View full set sheet music">Sheet music</button>
           <button class="btn-danger set-delete-btn" data-set-id="${s.id}" title="Delete set">🗑</button>
@@ -2828,6 +2865,23 @@ function renderSets(sets) {
       const id = btn.dataset.setId;
       const setData = await apiGetSet(id);
       openFullSetModal(setData);
+    });
+  });
+
+  setsList.querySelectorAll(".set-fav-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const card = btn.closest(".set-card");
+      const setId = btn.dataset.setId;
+      const is_favourite = btn.classList.contains("active") ? 0 : 1;
+      try {
+        await apiFetch(`/api/sets/${setId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_favourite }),
+        });
+        btn.classList.toggle("active", Boolean(is_favourite));
+        btn.title = is_favourite ? "Remove from favourites" : "Add to favourites";
+        card.dataset.favourite = is_favourite;
+      } catch { /* ignore */ }
     });
   });
 
@@ -3239,6 +3293,13 @@ filterHitlistBtn.addEventListener("click", () => {
   loadTunes();
 });
 
+filterFavouriteBtn.addEventListener("click", () => {
+  state.favourite = !state.favourite;
+  filterFavouriteBtn.classList.toggle("active", state.favourite);
+  state.page = 1;
+  loadTunes();
+});
+
 // ── Print list ────────────────────────────────────────────────────────────────
 document.getElementById("print-btn").addEventListener("click", async () => {
   // Open the window synchronously (must happen before any await to avoid popup blockers)
@@ -3322,7 +3383,8 @@ clearBtn.addEventListener("click", () => {
   searchEl.value = "";
   filterType.value = filterKey.value = filterMode.value = filterRating.value = "";
   filterHitlistBtn.classList.remove("active");
-  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", hitlist: false, min_rating: 0 });
+  filterFavouriteBtn.classList.remove("active");
+  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", hitlist: false, favourite: false, min_rating: 0 });
   loadTunes();
 });
 
@@ -3382,6 +3444,25 @@ tuneList.addEventListener("click", async e => {
       card.querySelector(".card-title")?.classList.toggle("hitlist-title", Boolean(on_hitlist));
       hitlistBtn.classList.toggle("active", Boolean(on_hitlist));
       hitlistBtn.title = on_hitlist ? "Remove from hitlist" : "Add to hitlist";
+    } catch { /* silently ignore */ }
+    return;
+  }
+
+  // Favourite toggle on card
+  const favBtn = e.target.closest(".fav-btn");
+  if (favBtn && !_selectMode) {
+    e.stopPropagation();
+    const card = favBtn.closest(".tune-card");
+    const tuneId = card.dataset.id;
+    const is_favourite = favBtn.classList.contains("active") ? 0 : 1;
+    try {
+      await apiFetch(`/api/tunes/${tuneId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_favourite }),
+      });
+      card.dataset.favourite = is_favourite;
+      favBtn.classList.toggle("active", Boolean(is_favourite));
+      favBtn.title = is_favourite ? "Remove from favourites" : "Add to favourites";
     } catch { /* silently ignore */ }
     return;
   }
@@ -3542,7 +3623,7 @@ function closeImport() {
   document.body.style.overflow = "";
   _ffReset();
   if (_previewSynthCtrl) {
-    try { _previewSynthCtrl.stop(); } catch {}
+    try { _previewSynthCtrl.pause(); } catch {}
     _previewSynthCtrl = null;
   }
   _previewTuneData = null;
@@ -3903,7 +3984,7 @@ document.querySelectorAll("[data-preview-tab]").forEach(btn => {
 // Back button: return to search results
 document.getElementById("session-preview-back").addEventListener("click", () => {
   if (_previewSynthCtrl) {
-    try { _previewSynthCtrl.stop(); } catch {}
+    try { _previewSynthCtrl.pause(); } catch {}
     _previewSynthCtrl = null;
   }
   _previewTuneData = null;
