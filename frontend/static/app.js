@@ -2223,13 +2223,20 @@ function openFullSetModal(setData) {
 
   const hasAbc = tunesWithAbc.length > 0;
 
+  // Build per-tune sheet music containers
+  const tuneSheetDivs = hasAbc ? tunesWithAbc.map((t, i) => `
+    <div class="set-tune-sheet" id="set-tune-sheet-${i}">
+      <h4 class="set-tune-sheet-title">${i + 1}. ${escHtml(t.title)}</h4>
+      <div class="set-tune-sheet-render" id="set-tune-render-${i}"></div>
+    </div>`).join("") : "";
+
   modalContent.innerHTML = `
     <h2 class="modal-title">${escHtml(setData.name)}</h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
     ${hasAbc ? `
       <h3 class="set-music-section-hd">Sheet music</h3>
-      <div id="set-music-render" style="margin-top:.5rem"></div>
-      <div id="set-music-audio" style="margin-top:.75rem"></div>
+      <div id="set-music-audio" style="margin-top:.5rem"></div>
+      <div id="set-music-sheets">${tuneSheetDivs}</div>
     ` : '<p class="modal-hint" style="margin-top:.75rem">No ABC notation available for tunes in this set.</p>'}
     ${transRows.length ? `
       <h3 class="set-music-section-hd">Transitions</h3>
@@ -2255,24 +2262,27 @@ function openFullSetModal(setData) {
 
   if (!hasAbc) return;
 
-  // Render full set sheet music — each tune rendered separately for proper display
+  // Render each tune's sheet music into its own div
   requestAnimationFrame(() => {
     if (typeof ABCJS === "undefined") return;
     try {
-      const fullAbc = buildFullSetAbc(tunesWithAbc);
-      ABCJS.renderAbc("set-music-render", fullAbc, {
-        responsive: "resize",
-        add_classes: true,
-        paddingbottom: 20,
-        paddingleft: 20,
-        paddingright: 20,
-        paddingtop: 20,
-        foregroundColor: "#000000",
-        scale: 1.2,
+      tunesWithAbc.forEach((t, i) => {
+        const containerId = `set-tune-render-${i}`;
+        const abc = expandAbcRepeats(t.abc);
+        ABCJS.renderAbc(containerId, abc, {
+          responsive: "resize",
+          add_classes: true,
+          paddingbottom: 10,
+          paddingleft: 10,
+          paddingright: 10,
+          paddingtop: 10,
+          foregroundColor: "#000000",
+          scale: 1.1,
+        });
+        _patchSvgViewBox(containerId);
       });
-      _patchSvgViewBox("set-music-render");
 
-      // Build a single combined ABC for playback (all tunes merged into one)
+      // Build a single combined ABC for full-set audio playback
       const playbackAbc = buildCombinedPlaybackAbc(tunesWithAbc);
       if (!playbackAbc) return;
       if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
@@ -2288,24 +2298,8 @@ function openFullSetModal(setData) {
       });
       if (!playbackVisual.length) return;
 
-      const cursorControl = {
-        onEvent(ev) {
-          document.querySelectorAll("#set-music-render .abcjs-highlight")
-            .forEach(el => el.classList.remove("abcjs-highlight"));
-          if (ev && ev.elements) {
-            ev.elements.forEach(grp => {
-              if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
-            });
-          }
-        },
-        onFinished() {
-          document.querySelectorAll("#set-music-render .abcjs-highlight")
-            .forEach(el => el.classList.remove("abcjs-highlight"));
-        },
-      };
-
       _setMusicSynth = new ABCJS.synth.SynthController();
-      _setMusicSynth.load("#set-music-audio", cursorControl, {
+      _setMusicSynth.load("#set-music-audio", null, {
         displayLoop: false,
         displayRestart: true,
         displayPlay: true,
