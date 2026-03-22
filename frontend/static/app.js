@@ -2728,6 +2728,7 @@ function renderSets(sets) {
         <div class="set-card-info">
           <span class="set-name">${escHtml(s.name)}</span>
           <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
+          <button class="set-rename-btn" data-set-id="${s.id}" title="Rename set">✏</button>
         </div>
         <div class="set-card-actions">
           <button class="set-fav-btn${s.is_favourite ? " active" : ""}" data-set-id="${s.id}"
@@ -2990,6 +2991,59 @@ function renderSets(sets) {
         btn.title = is_favourite ? "Remove from favourites" : "Add to favourites";
         card.dataset.favourite = is_favourite;
       } catch { /* ignore */ }
+    });
+  });
+
+  setsList.querySelectorAll(".set-rename-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      const card = btn.closest(".set-card");
+      const setId = btn.dataset.setId;
+      const nameSpan = card.querySelector(".set-name");
+      const original = nameSpan.textContent;
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = original;
+      input.className = "set-name-input";
+      input.maxLength = 120;
+      nameSpan.replaceWith(input);
+      btn.style.visibility = "hidden";
+      input.focus();
+      input.select();
+
+      async function commit() {
+        const newName = input.value.trim();
+        if (newName && newName !== original) {
+          try {
+            await apiFetch(`/api/sets/${setId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: newName }),
+            });
+            nameSpan.textContent = newName;
+            const s = state.sets.find(s => String(s.id) === String(setId));
+            if (s) s.name = newName;
+          } catch { nameSpan.textContent = original; }
+        } else {
+          nameSpan.textContent = original;
+        }
+        input.replaceWith(nameSpan);
+        btn.style.visibility = "";
+      }
+
+      function cancel() {
+        input.removeEventListener("blur", commit);
+        nameSpan.textContent = original;
+        input.replaceWith(nameSpan);
+        btn.style.visibility = "";
+      }
+
+      input.addEventListener("blur", commit);
+      input.addEventListener("keydown", e => {
+        if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+        if (e.key === "Escape") { cancel(); }
+      });
     });
   });
 

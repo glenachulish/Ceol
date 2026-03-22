@@ -582,6 +582,20 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .set-card-info { display: flex; align-items: center; gap: .75rem; }
 .set-name { font-weight: 600; font-size: .95rem; }
 .set-count { font-size: .8rem; color: var(--text-muted); }
+.set-rename-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: .8rem;
+  padding: .1rem .3rem; border-radius: 4px;
+  opacity: 0; transition: opacity .15s;
+}
+.set-card:hover .set-rename-btn { opacity: .55; }
+.set-rename-btn:hover { opacity: 1 !important; color: var(--accent); }
+.set-name-input {
+  font-weight: 600; font-size: .95rem;
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--accent); border-radius: 4px;
+  padding: .1rem .4rem; width: 14rem; max-width: 100%;
+}
 .set-notes { font-size: .82rem; color: var(--text-muted); margin-top: .4rem; font-style: italic; }
 .set-card-actions { display: flex; gap: .5rem; align-items: center; }
 
