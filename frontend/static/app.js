@@ -2086,6 +2086,11 @@ function buildFullSetAbc(tunes) {
 /** Build a single-tune ABC for playback: merge all tunes into one X:1 block
  *  with inline key/meter/length changes between sections. */
 function buildCombinedPlaybackAbc(tunes) {
+  return buildCombinedPlaybackAbcWithRanges(tunes)?.abc ?? null;
+}
+
+/** Like buildCombinedPlaybackAbc but also returns per-tune character ranges. */
+function buildCombinedPlaybackAbcWithRanges(tunes) {
   const withAbc = tunes.filter(t => t.abc);
   if (!withAbc.length) return null;
 
@@ -2106,25 +2111,30 @@ function buildCombinedPlaybackAbc(tunes) {
   const len   = extractField(first, 'L') || '1/8';
   const key   = extractField(first, 'K') || 'C';
 
-  let header = `X:1\nT:${withAbc[0].title || 'Set'}\nM:${meter}\nL:${len}\nK:${key}\n`;
+  const header = `X:1\nT:${withAbc[0].title || 'Set'}\nM:${meter}\nL:${len}\nK:${key}\n`;
   let combined = '';
+  const tuneRanges = [];
 
   for (let i = 0; i < withAbc.length; i++) {
     const t = withAbc[i];
     const abc = expandAbcRepeats(t.abc);
+    let prefix = '';
     if (i > 0) {
       const m = extractField(t.abc, 'M');
       const l = extractField(t.abc, 'L');
       const k = extractField(t.abc, 'K');
-      if (m && m !== meter) combined += `[M:${m}]`;
-      if (l && l !== len)   combined += `[L:${l}]`;
-      if (k)                combined += `[K:${k}]`;
-      combined += '\n';
+      if (m && m !== meter) prefix += `[M:${m}]`;
+      if (l && l !== len)   prefix += `[L:${l}]`;
+      if (k)                prefix += `[K:${k}]`;
+      prefix += '\n';
     }
-    combined += extractBody(abc) + '\n';
+    const body = extractBody(abc);
+    const start = header.length + combined.length + prefix.length;
+    tuneRanges.push({ start, end: start + body.length });
+    combined += prefix + body + '\n';
   }
 
-  return header + combined;
+  return { abc: header + combined, tuneRanges };
 }
 
 let _setMusicSynth = null;
@@ -2313,46 +2323,55 @@ function openFullSetModal(setData) {
       }
     });
 
-    // Render each tune with its colour into the Full Set section
-    const fullRenderDiv = document.getElementById("set-full-render");
-    if (fullRenderDiv) {
-      fullRenderDiv.innerHTML = tunesWithAbc.map((_, i) =>
-        `<div id="set-full-tune-${i}" class="set-full-tune-block"></div>`
-      ).join("");
+    // Render combined ABC into the visible Full Set section
+    const combined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
+    if (!combined) return;
+    const { abc: playbackAbc, tuneRanges } = combined;
 
-      tunesWithAbc.forEach((t, i) => {
-        const id = `set-full-tune-${i}`;
-        try {
-          ABCJS.renderAbc(id, expandAbcRepeats(t.abc), {
-            responsive: "resize", add_classes: true,
-            paddingbottom: 4, paddingleft: 10, paddingright: 10, paddingtop: 4,
-            foregroundColor: TUNE_COLORS[i % TUNE_COLORS.length], scale: 1.0,
-          });
-          _patchSvgViewBox(id);
-        } catch (err) {
-          console.warn(`Full set tune ${i} colour render failed:`, err);
-        }
+    try {
+      const fullVisual = ABCJS.renderAbc("set-full-render", playbackAbc, {
+        responsive: "resize", add_classes: true,
+        paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
+        foregroundColor: "#000000", scale: 1.0,
       });
+      _patchSvgViewBox("set-full-render");
+      if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+
+      // Highlight notes in their tune's colour as they play
+      let _lastHighlighted = [];
+      const cursorControl = {
+        onEvent(ev) {
+          _lastHighlighted.forEach(el => { el.style.fill = ''; });
+          _lastHighlighted = [];
+          if (!ev?.elements) return;
+          const sc = ev.startChar ?? -1;
+          let tuneIdx = tuneRanges.length - 1;
+          for (let i = 0; i < tuneRanges.length; i++) {
+            if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
+          }
+          const color = TUNE_COLORS[tuneIdx % TUNE_COLORS.length];
+          ev.elements.forEach(grp => {
+            if (!grp) return;
+            grp.forEach(el => { el.style.fill = color; _lastHighlighted.push(el); });
+          });
+        },
+        onFinished() {
+          _lastHighlighted.forEach(el => { el.style.fill = ''; });
+          _lastHighlighted = [];
+        },
+      };
+
+      _setMusicSynth = new ABCJS.synth.SynthController();
+      _setMusicSynth.load("#set-full-audio", cursorControl, {
+        displayLoop: false, displayRestart: true, displayPlay: true,
+        displayProgress: true, displayWarp: true,
+      });
+      _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
+        .then(() => _setMusicSynth.setWarp(50))
+        .catch(err => console.warn("Full set audio init failed:", err));
+    } catch (err) {
+      console.warn("Full set combined render failed:", err);
     }
-
-    // Build combined ABC for audio only (hidden — no visible render needed)
-    const playbackAbc = buildCombinedPlaybackAbc(tunesWithAbc);
-    if (!playbackAbc || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
-
-    const hiddenDiv = document.createElement("div");
-    hiddenDiv.style.display = "none";
-    modalContent.appendChild(hiddenDiv);
-    const playbackVisual = ABCJS.renderAbc(hiddenDiv, playbackAbc, {});
-    if (!playbackVisual.length) return;
-
-    _setMusicSynth = new ABCJS.synth.SynthController();
-    _setMusicSynth.load("#set-full-audio", null, {
-      displayLoop: false, displayRestart: true, displayPlay: true,
-      displayProgress: true, displayWarp: true,
-    });
-    _setMusicSynth.setTune(playbackVisual[0], false, { program: 73 })
-      .then(() => _setMusicSynth.setWarp(50))
-      .catch(err => console.warn("Full set audio init failed:", err));
   });
 }
 

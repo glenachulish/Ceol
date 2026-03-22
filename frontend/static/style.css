@@ -1317,7 +1317,6 @@ button.set-tune-title:hover { text-decoration: underline; }
 .set-timeline-seg-2 { background: #0d9488; }
 .set-timeline-seg-3 { background: #f472b6; color: #1a1d27; }
 .set-timeline-seg-4 { background: #fb923c; color: #1a1d27; }
-.set-full-tune-block + .set-full-tune-block { border-top: 1px solid var(--border); padding-top: .25rem; }
 
 .info-tools-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .75rem; }
 .info-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-bottom: 1rem; }
