@@ -3118,7 +3118,9 @@ async def transcribe_image(tune_id: int):
     an ABC transcription.  Requires ANTHROPIC_API_KEY in the environment.
     """
     import base64
-    import anthropic as _anthropic
+    import json
+    import urllib.request
+    import urllib.error
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
@@ -3165,11 +3167,10 @@ Rules:
   lowercase c d e f g a b for the middle-C octave, add ' for each octave above.
 - Use sharps/flats as accidentals (^C _E etc.) only where not already in the key signature."""
 
-    client = _anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-3-haiku-20240307",
-        max_tokens=2048,
-        messages=[
+    payload = json.dumps({
+        "model": "claude-3-haiku-20240307",
+        "max_tokens": 2048,
+        "messages": [
             {
                 "role": "user",
                 "content": [
@@ -3185,10 +3186,27 @@ Rules:
                 ],
             }
         ],
-    )
+    }).encode()
 
-    abc = message.content[0].text.strip()
-    # Strip markdown fences in case Claude adds them despite the instruction
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            result = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        raise HTTPException(status_code=502, detail=f"Anthropic API error: {body}")
+
+    abc = result["content"][0]["text"].strip()
+    # Strip markdown fences in case the model adds them despite the instruction
     abc = re.sub(r"^```[a-z]*\n?", "", abc, flags=re.IGNORECASE)
     abc = re.sub(r"\n?```$", "", abc).strip()
 
