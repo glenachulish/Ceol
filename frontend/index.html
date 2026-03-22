@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=56" />
+  <link rel="stylesheet" href="/static/style.css?v=57" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -210,6 +210,7 @@
         <button class="tab-btn" data-import-tab="flutefling">FlutefFling.scot</button>
         <button class="tab-btn" data-import-tab="dropbox">Dropbox</button>
         <button class="tab-btn" data-import-tab="pdf">PDF Files</button>
+        <button class="tab-btn" data-import-tab="book">PDF Book</button>
       </div>
 
       <!-- ABC file tab -->
@@ -422,6 +423,63 @@
         </div>
         <div id="pdf-result" class="import-result hidden"></div>
       </div>
+
+      <!-- PDF Book import tab -->
+      <div id="import-tab-book" class="tab-panel hidden">
+        <p class="import-desc">Upload a PDF music book, enter the collection name, then fill in the table of contents. Each tune will be sliced out as its own PDF and added to the collection.</p>
+
+        <!-- Step 1: file + collection name -->
+        <div class="book-step" id="book-step1">
+          <label class="import-drop" id="book-drop-zone">
+            <input type="file" id="book-file-input" accept=".pdf" />
+            <span class="import-icon">📖</span>
+            <span class="import-label">Click to choose a PDF book</span>
+            <span id="book-filename" class="import-filename"></span>
+          </label>
+          <div class="book-meta-row">
+            <label class="book-meta-label" for="book-collection-name">Collection name</label>
+            <input id="book-collection-name" class="book-meta-input" type="text" placeholder="e.g. Tina Jordan Rees" />
+          </div>
+          <div class="book-meta-row">
+            <label class="book-meta-label" for="book-page-count">Total pages in PDF</label>
+            <input id="book-page-count" class="book-meta-input book-meta-narrow" type="number" min="1" placeholder="e.g. 120" />
+          </div>
+          <div class="import-actions">
+            <button id="book-next-btn" class="btn-primary" disabled>Next: Enter contents →</button>
+          </div>
+        </div>
+
+        <!-- Step 2: TOC table -->
+        <div class="book-step hidden" id="book-step2">
+          <div class="book-toc-header">
+            <h3 class="book-toc-title" id="book-toc-heading">Table of contents</h3>
+            <button id="book-add-row-btn" class="btn-secondary btn-sm">+ Add tune</button>
+          </div>
+          <p class="import-desc" style="margin-top:0">Paste from the book's table of contents, or type manually. Start and end pages are inclusive.</p>
+          <table class="pdf-preview-table" id="book-toc-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Tune title</th>
+                <th>Start page</th>
+                <th>End page</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="book-toc-body"></tbody>
+          </table>
+          <div class="book-paste-row">
+            <button id="book-paste-btn" class="btn-secondary btn-sm">Paste from clipboard</button>
+            <span class="book-paste-hint">One tune per line: <em>Title, page</em> or <em>Title page</em></span>
+          </div>
+          <div class="import-actions" style="gap:.5rem">
+            <button id="book-back-btn" class="btn-secondary">← Back</button>
+            <button id="book-import-btn" class="btn-primary">Import book</button>
+          </div>
+        </div>
+
+        <div id="book-result" class="import-result hidden"></div>
+      </div>
     </div>
   </div>
 
@@ -535,6 +593,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=118"></script>
+  <script src="/static/app.js?v=119"></script>
 </body>
 </html>

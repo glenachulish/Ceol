@@ -2629,6 +2629,104 @@ def delete_library():
 
 
 # ---------------------------------------------------------------------------
+# PDF book import (split book PDF by TOC into per-tune slices)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/import/book")
+async def import_book_pdf(
+    file: UploadFile = File(...),
+    collection_name: str = Query(...),
+    toc: str = Query(...),   # JSON: [{title, start_page, end_page}]
+):
+    """
+    Split a multi-tune PDF book into per-tune slices.
+    Creates tune entries, stores sliced PDFs in uploads/, groups into a collection.
+    """
+    import PyPDF2
+
+    toc_entries = json.loads(toc)  # [{title, start_page, end_page}]
+    if not toc_entries:
+        raise HTTPException(400, "TOC is empty")
+
+    content = await file.read()
+    try:
+        reader = PyPDF2.PdfReader(io.BytesIO(content))
+        total_pages = len(reader.pages)
+    except Exception as e:
+        raise HTTPException(400, f"Could not read PDF: {e}")
+
+    import_date = date.today().isoformat()
+    results = []
+
+    with _db() as conn:
+        # Create or find collection
+        existing_col = conn.execute(
+            "SELECT id FROM collections WHERE lower(name) = lower(?)", (collection_name,)
+        ).fetchone()
+        if existing_col:
+            col_id = existing_col["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO collections (name, description) VALUES (?, ?)",
+                (collection_name, f"Imported from PDF: {file.filename}"),
+            )
+            col_id = cur.lastrowid
+
+        for entry in toc_entries:
+            title = entry.get("title", "").strip()
+            # Pages are 1-indexed from the user; PyPDF2 is 0-indexed
+            start = max(1, int(entry.get("start_page", 1)))
+            end   = min(total_pages, int(entry.get("end_page", start)))
+
+            if not title:
+                continue
+
+            # Slice pages
+            writer = PyPDF2.PdfWriter()
+            for p in range(start - 1, end):
+                writer.add_page(reader.pages[p])
+
+            buf = io.BytesIO()
+            writer.write(buf)
+            stored_name = f"{uuid.uuid4().hex}.pdf"
+            (UPLOADS_DIR / stored_name).write_bytes(buf.getvalue())
+            pdf_url = f"/api/uploads/{stored_name}"
+            pdf_note = f"sheet music (PDF): {pdf_url}"
+
+            # Check for existing tune with same title
+            existing_tune = conn.execute(
+                "SELECT id FROM tunes WHERE lower(title) = lower(?)", (title,)
+            ).fetchone()
+
+            if existing_tune:
+                tune_id = existing_tune["id"]
+                row = conn.execute("SELECT notes FROM tunes WHERE id = ?", (tune_id,)).fetchone()
+                existing_notes = (row["notes"] or "").strip() if row else ""
+                new_notes = f"{existing_notes}\n{pdf_note}".strip() if existing_notes else pdf_note
+                conn.execute(
+                    "UPDATE tunes SET notes = ?, updated_at = datetime('now') WHERE id = ?",
+                    (new_notes, tune_id),
+                )
+                action = "attached"
+            else:
+                cur = conn.execute(
+                    "INSERT INTO tunes (title, abc, notes, imported_at) VALUES (?, '', ?, datetime('now'))",
+                    (title, f"Imported from {collection_name}: {import_date}\n{pdf_note}"),
+                )
+                tune_id = cur.lastrowid
+                action = "created"
+
+            # Add to collection (ignore if already member)
+            conn.execute(
+                "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id) VALUES (?, ?)",
+                (col_id, tune_id),
+            )
+            results.append({"title": title, "action": action, "tune_id": tune_id, "pages": f"{start}–{end}"})
+
+    return {"collection_id": col_id, "collection_name": collection_name, "results": results}
+
+
+# ---------------------------------------------------------------------------
 # PDF bulk import
 # ---------------------------------------------------------------------------
 
@@ -2734,8 +2832,8 @@ async def confirm_pdf_imports(
             else:
                 # Create new tune
                 cur = conn.execute(
-                    """INSERT INTO tunes (title, notes, imported_at)
-                       VALUES (?, ?, datetime('now'))""",
+                    """INSERT INTO tunes (title, abc, notes, imported_at)
+                       VALUES (?, '', ?, datetime('now'))""",
                     (title, f"Imported from PDF: {import_date}\n{pdf_note}"),
                 )
                 results.append({"action": "created", "tune_id": cur.lastrowid, "title": title})

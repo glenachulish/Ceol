@@ -3843,6 +3843,173 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   });
 }
 
+// ── PDF Book Import ────────────────────────────────────────────────────────────
+{
+  const bookFileInput    = document.getElementById("book-file-input");
+  const bookDropZone     = document.getElementById("book-drop-zone");
+  const bookFilename     = document.getElementById("book-filename");
+  const bookCollName     = document.getElementById("book-collection-name");
+  const bookPageCount    = document.getElementById("book-page-count");
+  const bookNextBtn      = document.getElementById("book-next-btn");
+  const bookStep1        = document.getElementById("book-step1");
+  const bookStep2        = document.getElementById("book-step2");
+  const bookTocHeading   = document.getElementById("book-toc-heading");
+  const bookTocBody      = document.getElementById("book-toc-body");
+  const bookAddRowBtn    = document.getElementById("book-add-row-btn");
+  const bookPasteBtn     = document.getElementById("book-paste-btn");
+  const bookBackBtn      = document.getElementById("book-back-btn");
+  const bookImportBtn    = document.getElementById("book-import-btn");
+  const bookResult       = document.getElementById("book-result");
+
+  let _bookFile = null;
+  let _bookRowCount = 0;
+
+  function checkBookReady() {
+    bookNextBtn.disabled = !(_bookFile && bookCollName.value.trim() && bookPageCount.value > 0);
+  }
+
+  function addTocRow(title = "", start = "", end = "") {
+    _bookRowCount++;
+    const n = _bookRowCount;
+    const tr = document.createElement("tr");
+    tr.dataset.row = n;
+    tr.innerHTML = `
+      <td class="pdf-col-file" style="color:var(--text-muted);width:2rem">${n}</td>
+      <td class="pdf-col-title"><input class="pdf-title-input book-toc-title" data-row="${n}" value="${escHtml(title)}" placeholder="Tune title" /></td>
+      <td style="width:90px"><input class="book-page-input" data-row="${n}" data-field="start" type="number" min="1" value="${escHtml(String(start))}" placeholder="1" /></td>
+      <td style="width:90px"><input class="book-page-input" data-row="${n}" data-field="end"   type="number" min="1" value="${escHtml(String(end))}"   placeholder="2" /></td>
+      <td style="width:2rem"><button class="book-del-row" data-row="${n}" title="Remove">✕</button></td>
+    `;
+    bookTocBody.appendChild(tr);
+    // Auto-fill end page when start changes, if end is blank
+    tr.querySelector('[data-field="start"]').addEventListener("change", e => {
+      const endEl = tr.querySelector('[data-field="end"]');
+      if (!endEl.value) endEl.value = e.target.value;
+    });
+    tr.querySelector(".book-del-row").addEventListener("click", () => tr.remove());
+  }
+
+  function getTocEntries() {
+    return Array.from(bookTocBody.querySelectorAll("tr")).map(tr => {
+      const row = tr.dataset.row;
+      return {
+        title:      tr.querySelector(`.book-toc-title[data-row="${row}"]`)?.value.trim() || "",
+        start_page: Number(tr.querySelector(`[data-field="start"][data-row="${row}"]`)?.value) || 1,
+        end_page:   Number(tr.querySelector(`[data-field="end"][data-row="${row}"]`)?.value)   || 1,
+      };
+    }).filter(e => e.title);
+  }
+
+  bookFileInput.addEventListener("change", () => {
+    _bookFile = bookFileInput.files[0] || null;
+    bookFilename.textContent = _bookFile ? _bookFile.name : "";
+    checkBookReady();
+  });
+  bookCollName.addEventListener("input", checkBookReady);
+  bookPageCount.addEventListener("input", checkBookReady);
+
+  bookNextBtn.addEventListener("click", () => {
+    bookTocHeading.textContent = `Table of contents — ${bookCollName.value.trim()}`;
+    bookStep1.classList.add("hidden");
+    bookStep2.classList.remove("hidden");
+    if (bookTocBody.children.length === 0) addTocRow();
+  });
+
+  bookBackBtn.addEventListener("click", () => {
+    bookStep2.classList.add("hidden");
+    bookStep1.classList.remove("hidden");
+  });
+
+  bookAddRowBtn.addEventListener("click", () => addTocRow());
+
+  // Paste from clipboard: parse lines like "Title, 12" or "Title 12-14" or "Title\t12\t14"
+  bookPasteBtn.addEventListener("click", async () => {
+    let text = "";
+    try { text = await navigator.clipboard.readText(); } catch (_) {
+      text = prompt("Paste table of contents here:") || "";
+    }
+    if (!text.trim()) return;
+    const maxPage = Number(bookPageCount.value) || 9999;
+    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+    const parsed = [];
+    lines.forEach(line => {
+      // Try: Title\tstart\tend  or  Title, start, end  or  Title start-end  or  Title page
+      let m = line.match(/^(.+?)[\t,]\s*(\d+)[\t,\s\-–]+(\d+)\s*$/);
+      if (m) { parsed.push({ title: m[1].trim(), start: Number(m[2]), end: Number(m[3]) }); return; }
+      m = line.match(/^(.+?)[\t,]\s*(\d+)\s*$/);
+      if (m) { parsed.push({ title: m[1].trim(), start: Number(m[2]), end: Number(m[2]) }); return; }
+      m = line.match(/^(.+?)\s+(\d+)\s*[-–]\s*(\d+)\s*$/);
+      if (m) { parsed.push({ title: m[1].trim(), start: Number(m[2]), end: Number(m[3]) }); return; }
+      m = line.match(/^(.+?)\s+(\d+)\s*$/);
+      if (m) { parsed.push({ title: m[1].trim(), start: Number(m[2]), end: Number(m[2]) }); return; }
+    });
+
+    // Auto-calculate end pages: each tune ends one page before the next starts
+    for (let i = 0; i < parsed.length - 1; i++) {
+      if (parsed[i].start === parsed[i].end && parsed[i + 1].start > parsed[i].start) {
+        parsed[i].end = parsed[i + 1].start - 1;
+      }
+    }
+    if (parsed.length) parsed[parsed.length - 1].end = Math.max(parsed[parsed.length - 1].end, parsed[parsed.length - 1].start);
+
+    parsed.forEach(p => addTocRow(p.title, p.start, Math.min(p.end, maxPage)));
+  });
+
+  bookImportBtn.addEventListener("click", async () => {
+    const entries = getTocEntries();
+    if (!entries.length) { alert("Add at least one tune to the table of contents."); return; }
+    if (!_bookFile)      { alert("No PDF file selected."); return; }
+
+    bookImportBtn.disabled = true;
+    bookImportBtn.textContent = "Importing…";
+    bookResult.classList.add("hidden");
+
+    const fd = new FormData();
+    fd.append("file", _bookFile);
+
+    const params = new URLSearchParams({
+      collection_name: bookCollName.value.trim(),
+      toc: JSON.stringify(entries),
+    });
+
+    let data;
+    try {
+      data = await apiFetch(`/api/import/book?${params}`, { method: "POST", body: fd });
+    } catch (e) {
+      bookResult.textContent = `Error: ${e.message}`;
+      bookResult.className = "import-result import-error";
+      bookResult.classList.remove("hidden");
+      bookImportBtn.disabled = false;
+      bookImportBtn.textContent = "Import book";
+      return;
+    }
+
+    const created  = data.results.filter(r => r.action === "created").length;
+    const attached = data.results.filter(r => r.action === "attached").length;
+    const parts = [];
+    if (created)  parts.push(`${created} new tune${created  !== 1 ? "s" : ""} created`);
+    if (attached) parts.push(`${attached} updated with PDF`);
+    bookResult.textContent = `Done — ${parts.join(", ")}. Added to collection "${data.collection_name}".`;
+    bookResult.className = "import-result import-success";
+    bookResult.classList.remove("hidden");
+
+    // Reset
+    bookStep2.classList.add("hidden");
+    bookStep1.classList.remove("hidden");
+    bookTocBody.innerHTML = "";
+    _bookRowCount = 0;
+    _bookFile = null;
+    bookFileInput.value = "";
+    bookFilename.textContent = "";
+    bookCollName.value = "";
+    bookPageCount.value = "";
+    bookNextBtn.disabled = true;
+    bookImportBtn.disabled = false;
+    bookImportBtn.textContent = "Import book";
+    fetchTunes();
+  });
+}
+
 // ── FlutefFling Catalogue Browser ─────────────────────────────────────────────
 const ffCatSearchInput = document.getElementById("ff-cat-search");
 const ffCatList        = document.getElementById("ff-cat-list");
