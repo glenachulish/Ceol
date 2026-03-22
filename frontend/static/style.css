@@ -1376,6 +1376,71 @@ button.set-tune-title:hover { text-decoration: underline; }
 .modal-divider { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0 1rem; }
 .modal-section-title { font-size: .95rem; font-weight: 600; margin-bottom: .4rem; }
 
+/* ── Set Builder wizard ──────────────────────────────────────────────────── */
+.bldr-type-row { display: flex; align-items: center; gap: .6rem; margin: .75rem 0; }
+.bldr-label { font-size: .85rem; color: var(--text-muted); }
+.bldr-type-select {
+  padding: .3rem .5rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); color: var(--text); font-size: .85rem;
+}
+.bldr-section-title {
+  font-size: .78rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text-muted); margin: 1.25rem 0 .5rem;
+}
+.bldr-templates { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.bldr-tmpl-card {
+  border: 1px solid var(--border); border-radius: 8px; padding: .65rem .75rem;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.bldr-tmpl-card:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface2));
+}
+.bldr-tmpl-name { font-weight: 700; font-size: .88rem; margin-bottom: .18rem; }
+.bldr-tmpl-desc { font-size: .74rem; color: var(--text-muted); margin-bottom: .45rem; line-height: 1.3; }
+.bldr-tmpl-slots { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
+.bldr-tmpl-slot { display: flex; align-items: center; gap: .25rem; }
+.bldr-tmpl-count { font-size: .72rem; color: var(--text-muted); }
+.bldr-tmpl-arrow { color: var(--text-muted); font-size: .8rem; }
+.bldr-filter-row { margin: .5rem 0 .75rem; }
+.bldr-slots { display: flex; flex-direction: column; gap: .65rem; margin: .75rem 0; }
+.bldr-slot { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.bldr-slot-header {
+  display: flex; align-items: center; gap: .45rem; padding: .45rem .7rem;
+  background: var(--surface2); border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.bldr-slot-num { font-weight: 700; font-size: .75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.bldr-slot-selected { font-size: .78rem; font-weight: 600; color: var(--accent); }
+.bldr-slot-none { font-size: .78rem; color: var(--text-muted); font-style: italic; }
+.bldr-slot-list { max-height: 200px; overflow-y: auto; padding: .25rem; display: flex; flex-direction: column; gap: .15rem; }
+.bldr-slot-tune {
+  display: flex; align-items: center; gap: .35rem; padding: .3rem .5rem;
+  border: 1px solid transparent; border-radius: 5px; background: transparent;
+  text-align: left; cursor: pointer; transition: background .1s, border-color .1s; width: 100%;
+}
+.bldr-slot-tune:hover { background: color-mix(in srgb, var(--accent) 8%, var(--surface2)); border-color: var(--border); }
+.bldr-slot-tune.selected {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface2));
+  border-color: var(--accent);
+}
+.bldr-slot-tune-title { flex: 1; font-size: .84rem; font-weight: 500; color: var(--text); text-align: left; }
+.bldr-empty { font-size: .82rem; color: var(--text-muted); font-style: italic; padding: .4rem .5rem; }
+.bldr-actions { display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
+.bldr-actions-row { display: flex; gap: .5rem; margin: .5rem 0 .9rem; flex-wrap: wrap; }
+.bldr-current-set {
+  display: flex; flex-direction: column; gap: .2rem;
+  margin: .4rem 0; padding: .5rem .65rem;
+  background: var(--surface2); border-radius: 6px; border: 1px solid var(--border);
+}
+.bldr-current-tune { display: flex; align-items: center; gap: .35rem; }
+.bldr-current-pos { font-size: .73rem; color: var(--text-muted); width: 1.2rem; flex-shrink: 0; }
+.bldr-current-title { flex: 1; font-size: .84rem; font-weight: 600; }
+.bldr-compat-group { margin-bottom: .75rem; }
+.bldr-compat-group-header { display: flex; align-items: center; gap: .45rem; margin-bottom: .3rem; flex-wrap: wrap; }
+.bldr-compat-rel { font-size: .75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.bldr-compat-keys { display: flex; gap: .2rem; flex-wrap: wrap; }
+.bldr-save-preview { margin: .6rem 0; display: flex; flex-direction: column; gap: .2rem; }
+
 /* ── Full-set music modal ─────────────────────────────────── */
 .set-track-list { display: flex; flex-direction: column; gap: .25rem; margin-top: .75rem; }
 .set-track-item {

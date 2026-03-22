@@ -3645,6 +3645,346 @@ newDocBtn.addEventListener("click", async () => {
   await loadNoteDocuments();
 });
 
+// ── Circle of Fifths Set Builder ──────────────────────────────────────────────
+
+const _BLDR_TYPES = [
+  "reel","jig","hornpipe","slip jig","polka","march",
+  "waltz","strathspey","slide","barndance","air","slow air",
+];
+
+function showSetBuilder() {
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  _bldrHome();
+}
+
+function _bldrHome() {
+  const typeOpts = _BLDR_TYPES.map(t =>
+    `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`
+  ).join("");
+
+  modalContent.innerHTML = `
+    <button class="modal-back-btn" id="bldr-back">← Close</button>
+    <h2 class="modal-title">Build a Set</h2>
+    <p class="modal-hint">Start from a template or pick tunes step by step using the Circle of Fifths.</p>
+
+    <div class="bldr-type-row">
+      <label class="bldr-label">Tune type</label>
+      <select id="bldr-type" class="bldr-type-select">
+        <option value="">All types</option>
+        ${typeOpts}
+      </select>
+    </div>
+
+    <h3 class="bldr-section-title">Templates</h3>
+    <div class="bldr-templates" id="bldr-templates"><p class="modal-hint" style="font-style:italic">Loading…</p></div>
+
+    <h3 class="bldr-section-title">Step by step</h3>
+    <p class="modal-hint">Pick your first tune — Ceòl suggests compatible keys for every tune after that.</p>
+    <button class="btn-primary" id="bldr-step-btn">Choose first tune →</button>`;
+
+  document.getElementById("bldr-back").addEventListener("click", closeModal);
+
+  const typeEl = document.getElementById("bldr-type");
+
+  async function loadTemplates() {
+    const type = typeEl.value;
+    const params = type ? `?type=${encodeURIComponent(type)}` : "";
+    const templates = await apiFetch(`/api/circle-of-fifths/templates${params}`);
+    _bldrRenderTemplates(templates, type);
+  }
+
+  typeEl.addEventListener("change", loadTemplates);
+  loadTemplates();
+
+  document.getElementById("bldr-step-btn").addEventListener("click", () => {
+    _bldrPickFirst(typeEl.value);
+  });
+}
+
+function _bldrRenderTemplates(templates, type) {
+  const el = document.getElementById("bldr-templates");
+  if (!el) return;
+  el.innerHTML = templates.map(t => {
+    const slotHtml = t.slots.map((key, i) => {
+      const count = t.slot_counts[i] ?? 0;
+      return `<span class="bldr-tmpl-slot">
+        <span class="badge ${keyBadgeClass(key)}">${escHtml(key)}</span>
+        <span class="bldr-tmpl-count">${count}</span>
+      </span>`;
+    }).join('<span class="bldr-tmpl-arrow">→</span>');
+    return `<div class="bldr-tmpl-card" data-tmpl-id="${t.id}">
+      <div class="bldr-tmpl-name">${escHtml(t.name)}</div>
+      <div class="bldr-tmpl-desc">${escHtml(t.description)}</div>
+      <div class="bldr-tmpl-slots">${slotHtml}</div>
+    </div>`;
+  }).join("");
+
+  el.querySelectorAll(".bldr-tmpl-card").forEach(card => {
+    card.addEventListener("click", () => {
+      const tmpl = templates.find(t => t.id === Number(card.dataset.tmplId));
+      const typeEl2 = document.getElementById("bldr-type");
+      _bldrTemplateMode(tmpl, typeEl2 ? typeEl2.value : type);
+    });
+  });
+}
+
+async function _bldrTemplateMode(template, type) {
+  const slotTunes = await Promise.all(template.slots.map(key => {
+    const p = new URLSearchParams({ key, page_size: 500 });
+    if (type) p.set("type", type);
+    return apiFetch(`/api/tunes?${p}`).then(r => r.tunes || []);
+  }));
+
+  const selections = template.slots.map(() => null);
+
+  function render() {
+    const slotsHtml = template.slots.map((key, i) => {
+      const tunes = slotTunes[i];
+      const sel = selections[i];
+      const tuneRows = tunes.map(t => `
+        <button class="bldr-slot-tune${sel?.id === t.id ? " selected" : ""}"
+                data-slot="${i}" data-tune-id="${t.id}">
+          <span class="bldr-slot-tune-title">${escHtml(t.title)}</span>
+          <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+        </button>`).join("");
+
+      return `<div class="bldr-slot">
+        <div class="bldr-slot-header">
+          <span class="bldr-slot-num">Tune ${i + 1}</span>
+          <span class="badge ${keyBadgeClass(key)}">${escHtml(key)}</span>
+          ${sel
+            ? `<span class="bldr-slot-selected">✓ ${escHtml(sel.title)}</span>`
+            : `<span class="bldr-slot-none">none selected</span>`}
+        </div>
+        <div class="bldr-slot-list">${tunes.length ? tuneRows : '<p class="bldr-empty">No tunes in this key.</p>'}</div>
+      </div>`;
+    }).join("");
+
+    const chosen = selections.filter(Boolean);
+    modalContent.innerHTML = `
+      <button class="modal-back-btn" id="bldr-back">← Back</button>
+      <h2 class="modal-title">${escHtml(template.name)}</h2>
+      <p class="modal-hint">${escHtml(template.description)}</p>
+      ${type ? `<p class="modal-hint">Type: <strong>${escHtml(type)}</strong></p>` : ""}
+      <div class="bldr-slots">${slotsHtml}</div>
+      <div class="bldr-actions">
+        <button id="bldr-preview-btn" class="btn-secondary" ${chosen.length ? "" : "disabled"}>▶ Preview</button>
+        <button id="bldr-save-btn" class="btn-primary" ${chosen.length ? "" : "disabled"}>Save set</button>
+      </div>`;
+
+    document.getElementById("bldr-back").addEventListener("click", _bldrHome);
+
+    modalContent.querySelectorAll(".bldr-slot-tune").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.dataset.slot);
+        selections[idx] = slotTunes[idx].find(t => t.id === Number(btn.dataset.tuneId)) || null;
+        render();
+      });
+    });
+
+    if (chosen.length) {
+      document.getElementById("bldr-preview-btn").addEventListener("click", () => {
+        const abc = buildCombinedPlaybackAbc(chosen);
+        if (abc) openSetMusicModal(`Preview: ${template.name}`, abc, { onBack: render });
+        else { const b = document.getElementById("bldr-preview-btn"); b.textContent = "No ABC available"; b.disabled = true; }
+      });
+      document.getElementById("bldr-save-btn").addEventListener("click", () => {
+        _bldrSave(chosen, template.name, render);
+      });
+    }
+  }
+
+  render();
+}
+
+async function _bldrPickFirst(type) {
+  const filters = await apiFetch("/api/filters");
+  const keys = filters.keys || [];
+  let keyFilter = "";
+  let tunes = [];
+
+  async function loadTunes() {
+    const p = new URLSearchParams({ page_size: 500 });
+    if (type) p.set("type", type);
+    if (keyFilter) p.set("key", keyFilter);
+    const data = await apiFetch(`/api/tunes?${p}`);
+    tunes = data.tunes || [];
+    renderList();
+  }
+
+  function renderList() {
+    const listEl = document.getElementById("bldr-tune-list");
+    if (!listEl) return;
+    if (!tunes.length) { listEl.innerHTML = '<p class="bldr-empty">No tunes found.</p>'; return; }
+    listEl.innerHTML = tunes.map(t => `
+      <button class="bldr-slot-tune" data-tune-id="${t.id}">
+        <span class="bldr-slot-tune-title">${escHtml(t.title)}</span>
+        <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+        <span class="badge ${keyBadgeClass(t.key)}">${escHtml(t.key || "")}</span>
+      </button>`).join("");
+    listEl.querySelectorAll(".bldr-slot-tune").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const tune = tunes.find(t => String(t.id) === btn.dataset.tuneId);
+        if (tune) _bldrStepMode([tune], type);
+      });
+    });
+  }
+
+  const keyOpts = keys.map(k => `<option value="${k}">${escHtml(k)}</option>`).join("");
+  modalContent.innerHTML = `
+    <button class="modal-back-btn" id="bldr-back">← Back</button>
+    <h2 class="modal-title">Choose your first tune</h2>
+    ${type ? `<p class="modal-hint">Type: <strong>${escHtml(type)}</strong></p>` : ""}
+    <div class="bldr-filter-row">
+      <select id="bldr-key-filter" class="bldr-type-select">
+        <option value="">All keys</option>
+        ${keyOpts}
+      </select>
+    </div>
+    <div class="bldr-slot-list" id="bldr-tune-list"><p class="modal-hint" style="font-style:italic">Loading…</p></div>`;
+
+  document.getElementById("bldr-back").addEventListener("click", _bldrHome);
+  document.getElementById("bldr-key-filter").addEventListener("change", e => {
+    keyFilter = e.target.value;
+    loadTunes();
+  });
+  loadTunes();
+}
+
+async function _bldrStepMode(selectedTunes, type) {
+  const lastTune = selectedTunes[selectedTunes.length - 1];
+  const p = new URLSearchParams({ key: lastTune.key || "" });
+  if (type) p.set("type", type);
+  const compatData = await apiFetch(`/api/circle-of-fifths/compatible?${p}`);
+  const groups = compatData.groups || [];
+
+  function render() {
+    const currentHtml = selectedTunes.map((t, i) => `
+      <div class="bldr-current-tune">
+        <span class="bldr-current-pos">${i + 1}.</span>
+        <span class="bldr-current-title">${escHtml(t.title)}</span>
+        <span class="badge ${keyBadgeClass(t.key)}">${escHtml(t.key || "")}</span>
+        <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+      </div>`).join("");
+
+    const groupsHtml = groups.map((g, gi) => {
+      const keyBadges = g.keys.map(k => `<span class="badge ${keyBadgeClass(k)}">${escHtml(k)}</span>`).join(" ");
+      const tuneRows = g.tunes.map(t => `
+        <button class="bldr-slot-tune" data-group="${gi}" data-tune-id="${t.id}">
+          <span class="bldr-slot-tune-title">${escHtml(t.title)}</span>
+          <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+          <span class="badge ${keyBadgeClass(t.key)}">${escHtml(t.key || "")}</span>
+        </button>`).join("");
+      return `<div class="bldr-compat-group">
+        <div class="bldr-compat-group-header">
+          <span class="bldr-compat-rel">${escHtml(g.relationship)}</span>
+          <span class="bldr-compat-keys">${keyBadges}</span>
+        </div>
+        <div class="bldr-slot-list">${tuneRows}</div>
+      </div>`;
+    }).join("");
+
+    modalContent.innerHTML = `
+      <button class="modal-back-btn" id="bldr-back">← Back</button>
+      <h2 class="modal-title">What comes next?</h2>
+      <p class="modal-hint">Last tune: <span class="badge ${keyBadgeClass(lastTune.key)}">${escHtml(lastTune.key || "?")}</span> <strong>${escHtml(lastTune.title)}</strong></p>
+      <div class="bldr-current-set">${currentHtml}</div>
+      <div class="bldr-actions-row">
+        <button id="bldr-preview-btn" class="btn-secondary">▶ Preview</button>
+        <button id="bldr-save-btn" class="btn-secondary">Save set</button>
+      </div>
+      <h3 class="bldr-section-title">Compatible next tunes</h3>
+      ${groups.length
+        ? groupsHtml
+        : `<p class="bldr-empty">No compatible tunes found in your library for <strong>${escHtml(lastTune.key || "this key")}</strong>.</p>`}`;
+
+    document.getElementById("bldr-back").addEventListener("click", () => {
+      if (selectedTunes.length > 1) _bldrStepMode(selectedTunes.slice(0, -1), type);
+      else _bldrPickFirst(type);
+    });
+
+    document.getElementById("bldr-preview-btn").addEventListener("click", () => {
+      const abc = buildCombinedPlaybackAbc(selectedTunes);
+      if (abc) openSetMusicModal("Preview", abc, { onBack: render });
+      else { const b = document.getElementById("bldr-preview-btn"); b.textContent = "No ABC available"; b.disabled = true; }
+    });
+
+    document.getElementById("bldr-save-btn").addEventListener("click", () => {
+      const defaultName = selectedTunes.map(t => t.key || t.title).join(" · ");
+      _bldrSave(selectedTunes, defaultName, render);
+    });
+
+    modalContent.querySelectorAll(".bldr-slot-tune").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const gi = Number(btn.dataset.group);
+        const tune = groups[gi].tunes.find(t => t.id === Number(btn.dataset.tuneId));
+        if (tune) _bldrStepMode([...selectedTunes, tune], type);
+      });
+    });
+  }
+
+  render();
+}
+
+function _bldrSave(tunes, defaultName, onBack) {
+  modalContent.innerHTML = `
+    <button class="modal-back-btn" id="bldr-back">← Back</button>
+    <h2 class="modal-title">Save set</h2>
+    <div class="bldr-save-preview">
+      ${tunes.map((t, i) => `
+        <div class="bldr-current-tune">
+          <span class="bldr-current-pos">${i + 1}.</span>
+          <span class="bldr-current-title">${escHtml(t.title)}</span>
+          <span class="badge ${keyBadgeClass(t.key)}">${escHtml(t.key || "")}</span>
+          <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+        </div>`).join("")}
+    </div>
+    <div class="create-set-form">
+      <label class="create-set-label">Set name</label>
+      <input id="bldr-set-name" class="create-set-input" type="text" value="${escHtml(defaultName)}" maxlength="120">
+      <div class="create-set-actions">
+        <button id="bldr-confirm-save" class="btn-primary">Save set</button>
+        <button id="bldr-cancel-save" class="btn-secondary">Cancel</button>
+        <span id="bldr-save-status" class="set-status"></span>
+      </div>
+    </div>`;
+
+  const nameInput = document.getElementById("bldr-set-name");
+  nameInput.focus();
+  nameInput.select();
+
+  document.getElementById("bldr-back").addEventListener("click", onBack);
+  document.getElementById("bldr-cancel-save").addEventListener("click", onBack);
+
+  document.getElementById("bldr-confirm-save").addEventListener("click", async () => {
+    const name = nameInput.value.trim();
+    if (!name) { nameInput.focus(); return; }
+    const status = document.getElementById("bldr-save-status");
+    const btn = document.getElementById("bldr-confirm-save");
+    btn.disabled = true;
+    status.textContent = "Saving…";
+    try {
+      const newSet = await apiCreateSet(name, "");
+      for (const tune of tunes) await apiAddTuneToSet(newSet.id, tune.id);
+      await fetchSets();
+      status.textContent = "Set saved!";
+      status.className = "set-status set-saved";
+      setTimeout(closeModal, 900);
+    } catch (e) {
+      status.textContent = e.message || "Failed.";
+      status.className = "set-status set-error";
+      btn.disabled = false;
+    }
+  });
+
+  nameInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("bldr-confirm-save").click();
+  });
+}
+
+document.getElementById("build-set-btn").addEventListener("click", showSetBuilder);
+
 // ── Sets form ─────────────────────────────────────────────────────────────────
 newSetBtn.addEventListener("click", () => {
   newSetForm.classList.remove("hidden");

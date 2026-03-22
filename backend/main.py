@@ -549,6 +549,169 @@ def get_filter_options():
     return {"types": types, "keys": keys, "modes": modes}
 
 
+# ---------------------------------------------------------------------------
+# Circle of Fifths set builder
+# ---------------------------------------------------------------------------
+
+# Key signature sharps count for common trad music keys.
+# Same count → same key signature (modes on the same key).
+# ±1 → fifth apart on the circle.
+_COF_KEY_SIGS: dict[str, int] = {
+    # Major
+    "C major": 0,  "G major": 1,  "D major": 2,  "A major": 3,
+    "E major": 4,  "B major": 5,  "F# major": 6,
+    "F major": -1, "Bb major": -2, "Eb major": -3, "Ab major": -4,
+    # Minor / aeolian
+    "A minor": 0,  "A aeolian": 0,
+    "E minor": 1,  "E aeolian": 1,
+    "B minor": 2,  "B aeolian": 2,
+    "F# minor": 3, "F# aeolian": 3,
+    "C# minor": 4, "G# minor": 5,
+    "D minor": -1, "G minor": -2, "C minor": -3,
+    # Dorian
+    "D dorian": 0, "A dorian": 1, "E dorian": 2, "B dorian": 3,
+    "F# dorian": 4, "G dorian": -1, "C dorian": -2,
+    # Mixolydian
+    "G mixolydian": 0, "D mixolydian": 1, "A mixolydian": 2,
+    "E mixolydian": 3, "C mixolydian": -1, "F mixolydian": -2,
+}
+
+_COF_TEMPLATES = [
+    {
+        "id": 1,
+        "name": "G–D–E Triangle",
+        "description": "Neighbours on the circle + relative minor. Most common Irish set shape.",
+        "slots": ["G major", "D major", "E dorian"],
+    },
+    {
+        "id": 2,
+        "name": "A–B Pair",
+        "description": "A major into B dorian — same key signature, common in Scottish music.",
+        "slots": ["A major", "B dorian"],
+    },
+    {
+        "id": 3,
+        "name": "D–A Fifth",
+        "description": "Up a fifth from D to A. The set brightens as it goes.",
+        "slots": ["D major", "A major"],
+    },
+    {
+        "id": 4,
+        "name": "Modal Journey",
+        "description": "A dorian → G major → D major. Introduces the C♯ as the set progresses.",
+        "slots": ["A dorian", "G major", "D major"],
+    },
+]
+
+
+@app.get("/api/circle-of-fifths/templates")
+def cof_templates(type: Optional[str] = Query(None)):
+    """Return the 4 set templates with tune counts per slot (optionally filtered by type)."""
+    with _db() as conn:
+        result = []
+        for tmpl in _COF_TEMPLATES:
+            slot_counts = []
+            for key in tmpl["slots"]:
+                params: list = [key]
+                extra = ""
+                if type:
+                    extra = " AND type = ?"
+                    params.append(type.lower())
+                count = conn.execute(
+                    f"SELECT COUNT(*) FROM tunes WHERE key = ? AND parent_id IS NULL{extra}",
+                    params,
+                ).fetchone()[0]
+                slot_counts.append(count)
+            result.append({**tmpl, "slot_counts": slot_counts})
+    return result
+
+
+@app.get("/api/circle-of-fifths/compatible")
+def cof_compatible(
+    key: str = Query(..., description="Current key, e.g. 'D major'"),
+    type: Optional[str] = Query(None, description="Filter by tune type"),
+):
+    """Given a key, return compatible next keys grouped by CoF relationship, with matching tunes."""
+    current_sig = _COF_KEY_SIGS.get(key)
+
+    groups_def = [
+        {"relationship": "Same key signature", "delta": 0},
+        {"relationship": "Up a fifth (brighter)", "delta": 1},
+        {"relationship": "Down a fifth (mellower)", "delta": -1},
+        {"relationship": "Two steps up", "delta": 2},
+        {"relationship": "Two steps down", "delta": -2},
+    ]
+
+    with _db() as conn:
+        type_cond = " AND type = ?" if type else ""
+        type_param: list = [type.lower()] if type else []
+
+        db_keys = [
+            r[0]
+            for r in conn.execute(
+                f"SELECT DISTINCT key FROM tunes WHERE key IS NOT NULL AND key != ''"
+                f" AND parent_id IS NULL{type_cond}",
+                type_param,
+            ).fetchall()
+        ]
+
+        result_groups = []
+
+        if current_sig is not None:
+            for gdef in groups_def:
+                target_sig = current_sig + gdef["delta"]
+                matching_keys = [
+                    k for k in db_keys
+                    if _COF_KEY_SIGS.get(k) == target_sig
+                    and (gdef["delta"] != 0 or k != key)
+                ]
+                if not matching_keys:
+                    continue
+                placeholders = ",".join("?" * len(matching_keys))
+                cond = f"key IN ({placeholders})"
+                params: list = list(matching_keys)
+                if type:
+                    cond += " AND type = ?"
+                    params.append(type.lower())
+                tunes = conn.execute(
+                    f"""SELECT id, title, type, key, mode, rating, on_hitlist, is_favourite, abc
+                        FROM tunes WHERE {cond} AND parent_id IS NULL
+                        ORDER BY key, title COLLATE NOCASE""",
+                    params,
+                ).fetchall()
+                if tunes:
+                    result_groups.append({
+                        "relationship": gdef["relationship"],
+                        "keys": matching_keys,
+                        "tunes": [dict(t) for t in tunes],
+                    })
+        else:
+            # Key not in map — return all other tunes as a fallback group
+            cond = "key != ?" if key else "1=1"
+            params = [key] if key else []
+            if type:
+                cond += " AND type = ?"
+                params.append(type.lower())
+            tunes = conn.execute(
+                f"""SELECT id, title, type, key, mode, rating, on_hitlist, is_favourite, abc
+                    FROM tunes WHERE {cond} AND parent_id IS NULL
+                    ORDER BY key, title COLLATE NOCASE""",
+                params,
+            ).fetchall()
+            if tunes:
+                result_groups.append({
+                    "relationship": "Other tunes",
+                    "keys": list({t["key"] for t in tunes if t["key"]}),
+                    "tunes": [dict(t) for t in tunes],
+                })
+
+    return {
+        "current_key": key,
+        "current_key_known": current_sig is not None,
+        "groups": result_groups,
+    }
+
+
 @app.post("/api/classify-types")
 def api_classify_types(force: bool = False):
     """
