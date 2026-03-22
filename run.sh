@@ -5,6 +5,25 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# Load .env if it exists (e.g. ANTHROPIC_API_KEY=sk-ant-...)
+if [ -f .env ]; then
+  set -o allexport
+  # shellcheck disable=SC1091
+  source .env
+  set +o allexport
+fi
+
+# Create a template .env if none exists
+if [ ! -f .env ]; then
+  cat > .env <<'ENVEOF'
+# Ceol environment variables
+# Paste your Anthropic API key below to enable the "Transcribe to ABC" feature.
+# Get a key at https://console.anthropic.com
+ANTHROPIC_API_KEY=
+ENVEOF
+  echo "Created .env — add your ANTHROPIC_API_KEY there to enable ABC transcription."
+fi
+
 # Install / update Python dependencies silently
 python3 -m pip install -q -r requirements.txt
 
