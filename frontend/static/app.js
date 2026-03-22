@@ -1841,15 +1841,15 @@ function expandAbcRepeats(abc) {
 // After abcjs renders, add viewBox to the SVG so CSS max-width scales
 // the content proportionally instead of clipping it.
 function _patchSvgViewBox(containerId) {
-  const svg = document.querySelector(`#${containerId} svg`);
-  if (!svg) return;
-  const w = parseFloat(svg.getAttribute('width'));
-  const h = parseFloat(svg.getAttribute('height'));
-  if (w && h) {
-    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    svg.setAttribute('width', '100%');
-    svg.removeAttribute('height');
-  }
+  document.querySelectorAll(`#${containerId} svg`).forEach(svg => {
+    const w = parseFloat(svg.getAttribute('width'));
+    const h = parseFloat(svg.getAttribute('height'));
+    if (w && h) {
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      svg.setAttribute('width', '100%');
+      svg.removeAttribute('height');
+    }
+  });
 }
 
 function renderPreviewMusic(abc) {
@@ -2066,8 +2066,52 @@ function buildTransitionAbc(tuneA, tuneB) {
 
 function buildFullSetAbc(tunes) {
   return tunes.filter(t => t.abc).map((t, i) =>
-    t.abc.replace(/^X:\s*\d+/m, `X:${i + 1}`)
+    expandAbcRepeats(t.abc.replace(/^X:\s*\d+/m, `X:${i + 1}`))
   ).join("\n\n");
+}
+
+/** Build a single-tune ABC for playback: merge all tunes into one X:1 block
+ *  with inline key/meter/length changes between sections. */
+function buildCombinedPlaybackAbc(tunes) {
+  const withAbc = tunes.filter(t => t.abc);
+  if (!withAbc.length) return null;
+
+  function extractField(abc, field) {
+    const m = abc.match(new RegExp(`^${field}:\\s*(.+)$`, 'm'));
+    return m ? m[1].trim() : null;
+  }
+  function extractBody(abc) {
+    const kMatch = abc.match(/^K:[^\n]*/m);
+    if (!kMatch) return '';
+    let body = abc.slice(abc.indexOf(kMatch[0]) + kMatch[0].length);
+    body = body.replace(/^[A-Za-z]:[^\n]*/gm, '').replace(/%%[^\n]*/g, '').trim();
+    return body;
+  }
+
+  const first = withAbc[0].abc;
+  const meter = extractField(first, 'M') || '4/4';
+  const len   = extractField(first, 'L') || '1/8';
+  const key   = extractField(first, 'K') || 'C';
+
+  let header = `X:1\nT:${withAbc[0].title || 'Set'}\nM:${meter}\nL:${len}\nK:${key}\n`;
+  let combined = '';
+
+  for (let i = 0; i < withAbc.length; i++) {
+    const t = withAbc[i];
+    const abc = expandAbcRepeats(t.abc);
+    if (i > 0) {
+      const m = extractField(t.abc, 'M');
+      const l = extractField(t.abc, 'L');
+      const k = extractField(t.abc, 'K');
+      if (m && m !== meter) combined += `[M:${m}]`;
+      if (l && l !== len)   combined += `[L:${l}]`;
+      if (k)                combined += `[K:${k}]`;
+      combined += '\n';
+    }
+    combined += extractBody(abc) + '\n';
+  }
+
+  return header + combined;
 }
 
 let _setMusicSynth = null;
@@ -2211,12 +2255,12 @@ function openFullSetModal(setData) {
 
   if (!hasAbc) return;
 
-  // Render full set sheet music
+  // Render full set sheet music — each tune rendered separately for proper display
   requestAnimationFrame(() => {
     if (typeof ABCJS === "undefined") return;
     try {
       const fullAbc = buildFullSetAbc(tunesWithAbc);
-      const visualObjs = ABCJS.renderAbc("set-music-render", expandAbcRepeats(fullAbc), {
+      ABCJS.renderAbc("set-music-render", fullAbc, {
         responsive: "resize",
         add_classes: true,
         paddingbottom: 20,
@@ -2228,7 +2272,21 @@ function openFullSetModal(setData) {
       });
       _patchSvgViewBox("set-music-render");
 
+      // Build a single combined ABC for playback (all tunes merged into one)
+      const playbackAbc = buildCombinedPlaybackAbc(tunesWithAbc);
+      if (!playbackAbc) return;
       if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+
+      // Render the combined tune into a hidden element for the synth
+      const hiddenDiv = document.createElement("div");
+      hiddenDiv.id = "set-music-playback-hidden";
+      hiddenDiv.style.display = "none";
+      modalContent.appendChild(hiddenDiv);
+
+      const playbackVisual = ABCJS.renderAbc("set-music-playback-hidden", playbackAbc, {
+        responsive: "resize",
+      });
+      if (!playbackVisual.length) return;
 
       const cursorControl = {
         onEvent(ev) {
@@ -2254,7 +2312,7 @@ function openFullSetModal(setData) {
         displayProgress: true,
         displayWarp: true,
       });
-      _setMusicSynth.setTune(visualObjs[0], false, { program: 73 })
+      _setMusicSynth.setTune(playbackVisual[0], false, { program: 73 })
         .then(() => _setMusicSynth.setWarp(50))
         .catch(err => { console.warn("Full set audio init failed:", err); });
     } catch (err) {
@@ -2348,7 +2406,7 @@ function showSetPreviewPanel(tune, setData, onBack, siblings) {
 
     // Preview playback — build combined ABC and open music modal with back callback
     document.getElementById("set-preview-play-btn").addEventListener("click", () => {
-      const abc = buildFullSetAbc(previewOrder);
+      const abc = buildCombinedPlaybackAbc(previewOrder);
       if (!abc) return;
       openSetMusicModal(`Preview: ${setData.name}`, abc, { onBack: renderPreview });
     });
