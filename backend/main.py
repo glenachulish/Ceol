@@ -71,9 +71,11 @@ def _auto_classify_untyped() -> None:
 
 _auto_classify_untyped()
 
-FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+_base_dir = os.environ.get("CEOL_BASE_DIR")
+_data_dir = os.environ.get("CEOL_DATA_DIR")
+FRONTEND_DIR = Path(_base_dir) / "frontend" if _base_dir else Path(__file__).parent.parent / "frontend"
 STATIC_DIR = FRONTEND_DIR / "static"
-UPLOADS_DIR = Path(__file__).parent.parent / "data" / "uploads"
+UPLOADS_DIR = Path(_data_dir) / "uploads" if _data_dir else Path(__file__).parent.parent / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_DIR = Path(__file__).parent.parent.resolve()

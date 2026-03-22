@@ -1,0 +1,10 @@
+# Extra dependencies for building the Ceol desktop app.
+# Install alongside the main requirements.txt:
+#   pip install -r ../requirements.txt -r requirements.txt
+
+pywebview>=5.0
+pyinstaller>=6.0
+
+# macOS: pywebview uses PyObjC (WebKit). Installed automatically on Mac.
+# Windows: pywebview uses Microsoft Edge WebView2 (built into Windows 11,
+#          free download for Windows 10). No extra pip package needed.

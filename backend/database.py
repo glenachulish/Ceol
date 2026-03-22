@@ -3,10 +3,12 @@ SQLite database setup for Ceol (trad music web app).
 Creates all tables from the project schema.
 """
 
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "ceol.db"
+_data_dir = os.environ.get("CEOL_DATA_DIR")
+DB_PATH = Path(_data_dir) / "ceol.db" if _data_dir else Path(__file__).parent.parent / "data" / "ceol.db"
 
 SCHEMA = """
 -- Core tune data (imported from The Craic)
