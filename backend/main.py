@@ -3167,7 +3167,7 @@ Rules:
 
     client = _anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-3-5-sonnet-20241022",
         max_tokens=2048,
         messages=[
             {
