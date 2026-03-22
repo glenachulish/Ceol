@@ -848,6 +848,21 @@ button.set-tune-title:hover { text-decoration: underline; }
   margin-top: .5rem;
 }
 
+/* Transcribe-to-ABC row */
+.transcribe-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-top: .75rem;
+  flex-wrap: wrap;
+}
+.transcribe-status {
+  font-size: .85rem;
+  color: var(--text-muted);
+}
+.transcribe-status.transcribe-ok  { color: var(--jig); }
+.transcribe-status.transcribe-err { color: #e05a5a; }
+
 /* Photo import thumbnail */
 .photo-thumb {
   display: block;

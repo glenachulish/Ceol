@@ -3108,6 +3108,94 @@ async def import_images(
 
 
 # ---------------------------------------------------------------------------
+# ABC transcription from image via Claude vision
+# ---------------------------------------------------------------------------
+
+@app.post("/api/tunes/{tune_id}/transcribe-image")
+async def transcribe_image(tune_id: int):
+    """
+    Send the tune's stored sheet-music image to Claude (vision) and return
+    an ABC transcription.  Requires ANTHROPIC_API_KEY in the environment.
+    """
+    import base64
+    import anthropic as _anthropic
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="ANTHROPIC_API_KEY is not set. Add it to your environment and restart the server.",
+        )
+
+    with _db() as conn:
+        tune = conn.execute(
+            "SELECT id, title, notes FROM tunes WHERE id = ?", (tune_id,)
+        ).fetchone()
+    if not tune:
+        raise HTTPException(404, "Tune not found")
+
+    notes = tune["notes"] or ""
+    m = re.search(r"sheet music \(image\):\s*(\S+)", notes)
+    if not m:
+        raise HTTPException(400, "No sheet-music image attached to this tune")
+
+    filename = m.group(1).rstrip("/").split("/")[-1]
+    image_file = UPLOADS_DIR / filename
+    if not image_file.exists():
+        raise HTTPException(404, "Image file not found on disk")
+
+    image_b64 = base64.standard_b64encode(image_file.read_bytes()).decode()
+
+    prompt = f"""Transcribe this sheet music image to ABC notation.
+
+Output ONLY the ABC notation — no explanations, no markdown code fences.
+
+Use this structure:
+X:1
+T:{tune["title"]}
+M:[time signature from the image]
+L:1/8
+K:[key signature from the image]
+[all bars of music]
+
+Rules:
+- Preserve all repeats (|: :|), double barlines (||), and first/second endings ([1 [2).
+- If there are multiple parts (A part, B part, etc.), include them all in sequence.
+- Use standard ABC pitch notation: uppercase C D E F G A B for the octave below middle C,
+  lowercase c d e f g a b for the middle-C octave, add ' for each octave above.
+- Use sharps/flats as accidentals (^C _E etc.) only where not already in the key signature."""
+
+    client = _anthropic.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/jpeg",
+                            "data": image_b64,
+                        },
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ],
+    )
+
+    abc = message.content[0].text.strip()
+    # Strip markdown fences in case Claude adds them despite the instruction
+    abc = re.sub(r"^```[a-z]*\n?", "", abc, flags=re.IGNORECASE)
+    abc = re.sub(r"\n?```$", "", abc).strip()
+
+    return {"abc": abc}
+
+
+# ---------------------------------------------------------------------------
 # PDF bulk import
 # ---------------------------------------------------------------------------
 

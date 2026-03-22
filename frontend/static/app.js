@@ -924,6 +924,10 @@ function renderModal(tune, onBack = null, siblings = null) {
         <div id="sheet-music-render"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
         ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
+        ${imageUrl ? `<div class="transcribe-row">
+          <button id="transcribe-abc-btn" class="btn-secondary">✨ Transcribe to ABC</button>
+          <span id="transcribe-status" class="transcribe-status"></span>
+        </div>` : ""}
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
@@ -1222,6 +1226,36 @@ function renderModal(tune, onBack = null, siblings = null) {
       btn.disabled = false;
     }
   });
+
+  // Transcribe image to ABC via Claude vision
+  const transcribeBtn = document.getElementById("transcribe-abc-btn");
+  if (transcribeBtn) {
+    transcribeBtn.addEventListener("click", async () => {
+      const status  = document.getElementById("transcribe-status");
+      const textarea = document.getElementById("abc-edit-textarea");
+      transcribeBtn.disabled = true;
+      transcribeBtn.textContent = "Transcribing…";
+      status.textContent = "";
+      status.className = "transcribe-status";
+      try {
+        const data = await apiFetch(`/api/tunes/${tune.id}/transcribe-image`, { method: "POST" });
+        textarea.value = data.abc;
+        // Switch to ABC tab so the user can review and save
+        modalContent.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        modalContent.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+        modalContent.querySelector('[data-tab="abc"]').classList.add("active");
+        document.getElementById("tab-abc").classList.remove("hidden");
+        status.textContent = "Done — check accuracy then hit Save & Re-render";
+        status.className = "transcribe-status transcribe-ok";
+      } catch (e) {
+        status.textContent = `Error: ${e.message}`;
+        status.className = "transcribe-status transcribe-err";
+      } finally {
+        transcribeBtn.disabled = false;
+        transcribeBtn.textContent = "✨ Transcribe to ABC";
+      }
+    });
+  }
 
   // Add to set — opens set picker panel
   document.getElementById("add-to-set-btn")
