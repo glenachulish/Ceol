@@ -2072,15 +2072,27 @@ function buildFullSetAbc(tunes) {
 
 let _setMusicSynth = null;
 
-function openSetMusicModal(title, abc, isTransition = false) {
+function openSetMusicModal(title, abc, opts = {}) {
+  // Backwards-compat: openSetMusicModal(title, abc, true) → {isTransition:true}
+  if (opts === true) opts = { isTransition: true };
+  const { isTransition = false, onBack = null } = opts;
+
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
 
   modalContent.innerHTML = `
+    ${onBack ? '<button class="modal-back-btn" id="set-music-back-btn">← Back</button>' : ""}
     <h2 class="modal-title">${escHtml(title)}</h2>
     <div id="set-music-render" style="margin-top:.75rem"></div>
     <div id="set-music-audio" style="margin-top:.75rem"></div>`;
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+
+  if (onBack) {
+    document.getElementById("set-music-back-btn").addEventListener("click", () => {
+      if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
+      onBack();
+    });
+  }
 
   requestAnimationFrame(() => {
     if (typeof ABCJS === "undefined") return;
@@ -2134,6 +2146,119 @@ function openSetMusicModal(title, abc, isTransition = false) {
         .catch(err => { console.warn("Set music audio init failed:", err); });
     } catch (err) {
       console.warn("Set music render failed:", err);
+    }
+  });
+}
+
+function openFullSetModal(setData) {
+  const tunes = setData.tunes || [];
+  if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
+
+  // Build track list HTML
+  const trackRows = tunes.map((t, i) => `
+    <div class="set-track-item">
+      <span class="set-track-num">${i + 1}</span>
+      <span class="set-track-title">${escHtml(t.title)}</span>
+      <span class="set-track-meta">${[t.type, t.key].filter(Boolean).map(escHtml).join(" · ") || ""}</span>
+    </div>`).join("");
+
+  // Build transitions HTML
+  const tunesWithAbc = tunes.filter(t => t.abc);
+  const transRows = [];
+  for (let i = 0; i < tunes.length - 1; i++) {
+    const a = tunes[i], b = tunes[i + 1];
+    if (!a.abc || !b.abc) continue;
+    const label = `${escHtml(a.title)} → ${escHtml(b.title)}`;
+    transRows.push(`
+      <div class="set-music-trans-row" data-idx-a="${i}" data-idx-b="${i + 1}">
+        <span class="set-music-trans-label">${label}</span>
+        <button class="btn-secondary btn-sm set-trans-play-btn" data-idx-a="${i}" data-idx-b="${i + 1}">▶ Play</button>
+        <button class="btn-secondary btn-sm set-trans-music-btn" data-idx-a="${i}" data-idx-b="${i + 1}">Music</button>
+      </div>`);
+  }
+
+  const hasAbc = tunesWithAbc.length > 0;
+
+  modalContent.innerHTML = `
+    <h2 class="modal-title">${escHtml(setData.name)}</h2>
+    <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
+    ${hasAbc ? `
+      <h3 class="set-music-section-hd">Sheet music</h3>
+      <div id="set-music-render" style="margin-top:.5rem"></div>
+      <div id="set-music-audio" style="margin-top:.75rem"></div>
+    ` : '<p class="modal-hint" style="margin-top:.75rem">No ABC notation available for tunes in this set.</p>'}
+    ${transRows.length ? `
+      <h3 class="set-music-section-hd">Transitions</h3>
+      <div class="set-music-trans-section">${transRows.join("")}</div>
+    ` : ""}`;
+
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+
+  // Wire transition buttons
+  modalContent.querySelectorAll(".set-trans-play-btn, .set-trans-music-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const a = tunes[Number(btn.dataset.idxA)];
+      const b = tunes[Number(btn.dataset.idxB)];
+      const transAbc = buildTransitionAbc(a, b);
+      if (!transAbc) return;
+      openSetMusicModal(`${a.title} → ${b.title}`, transAbc, {
+        isTransition: true,
+        onBack: () => openFullSetModal(setData),
+      });
+    });
+  });
+
+  if (!hasAbc) return;
+
+  // Render full set sheet music
+  requestAnimationFrame(() => {
+    if (typeof ABCJS === "undefined") return;
+    try {
+      const fullAbc = buildFullSetAbc(tunesWithAbc);
+      const visualObjs = ABCJS.renderAbc("set-music-render", expandAbcRepeats(fullAbc), {
+        responsive: "resize",
+        add_classes: true,
+        paddingbottom: 20,
+        paddingleft: 20,
+        paddingright: 20,
+        paddingtop: 20,
+        foregroundColor: "#000000",
+        scale: 1.2,
+      });
+      _patchSvgViewBox("set-music-render");
+
+      if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+
+      const cursorControl = {
+        onEvent(ev) {
+          document.querySelectorAll("#set-music-render .abcjs-highlight")
+            .forEach(el => el.classList.remove("abcjs-highlight"));
+          if (ev && ev.elements) {
+            ev.elements.forEach(grp => {
+              if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
+            });
+          }
+        },
+        onFinished() {
+          document.querySelectorAll("#set-music-render .abcjs-highlight")
+            .forEach(el => el.classList.remove("abcjs-highlight"));
+        },
+      };
+
+      _setMusicSynth = new ABCJS.synth.SynthController();
+      _setMusicSynth.load("#set-music-audio", cursorControl, {
+        displayLoop: false,
+        displayRestart: true,
+        displayPlay: true,
+        displayProgress: true,
+        displayWarp: true,
+      });
+      _setMusicSynth.setTune(visualObjs[0], false, { program: 73 })
+        .then(() => _setMusicSynth.setWarp(50))
+        .catch(err => { console.warn("Full set audio init failed:", err); });
+    } catch (err) {
+      console.warn("Full set render failed:", err);
     }
   });
 }
@@ -2225,16 +2350,7 @@ function showSetPreviewPanel(tune, setData, onBack, siblings) {
     document.getElementById("set-preview-play-btn").addEventListener("click", () => {
       const abc = buildFullSetAbc(previewOrder);
       if (!abc) return;
-      openSetMusicModal(`Preview: ${setData.name}`, abc);
-      // Inject a back button into the music modal
-      const backBtn = document.createElement("button");
-      backBtn.className = "modal-back-btn";
-      backBtn.textContent = "← Back to preview";
-      backBtn.addEventListener("click", () => {
-        if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
-        renderPreview();
-      });
-      modalContent.prepend(backBtn);
+      openSetMusicModal(`Preview: ${setData.name}`, abc, { onBack: renderPreview });
     });
 
     // Confirm — add tune at the correct position then reorder
@@ -2361,7 +2477,7 @@ function renderSets(sets) {
           <button class="btn-secondary btn-sm set-transition-play-btn">Play</button>
           <button class="btn-secondary btn-sm set-transition-music-btn">Music</button>`;
         if (footer) footer.before(tr); else tunesDiv.appendChild(tr);
-        const open = () => openSetMusicModal(`${a.title} TRANSITION ${b.title}`, transAbc, true);
+        const open = () => openSetMusicModal(`${a.title} → ${b.title}`, transAbc, { isTransition: true });
         tr.querySelector(".set-transition-play-btn").addEventListener("click", open);
         tr.querySelector(".set-transition-music-btn").addEventListener("click", open);
       }
@@ -2570,9 +2686,7 @@ function renderSets(sets) {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.setId;
       const setData = await apiGetSet(id);
-      const tunes = (setData.tunes || []).filter(t => t.abc);
-      if (!tunes.length) { alert("No ABC notation found for tunes in this set."); return; }
-      openSetMusicModal(setData.name, buildFullSetAbc(tunes));
+      openFullSetModal(setData);
     });
   });
 

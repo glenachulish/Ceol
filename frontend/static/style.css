@@ -1264,6 +1264,26 @@ button.set-tune-title:hover { text-decoration: underline; }
 .modal-hint { font-size: .82rem; color: var(--text-muted); font-style: italic; }
 .modal-divider { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0 1rem; }
 .modal-section-title { font-size: .95rem; font-weight: 600; margin-bottom: .4rem; }
+
+/* ── Full-set music modal ─────────────────────────────────── */
+.set-track-list { display: flex; flex-direction: column; gap: .25rem; margin-top: .75rem; }
+.set-track-item {
+  display: flex; align-items: baseline; gap: .55rem;
+  padding: .3rem .5rem; border-radius: 6px;
+  background: var(--surface2);
+}
+.set-track-num { font-size: .75rem; font-weight: 700; color: var(--text-muted); min-width: 1.4rem; text-align: right; }
+.set-track-title { font-size: .9rem; font-weight: 600; flex: 1; }
+.set-track-meta { font-size: .75rem; color: var(--text-muted); }
+.set-music-section-hd { font-size: .95rem; font-weight: 700; margin: 1.25rem 0 .4rem; border-top: 1px solid var(--border); padding-top: .9rem; }
+.set-music-trans-section { display: flex; flex-direction: column; gap: .4rem; }
+.set-music-trans-row {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  padding: .35rem .6rem; border-radius: 6px;
+  background: var(--surface2);
+}
+.set-music-trans-label { flex: 1; font-size: .84rem; font-style: italic; color: var(--text-muted); }
+
 .info-tools-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: .75rem; }
 .info-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-bottom: 1rem; }
 .info-table th { text-align: left; white-space: nowrap; padding: .35rem .6rem .35rem 0; color: var(--text-muted); font-weight: 600; vertical-align: top; }
