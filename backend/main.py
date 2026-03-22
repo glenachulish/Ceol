@@ -2924,6 +2924,190 @@ async def import_book_pdf(
 
 
 # ---------------------------------------------------------------------------
+# Image (photo/scan) import — enhance and store sheet music photos
+# ---------------------------------------------------------------------------
+
+def _deskew_image(img: "Image.Image") -> "Image.Image":
+    """
+    Detect and correct document skew using projection-profile variance.
+    Coarse pass (1° steps, ±10°) then fine pass (0.25° steps, ±1° around best).
+    Works on a thumbnail for speed; applies the angle to the full-res image.
+    """
+    try:
+        import numpy as np
+        from PIL import Image as _Image
+
+        thumb = img.copy()
+        thumb.thumbnail((600, 600))
+        arr = np.array(thumb)
+
+        best_angle = 0.0
+        best_score = -1.0
+
+        # Coarse search
+        for angle in range(-10, 11):
+            rotated = np.array(thumb.rotate(angle, fillcolor=255))
+            score = float((rotated < 128).sum(axis=1).var())
+            if score > best_score:
+                best_score = score
+                best_angle = float(angle)
+
+        # Fine search around winner
+        for angle in np.arange(best_angle - 1.0, best_angle + 1.05, 0.25):
+            rotated = np.array(thumb.rotate(float(angle), fillcolor=255))
+            score = float((rotated < 128).sum(axis=1).var())
+            if score > best_score:
+                best_score = score
+                best_angle = float(angle)
+
+        if abs(best_angle) > 0.3:
+            img = img.rotate(best_angle, fillcolor=255, expand=True,
+                             resample=_Image.BICUBIC)
+    except Exception:
+        pass  # numpy not available or image is unusual — skip deskew
+
+    return img
+
+
+def _enhance_scan(content: bytes) -> bytes:
+    """
+    Enhance a phone photo or flatbed scan of sheet music:
+      1. Flatten alpha → white background
+      2. Convert to greyscale
+      3. Downsample to max 2400px (phone photos are huge)
+      4. Auto-contrast (stretches histogram — fixes dark/uneven lighting)
+      5. Deskew (correct tilt up to ±10°)
+      6. Sharpen twice (crisp notes and barlines)
+    Returns JPEG bytes.
+    """
+    from PIL import Image, ImageOps, ImageFilter
+    import io as _io
+
+    img = Image.open(_io.BytesIO(content))
+
+    # Flatten transparency to white background
+    if img.mode in ("RGBA", "LA", "PA"):
+        bg = Image.new("RGB", img.size, (255, 255, 255))
+        if img.mode == "RGBA":
+            bg.paste(img, mask=img.split()[3])
+        else:
+            bg.paste(img.convert("RGB"))
+        img = bg
+    elif img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+
+    # Greyscale
+    img = img.convert("L")
+
+    # Cap resolution — phone photos can be 12MP+
+    max_px = 2400
+    w, h = img.size
+    if max(w, h) > max_px:
+        scale = max_px / max(w, h)
+        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+
+    # Auto-contrast (cuts 1% from each histogram tail, then stretches)
+    img = ImageOps.autocontrast(img, cutoff=1)
+
+    # Deskew
+    img = _deskew_image(img)
+
+    # Sharpen twice for crisp notation
+    img = img.filter(ImageFilter.SHARPEN)
+    img = img.filter(ImageFilter.SHARPEN)
+
+    buf = _io.BytesIO()
+    img.save(buf, format="JPEG", quality=90, optimize=True)
+    return buf.getvalue()
+
+
+@app.post("/api/import/images", status_code=201)
+async def import_images(
+    files: list[UploadFile] = File(...),
+    titles: str = Query(...),           # JSON array of titles (one per file)
+    collection_name: str = Query(...),
+):
+    """
+    Accept JPEG/PNG photos of sheet music, enhance each one, store it in
+    uploads/, create a tune entry, and group all tunes into a Collection.
+    """
+    titles_list: list[str] = json.loads(titles)
+    import_date = date.today().isoformat()
+    results = []
+
+    with _db() as conn:
+        # Get or create collection
+        existing_col = conn.execute(
+            "SELECT id FROM collections WHERE lower(name) = lower(?)",
+            (collection_name.strip(),),
+        ).fetchone()
+        if existing_col:
+            col_id = existing_col["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO collections (name, description) VALUES (?, ?)",
+                (collection_name.strip(), f"Imported from photos: {import_date}"),
+            )
+            col_id = cur.lastrowid
+
+        for i, f in enumerate(files):
+            raw_title = (titles_list[i] if i < len(titles_list) else "").strip()
+            title = raw_title or _title_from_filename(f.filename or f"Image {i + 1}")
+
+            content = await f.read()
+
+            # Enhance image
+            try:
+                processed = _enhance_scan(content)
+                ext = ".jpg"
+            except Exception:
+                processed = content
+                ext = Path(f.filename).suffix.lower() if f.filename else ".jpg"
+
+            stored_name = f"{uuid.uuid4().hex}{ext}"
+            (UPLOADS_DIR / stored_name).write_bytes(processed)
+            image_url  = f"/api/uploads/{stored_name}"
+            image_note = f"sheet music (image): {image_url}"
+
+            # Check for existing tune with same title
+            existing = conn.execute(
+                "SELECT id, notes FROM tunes WHERE lower(title) = lower(?)", (title,)
+            ).fetchone()
+
+            if existing:
+                tune_id = existing["id"]
+                old_notes = (existing["notes"] or "").strip()
+                conn.execute(
+                    "UPDATE tunes SET notes = ?, updated_at = datetime('now') WHERE id = ?",
+                    (f"{old_notes}\n{image_note}".strip(), tune_id),
+                )
+                action = "attached"
+            else:
+                cur = conn.execute(
+                    "INSERT INTO tunes (title, abc, notes, imported_at) VALUES (?, '', ?, datetime('now'))",
+                    (title, f"Imported from {collection_name}: {import_date}\n{image_note}"),
+                )
+                tune_id = cur.lastrowid
+                action = "created"
+
+            conn.execute(
+                "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id) VALUES (?, ?)",
+                (col_id, tune_id),
+            )
+            results.append({"title": title, "action": action, "tune_id": tune_id})
+
+    created  = sum(1 for r in results if r["action"] == "created")
+    attached = sum(1 for r in results if r["action"] == "attached")
+    return {
+        "collection_name": collection_name.strip(),
+        "collection_id": col_id,
+        "created": created,
+        "attached": attached,
+        "results": results,
+    }
+
+
+# ---------------------------------------------------------------------------
 # PDF bulk import
 # ---------------------------------------------------------------------------
 

@@ -211,6 +211,7 @@
         <button class="tab-btn" data-import-tab="dropbox">Dropbox</button>
         <button class="tab-btn" data-import-tab="pdf">PDF Files</button>
         <button class="tab-btn" data-import-tab="book">PDF Book</button>
+        <button class="tab-btn" data-import-tab="photos">Photos</button>
       </div>
 
       <!-- ABC file tab -->
@@ -501,6 +502,36 @@
         </div>
 
         <div id="book-result" class="import-result hidden"></div>
+      </div>
+
+      <!-- Photos tab -->
+      <div id="import-tab-photos" class="tab-panel hidden">
+        <p class="import-desc">Import photos or scans of sheet music (JPEG or PNG). Each image is automatically converted to greyscale, contrast-enhanced, straightened, and sharpened. All tunes are grouped into a Collection.</p>
+        <label class="import-drop" id="photos-drop-zone">
+          <input type="file" id="photos-file-input" accept=".jpg,.jpeg,.png" multiple />
+          <span class="import-icon">📷</span>
+          <span class="import-label">Click to choose images, or drag and drop</span>
+          <span id="photos-file-count" class="import-filename"></span>
+        </label>
+        <div id="photos-preview-area" class="hidden">
+          <div class="book-meta-row">
+            <label class="book-meta-label" for="photos-collection-name">Collection name</label>
+            <input id="photos-collection-name" class="book-meta-input" type="text" placeholder="e.g. Diggers Part 5" />
+          </div>
+          <table class="pdf-preview-table">
+            <thead>
+              <tr>
+                <th style="width:64px">Photo</th>
+                <th>Tune title</th>
+              </tr>
+            </thead>
+            <tbody id="photos-preview-body"></tbody>
+          </table>
+          <div class="import-actions">
+            <button id="photos-import-btn" class="btn-primary">Import &amp; enhance</button>
+          </div>
+        </div>
+        <div id="photos-result" class="import-result hidden"></div>
       </div>
     </div>
   </div>

@@ -872,10 +872,15 @@ function renderModal(tune, onBack = null, siblings = null) {
     ? `<div class="modal-meta">${tune.tags.map(g => `<span class="badge badge-other">${escHtml(g)}</span>`).join("")}</div>`
     : "";
 
-  // Extract PDF and MP3 URLs from notes (FlutefFling, Dropbox, or any source)
+  // Extract PDF, image, and MP3 URLs from notes (FlutefFling, Dropbox, or any source)
   const pdfUrl = (() => {
     if (!tune.notes) return null;
     const m = tune.notes.match(/sheet music \(PDF\):\s*(\S+)/);
+    return m ? m[1] : null;
+  })();
+  const imageUrl = (() => {
+    if (!tune.notes) return null;
+    const m = tune.notes.match(/sheet music \(image\):\s*(\S+)/);
     return m ? m[1] : null;
   })();
   const setsFooter = `<div class="modal-sets-row">
@@ -917,6 +922,8 @@ function renderModal(tune, onBack = null, siblings = null) {
     <div id="tab-music" class="tab-panel">
       <div class="sheet-music-wrap">
         <div id="sheet-music-render"></div>
+        ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
+        ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
@@ -4185,6 +4192,108 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     bookAbcImportBtn.disabled = false;
     bookAbcImportBtn.textContent = "Import tunes";
   }
+}
+
+// ── Photos Import ──────────────────────────────────────────────────────────────
+{
+  const fileInput   = document.getElementById("photos-file-input");
+  const dropZone    = document.getElementById("photos-drop-zone");
+  const fileCount   = document.getElementById("photos-file-count");
+  const previewArea = document.getElementById("photos-preview-area");
+  const collName    = document.getElementById("photos-collection-name");
+  const previewBody = document.getElementById("photos-preview-body");
+  const importBtn   = document.getElementById("photos-import-btn");
+  const resultDiv   = document.getElementById("photos-result");
+
+  let _photoFiles = [];
+
+  function _photoStem(name) {
+    return name.replace(/\.(jpe?g|png|heic|webp)$/i, "")
+               .replace(/[_\-]+/g, " ")
+               .replace(/^\d+[\s.\-_]+/, "")
+               .trim()
+               .replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function loadPhotoPreview(files) {
+    _photoFiles = files;
+    if (!files.length) return;
+    fileCount.textContent = `${files.length} image${files.length !== 1 ? "s" : ""} selected`;
+    if (!collName.value.trim()) {
+      collName.value = _photoStem(files[0].name);
+    }
+    // Revoke any previous object URLs
+    previewBody.querySelectorAll("img").forEach(img => URL.revokeObjectURL(img.src));
+    previewBody.innerHTML = files.map((f, i) => {
+      const objUrl = URL.createObjectURL(f);
+      return `<tr>
+        <td><img src="${objUrl}" class="photo-thumb" alt="" /></td>
+        <td><input class="pdf-title-input photos-title-input" data-idx="${i}" value="${escHtml(_photoStem(f.name))}" /></td>
+      </tr>`;
+    }).join("");
+    previewArea.classList.remove("hidden");
+  }
+
+  fileInput.addEventListener("change", () => loadPhotoPreview(Array.from(fileInput.files)));
+
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drop-hover"); });
+  dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("drop-hover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drop-hover");
+    const imgs = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png)$/i.test(f.name));
+    if (imgs.length) loadPhotoPreview(imgs);
+  });
+
+  importBtn.addEventListener("click", async () => {
+    if (!_photoFiles.length) return;
+    const col = collName.value.trim();
+    if (!col) { alert("Enter a collection name."); return; }
+    const titles = Array.from(previewBody.querySelectorAll(".photos-title-input"))
+                        .map(el => el.value.trim());
+
+    importBtn.disabled = true;
+    importBtn.textContent = "Enhancing & importing…";
+    resultDiv.classList.add("hidden");
+
+    const fd = new FormData();
+    _photoFiles.forEach(f => fd.append("files", f));
+    const params = new URLSearchParams({
+      titles: JSON.stringify(titles),
+      collection_name: col,
+    });
+
+    let data;
+    try {
+      data = await apiFetch(`/api/import/images?${params}`, { method: "POST", body: fd });
+    } catch (e) {
+      resultDiv.textContent = `Error: ${e.message}`;
+      resultDiv.className = "import-result import-error";
+      resultDiv.classList.remove("hidden");
+      importBtn.disabled = false;
+      importBtn.textContent = "Import & enhance";
+      return;
+    }
+
+    const parts = [];
+    if (data.created)  parts.push(`${data.created} new tune${data.created  !== 1 ? "s" : ""} created`);
+    if (data.attached) parts.push(`${data.attached} updated with image`);
+    resultDiv.textContent = `Done — ${parts.join(", ")}. Added to collection "${data.collection_name}".`;
+    resultDiv.className = "import-result import-success";
+    resultDiv.classList.remove("hidden");
+
+    // Revoke object URLs and reset
+    previewBody.querySelectorAll("img").forEach(img => URL.revokeObjectURL(img.src));
+    _photoFiles = [];
+    fileInput.value = "";
+    fileCount.textContent = "";
+    collName.value = "";
+    previewBody.innerHTML = "";
+    previewArea.classList.add("hidden");
+    importBtn.disabled = false;
+    importBtn.textContent = "Import & enhance";
+    fetchTunes();
+  });
 }
 
 // ── FlutefFling Catalogue Browser ─────────────────────────────────────────────

@@ -838,6 +838,32 @@ button.set-tune-title:hover { text-decoration: underline; }
 }
 .pdf-link-hint a { color: var(--reel); }
 
+/* Sheet music image (from imported photo/scan) */
+.sheet-music-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-top: .5rem;
+}
+
+/* Photo import thumbnail */
+.photo-thumb {
+  display: block;
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+/* Drag-over highlight for drop zones */
+.import-drop.drop-hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
 /* ── Merge form ───────────────────────────────────────────── */
 .bulk-col-list { display: flex; flex-direction: column; gap: .4rem; margin: 1rem 0; max-height: 50vh; overflow-y: auto; }
 .bulk-col-option { display: flex; align-items: center; gap: .55rem; padding: .45rem .6rem; border-radius: 6px; cursor: pointer; }
