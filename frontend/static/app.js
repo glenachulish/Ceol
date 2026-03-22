@@ -4094,6 +4094,28 @@ function closeImport() {
   document.getElementById("session-search-pane").classList.remove("hidden");
 }
 
+// Launch the set builder from a tune that was just imported.
+// Closes the import overlay then opens the builder modal.
+async function _launchBuilderFromTuneId(tuneId) {
+  closeImport();
+  await fetchSets();
+  const tune = await apiFetch(`/api/tunes/${tuneId}`);
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  _bldrStepMode([tune], tune.type || "");
+}
+
+// Insert a "Build a Set from this tune" button immediately after `anchor` element.
+// Removes any previously inserted button first (idempotent).
+function _insertBuildSetBtn(anchor, tuneId) {
+  anchor.parentElement?.querySelectorAll(".post-import-build-btn").forEach(el => el.remove());
+  const b = document.createElement("button");
+  b.textContent = "🎵 Build a Set from this tune";
+  b.className = "btn-secondary btn-sm post-import-build-btn";
+  b.addEventListener("click", () => _launchBuilderFromTuneId(tuneId));
+  anchor.after(b);
+}
+
 importClose.addEventListener("click", closeImport);
 importOverlay.addEventListener("click", e => { if (e.target === importOverlay) closeImport(); });
 
@@ -4737,7 +4759,7 @@ function _ffCatRender(items) {
         const noteParts = [];
         if (t.pdf_url) noteParts.push(`FlutefFling sheet music (PDF): ${t.pdf_url}`);
         if (t.mp3_url) noteParts.push(`FlutefFling MP3: ${t.mp3_url}`);
-        await apiFetch("/api/tunes", {
+        const created = await apiFetch("/api/tunes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -4753,6 +4775,7 @@ function _ffCatRender(items) {
         btn.style.background = "var(--jig)";
         await Promise.all([loadStats(), loadFilters()]);
         if (state.view === "library") loadTunes();
+        _insertBuildSetBtn(btn, created.id);
       } catch (err) {
         btn.textContent = "Error";
         btn.disabled = false;
@@ -5070,6 +5093,7 @@ document.getElementById("session-save-btn").addEventListener("click", async () =
         btn.style.opacity = ".5";
         status.textContent = "Already in your library.";
         status.className = "notes-status notes-saved";
+        _insertBuildSetBtn(status, data.tune_id);
       } else {
         btn.textContent = "Saved ✓";
         btn.style.background = "var(--jig)";
@@ -5077,6 +5101,7 @@ document.getElementById("session-save-btn").addEventListener("click", async () =
         status.className = "notes-status notes-saved";
         await Promise.all([loadStats(), loadFilters()]);
         if (state.view === "library") loadTunes();
+        _insertBuildSetBtn(status, data.tune_id);
       }
     } else {
       btn.textContent = _checkedSettingIds.size > 1 ? `Save ${_checkedSettingIds.size} settings` : "Save to Library";

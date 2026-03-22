@@ -1705,6 +1705,8 @@ button.set-tune-title:hover { text-decoration: underline; }
 }
 .session-preview-title-text { font-weight: 600; font-size: 1rem; flex: 1; min-width: 0; }
 .session-preview-submitter { color: var(--text-muted); font-size: .8rem; font-style: italic; white-space: nowrap; }
+.post-import-build-btn { margin-top: .35rem; }
+
 .session-preview-footer {
   display: flex;
   align-items: center;
