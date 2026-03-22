@@ -2343,7 +2343,7 @@ function openSetMusicModal(title, abc, opts = {}) {
         displayWarp: true,
       });
       _setMusicSynth.setTune(visualObjs[0], false, { program: 73 })
-        .then(() => _setMusicSynth.setWarp(50))
+        .then(() => _setMusicSynth.setWarp(100))
         .catch(err => { console.warn("Set music audio init failed:", err); });
     } catch (err) {
       console.warn("Set music render failed:", err);
@@ -2528,7 +2528,7 @@ function openFullSetModal(setData) {
         displayProgress: true, displayWarp: true,
       });
       _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
-        .then(() => _setMusicSynth.setWarp(50))
+        .then(() => _setMusicSynth.setWarp(100))
         .catch(err => console.warn("Full set audio init failed:", err));
     } catch (err) {
       console.warn("Full set combined render failed:", err);
@@ -3776,9 +3776,11 @@ async function _bldrTemplateMode(template, type) {
     document.getElementById("bldr-back").addEventListener("click", _bldrHome);
 
     modalContent.querySelectorAll(".bldr-slot-tune").forEach(btn => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         const idx = Number(btn.dataset.slot);
-        selections[idx] = slotTunes[idx].find(t => t.id === Number(btn.dataset.tuneId)) || null;
+        const stub = slotTunes[idx].find(t => t.id === Number(btn.dataset.tuneId));
+        if (!stub) return;
+        selections[idx] = await apiFetch(`/api/tunes/${stub.id}`);
         render();
       });
     });
@@ -3824,9 +3826,12 @@ async function _bldrPickFirst(type) {
         <span class="badge ${keyBadgeClass(t.key)}">${escHtml(t.key || "")}</span>
       </button>`).join("");
     listEl.querySelectorAll(".bldr-slot-tune").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const tune = tunes.find(t => String(t.id) === btn.dataset.tuneId);
-        if (tune) _bldrStepMode([tune], type);
+      btn.addEventListener("click", async () => {
+        const stub = tunes.find(t => String(t.id) === btn.dataset.tuneId);
+        if (!stub) return;
+        // Fetch full tune to get abc for preview; also lock the type to this tune's type
+        const fullTune = await apiFetch(`/api/tunes/${stub.id}`);
+        _bldrStepMode([fullTune], type || fullTune.type || "");
       });
     });
   }
