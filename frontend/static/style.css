@@ -1439,6 +1439,47 @@ button.set-tune-title:hover { text-decoration: underline; }
   border: 1px solid rgba(239,68,68,.3);
 }
 
+/* ── PDF bulk import ──────────────────────────────────────── */
+.import-drop-active { border-color: var(--accent) !important; background: var(--surface3); }
+.pdf-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+  margin-bottom: .75rem;
+}
+.pdf-preview-table th {
+  text-align: left;
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  padding: .35rem .5rem;
+  border-bottom: 1px solid var(--border);
+}
+.pdf-preview-table td { padding: .4rem .5rem; vertical-align: middle; }
+.pdf-preview-table tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
+.pdf-col-file { color: var(--text-muted); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-col-title { width: 40%; }
+.pdf-title-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: .3rem .5rem;
+  font-size: .85rem;
+}
+.pdf-title-input:focus { outline: none; border-color: var(--accent); }
+.pdf-action-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: .3rem .5rem;
+  font-size: .82rem;
+  max-width: 220px;
+}
+
 /* ── TheSession.org search ────────────────────────────────── */
 .session-search-row {
   display: flex;

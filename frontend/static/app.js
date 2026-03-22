@@ -860,7 +860,8 @@ function renderModal(tune, onBack = null, siblings = null) {
   const aliasLine = tune.aliases && tune.aliases.length
     ? `<p class="modal-aliases">Also known as: ${tune.aliases.map(escHtml).join(", ")}</p>`
     : "";
-  const _sessionId = tune.session_id || tune.craic_id;
+  const _sessionUrlMatch = tune.source_url && tune.source_url.match(/thesession\.org\/tunes\/(\d+)/);
+  const _sessionId = tune.session_id || (_sessionUrlMatch && _sessionUrlMatch[1]);
   const sessionLink = _sessionId
     ? `<a class="modal-session-link" href="https://thesession.org/tunes/${_sessionId}" target="_blank" rel="noopener">View on TheSession.org ↗</a>`
     : "";
@@ -3714,6 +3715,133 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     if (btn.dataset.importTab === "dropbox") _dropboxMaybeLoad();
   });
 });
+
+// ── PDF Bulk Import ────────────────────────────────────────────────────────────
+{
+  const fileInput   = document.getElementById("pdf-file-input");
+  const dropZone    = document.getElementById("pdf-drop-zone");
+  const fileCount   = document.getElementById("pdf-file-count");
+  const previewArea = document.getElementById("pdf-preview-area");
+  const previewBody = document.getElementById("pdf-preview-body");
+  const importBtn   = document.getElementById("pdf-import-btn");
+  const resultDiv   = document.getElementById("pdf-result");
+
+  let _selectedFiles = [];
+  let _previewData   = [];  // [{filename, title, action, existing_id, existing_title}]
+
+  function titleFromFilename(name) {
+    let stem = name.replace(/\.pdf$/i, "");
+    stem = stem.replace(/[_\-]+/g, " ");
+    stem = stem.replace(/^\d+[\s.\-_]+/, "");
+    return stem.trim().replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  async function loadPreview(files) {
+    _selectedFiles = Array.from(files);
+    fileCount.textContent = `${_selectedFiles.length} file${_selectedFiles.length !== 1 ? "s" : ""} selected`;
+    previewArea.classList.add("hidden");
+    resultDiv.classList.add("hidden");
+    if (!_selectedFiles.length) return;
+
+    // Ask backend to match against library
+    const fd = new FormData();
+    _selectedFiles.forEach(f => fd.append("files", f));
+    let data;
+    try {
+      data = await apiFetch("/api/import/pdfs/preview", { method: "POST", body: fd });
+    } catch (e) {
+      resultDiv.textContent = `Error: ${e.message}`;
+      resultDiv.className = "import-result import-error";
+      resultDiv.classList.remove("hidden");
+      return;
+    }
+
+    _previewData = data.files;
+    previewBody.innerHTML = _previewData.map((row, i) => `
+      <tr>
+        <td class="pdf-col-file" title="${escHtml(row.filename)}">${escHtml(row.filename)}</td>
+        <td class="pdf-col-title">
+          <input class="pdf-title-input" data-idx="${i}" value="${escHtml(row.title)}" />
+        </td>
+        <td class="pdf-col-action">
+          <select class="pdf-action-select" data-idx="${i}">
+            <option value="attach" ${row.action === "attach" ? "selected" : ""}>
+              Attach to: ${escHtml(row.existing_title || row.title)}
+            </option>
+            <option value="create" ${row.action === "create" ? "selected" : ""}>Create new tune</option>
+          </select>
+        </td>
+      </tr>
+    `).join("");
+    previewArea.classList.remove("hidden");
+  }
+
+  fileInput.addEventListener("change", () => loadPreview(fileInput.files));
+
+  // Drag and drop
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("import-drop-active"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("import-drop-active"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("import-drop-active");
+    const pdfs = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith(".pdf"));
+    loadPreview(pdfs);
+  });
+
+  importBtn.addEventListener("click", async () => {
+    importBtn.disabled = true;
+    importBtn.textContent = "Importing…";
+
+    // Collect current titles and actions from the table
+    const titles = _previewData.map((_, i) => {
+      const el = previewBody.querySelector(`.pdf-title-input[data-idx="${i}"]`);
+      return el ? el.value.trim() : _previewData[i].title;
+    });
+    const actions = _previewData.map((_, i) => {
+      const el = previewBody.querySelector(`.pdf-action-select[data-idx="${i}"]`);
+      return el ? el.value : _previewData[i].action;
+    });
+    const existingIds = _previewData.map(r => r.existing_id ?? null);
+
+    const fd = new FormData();
+    _selectedFiles.forEach(f => fd.append("files", f));
+
+    const params = new URLSearchParams({
+      titles: JSON.stringify(titles),
+      actions: JSON.stringify(actions),
+      existing_ids: JSON.stringify(existingIds),
+    });
+
+    let data;
+    try {
+      data = await apiFetch(`/api/import/pdfs/confirm?${params}`, { method: "POST", body: fd });
+    } catch (e) {
+      resultDiv.textContent = `Error: ${e.message}`;
+      resultDiv.className = "import-result import-error";
+      resultDiv.classList.remove("hidden");
+      importBtn.disabled = false;
+      importBtn.textContent = "Import";
+      return;
+    }
+
+    const created  = data.results.filter(r => r.action === "created").length;
+    const attached = data.results.filter(r => r.action === "attached").length;
+    const parts = [];
+    if (created)  parts.push(`${created} new tune${created  !== 1 ? "s" : ""} created`);
+    if (attached) parts.push(`${attached} tune${attached !== 1 ? "s" : ""} updated with PDF`);
+    resultDiv.textContent = parts.join(", ") + ".";
+    resultDiv.className = "import-result import-success";
+    resultDiv.classList.remove("hidden");
+    previewArea.classList.add("hidden");
+    fileCount.textContent = "";
+    _selectedFiles = [];
+    _previewData = [];
+    fileInput.value = "";
+    importBtn.disabled = false;
+    importBtn.textContent = "Import";
+    fetchTunes(); // refresh library
+  });
+}
 
 // ── FlutefFling Catalogue Browser ─────────────────────────────────────────────
 const ffCatSearchInput = document.getElementById("ff-cat-search");

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=55" />
+  <link rel="stylesheet" href="/static/style.css?v=56" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -209,6 +209,7 @@
         <button class="tab-btn" data-import-tab="session">TheSession.org</button>
         <button class="tab-btn" data-import-tab="flutefling">FlutefFling.scot</button>
         <button class="tab-btn" data-import-tab="dropbox">Dropbox</button>
+        <button class="tab-btn" data-import-tab="pdf">PDF Files</button>
       </div>
 
       <!-- ABC file tab -->
@@ -394,6 +395,33 @@
         </div>
 
       </div>
+
+      <!-- PDF bulk import tab -->
+      <div id="import-tab-pdf" class="tab-panel hidden">
+        <p class="import-desc">Select PDF sheet music files from your hard drive. Titles are taken from filenames — you can adjust them before importing.</p>
+        <label class="import-drop" id="pdf-drop-zone">
+          <input type="file" id="pdf-file-input" accept=".pdf" multiple />
+          <span class="import-icon">📄</span>
+          <span class="import-label">Click to choose PDFs, or drag and drop</span>
+          <span id="pdf-file-count" class="import-filename"></span>
+        </label>
+        <div id="pdf-preview-area" class="hidden">
+          <table class="pdf-preview-table">
+            <thead>
+              <tr>
+                <th>Filename</th>
+                <th>Title (editable)</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="pdf-preview-body"></tbody>
+          </table>
+          <div class="import-actions">
+            <button id="pdf-import-btn" class="btn-primary">Import</button>
+          </div>
+        </div>
+        <div id="pdf-result" class="import-result hidden"></div>
+      </div>
     </div>
   </div>
 
@@ -507,6 +535,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=117"></script>
+  <script src="/static/app.js?v=118"></script>
 </body>
 </html>

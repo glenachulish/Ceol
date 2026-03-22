@@ -2629,6 +2629,121 @@ def delete_library():
 
 
 # ---------------------------------------------------------------------------
+# PDF bulk import
+# ---------------------------------------------------------------------------
+
+def _title_from_filename(filename: str) -> str:
+    """Convert a PDF filename to a tune title."""
+    stem = Path(filename).stem
+    # Replace underscores and hyphens with spaces
+    stem = re.sub(r"[_\-]+", " ", stem)
+    # Strip leading digits + punctuation (e.g. "01. Title" → "Title")
+    stem = re.sub(r"^\d+[\s.\-_]+", "", stem)
+    return stem.strip().title()
+
+
+def _match_tune_title(title: str, conn) -> Optional[int]:
+    """Return tune id of best case-insensitive title match, or None."""
+    # Exact match first
+    row = conn.execute(
+        "SELECT id FROM tunes WHERE lower(title) = lower(?)", (title,)
+    ).fetchone()
+    if row:
+        return row["id"]
+    # Strip leading "The " / "An " / "A " and retry
+    stripped = re.sub(r"^(the|an?)\s+", "", title, flags=re.IGNORECASE).strip()
+    if stripped.lower() != title.lower():
+        row = conn.execute(
+            "SELECT id FROM tunes WHERE lower(title) = lower(?) OR lower(title) = lower(?)",
+            (stripped, f"The {stripped}"),
+        ).fetchone()
+        if row:
+            return row["id"]
+    return None
+
+
+@app.post("/api/import/pdfs/preview")
+async def preview_pdf_imports(files: list[UploadFile] = File(...)):
+    """
+    Receive PDF files, derive titles from filenames, fuzzy-match against the
+    library, and return a preview list for the user to confirm.
+    """
+    with _db() as conn:
+        results = []
+        for f in files:
+            title = _title_from_filename(f.filename or "Unknown")
+            existing_id = _match_tune_title(title, conn)
+            if existing_id:
+                existing_title = conn.execute(
+                    "SELECT title FROM tunes WHERE id = ?", (existing_id,)
+                ).fetchone()["title"]
+            else:
+                existing_title = None
+            results.append({
+                "filename": f.filename,
+                "title": title,
+                "action": "attach" if existing_id else "create",
+                "existing_id": existing_id,
+                "existing_title": existing_title,
+            })
+    return {"files": results}
+
+
+@app.post("/api/import/pdfs/confirm")
+async def confirm_pdf_imports(
+    files: list[UploadFile] = File(...),
+    titles: str = Query(...),       # JSON array of titles (one per file)
+    actions: str = Query(...),      # JSON array of "attach"|"create" (one per file)
+    existing_ids: str = Query(...), # JSON array of int|null (one per file)
+):
+    """
+    Save uploaded PDFs and create/update tune entries based on user-confirmed plan.
+    """
+    titles_list = json.loads(titles)
+    actions_list = json.loads(actions)
+    existing_ids_list = json.loads(existing_ids)
+
+    import_date = date.today().isoformat()
+    results = []
+
+    with _db() as conn:
+        for i, f in enumerate(files):
+            title = titles_list[i]
+            action = actions_list[i]
+            existing_id = existing_ids_list[i]
+
+            content = await f.read()
+            ext = Path(f.filename).suffix if f.filename else ".pdf"
+            stored_name = f"{uuid.uuid4().hex}{ext}"
+            (UPLOADS_DIR / stored_name).write_bytes(content)
+            pdf_url = f"/api/uploads/{stored_name}"
+            pdf_note = f"sheet music (PDF): {pdf_url}"
+
+            if action == "attach" and existing_id:
+                # Append PDF link to existing tune's notes
+                row = conn.execute(
+                    "SELECT notes FROM tunes WHERE id = ?", (existing_id,)
+                ).fetchone()
+                existing_notes = (row["notes"] or "").strip() if row else ""
+                new_notes = f"{existing_notes}\n{pdf_note}".strip() if existing_notes else pdf_note
+                conn.execute(
+                    "UPDATE tunes SET notes = ?, updated_at = datetime('now') WHERE id = ?",
+                    (new_notes, existing_id),
+                )
+                results.append({"action": "attached", "tune_id": existing_id, "title": title})
+            else:
+                # Create new tune
+                cur = conn.execute(
+                    """INSERT INTO tunes (title, notes, imported_at)
+                       VALUES (?, ?, datetime('now'))""",
+                    (title, f"Imported from PDF: {import_date}\n{pdf_note}"),
+                )
+                results.append({"action": "created", "tune_id": cur.lastrowid, "title": title})
+
+    return {"results": results}
+
+
+# ---------------------------------------------------------------------------
 # Serve the frontend SPA
 # ---------------------------------------------------------------------------
 
