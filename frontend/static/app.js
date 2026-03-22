@@ -860,8 +860,9 @@ function renderModal(tune, onBack = null, siblings = null) {
   const aliasLine = tune.aliases && tune.aliases.length
     ? `<p class="modal-aliases">Also known as: ${tune.aliases.map(escHtml).join(", ")}</p>`
     : "";
-  const sessionLink = tune.session_id
-    ? `<a class="modal-session-link" href="https://thesession.org/tunes/${tune.session_id}" target="_blank" rel="noopener">View on TheSession.org ↗</a>`
+  const _sessionId = tune.session_id || tune.craic_id;
+  const sessionLink = _sessionId
+    ? `<a class="modal-session-link" href="https://thesession.org/tunes/${_sessionId}" target="_blank" rel="noopener">View on TheSession.org ↗</a>`
     : "";
   const importedLine = tune.imported_at
     ? `<p class="modal-imported">Imported: ${new Date(tune.imported_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}${sessionLink ? ` · ${sessionLink}` : ""}</p>`
