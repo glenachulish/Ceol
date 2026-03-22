@@ -103,6 +103,27 @@ def _write_info_file() -> None:
     )
 
 
+def _normalize_title_for_grouping(title: str) -> str:
+    """Return a canonical lowercase key used to detect duplicate titles.
+
+    Handles the common trad-music convention of moving the leading article
+    to the end with a comma, e.g.:
+        "The Road to Banff"  →  "road to banff"
+        "Road to Banff, The" →  "road to banff"
+    """
+    t = title.strip().lower()
+    for suffix, prefix in ((", the", "the "), (", a", "a "), (", an", "an ")):
+        if t.endswith(suffix):
+            t = prefix + t[: -len(suffix)].strip()
+            break
+    # Strip the leading article so both forms share a common key
+    for article in ("the ", "a ", "an "):
+        if t.startswith(article):
+            t = t[len(article):]
+            break
+    return t
+
+
 def _do_auto_group(conn) -> int:
     """Group standalone tunes that share the same title. Returns count of new groups created."""
     rows = conn.execute(
@@ -110,12 +131,20 @@ def _do_auto_group(conn) -> int:
     ).fetchall()
     groups: dict = defaultdict(list)
     for row in rows:
-        groups[row["title"].strip().lower()].append(dict(row))
+        groups[_normalize_title_for_grouping(row["title"])].append(dict(row))
     grouped = 0
     for tunes in groups.values():
         if len(tunes) < 2:
             continue
-        title = tunes[0]["title"]
+        # Prefer the "The X" form as the parent title; fall back to first by id
+        def _canonical(t):
+            raw = t["title"].strip()
+            lower = raw.lower()
+            for suffix, article in ((", the", "The "), (", a", "A "), (", an", "An ")):
+                if lower.endswith(suffix):
+                    return article + raw[: -len(suffix)].strip()
+            return raw
+        title = _canonical(tunes[0])
         cur = conn.execute(
             "INSERT INTO tunes (title, type, key, mode, abc, notes) VALUES (?, '', '', '', '', '')",
             (title,),
