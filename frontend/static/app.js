@@ -3618,10 +3618,16 @@ tuneList.addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === " ") e.target.click();
 });
 
-modalClose.addEventListener("click", closeModal);
+modalClose.addEventListener("click", () => {
+  const bldrBack = document.getElementById("bldr-back");
+  if (bldrBack) bldrBack.click(); else closeModal();
+});
 modalOverlay.addEventListener("click", e => { if (e.target === modalOverlay) closeModal(); });
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { closeModal(); closeImport(); }
+  if (e.key === "Escape") {
+    const bldrBack = document.getElementById("bldr-back");
+    if (bldrBack) bldrBack.click(); else { closeModal(); closeImport(); }
+  }
 });
 
 function closeModal() {

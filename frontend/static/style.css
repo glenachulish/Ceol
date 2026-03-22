@@ -948,6 +948,20 @@ button.set-tune-title:hover { text-decoration: underline; }
 .version-item:hover .version-set-default,
 .version-item:focus .version-set-default { opacity: 1; }
 .modal-back-btn { margin-bottom: .75rem; }
+
+/* Builder-specific back button — more prominent than a text link */
+#bldr-back {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .38rem .85rem; margin-bottom: 1rem;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface2); color: var(--text);
+  font-size: .88rem; font-weight: 600; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+#bldr-back:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface2));
+}
 .modal-version-label {
   font-size: .9rem;
   color: var(--text-muted);
