@@ -3170,7 +3170,7 @@ Rules:
 - Use sharps/flats as accidentals (^C _E etc.) only where not already in the key signature."""
 
     payload = json.dumps({
-        "model": "claude-3-haiku-20240307",
+        "model": "claude-haiku-4-5-20251001",
         "max_tokens": 2048,
         "messages": [
             {
@@ -3207,6 +3207,8 @@ Rules:
     except urllib.error.HTTPError as e:
         body = e.read().decode()
         raise HTTPException(status_code=502, detail=f"Anthropic API error: {body}")
+    except urllib.error.URLError as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach Anthropic API: {e.reason}")
 
     abc = result["content"][0]["text"].strip()
     # Strip markdown fences in case the model adds them despite the instruction
