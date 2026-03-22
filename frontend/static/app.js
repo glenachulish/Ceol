@@ -886,6 +886,7 @@ function renderModal(tune, onBack = null, siblings = null) {
   const setsFooter = `<div class="modal-sets-row">
       <button id="add-to-set-btn" class="btn-secondary btn-sm">+ Add to a set…</button>
       <button id="create-set-from-tune-btn" class="btn-secondary btn-sm">+ Create new set</button>
+      <button id="build-set-from-tune-btn" class="btn-secondary btn-sm">🎵 Build a Set from here</button>
     </div>`;
 
   const collectionsOptions = state.collections
@@ -1264,6 +1265,16 @@ function renderModal(tune, onBack = null, siblings = null) {
   // Create new set from this tune
   document.getElementById("create-set-from-tune-btn")
     .addEventListener("click", () => showCreateSetPanel(tune, onBack, siblings));
+
+  // Build a set starting from this tune
+  document.getElementById("build-set-from-tune-btn")
+    .addEventListener("click", () => {
+      const backToTune = () => {
+        renderModal(tune, onBack, siblings);
+        requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); });
+      };
+      _bldrStepMode([tune], tune.type || "", backToTune);
+    });
 
   // Add to collection
   const addToColBtn = document.getElementById("add-to-col-btn");
@@ -3857,7 +3868,7 @@ async function _bldrPickFirst(type) {
   loadTunes();
 }
 
-async function _bldrStepMode(selectedTunes, type) {
+async function _bldrStepMode(selectedTunes, type, onFirstBack = null) {
   const lastTune = selectedTunes[selectedTunes.length - 1];
   const p = new URLSearchParams({ key: lastTune.key || "" });
   if (type) p.set("type", type);
@@ -3905,7 +3916,8 @@ async function _bldrStepMode(selectedTunes, type) {
         : `<p class="bldr-empty">No compatible tunes found in your library for <strong>${escHtml(lastTune.key || "this key")}</strong>.</p>`}`;
 
     document.getElementById("bldr-back").addEventListener("click", () => {
-      if (selectedTunes.length > 1) _bldrStepMode(selectedTunes.slice(0, -1), type);
+      if (selectedTunes.length > 1) _bldrStepMode(selectedTunes.slice(0, -1), type, onFirstBack);
+      else if (onFirstBack) onFirstBack();
       else _bldrPickFirst(type);
     });
 
@@ -3924,7 +3936,7 @@ async function _bldrStepMode(selectedTunes, type) {
       btn.addEventListener("click", () => {
         const gi = Number(btn.dataset.group);
         const tune = groups[gi].tunes.find(t => t.id === Number(btn.dataset.tuneId));
-        if (tune) _bldrStepMode([...selectedTunes, tune], type);
+        if (tune) _bldrStepMode([...selectedTunes, tune], type, onFirstBack);
       });
     });
   }

@@ -680,10 +680,40 @@ def cof_compatible(
                     params,
                 ).fetchall()
                 if tunes:
+                    group_tunes = [dict(t) for t in tunes]
+                    group_keys = list(matching_keys)
+
+                    # Expand: for every dorian key in this group, also include
+                    # the same-root natural minor (e.g. B dorian → B minor)
+                    extra_minor_keys = [
+                        f"{k[: -len(' dorian')]} minor"
+                        for k in group_keys
+                        if k.endswith(" dorian")
+                        and f"{k[: -len(' dorian')]} minor" in db_keys
+                        and f"{k[: -len(' dorian')]} minor" not in group_keys
+                    ]
+                    if extra_minor_keys:
+                        ph2 = ",".join("?" * len(extra_minor_keys))
+                        cond2 = f"key IN ({ph2})"
+                        params2: list = list(extra_minor_keys)
+                        if type:
+                            cond2 += " AND type = ?"
+                            params2.append(type.lower())
+                        extra_rows = conn.execute(
+                            f"""SELECT id, title, type, key, mode, rating,
+                                       on_hitlist, is_favourite, abc
+                                FROM tunes WHERE {cond2} AND parent_id IS NULL
+                                ORDER BY key, title COLLATE NOCASE""",
+                            params2,
+                        ).fetchall()
+                        group_keys.extend(extra_minor_keys)
+                        group_tunes.extend([dict(r) for r in extra_rows])
+                        group_tunes.sort(key=lambda t: (t["key"] or "", t["title"] or ""))
+
                     result_groups.append({
                         "relationship": gdef["relationship"],
-                        "keys": matching_keys,
-                        "tunes": [dict(t) for t in tunes],
+                        "keys": group_keys,
+                        "tunes": group_tunes,
                     })
         else:
             # Key not in map — return all other tunes as a fallback group
