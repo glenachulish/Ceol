@@ -2629,6 +2629,207 @@ def delete_library():
 
 
 # ---------------------------------------------------------------------------
+# PDF book scan: extract outline (bookmarks) and/or embedded ABC tunes
+# ---------------------------------------------------------------------------
+
+def _clean_collection_name(filename: str) -> str:
+    """Derive a human-readable collection name from a PDF filename."""
+    stem = Path(filename).stem
+    stem = re.sub(r"[_\-]+", " ", stem)
+    stem = re.sub(r"^\d+[\s.\-_]+", "", stem)
+    return stem.strip().title()
+
+
+def _flatten_pdf_outline(outline, reader, result: list):
+    """Recursively flatten a PyPDF2 outline into [{title, start_page}]."""
+    import PyPDF2
+    for item in outline:
+        if isinstance(item, list):
+            _flatten_pdf_outline(item, reader, result)
+        else:
+            try:
+                page_num = reader.get_page_number(item.page) + 1  # 1-indexed
+                result.append({"title": item.title.strip(), "start_page": page_num})
+            except Exception:
+                pass
+
+
+def _extract_abc_tunes_from_text(text: str) -> list[dict]:
+    """Split raw text into ABC tune blocks by X: marker, return tune dicts."""
+    tunes = []
+    # Split on lines that start a new tune (X: at start of line)
+    blocks = re.split(r'(?m)(?=^X:\s*\d)', text)
+    for block in blocks:
+        block = block.strip()
+        if not re.match(r'^X:\s*\d', block):
+            continue
+        title_m = re.search(r'^T:\s*(.+)$', block, re.MULTILINE)
+        key_m   = re.search(r'^K:\s*(.+)$', block, re.MULTILINE)
+        type_m  = re.search(r'^R:\s*(.+)$', block, re.MULTILINE)
+        if not title_m:
+            continue
+        tunes.append({
+            "title": title_m.group(1).strip(),
+            "key":   key_m.group(1).strip()  if key_m  else "",
+            "type":  type_m.group(1).strip() if type_m else "",
+            "abc":   block,
+        })
+    return tunes
+
+
+@app.post("/api/import/book/scan")
+async def scan_book_pdf(file: UploadFile = File(...)):
+    """
+    Scan a PDF book and return:
+    - page_count
+    - collection_name (derived from filename)
+    - toc: list of {title, start_page, end_page} from PDF bookmarks (if present)
+    - abc_tunes: list of {title, key, type, abc} extracted from text layer (if present)
+    """
+    import PyPDF2
+
+    content = await file.read()
+    try:
+        reader = PyPDF2.PdfReader(io.BytesIO(content))
+        page_count = len(reader.pages)
+    except Exception as e:
+        raise HTTPException(400, f"Could not read PDF: {e}")
+
+    collection_name = _clean_collection_name(file.filename or "Book")
+
+    # 1. Extract PDF outline/bookmarks
+    toc: list[dict] = []
+    try:
+        if reader.outline:
+            _flatten_pdf_outline(reader.outline, reader, toc)
+    except Exception:
+        pass
+
+    # Calculate end pages: each tune ends one page before the next starts
+    for i in range(len(toc) - 1):
+        toc[i]["end_page"] = toc[i + 1]["start_page"] - 1
+    if toc:
+        toc[-1]["end_page"] = page_count
+
+    # 2. Extract embedded ABC text
+    abc_tunes: list[dict] = []
+    try:
+        all_text = ""
+        for page in reader.pages:
+            all_text += (page.extract_text() or "") + "\n\n"
+        if all_text.strip():
+            abc_tunes = _extract_abc_tunes_from_text(all_text)
+    except Exception:
+        pass
+
+    return {
+        "page_count": page_count,
+        "collection_name": collection_name,
+        "toc": toc,
+        "abc_tunes": abc_tunes,
+    }
+
+
+# ---------------------------------------------------------------------------
+# ABC bulk import: import a list of pre-parsed ABC tunes into a collection
+# ---------------------------------------------------------------------------
+
+class AbcTuneItem(BaseModel):
+    title: str
+    abc: str
+    type: str = ""
+    key: str = ""
+
+
+class AbcBulkImportBody(BaseModel):
+    collection_name: str
+    tunes: list[AbcTuneItem]
+
+
+@app.post("/api/import/abc-tunes", status_code=201)
+def import_abc_tunes(body: AbcBulkImportBody):
+    """
+    Import a list of ABC tunes (e.g. extracted from a PDF) into the library
+    and group them into a named collection.
+    """
+    if not body.collection_name.strip():
+        raise HTTPException(400, "collection_name is required")
+    if not body.tunes:
+        raise HTTPException(400, "tunes list is empty")
+
+    import_date = date.today().isoformat()
+    results = []
+
+    with _db() as conn:
+        # Get or create collection
+        existing_col = conn.execute(
+            "SELECT id FROM collections WHERE lower(name) = lower(?)",
+            (body.collection_name.strip(),),
+        ).fetchone()
+        if existing_col:
+            col_id = existing_col["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO collections (name, description) VALUES (?, ?)",
+                (body.collection_name.strip(), f"Imported from PDF: {import_date}"),
+            )
+            col_id = cur.lastrowid
+
+        for tune in body.tunes:
+            title = tune.title.strip()
+            if not title:
+                continue
+
+            # Check for existing tune with same title
+            existing = conn.execute(
+                "SELECT id FROM tunes WHERE lower(title) = lower(?)", (title,)
+            ).fetchone()
+
+            if existing:
+                tune_id = existing["id"]
+                # Append ABC if tune currently has none
+                row = conn.execute(
+                    "SELECT abc FROM tunes WHERE id = ?", (tune_id,)
+                ).fetchone()
+                if row and not (row["abc"] or "").strip() and tune.abc.strip():
+                    conn.execute(
+                        "UPDATE tunes SET abc = ?, updated_at = datetime('now') WHERE id = ?",
+                        (tune.abc, tune_id),
+                    )
+                action = "exists"
+            else:
+                cur = conn.execute(
+                    """INSERT INTO tunes (title, type, key, abc, notes, imported_at)
+                       VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+                    (
+                        title,
+                        tune.type,
+                        tune.key,
+                        tune.abc,
+                        f"Imported from {body.collection_name}: {import_date}",
+                    ),
+                )
+                tune_id = cur.lastrowid
+                action = "created"
+
+            conn.execute(
+                "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id) VALUES (?, ?)",
+                (col_id, tune_id),
+            )
+            results.append({"title": title, "action": action, "tune_id": tune_id})
+
+    created = sum(1 for r in results if r["action"] == "created")
+    exists  = sum(1 for r in results if r["action"] == "exists")
+    return {
+        "collection_id": col_id,
+        "collection_name": body.collection_name.strip(),
+        "created": created,
+        "exists": exists,
+        "results": results,
+    }
+
+
+# ---------------------------------------------------------------------------
 # PDF book import (split book PDF by TOC into per-tune slices)
 # ---------------------------------------------------------------------------
 

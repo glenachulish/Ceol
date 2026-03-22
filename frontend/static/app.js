@@ -3849,24 +3849,51 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   const bookDropZone     = document.getElementById("book-drop-zone");
   const bookFilename     = document.getElementById("book-filename");
   const bookCollName     = document.getElementById("book-collection-name");
-  const bookPageCount    = document.getElementById("book-page-count");
+  const bookScanBtn      = document.getElementById("book-scan-btn");
   const bookNextBtn      = document.getElementById("book-next-btn");
   const bookStep1        = document.getElementById("book-step1");
   const bookStep2        = document.getElementById("book-step2");
+  const bookStep3        = document.getElementById("book-step3");
   const bookTocHeading   = document.getElementById("book-toc-heading");
+  const bookScanMsg      = document.getElementById("book-scan-msg");
   const bookTocBody      = document.getElementById("book-toc-body");
   const bookAddRowBtn    = document.getElementById("book-add-row-btn");
   const bookPasteBtn     = document.getElementById("book-paste-btn");
   const bookBackBtn      = document.getElementById("book-back-btn");
   const bookImportBtn    = document.getElementById("book-import-btn");
+  const bookAbcHeading   = document.getElementById("book-abc-heading");
+  const bookAbcCount     = document.getElementById("book-abc-count");
+  const bookAbcBody      = document.getElementById("book-abc-body");
+  const bookAbcSelectAll = document.getElementById("book-abc-select-all");
+  const bookAbcBackBtn   = document.getElementById("book-abc-back-btn");
+  const bookAbcImportBtn = document.getElementById("book-abc-import-btn");
   const bookResult       = document.getElementById("book-result");
 
-  let _bookFile = null;
-  let _bookRowCount = 0;
+  let _bookFile      = null;
+  let _bookPageCount = 9999;
+  let _bookRowCount  = 0;
+  let _bookAbcTunes  = [];   // [{title, type, key, abc}]
+
+  function _cleanFileStem(name) {
+    return name.replace(/\.pdf$/i, "")
+               .replace(/[_\-]+/g, " ")
+               .replace(/^\d+[\s.\-_]+/, "")
+               .trim();
+  }
 
   function checkBookReady() {
-    bookNextBtn.disabled = !(_bookFile && bookCollName.value.trim() && bookPageCount.value > 0);
+    const ready = !!(_bookFile && bookCollName.value.trim());
+    bookScanBtn.disabled = !ready;
+    bookNextBtn.disabled = !ready;
   }
+
+  function goBackToStep1() {
+    bookStep2.classList.add("hidden");
+    bookStep3.classList.add("hidden");
+    bookStep1.classList.remove("hidden");
+  }
+
+  // ── TOC table helpers ──
 
   function addTocRow(title = "", start = "", end = "") {
     _bookRowCount++;
@@ -3881,7 +3908,6 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
       <td style="width:2rem"><button class="book-del-row" data-row="${n}" title="Remove">✕</button></td>
     `;
     bookTocBody.appendChild(tr);
-    // Auto-fill end page when start changes, if end is blank
     tr.querySelector('[data-field="start"]').addEventListener("change", e => {
       const endEl = tr.querySelector('[data-field="end"]');
       if (!endEl.value) endEl.value = e.target.value;
@@ -3900,40 +3926,140 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     }).filter(e => e.title);
   }
 
+  // ── File selection ──
+
   bookFileInput.addEventListener("change", () => {
     _bookFile = bookFileInput.files[0] || null;
     bookFilename.textContent = _bookFile ? _bookFile.name : "";
+    if (_bookFile && !bookCollName.value.trim()) {
+      bookCollName.value = _cleanFileStem(_bookFile.name).replace(/\b\w/g, c => c.toUpperCase());
+    }
     checkBookReady();
   });
+
+  bookDropZone.addEventListener("dragover", e => { e.preventDefault(); bookDropZone.classList.add("drop-hover"); });
+  bookDropZone.addEventListener("dragleave", () => bookDropZone.classList.remove("drop-hover"));
+  bookDropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    bookDropZone.classList.remove("drop-hover");
+    const f = Array.from(e.dataTransfer.files).find(f => f.name.toLowerCase().endsWith(".pdf"));
+    if (f) {
+      _bookFile = f;
+      bookFilename.textContent = f.name;
+      if (!bookCollName.value.trim()) {
+        bookCollName.value = _cleanFileStem(f.name).replace(/\b\w/g, c => c.toUpperCase());
+      }
+      checkBookReady();
+    }
+  });
+
   bookCollName.addEventListener("input", checkBookReady);
-  bookPageCount.addEventListener("input", checkBookReady);
+
+  // ── Scan PDF ──
+
+  bookScanBtn.addEventListener("click", async () => {
+    if (!_bookFile) return;
+    bookScanBtn.disabled = true;
+    bookScanBtn.textContent = "Scanning…";
+    bookResult.classList.add("hidden");
+
+    const fd = new FormData();
+    fd.append("file", _bookFile);
+
+    let data;
+    try {
+      data = await apiFetch("/api/import/book/scan", { method: "POST", body: fd });
+    } catch (e) {
+      alert(`Scan failed: ${e.message}`);
+      bookScanBtn.disabled = false;
+      bookScanBtn.textContent = "Scan PDF →";
+      return;
+    }
+
+    _bookPageCount = data.page_count || 9999;
+    // Use backend-derived collection name only if the user hasn't typed one
+    if (!bookCollName.value.trim() && data.collection_name) {
+      bookCollName.value = data.collection_name;
+    }
+
+    bookScanBtn.disabled = false;
+    bookScanBtn.textContent = "Scan PDF →";
+
+    if (data.abc_tunes && data.abc_tunes.length > 0) {
+      // Show ABC import preview (Step 3)
+      _bookAbcTunes = data.abc_tunes;
+      bookAbcHeading.textContent = `Tunes detected — ${bookCollName.value.trim()}`;
+      bookAbcCount.textContent = `${data.abc_tunes.length} tune${data.abc_tunes.length !== 1 ? "s" : ""} found`;
+      bookAbcBody.innerHTML = data.abc_tunes.map((t, i) => `
+        <tr>
+          <td><input type="checkbox" class="book-abc-check" data-idx="${i}" checked /></td>
+          <td class="pdf-col-title"><input class="pdf-title-input book-abc-title" data-idx="${i}" value="${escHtml(t.title)}" /></td>
+          <td style="color:var(--text-muted)">${escHtml(t.type || "—")}</td>
+          <td style="color:var(--text-muted)">${escHtml(t.key  || "—")}</td>
+        </tr>
+      `).join("");
+      bookAbcSelectAll.checked = true;
+      bookStep1.classList.add("hidden");
+      bookStep3.classList.remove("hidden");
+
+    } else if (data.toc && data.toc.length > 0) {
+      // Pre-fill TOC table (Step 2)
+      bookTocHeading.textContent = `Table of contents — ${bookCollName.value.trim()}`;
+      bookTocBody.innerHTML = "";
+      _bookRowCount = 0;
+      data.toc.forEach(e => addTocRow(e.title, e.start_page, e.end_page));
+      bookScanMsg.textContent = `${data.toc.length} tune${data.toc.length !== 1 ? "s" : ""} detected from PDF bookmarks — review and edit below.`;
+      bookScanMsg.style.display = "";
+      bookStep1.classList.add("hidden");
+      bookStep2.classList.remove("hidden");
+
+    } else {
+      // Nothing detected — open empty manual TOC
+      bookTocHeading.textContent = `Table of contents — ${bookCollName.value.trim()}`;
+      bookTocBody.innerHTML = "";
+      _bookRowCount = 0;
+      addTocRow();
+      bookScanMsg.textContent = `No tunes detected automatically (${_bookPageCount}-page PDF). Enter the table of contents below.`;
+      bookScanMsg.style.display = "";
+      bookStep1.classList.add("hidden");
+      bookStep2.classList.remove("hidden");
+    }
+  });
+
+  // ── Manual entry ──
 
   bookNextBtn.addEventListener("click", () => {
     bookTocHeading.textContent = `Table of contents — ${bookCollName.value.trim()}`;
+    bookScanMsg.style.display = "none";
     bookStep1.classList.add("hidden");
     bookStep2.classList.remove("hidden");
     if (bookTocBody.children.length === 0) addTocRow();
   });
 
-  bookBackBtn.addEventListener("click", () => {
-    bookStep2.classList.add("hidden");
-    bookStep1.classList.remove("hidden");
-  });
-
+  bookBackBtn.addEventListener("click", goBackToStep1);
+  bookAbcBackBtn.addEventListener("click", goBackToStep1);
   bookAddRowBtn.addEventListener("click", () => addTocRow());
 
-  // Paste from clipboard: parse lines like "Title, 12" or "Title 12-14" or "Title\t12\t14"
+  // ── ABC select-all ──
+
+  bookAbcSelectAll.addEventListener("change", () => {
+    bookAbcBody.querySelectorAll(".book-abc-check").forEach(cb => {
+      cb.checked = bookAbcSelectAll.checked;
+    });
+  });
+
+  // ── Paste from clipboard ──
+
   bookPasteBtn.addEventListener("click", async () => {
     let text = "";
     try { text = await navigator.clipboard.readText(); } catch (_) {
       text = prompt("Paste table of contents here:") || "";
     }
     if (!text.trim()) return;
-    const maxPage = Number(bookPageCount.value) || 9999;
+    const maxPage = _bookPageCount;
     const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
     const parsed = [];
     lines.forEach(line => {
-      // Try: Title\tstart\tend  or  Title, start, end  or  Title start-end  or  Title page
       let m = line.match(/^(.+?)[\t,]\s*(\d+)[\t,\s\-–]+(\d+)\s*$/);
       if (m) { parsed.push({ title: m[1].trim(), start: Number(m[2]), end: Number(m[3]) }); return; }
       m = line.match(/^(.+?)[\t,]\s*(\d+)\s*$/);
@@ -3944,16 +4070,16 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
       if (m) { parsed.push({ title: m[1].trim(), start: Number(m[2]), end: Number(m[2]) }); return; }
     });
 
-    // Auto-calculate end pages: each tune ends one page before the next starts
     for (let i = 0; i < parsed.length - 1; i++) {
       if (parsed[i].start === parsed[i].end && parsed[i + 1].start > parsed[i].start) {
         parsed[i].end = parsed[i + 1].start - 1;
       }
     }
     if (parsed.length) parsed[parsed.length - 1].end = Math.max(parsed[parsed.length - 1].end, parsed[parsed.length - 1].start);
-
     parsed.forEach(p => addTocRow(p.title, p.start, Math.min(p.end, maxPage)));
   });
+
+  // ── Import PDF-slice book ──
 
   bookImportBtn.addEventListener("click", async () => {
     const entries = getTocEntries();
@@ -3966,7 +4092,6 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
 
     const fd = new FormData();
     fd.append("file", _bookFile);
-
     const params = new URLSearchParams({
       collection_name: bookCollName.value.trim(),
       toc: JSON.stringify(entries),
@@ -3993,21 +4118,73 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     bookResult.className = "import-result import-success";
     bookResult.classList.remove("hidden");
 
-    // Reset
+    _resetBookImport();
+    fetchTunes();
+  });
+
+  // ── Import ABC tunes directly ──
+
+  bookAbcImportBtn.addEventListener("click", async () => {
+    const tunes = Array.from(bookAbcBody.querySelectorAll("tr")).filter(tr => {
+      return tr.querySelector(".book-abc-check")?.checked;
+    }).map(tr => {
+      const idx = tr.querySelector(".book-abc-check").dataset.idx;
+      const raw = _bookAbcTunes[Number(idx)];
+      const editedTitle = tr.querySelector(".book-abc-title")?.value.trim() || raw.title;
+      return { title: editedTitle, abc: raw.abc, type: raw.type || "", key: raw.key || "" };
+    });
+
+    if (!tunes.length) { alert("Select at least one tune to import."); return; }
+
+    bookAbcImportBtn.disabled = true;
+    bookAbcImportBtn.textContent = "Importing…";
+    bookResult.classList.add("hidden");
+
+    let data;
+    try {
+      data = await apiFetch("/api/import/abc-tunes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ collection_name: bookCollName.value.trim(), tunes }),
+      });
+    } catch (e) {
+      bookResult.textContent = `Error: ${e.message}`;
+      bookResult.className = "import-result import-error";
+      bookResult.classList.remove("hidden");
+      bookAbcImportBtn.disabled = false;
+      bookAbcImportBtn.textContent = "Import tunes";
+      return;
+    }
+
+    const parts = [];
+    if (data.created) parts.push(`${data.created} new tune${data.created !== 1 ? "s" : ""} added`);
+    if (data.exists)  parts.push(`${data.exists} already in library`);
+    bookResult.textContent = `Done — ${parts.join(", ")}. Added to collection "${data.collection_name}".`;
+    bookResult.className = "import-result import-success";
+    bookResult.classList.remove("hidden");
+
+    _resetBookImport();
+    fetchTunes();
+  });
+
+  function _resetBookImport() {
     bookStep2.classList.add("hidden");
+    bookStep3.classList.add("hidden");
     bookStep1.classList.remove("hidden");
     bookTocBody.innerHTML = "";
     _bookRowCount = 0;
+    _bookAbcTunes = [];
     _bookFile = null;
     bookFileInput.value = "";
     bookFilename.textContent = "";
     bookCollName.value = "";
-    bookPageCount.value = "";
+    bookScanBtn.disabled = true;
     bookNextBtn.disabled = true;
     bookImportBtn.disabled = false;
     bookImportBtn.textContent = "Import book";
-    fetchTunes();
-  });
+    bookAbcImportBtn.disabled = false;
+    bookAbcImportBtn.textContent = "Import tunes";
+  }
 }
 
 // ── FlutefFling Catalogue Browser ─────────────────────────────────────────────

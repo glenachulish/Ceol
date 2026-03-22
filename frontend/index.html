@@ -426,7 +426,7 @@
 
       <!-- PDF Book import tab -->
       <div id="import-tab-book" class="tab-panel hidden">
-        <p class="import-desc">Upload a PDF music book, enter the collection name, then fill in the table of contents. Each tune will be sliced out as its own PDF and added to the collection.</p>
+        <p class="import-desc">Upload a PDF music book. Ceol will scan it for tunes automatically — or you can enter the table of contents manually. All tunes are grouped into a Collection named after the book.</p>
 
         <!-- Step 1: file + collection name -->
         <div class="book-step" id="book-step1">
@@ -440,22 +440,20 @@
             <label class="book-meta-label" for="book-collection-name">Collection name</label>
             <input id="book-collection-name" class="book-meta-input" type="text" placeholder="e.g. Tina Jordan Rees" />
           </div>
-          <div class="book-meta-row">
-            <label class="book-meta-label" for="book-page-count">Total pages in PDF</label>
-            <input id="book-page-count" class="book-meta-input book-meta-narrow" type="number" min="1" placeholder="e.g. 120" />
-          </div>
-          <div class="import-actions">
-            <button id="book-next-btn" class="btn-primary" disabled>Next: Enter contents →</button>
+          <div class="import-actions" style="gap:.5rem">
+            <button id="book-scan-btn" class="btn-primary" disabled>Scan PDF →</button>
+            <button id="book-next-btn" class="btn-secondary btn-sm" disabled>Enter manually →</button>
           </div>
         </div>
 
-        <!-- Step 2: TOC table -->
+        <!-- Step 2: TOC table (page-slice import) -->
         <div class="book-step hidden" id="book-step2">
           <div class="book-toc-header">
             <h3 class="book-toc-title" id="book-toc-heading">Table of contents</h3>
             <button id="book-add-row-btn" class="btn-secondary btn-sm">+ Add tune</button>
           </div>
-          <p class="import-desc" style="margin-top:0">Paste from the book's table of contents, or type manually. Start and end pages are inclusive.</p>
+          <p id="book-scan-msg" class="import-desc book-scan-msg" style="margin-top:0;display:none"></p>
+          <p class="import-desc" style="margin-top:0">Start and end page numbers are inclusive. Each tune will be saved as a PDF page slice.</p>
           <table class="pdf-preview-table" id="book-toc-table">
             <thead>
               <tr>
@@ -475,6 +473,30 @@
           <div class="import-actions" style="gap:.5rem">
             <button id="book-back-btn" class="btn-secondary">← Back</button>
             <button id="book-import-btn" class="btn-primary">Import book</button>
+          </div>
+        </div>
+
+        <!-- Step 3: ABC tunes preview (direct import from embedded ABC text) -->
+        <div class="book-step hidden" id="book-step3">
+          <div class="book-toc-header">
+            <h3 class="book-toc-title" id="book-abc-heading">Tunes detected in PDF</h3>
+            <span id="book-abc-count" class="text-muted"></span>
+          </div>
+          <p class="import-desc" style="margin-top:0">ABC notation was found in this PDF. Tick the tunes you want to import. All selected tunes will be added to the collection.</p>
+          <table class="pdf-preview-table" id="book-abc-table">
+            <thead>
+              <tr>
+                <th style="width:2rem"><input type="checkbox" id="book-abc-select-all" checked /></th>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Key</th>
+              </tr>
+            </thead>
+            <tbody id="book-abc-body"></tbody>
+          </table>
+          <div class="import-actions" style="gap:.5rem">
+            <button id="book-abc-back-btn" class="btn-secondary">← Back</button>
+            <button id="book-abc-import-btn" class="btn-primary">Import tunes</button>
           </div>
         </div>
 
