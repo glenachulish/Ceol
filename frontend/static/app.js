@@ -737,7 +737,7 @@ function renderTunes(data) {
         <div class="card-title${t.on_hitlist ? " hitlist-title" : ""}">${escHtml(t.title)}</div>
         <div class="card-meta">${typeLabel}${keyLabel}${versionBadge}</div>
         <div class="card-stars">${stars}</div>
-        <button class="tune-delete-btn" data-id="${t.id}" title="Delete tune" aria-label="Delete ${escHtml(t.title)}">✕</button>
+        <button class="tune-delete-btn" data-id="${t.id}" title="Delete tune" aria-label="Delete ${escHtml(t.title)}">🗑</button>
       </article>`;
   }).join("");
 
@@ -2128,10 +2128,12 @@ function buildCombinedPlaybackAbcWithRanges(tunes) {
       if (k)                prefix += `[K:${k}]`;
       prefix += '\n';
     }
+    // Title label above each tune's section in the score
+    const titleLine = `%%text ${t.title || ''}\n`;
     const body = extractBody(abc);
-    const start = header.length + combined.length + prefix.length;
+    const start = header.length + combined.length + prefix.length + titleLine.length;
     tuneRanges.push({ start, end: start + body.length });
-    combined += prefix + body + '\n';
+    combined += prefix + titleLine + body + '\n';
   }
 
   return { abc: header + combined, tuneRanges };
@@ -2277,7 +2279,10 @@ function openFullSetModal(setData) {
       <div class="set-music-trans-section">${transRows.join("")}</div>
     ` : ""}
     ${hasAbc ? `
-      <h3 class="set-music-section-hd" style="margin-top:1.5rem">${tunesWithAbc.length > 1 ? "Full set" : "Playback"}</h3>
+      <div class="set-full-hd-row" style="margin-top:1.5rem">
+        <h3 class="set-music-section-hd">${tunesWithAbc.length > 1 ? "Full set" : "Playback"}</h3>
+        <button class="btn-secondary btn-sm" id="set-full-print-btn" title="Print full set sheet music">⎙ Print</button>
+      </div>
       ${timelineHtml}
       <div id="set-full-render" style="margin-top:.5rem"></div>
       <div id="set-full-audio" style="margin-top:.75rem"></div>
@@ -2298,6 +2303,30 @@ function openFullSetModal(setData) {
       });
     });
   });
+
+  const printBtn = document.getElementById("set-full-print-btn");
+  if (printBtn) {
+    printBtn.addEventListener("click", () => {
+      const render = document.getElementById("set-full-render");
+      if (!render) return;
+      const win = window.open('', '_blank');
+      win.document.write(`<!DOCTYPE html><html><head>
+        <title>${setData.name.replace(/</g, '&lt;')}</title>
+        <style>
+          body { font-family: sans-serif; margin: 1.5cm; color: #000; background: #fff; }
+          h1 { font-size: 16pt; margin: 0 0 .5em; }
+          svg { max-width: 100%; display: block; }
+          @page { margin: 1.5cm; }
+        </style>
+      </head><body>
+        <h1>${setData.name.replace(/</g, '&lt;')}</h1>
+        ${render.innerHTML}
+      </body></html>`);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 400);
+    });
+  }
 
   if (!hasAbc) return;
 
@@ -2560,7 +2589,7 @@ function renderSets(sets) {
         <div class="set-card-actions">
           <button class="btn-secondary set-expand-btn" data-set-id="${s.id}">View</button>
           <button class="btn-secondary set-music-btn" data-set-id="${s.id}" title="View full set sheet music">Sheet music</button>
-          <button class="btn-danger set-delete-btn" data-set-id="${s.id}" title="Delete set">✕</button>
+          <button class="btn-danger set-delete-btn" data-set-id="${s.id}" title="Delete set">🗑</button>
         </div>
       </div>
       ${s.notes ? `<p class="set-notes">${escHtml(s.notes)}</p>` : ""}
@@ -2605,7 +2634,7 @@ function renderSets(sets) {
         <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
         <span class="badge badge-key">${escHtml(t.key || "")}</span>
         <button class="btn-icon remove-from-set"
-          data-set-id="${id}" data-tune-id="${t.id}" title="Remove">✕</button>
+          data-set-id="${id}" data-tune-id="${t.id}" title="Remove from set">🗑</button>
       </div>
     `).join("");
 
@@ -2837,7 +2866,7 @@ function renderCollections(collections) {
         </div>
         <div class="set-card-actions">
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
-          <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">✕</button>
+          <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">🗑</button>
         </div>
       </div>
       ${c.description ? `<p class="set-notes">${escHtml(c.description)}</p>` : ""}
@@ -2863,7 +2892,7 @@ function renderCollections(collections) {
               <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
               <span class="badge badge-key">${escHtml(t.key || "")}</span>
               <button class="btn-icon remove-from-col"
-                data-col-id="${id}" data-tune-id="${t.id}" title="Remove">✕</button>
+                data-col-id="${id}" data-tune-id="${t.id}" title="Remove from collection">🗑</button>
             </div>
           `).join("");
 
@@ -3059,12 +3088,12 @@ function renderNoteEditor(doc) {
       const kb = a.size ? ` (${Math.round(a.size / 1024)} KB)` : "";
       return `<div class="note-att-row" data-att-id="${a.id}">
         <a href="${escHtml(a.url)}" target="_blank" class="note-att-link">${icon} ${escHtml(a.original_name || a.filename)}${kb}</a>
-        <button class="btn-icon note-att-del" data-att-id="${a.id}" title="Remove">✕</button>
+        <button class="btn-icon note-att-del" data-att-id="${a.id}" title="Remove attachment">🗑</button>
       </div>`;
     } else {
       return `<div class="note-att-row" data-att-id="${a.id}">
         <a href="${escHtml(a.url)}" target="_blank" class="note-att-link">🔗 ${escHtml(a.title || a.url)}</a>
-        <button class="btn-icon note-att-del" data-att-id="${a.id}" title="Remove">✕</button>
+        <button class="btn-icon note-att-del" data-att-id="${a.id}" title="Remove attachment">🗑</button>
       </div>`;
     }
   }).join("");
