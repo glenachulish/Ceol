@@ -1283,6 +1283,7 @@ button.set-tune-title:hover { text-decoration: underline; }
   background: var(--surface2);
 }
 .set-music-trans-label { flex: 1; font-size: .84rem; font-style: italic; color: var(--text-muted); }
+.set-music-count { font-size: .78rem; font-weight: 400; color: var(--text-muted); }
 .set-tune-sheet { margin-top: 1rem; }
 .set-tune-sheet:first-child { margin-top: .25rem; }
 .set-tune-sheet-title { font-size: .85rem; font-weight: 700; color: var(--text-muted); margin-bottom: .25rem; border-bottom: 1px solid var(--border); padding-bottom: .2rem; }

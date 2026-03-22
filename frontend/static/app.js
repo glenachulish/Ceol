@@ -2234,7 +2234,7 @@ function openFullSetModal(setData) {
     <h2 class="modal-title">${escHtml(setData.name)}</h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
     ${hasAbc ? `
-      <h3 class="set-music-section-hd">Sheet music</h3>
+      <h3 class="set-music-section-hd">Sheet music <span class="set-music-count">(${tunesWithAbc.length} of ${tunes.length} tunes)</span></h3>
       <div id="set-music-audio" style="margin-top:.5rem"></div>
       <div id="set-music-sheets">${tuneSheetDivs}</div>
     ` : '<p class="modal-hint" style="margin-top:.75rem">No ABC notation available for tunes in this set.</p>'}
@@ -2265,21 +2265,28 @@ function openFullSetModal(setData) {
   // Render each tune's sheet music into its own div
   requestAnimationFrame(() => {
     if (typeof ABCJS === "undefined") return;
+    console.log("[Ceol] Rendering full set sheets for", tunesWithAbc.length, "tunes:", tunesWithAbc.map(t => t.title));
     try {
       tunesWithAbc.forEach((t, i) => {
         const containerId = `set-tune-render-${i}`;
-        const abc = expandAbcRepeats(t.abc);
-        ABCJS.renderAbc(containerId, abc, {
-          responsive: "resize",
-          add_classes: true,
-          paddingbottom: 10,
-          paddingleft: 10,
-          paddingright: 10,
-          paddingtop: 10,
-          foregroundColor: "#000000",
-          scale: 1.1,
-        });
-        _patchSvgViewBox(containerId);
+        try {
+          const abc = expandAbcRepeats(t.abc);
+          ABCJS.renderAbc(containerId, abc, {
+            responsive: "resize",
+            add_classes: true,
+            paddingbottom: 10,
+            paddingleft: 10,
+            paddingright: 10,
+            paddingtop: 10,
+            foregroundColor: "#000000",
+            scale: 1.1,
+          });
+          _patchSvgViewBox(containerId);
+        } catch (tuneErr) {
+          console.warn(`Set tune ${i} render failed:`, tuneErr);
+          const el = document.getElementById(containerId);
+          if (el) el.innerHTML = `<p style="color:var(--text-muted);font-size:.8rem">Could not render sheet music.</p>`;
+        }
       });
 
       // Build a single combined ABC for full-set audio playback
