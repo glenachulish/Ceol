@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+import PyPDF2
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -2642,7 +2643,6 @@ def _clean_collection_name(filename: str) -> str:
 
 def _flatten_pdf_outline(outline, reader, result: list):
     """Recursively flatten a PyPDF2 outline into [{title, start_page}]."""
-    import PyPDF2
     for item in outline:
         if isinstance(item, list):
             _flatten_pdf_outline(item, reader, result)
@@ -2686,8 +2686,6 @@ async def scan_book_pdf(file: UploadFile = File(...)):
     - toc: list of {title, start_page, end_page} from PDF bookmarks (if present)
     - abc_tunes: list of {title, key, type, abc} extracted from text layer (if present)
     """
-    import PyPDF2
-
     content = await file.read()
     try:
         reader = PyPDF2.PdfReader(io.BytesIO(content))
@@ -2843,8 +2841,6 @@ async def import_book_pdf(
     Split a multi-tune PDF book into per-tune slices.
     Creates tune entries, stores sliced PDFs in uploads/, groups into a collection.
     """
-    import PyPDF2
-
     toc_entries = json.loads(toc)  # [{title, start_page, end_page}]
     if not toc_entries:
         raise HTTPException(400, "TOC is empty")

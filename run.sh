@@ -5,6 +5,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# Install / update Python dependencies silently
+python3 -m pip install -q -r requirements.txt
+
 HOST="${HOST:-0.0.0.0}"   # bind to all interfaces so mobile can reach it
 PORT="${PORT:-8001}"
 
