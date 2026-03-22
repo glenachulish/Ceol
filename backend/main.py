@@ -162,10 +162,87 @@ def _do_auto_group(conn) -> int:
     return grouped
 
 
+def _dedup_versions(conn) -> int:
+    """Remove empty and ABC-identical versions within every versioned group.
+
+    A version is considered empty if it has no ABC, no notes, no key, no type,
+    and no source_url.  When two versions share identical ABC (after stripping
+    whitespace) the one with the higher rating is kept; ties go to the lower id.
+    After removal, if only one version remains the group is automatically
+    ungrouped.  Returns the number of versions removed.
+    """
+    import re
+
+    def _norm_abc(abc: str) -> str:
+        return re.sub(r"\s+", "", abc or "").lower()
+
+    parents = conn.execute(
+        "SELECT id FROM tunes WHERE abc = '' AND "
+        "(SELECT COUNT(*) FROM tunes c WHERE c.parent_id = tunes.id) > 0"
+    ).fetchall()
+
+    removed = 0
+    for (parent_id,) in parents:
+        versions = conn.execute(
+            "SELECT id, abc, notes, source_url, key, type, rating FROM tunes "
+            "WHERE parent_id = ? ORDER BY id",
+            (parent_id,),
+        ).fetchall()
+
+        to_delete: list[int] = []
+        seen_abc: dict[str, int] = {}  # norm_abc → kept id
+
+        for v in versions:
+            norm = _norm_abc(v["abc"])
+            is_empty = (
+                not norm
+                and not (v["notes"] or "").strip()
+                and not (v["key"] or "").strip()
+                and not (v["type"] or "").strip()
+                and not (v["source_url"] or "").strip()
+            )
+            if is_empty:
+                to_delete.append(v["id"])
+                continue
+            if norm:
+                if norm in seen_abc:
+                    existing_id = seen_abc[norm]
+                    existing = next(x for x in versions if x["id"] == existing_id)
+                    if (v["rating"] or 0) > (existing["rating"] or 0):
+                        to_delete.append(existing_id)
+                        seen_abc[norm] = v["id"]
+                    else:
+                        to_delete.append(v["id"])
+                else:
+                    seen_abc[norm] = v["id"]
+
+        for vid in to_delete:
+            conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (vid,))
+            conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (vid,))
+            conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (vid,))
+            conn.execute("DELETE FROM tunes WHERE id = ?", (vid,))
+            removed += 1
+
+        remaining = conn.execute(
+            "SELECT id FROM tunes WHERE parent_id = ?", (parent_id,)
+        ).fetchall()
+        if len(remaining) == 1:
+            conn.execute(
+                "UPDATE tunes SET parent_id = NULL, version_label = '', is_default = 0 WHERE id = ?",
+                (remaining[0]["id"],),
+            )
+            conn.execute("DELETE FROM tunes WHERE id = ?", (parent_id,))
+        elif len(remaining) == 0:
+            conn.execute("DELETE FROM tunes WHERE id = ?", (parent_id,))
+
+    return removed
+
+
 _rotate_db_backup()
 _write_info_file()
 with get_connection() as _startup_conn:
     _do_auto_group(_startup_conn)
+    _dedup_versions(_startup_conn)
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -300,20 +377,41 @@ class NotesUpdate(BaseModel):
     notes: str = ""
 
 
+def _delete_tune_in_conn(conn, tune_id: int) -> None:
+    """Delete a single tune and clean up; auto-ungroups parent if ≤1 version remains."""
+    tune = conn.execute("SELECT parent_id FROM tunes WHERE id = ?", (tune_id,)).fetchone()
+    if not tune:
+        raise HTTPException(status_code=404, detail="Tune not found")
+    parent_id = tune["parent_id"]
+    # Promote any child versions to standalone (if this tune is itself a parent)
+    conn.execute(
+        "UPDATE tunes SET parent_id = NULL, version_label = '', is_default = 0 WHERE parent_id = ?",
+        (tune_id,),
+    )
+    conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (tune_id,))
+    conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (tune_id,))
+    conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (tune_id,))
+    conn.execute("DELETE FROM tunes WHERE id = ?", (tune_id,))
+    # If we deleted a version, check whether the parent should be auto-ungrouped
+    if parent_id:
+        remaining = conn.execute(
+            "SELECT id FROM tunes WHERE parent_id = ?", (parent_id,)
+        ).fetchall()
+        if len(remaining) == 1:
+            # Sole version left — promote it to standalone and delete the empty parent
+            conn.execute(
+                "UPDATE tunes SET parent_id = NULL, version_label = '', is_default = 0 WHERE id = ?",
+                (remaining[0]["id"],),
+            )
+            conn.execute("DELETE FROM tunes WHERE id = ?", (parent_id,))
+        elif len(remaining) == 0:
+            conn.execute("DELETE FROM tunes WHERE id = ?", (parent_id,))
+
+
 @app.delete("/api/tunes/{tune_id}")
 def delete_tune(tune_id: int):
     with _db() as conn:
-        if not conn.execute("SELECT 1 FROM tunes WHERE id = ?", (tune_id,)).fetchone():
-            raise HTTPException(status_code=404, detail="Tune not found")
-        # Unlink any versions that had this tune as their parent
-        conn.execute(
-            "UPDATE tunes SET parent_id = NULL, version_label = '' WHERE parent_id = ?",
-            (tune_id,),
-        )
-        conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (tune_id,))
-        conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (tune_id,))
-        conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (tune_id,))
-        conn.execute("DELETE FROM tunes WHERE id = ?", (tune_id,))
+        _delete_tune_in_conn(conn, tune_id)
     return {"ok": True}
 
 
@@ -328,14 +426,10 @@ def bulk_delete_tunes(body: BulkDeleteBody):
         raise HTTPException(400, "No IDs provided")
     with _db() as conn:
         for tid in body.ids:
-            conn.execute(
-                "UPDATE tunes SET parent_id = NULL, version_label = '' WHERE parent_id = ?",
-                (tid,),
-            )
-            conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (tid,))
-            conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (tid,))
-            conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (tid,))
-            conn.execute("DELETE FROM tunes WHERE id = ?", (tid,))
+            try:
+                _delete_tune_in_conn(conn, tid)
+            except HTTPException:
+                pass  # skip already-deleted tunes
     return {"deleted": len(body.ids)}
 
 
@@ -1476,6 +1570,14 @@ def auto_group_tunes():
     with _db() as conn:
         grouped = _do_auto_group(conn)
     return {"grouped": grouped}
+
+
+@app.post("/api/tunes/dedup-versions")
+def dedup_versions_endpoint():
+    """Remove empty and ABC-identical versions from all groups."""
+    with _db() as conn:
+        removed = _dedup_versions(conn)
+    return {"removed": removed}
 
 
 # ---------------------------------------------------------------------------

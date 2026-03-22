@@ -839,8 +839,9 @@ function renderModal(tune, onBack = null, siblings = null) {
           } else {
             tip += "Click to view this version\nTo make it the default, click ← Back then \"Set default\"";
           }
-          return `<button class="modal-ver-btn${isActive ? " active" : ""}${v.is_default ? " is-default" : ""}"
-                    data-ver-id="${v.id}" title="${escHtml(tip)}">${escHtml(label)}</button>`;
+          return `<span class="modal-ver-item">
+            <button class="modal-ver-btn${isActive ? " active" : ""}${v.is_default ? " is-default" : ""}"
+                    data-ver-id="${v.id}" title="${escHtml(tip)}">${escHtml(label)}</button><button class="modal-ver-del" data-ver-id="${v.id}" title="Delete this version">🗑</button></span>`;
         }).join("")}
       </div>`
     : "";
@@ -1011,6 +1012,56 @@ function renderModal(tune, onBack = null, siblings = null) {
         requestAnimationFrame(() => {
           if (t.abc) renderSheetMusic(t.abc);
         });
+      });
+    });
+
+    modalContent.querySelectorAll(".modal-ver-del").forEach(btn => {
+      btn.addEventListener("click", async e => {
+        e.stopPropagation();
+        const verId = Number(btn.dataset.verId);
+        const label = siblings.find(s => s.id === verId)?.version_label || "this version";
+        if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+        btn.disabled = true;
+        try {
+          await apiDeleteTune(verId);
+          const parentId = tune.parent_id;
+          // Fetch updated sibling list (parent may have been auto-ungrouped)
+          let updatedSiblings = [];
+          try {
+            const res = await apiFetch(`/api/tunes/${parentId}/versions`);
+            updatedSiblings = res.versions;
+          } catch { /* parent was deleted = auto-ungrouped */ }
+
+          if (verId === tune.id) {
+            // Deleted the currently-viewed version
+            if (updatedSiblings.length === 0) {
+              closeModal(); loadTunes();
+            } else if (updatedSiblings.length === 1) {
+              // Auto-ungrouped: the one remaining tune is now standalone
+              const t = await fetchTune(updatedSiblings[0].id);
+              renderModal(t, onBack, null);
+              requestAnimationFrame(() => { if (t.abc) renderSheetMusic(t.abc); });
+            } else {
+              const t = await fetchTune(updatedSiblings[0].id);
+              renderModal(t, onBack, updatedSiblings);
+              requestAnimationFrame(() => { if (t.abc) renderSheetMusic(t.abc); });
+            }
+          } else {
+            // Deleted a different version — stay on current tune, update strip
+            if (updatedSiblings.length <= 1) {
+              const t = await fetchTune(tune.id);
+              renderModal(t, onBack, updatedSiblings.length === 1 ? null : null);
+              requestAnimationFrame(() => { if (t.abc) renderSheetMusic(t.abc); });
+            } else {
+              renderModal(tune, onBack, updatedSiblings);
+              requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); });
+            }
+          }
+          loadTunes();
+        } catch (err) {
+          alert("Failed to delete version. Please try again.");
+          btn.disabled = false;
+        }
       });
     });
   }
@@ -4148,6 +4199,7 @@ async function renderVersionsPanel(parentId) {
             ${v.is_default
               ? '<span class="version-default-badge">default</span>'
               : `<button class="version-set-default btn-sm btn-secondary" data-id="${v.id}" title="Open this version by default">Set default</button>`}
+            <button class="version-del-btn btn-sm" data-id="${v.id}" title="Delete this version">🗑</button>
             <span class="version-arrow">→</span>
           </div>
         `;}).join("")}
@@ -4164,6 +4216,31 @@ async function renderVersionsPanel(parentId) {
         e.stopPropagation();
         await apiFetch(`/api/tunes/${btn.dataset.id}/set-default`, { method: "PATCH" });
         renderVersionsPanel(parentId); // re-render with updated star
+      });
+    });
+
+    // Delete buttons in versions panel
+    modalContent.querySelectorAll(".version-del-btn").forEach(btn => {
+      btn.addEventListener("click", async e => {
+        e.stopPropagation();
+        const verId = Number(btn.dataset.id);
+        const label = versions.find(v => v.id === verId)?.version_label || "this version";
+        if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+        btn.disabled = true;
+        try {
+          await apiDeleteTune(verId);
+          // Check if parent still exists (auto-ungrouped if only 1 left)
+          try {
+            await apiFetch(`/api/tunes/${parentId}/versions`);
+            renderVersionsPanel(parentId); // still a group — re-render
+          } catch {
+            closeModal(); // parent gone — ungrouped
+          }
+          loadTunes();
+        } catch {
+          alert("Failed to delete version. Please try again.");
+          btn.disabled = false;
+        }
       });
     });
 
@@ -4520,6 +4597,17 @@ autoGroupBtn.addEventListener("click", async () => {
     alert("No duplicate tune names found — nothing to group.");
   } else {
     alert(`Grouped ${grouped} set${grouped !== 1 ? "s" : ""} of duplicate tunes.`);
+    await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+  }
+});
+
+document.getElementById("dedup-versions-btn").addEventListener("click", async () => {
+  libraryMenu.classList.add("hidden");
+  const { removed } = await apiFetch("/api/tunes/dedup-versions", { method: "POST" });
+  if (removed === 0) {
+    alert("No empty or duplicate versions found — nothing to remove.");
+  } else {
+    alert(`Removed ${removed} duplicate or empty version${removed !== 1 ? "s" : ""}.`);
     await Promise.all([loadStats(), loadFilters(), loadTunes()]);
   }
 });

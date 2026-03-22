@@ -938,6 +938,36 @@ button.set-tune-title:hover { text-decoration: underline; }
   font-size: .7em;
   opacity: .7;
 }
+.modal-ver-item {
+  display: inline-flex;
+  align-items: center;
+}
+.modal-ver-del {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: .75rem;
+  padding: 0 .2rem 0 .15rem;
+  opacity: 0;
+  transition: opacity .15s;
+  line-height: 1;
+  color: var(--text-muted);
+}
+.modal-ver-item:hover .modal-ver-del { opacity: .6; }
+.modal-ver-del:hover { opacity: 1 !important; }
+.version-del-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: .9rem;
+  padding: .2rem .35rem;
+  opacity: 0;
+  transition: opacity .15s;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.version-item:hover .version-del-btn { opacity: .6; }
+.version-del-btn:hover { opacity: 1 !important; }
 
 /* ── Media overlay ────────────────────────────────────────── */
 .media-overlay {
