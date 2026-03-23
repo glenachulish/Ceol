@@ -1405,7 +1405,13 @@ button.set-tune-title:hover { text-decoration: underline; }
 .modal-section-title { font-size: .95rem; font-weight: 600; margin-bottom: .4rem; }
 
 /* ── Set Builder wizard ──────────────────────────────────────────────────── */
-.bldr-type-row { display: flex; align-items: center; gap: .6rem; margin: .75rem 0; }
+.bldr-filter-bar {
+  display: flex; flex-wrap: wrap; gap: .4rem .75rem;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: .6rem .75rem; margin: .75rem 0;
+}
+.bldr-type-row { display: flex; align-items: center; gap: .6rem; margin: 0; }
+.bldr-active-filters { font-size: .82rem; margin: .25rem 0 .5rem; }
 .bldr-label { font-size: .85rem; color: var(--text-muted); }
 .bldr-type-select {
   padding: .3rem .5rem; border: 1px solid var(--border); border-radius: 6px;

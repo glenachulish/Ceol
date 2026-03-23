@@ -274,6 +274,7 @@ def list_tunes(
     hitlist: Optional[int] = Query(None, description="1 = hitlist only"),
     favourite: Optional[int] = Query(None, description="1 = favourites only"),
     min_rating: Optional[int] = Query(None, ge=1, le=5, description="Minimum star rating"),
+    collection_id: Optional[int] = Query(None, description="Filter by collection ID"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=10000),
 ):
@@ -310,6 +311,12 @@ def list_tunes(
     if min_rating is not None:
         conditions.append("t.rating >= ?")
         params.append(min_rating)
+
+    if collection_id is not None:
+        conditions.append(
+            "EXISTS (SELECT 1 FROM collection_tunes ct WHERE ct.tune_id = t.id AND ct.collection_id = ?)"
+        )
+        params.append(collection_id)
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     offset = (page - 1) * page_size
@@ -607,8 +614,12 @@ _COF_TEMPLATES = [
 
 
 @app.get("/api/circle-of-fifths/templates")
-def cof_templates(type: Optional[str] = Query(None)):
-    """Return the 4 set templates with tune counts per slot (optionally filtered by type)."""
+def cof_templates(
+    type: Optional[str] = Query(None),
+    min_rating: Optional[int] = Query(None, ge=1, le=5),
+    collection_id: Optional[int] = Query(None),
+):
+    """Return the 4 set templates with tune counts per slot (optionally filtered by type/rating/collection)."""
     with _db() as conn:
         result = []
         for tmpl in _COF_TEMPLATES:
@@ -617,8 +628,14 @@ def cof_templates(type: Optional[str] = Query(None)):
                 params: list = [key]
                 extra = ""
                 if type:
-                    extra = " AND type = ?"
+                    extra += " AND type = ?"
                     params.append(type.lower())
+                if min_rating is not None:
+                    extra += " AND rating >= ?"
+                    params.append(min_rating)
+                if collection_id is not None:
+                    extra += " AND EXISTS (SELECT 1 FROM collection_tunes ct WHERE ct.tune_id = id AND ct.collection_id = ?)"
+                    params.append(collection_id)
                 count = conn.execute(
                     f"SELECT COUNT(*) FROM tunes WHERE key = ? AND parent_id IS NULL{extra}",
                     params,
@@ -632,6 +649,8 @@ def cof_templates(type: Optional[str] = Query(None)):
 def cof_compatible(
     key: str = Query(..., description="Current key, e.g. 'D major'"),
     type: Optional[str] = Query(None, description="Filter by tune type"),
+    min_rating: Optional[int] = Query(None, ge=1, le=5),
+    collection_id: Optional[int] = Query(None),
 ):
     """Given a key, return compatible next keys grouped by CoF relationship, with matching tunes."""
     current_sig = _COF_KEY_SIGS.get(key)
@@ -644,6 +663,16 @@ def cof_compatible(
         {"relationship": "Two steps down", "delta": -2},
     ]
 
+    # Build reusable extra condition + params suffix for rating/collection filters
+    extra_cond = ""
+    extra_params: list = []
+    if min_rating is not None:
+        extra_cond += " AND rating >= ?"
+        extra_params.append(min_rating)
+    if collection_id is not None:
+        extra_cond += " AND EXISTS (SELECT 1 FROM collection_tunes ct WHERE ct.tune_id = id AND ct.collection_id = ?)"
+        extra_params.append(collection_id)
+
     with _db() as conn:
         type_cond = " AND type = ?" if type else ""
         type_param: list = [type.lower()] if type else []
@@ -652,8 +681,8 @@ def cof_compatible(
             r[0]
             for r in conn.execute(
                 f"SELECT DISTINCT key FROM tunes WHERE key IS NOT NULL AND key != ''"
-                f" AND parent_id IS NULL{type_cond}",
-                type_param,
+                f" AND parent_id IS NULL{type_cond}{extra_cond}",
+                type_param + extra_params,
             ).fetchall()
         ]
 
@@ -675,6 +704,8 @@ def cof_compatible(
                 if type:
                     cond += " AND type = ?"
                     params.append(type.lower())
+                cond += extra_cond
+                params.extend(extra_params)
                 tunes = conn.execute(
                     f"""SELECT id, title, type, key, mode, rating, on_hitlist, is_favourite, abc
                         FROM tunes WHERE {cond} AND parent_id IS NULL
@@ -701,6 +732,8 @@ def cof_compatible(
                         if type:
                             cond2 += " AND type = ?"
                             params2.append(type.lower())
+                        cond2 += extra_cond
+                        params2.extend(extra_params)
                         extra_rows = conn.execute(
                             f"""SELECT id, title, type, key, mode, rating,
                                        on_hitlist, is_favourite, abc
@@ -724,6 +757,8 @@ def cof_compatible(
             if type:
                 cond += " AND type = ?"
                 params.append(type.lower())
+            cond += extra_cond
+            params.extend(extra_params)
             tunes = conn.execute(
                 f"""SELECT id, title, type, key, mode, rating, on_hitlist, is_favourite, abc
                     FROM tunes WHERE {cond} AND parent_id IS NULL

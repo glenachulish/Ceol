@@ -1273,7 +1273,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         renderModal(tune, onBack, siblings);
         requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); });
       };
-      _bldrStepMode([tune], tune.type || "", backToTune);
+      _bldrStepMode([tune], { type: tune.type || "", minRating: "", collectionId: "", collectionName: "" }, backToTune);
     });
 
   // Add to collection
@@ -3718,6 +3718,14 @@ newDocBtn.addEventListener("click", async () => {
 
 // ── Circle of Fifths Set Builder ──────────────────────────────────────────────
 
+function _bldrFilterSummary(filters) {
+  const parts = [];
+  if (filters.type) parts.push(`Type: <strong>${escHtml(filters.type)}</strong>`);
+  if (filters.minRating) parts.push(`Min rating: <strong>${"★".repeat(Number(filters.minRating))}</strong>`);
+  if (filters.collectionName) parts.push(`Collection: <strong>${escHtml(filters.collectionName)}</strong>`);
+  return parts.length ? `<p class="modal-hint bldr-active-filters">${parts.join(" · ")}</p>` : "";
+}
+
 const _BLDR_TYPES = [
   "reel","jig","hornpipe","slip jig","polka","march",
   "waltz","strathspey","slide","barndance","air","slow air",
@@ -3729,7 +3737,7 @@ function showSetBuilder() {
   _bldrHome();
 }
 
-function _bldrHome() {
+async function _bldrHome() {
   const typeOpts = _BLDR_TYPES.map(t =>
     `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`
   ).join("");
@@ -3739,12 +3747,31 @@ function _bldrHome() {
     <h2 class="modal-title">Build a Set</h2>
     <p class="modal-hint">Start from a template or pick tunes step by step using the Circle of Fifths.</p>
 
-    <div class="bldr-type-row">
-      <label class="bldr-label">Tune type</label>
-      <select id="bldr-type" class="bldr-type-select">
-        <option value="">All types</option>
-        ${typeOpts}
-      </select>
+    <div class="bldr-filter-bar">
+      <div class="bldr-type-row">
+        <label class="bldr-label">Type</label>
+        <select id="bldr-type" class="bldr-type-select">
+          <option value="">All types</option>
+          ${typeOpts}
+        </select>
+      </div>
+      <div class="bldr-type-row">
+        <label class="bldr-label">Min rating</label>
+        <select id="bldr-rating" class="bldr-type-select">
+          <option value="">Any rating</option>
+          <option value="1">1+ ★</option>
+          <option value="2">2+ ★★</option>
+          <option value="3">3+ ★★★</option>
+          <option value="4">4+ ★★★★</option>
+          <option value="5">5 ★★★★★</option>
+        </select>
+      </div>
+      <div class="bldr-type-row">
+        <label class="bldr-label">Collection</label>
+        <select id="bldr-collection" class="bldr-type-select">
+          <option value="">All collections</option>
+        </select>
+      </div>
     </div>
 
     <h3 class="bldr-section-title">Templates</h3>
@@ -3756,24 +3783,50 @@ function _bldrHome() {
 
   document.getElementById("bldr-back").addEventListener("click", closeModal);
 
-  const typeEl = document.getElementById("bldr-type");
+  // Populate collections dropdown
+  const collectionEl = document.getElementById("bldr-collection");
+  try {
+    const cols = await apiFetch("/api/collections");
+    cols.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      collectionEl.appendChild(opt);
+    });
+  } catch (_) { /* ignore */ }
 
-  async function loadTemplates() {
-    const type = typeEl.value;
-    const params = type ? `?type=${encodeURIComponent(type)}` : "";
-    const templates = await apiFetch(`/api/circle-of-fifths/templates${params}`);
-    _bldrRenderTemplates(templates, type);
+  function getFilters() {
+    const collEl = document.getElementById("bldr-collection");
+    return {
+      type: document.getElementById("bldr-type").value,
+      minRating: document.getElementById("bldr-rating").value,
+      collectionId: collEl.value,
+      collectionName: collEl.value ? collEl.options[collEl.selectedIndex].text : "",
+    };
   }
 
-  typeEl.addEventListener("change", loadTemplates);
+  async function loadTemplates() {
+    const f = getFilters();
+    const p = new URLSearchParams();
+    if (f.type) p.set("type", f.type);
+    if (f.minRating) p.set("min_rating", f.minRating);
+    if (f.collectionId) p.set("collection_id", f.collectionId);
+    const qs = p.toString() ? `?${p}` : "";
+    const templates = await apiFetch(`/api/circle-of-fifths/templates${qs}`);
+    _bldrRenderTemplates(templates, getFilters());
+  }
+
+  document.getElementById("bldr-type").addEventListener("change", loadTemplates);
+  document.getElementById("bldr-rating").addEventListener("change", loadTemplates);
+  collectionEl.addEventListener("change", loadTemplates);
   loadTemplates();
 
   document.getElementById("bldr-step-btn").addEventListener("click", () => {
-    _bldrPickFirst(typeEl.value);
+    _bldrPickFirst(getFilters());
   });
 }
 
-function _bldrRenderTemplates(templates, type) {
+function _bldrRenderTemplates(templates, filters) {
   const el = document.getElementById("bldr-templates");
   if (!el) return;
   el.innerHTML = templates.map(t => {
@@ -3794,16 +3847,18 @@ function _bldrRenderTemplates(templates, type) {
   el.querySelectorAll(".bldr-tmpl-card").forEach(card => {
     card.addEventListener("click", () => {
       const tmpl = templates.find(t => t.id === Number(card.dataset.tmplId));
-      const typeEl2 = document.getElementById("bldr-type");
-      _bldrTemplateMode(tmpl, typeEl2 ? typeEl2.value : type);
+      _bldrTemplateMode(tmpl, filters);
     });
   });
 }
 
-async function _bldrTemplateMode(template, type) {
+async function _bldrTemplateMode(template, filters) {
+  const type = filters.type || "";
   const slotTunes = await Promise.all(template.slots.map(key => {
     const p = new URLSearchParams({ key, page_size: 500 });
     if (type) p.set("type", type);
+    if (filters.minRating) p.set("min_rating", filters.minRating);
+    if (filters.collectionId) p.set("collection_id", filters.collectionId);
     return apiFetch(`/api/tunes?${p}`).then(r => r.tunes || []);
   }));
 
@@ -3837,7 +3892,7 @@ async function _bldrTemplateMode(template, type) {
       <button class="modal-back-btn" id="bldr-back">← Back</button>
       <h2 class="modal-title">${escHtml(template.name)}</h2>
       <p class="modal-hint">${escHtml(template.description)}</p>
-      ${type ? `<p class="modal-hint">Type: <strong>${escHtml(type)}</strong></p>` : ""}
+      ${_bldrFilterSummary(filters)}
       <div class="bldr-slots">${slotsHtml}</div>
       <div class="bldr-actions">
         <button id="bldr-preview-btn" class="btn-secondary" ${chosen.length ? "" : "disabled"}>▶ Preview</button>
@@ -3871,15 +3926,17 @@ async function _bldrTemplateMode(template, type) {
   render();
 }
 
-async function _bldrPickFirst(type) {
-  const filters = await apiFetch("/api/filters");
-  const keys = filters.keys || [];
+async function _bldrPickFirst(filters) {
+  const apiFilters = await apiFetch("/api/filters");
+  const keys = apiFilters.keys || [];
   let keyFilter = "";
   let tunes = [];
 
   async function loadTunes() {
     const p = new URLSearchParams({ page_size: 500 });
-    if (type) p.set("type", type);
+    if (filters.type) p.set("type", filters.type);
+    if (filters.minRating) p.set("min_rating", filters.minRating);
+    if (filters.collectionId) p.set("collection_id", filters.collectionId);
     if (keyFilter) p.set("key", keyFilter);
     const data = await apiFetch(`/api/tunes?${p}`);
     tunes = data.tunes || [];
@@ -3900,9 +3957,9 @@ async function _bldrPickFirst(type) {
       btn.addEventListener("click", async () => {
         const stub = tunes.find(t => String(t.id) === btn.dataset.tuneId);
         if (!stub) return;
-        // Fetch full tune to get abc for preview; also lock the type to this tune's type
         const fullTune = await apiFetch(`/api/tunes/${stub.id}`);
-        _bldrStepMode([fullTune], type || fullTune.type || "");
+        const finalFilters = { ...filters, type: filters.type || fullTune.type || "" };
+        _bldrStepMode([fullTune], finalFilters);
       });
     });
   }
@@ -3911,7 +3968,7 @@ async function _bldrPickFirst(type) {
   modalContent.innerHTML = `
     <button class="modal-back-btn" id="bldr-back">← Back</button>
     <h2 class="modal-title">Choose your first tune</h2>
-    ${type ? `<p class="modal-hint">Type: <strong>${escHtml(type)}</strong></p>` : ""}
+    ${_bldrFilterSummary(filters)}
     <div class="bldr-filter-row">
       <select id="bldr-key-filter" class="bldr-type-select">
         <option value="">All keys</option>
@@ -3928,10 +3985,13 @@ async function _bldrPickFirst(type) {
   loadTunes();
 }
 
-async function _bldrStepMode(selectedTunes, type, onFirstBack = null) {
+async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
+  const type = filters.type || "";
   const lastTune = selectedTunes[selectedTunes.length - 1];
   const p = new URLSearchParams({ key: lastTune.key || "" });
   if (type) p.set("type", type);
+  if (filters.minRating) p.set("min_rating", filters.minRating);
+  if (filters.collectionId) p.set("collection_id", filters.collectionId);
   const compatData = await apiFetch(`/api/circle-of-fifths/compatible?${p}`);
   const groups = compatData.groups || [];
 
@@ -3965,6 +4025,7 @@ async function _bldrStepMode(selectedTunes, type, onFirstBack = null) {
       <button class="modal-back-btn" id="bldr-back">← Back</button>
       <h2 class="modal-title">What comes next?</h2>
       <p class="modal-hint">Last tune: <span class="badge ${keyBadgeClass(lastTune.key)}">${escHtml(lastTune.key || "?")}</span> <strong>${escHtml(lastTune.title)}</strong></p>
+      ${_bldrFilterSummary(filters)}
       <div class="bldr-current-set">${currentHtml}</div>
       <div class="bldr-actions-row">
         <button id="bldr-preview-btn" class="btn-secondary">▶ Preview</button>
@@ -3976,9 +4037,9 @@ async function _bldrStepMode(selectedTunes, type, onFirstBack = null) {
         : `<p class="bldr-empty">No compatible tunes found in your library for <strong>${escHtml(lastTune.key || "this key")}</strong>.</p>`}`;
 
     document.getElementById("bldr-back").addEventListener("click", () => {
-      if (selectedTunes.length > 1) _bldrStepMode(selectedTunes.slice(0, -1), type, onFirstBack);
+      if (selectedTunes.length > 1) _bldrStepMode(selectedTunes.slice(0, -1), filters, onFirstBack);
       else if (onFirstBack) onFirstBack();
-      else _bldrPickFirst(type);
+      else _bldrPickFirst(filters);
     });
 
     document.getElementById("bldr-preview-btn").addEventListener("click", () => {
@@ -3996,7 +4057,7 @@ async function _bldrStepMode(selectedTunes, type, onFirstBack = null) {
       btn.addEventListener("click", () => {
         const gi = Number(btn.dataset.group);
         const tune = groups[gi].tunes.find(t => t.id === Number(btn.dataset.tuneId));
-        if (tune) _bldrStepMode([...selectedTunes, tune], type, onFirstBack);
+        if (tune) _bldrStepMode([...selectedTunes, tune], filters, onFirstBack);
       });
     });
   }
@@ -4156,7 +4217,7 @@ async function _launchBuilderFromTuneId(tuneId) {
   const tune = await apiFetch(`/api/tunes/${tuneId}`);
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
-  _bldrStepMode([tune], tune.type || "");
+  _bldrStepMode([tune], { type: tune.type || "", minRating: "", collectionId: "", collectionName: "" });
 }
 
 // Insert a "Build a Set from this tune" button immediately after `anchor` element.
