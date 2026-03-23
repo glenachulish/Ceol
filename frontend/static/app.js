@@ -917,7 +917,7 @@ function renderModal(tune, onBack = null, siblings = null) {
 
   modalContent.innerHTML = `
     ${backBtn}
-    <h2 class="modal-title">${escHtml(tune.title)}</h2>
+    <h2 class="modal-title"><span id="modal-title-text">${escHtml(tune.title)}</span><button class="title-edit-btn" id="title-edit-btn" title="Edit title">✎</button></h2>
     ${versionLine}
     ${siblingsStrip}
     <div class="modal-meta" id="modal-typkey-meta">${typeBadge}${keyBadge}</div>
@@ -1028,6 +1028,9 @@ function renderModal(tune, onBack = null, siblings = null) {
 
   // Editable type/key badges
   initMetaEdit(tune);
+
+  // Editable title
+  initTitleEdit(tune);
 
   // Back button (from versions panel)
   if (onBack) {
@@ -1517,6 +1520,61 @@ function updateCardMeta(tuneId, field, value) {
     else if (vBadge) meta.insertBefore(span, vBadge);
     else meta.appendChild(span);
   }
+}
+
+function initTitleEdit(tune) {
+  const btn = document.getElementById("title-edit-btn");
+  const titleText = document.getElementById("modal-title-text");
+  if (!btn || !titleText) return;
+
+  btn.addEventListener("click", () => {
+    const currentTitle = titleText.textContent.trim();
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = currentTitle;
+    input.className = "title-inline-edit";
+    titleText.replaceWith(input);
+    btn.style.display = "none";
+    input.focus();
+    input.select();
+
+    let saved = false;
+    const save = async () => {
+      if (saved) return;
+      saved = true;
+      const newTitle = input.value.trim();
+      if (!newTitle || newTitle === currentTitle) {
+        input.replaceWith(titleText);
+        btn.style.display = "";
+        return;
+      }
+      try {
+        await apiFetch(`/api/tunes/${tune.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: newTitle }),
+        });
+        tune.title = newTitle;
+        titleText.textContent = newTitle;
+        input.replaceWith(titleText);
+        btn.style.display = "";
+        const card = tuneList.querySelector(`.tune-card[data-id="${tune.id}"]`);
+        if (card) {
+          const cardTitle = card.querySelector(".card-title");
+          if (cardTitle) cardTitle.textContent = newTitle;
+          card.setAttribute("aria-label", newTitle);
+        }
+      } catch {
+        input.replaceWith(titleText);
+        btn.style.display = "";
+      }
+    };
+
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter")  { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { saved = true; input.replaceWith(titleText); btn.style.display = ""; }
+    });
+  });
 }
 
 function initMetaEdit(tune) {
