@@ -883,17 +883,18 @@ function renderModal(tune, onBack = null, siblings = null) {
     const m = tune.notes.match(/sheet music \(image\):\s*(\S+)/);
     return m ? m[1] : null;
   })();
-  const notesAudioUrl = (() => {
-    if (!tune.notes) return null;
+  const notesAudioUrls = (() => {
+    if (!tune.notes) return [];
     const urlRe = /https?:\/\/[^\s<>"]+/g;
+    const urls = [];
     let m;
     while ((m = urlRe.exec(tune.notes)) !== null) {
       const url = m[0];
       if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url) || /\/api\/(uploads|dropbox\/file)\b/.test(url)) {
-        return url;
+        urls.push(url);
       }
     }
-    return null;
+    return urls;
   })();
   const setsFooter = `<div class="modal-sets-row">
       <button id="add-to-set-btn" class="btn-secondary btn-sm">+ Add to a set…</button>
@@ -947,9 +948,12 @@ function renderModal(tune, onBack = null, siblings = null) {
       ${pdfUrl ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
       </div>` : ""}
-      ${notesAudioUrl ? `<div class="ff-download-row">
-        <button class="btn-secondary media-play-btn" data-url="${escHtml(notesAudioUrl)}" data-media-type="audio">▶ Play MP3</button>
-      </div>` : ""}
+      ${notesAudioUrls.map((u, i) => {
+        const label = notesAudioUrls.length > 1 ? `▶ Play MP3 ${i + 1}` : "▶ Play MP3";
+        return `<div class="ff-download-row">
+          <button class="btn-secondary media-play-btn" data-url="${escHtml(u)}" data-media-type="audio">${label}</button>
+        </div>`;
+      }).join("")}
       <div id="audio-player-container" class="audio-player-wrap"></div>
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
       <p id="audio-unavailable" class="audio-unavailable hidden">
@@ -1117,8 +1121,9 @@ function renderModal(tune, onBack = null, siblings = null) {
           s.classList.toggle("filled", i + 1 <= newRating)
         );
         document.getElementById("modal-rating-label").textContent = ratingLabels[newRating];
-        // Also update the card in the background
-        const card = tuneList.querySelector(`.tune-card[data-id="${tune.id}"]`);
+        // Also update the card in the background (fall back to parent card for versioned tunes)
+        const card = tuneList.querySelector(`.tune-card[data-id="${tune.id}"]`)
+          || (tune.parent_id ? tuneList.querySelector(`.tune-card[data-id="${tune.parent_id}"]`) : null);
         if (card) {
           card.dataset.rating = newRating;
           card.querySelectorAll(".star-btn").forEach((s, i) =>
