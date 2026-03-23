@@ -883,6 +883,18 @@ function renderModal(tune, onBack = null, siblings = null) {
     const m = tune.notes.match(/sheet music \(image\):\s*(\S+)/);
     return m ? m[1] : null;
   })();
+  const notesAudioUrl = (() => {
+    if (!tune.notes) return null;
+    const urlRe = /https?:\/\/[^\s<>"]+/g;
+    let m;
+    while ((m = urlRe.exec(tune.notes)) !== null) {
+      const url = m[0];
+      if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url) || /\/api\/(uploads|dropbox\/file)\b/.test(url)) {
+        return url;
+      }
+    }
+    return null;
+  })();
   const setsFooter = `<div class="modal-sets-row">
       <button id="add-to-set-btn" class="btn-secondary btn-sm">+ Add to a set…</button>
       <button id="create-set-from-tune-btn" class="btn-secondary btn-sm">+ Create new set</button>
@@ -934,6 +946,9 @@ function renderModal(tune, onBack = null, siblings = null) {
       </div>
       ${pdfUrl ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
+      </div>` : ""}
+      ${notesAudioUrl ? `<div class="ff-download-row">
+        <button class="btn-secondary media-play-btn" data-url="${escHtml(notesAudioUrl)}" data-media-type="audio">▶ Play MP3</button>
       </div>` : ""}
       <div id="audio-player-container" class="audio-player-wrap"></div>
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
