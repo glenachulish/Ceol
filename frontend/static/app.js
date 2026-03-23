@@ -2051,7 +2051,11 @@ function expandAbcRepeats(abc) {
     // tune and render nothing. Collapse multiple newlines to one.
     .replace(/\n{2,}/g, '\n');
   const header = stripMidi(abc.slice(0, kEnd + 1));
-  let body = stripMidi(abc.slice(kEnd + 1).trim());
+  // trim() before stripMidi removes surrounding whitespace; trimStart() after
+  // removes any leading newline left by stripped directives — if left in place
+  // it combines with the header's trailing \n to form a blank line (\n\n),
+  // which ABC treats as a tune separator causing abcjs to render nothing.
+  let body = stripMidi(abc.slice(kEnd + 1).trim()).trimStart();
 
   if (body.includes('!')) {
     // Protect !decoration! pairs with a placeholder, replace bare !, then restore.
