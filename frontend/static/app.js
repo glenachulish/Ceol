@@ -2045,7 +2045,11 @@ function expandAbcRepeats(abc) {
     // staves at that character. If the body has none of them, abcjs renders
     // everything on one infinite line and produces 0 staff lines. Strip the
     // directive so abcjs falls back to its default newline-based line breaking.
-    .replace(/^I:linebreak\s+.*$/gim, '');
+    .replace(/^I:linebreak\s+.*$/gim, '')
+    // Stripping directives leaves blank lines behind; a blank line in ABC
+    // separates tunes, so abcjs would see the notes as a headerless second
+    // tune and render nothing. Collapse multiple newlines to one.
+    .replace(/\n{2,}/g, '\n');
   const header = stripMidi(abc.slice(0, kEnd + 1));
   let body = stripMidi(abc.slice(kEnd + 1).trim());
 
