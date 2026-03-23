@@ -945,6 +945,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
+      ${sessionLink ? `<p class="session-link-below">${sessionLink}</p>` : ""}
       ${pdfUrl ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
       </div>` : ""}

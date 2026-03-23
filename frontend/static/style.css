@@ -776,6 +776,11 @@ button.set-tune-title:hover { text-decoration: underline; }
   text-decoration: none;
 }
 .modal-session-link:hover { text-decoration: underline; }
+.session-link-below {
+  font-size: .8rem;
+  color: var(--text-muted);
+  margin: .4rem 0 .6rem;
+}
 .modal-abc-label {
   font-size: .75rem;
   text-transform: uppercase;
