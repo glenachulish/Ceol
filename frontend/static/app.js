@@ -2027,6 +2027,10 @@ function renderSheetMusic(abc) {
 // Standard ABC also uses !decoration! pairs (e.g. !roll!, !trill!, !cut!).
 // We must preserve those and only replace standalone bare ! markers.
 function expandAbcRepeats(abc) {
+  // abcjs requires X: as the first field to recognise a valid tune.
+  // Auto-inject it if missing so tunes without X: still render.
+  if (!/^X:/m.test(abc)) abc = "X:1\n" + abc;
+
   const kIdx = abc.search(/^K:/m);
   if (kIdx < 0) return abc;
   const kEnd = abc.indexOf('\n', kIdx);
