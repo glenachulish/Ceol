@@ -1107,6 +1107,13 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
+      ${!tune.abc ? `<div id="fetch-abc-section">
+        <div class="fetch-abc-row">
+          <button id="fetch-session-abc" class="btn-import">🔍 Find ABC on TheSession.org</button>
+          <span id="fetch-abc-status" class="notes-status"></span>
+        </div>
+        <div id="session-abc-results" class="session-abc-results hidden"></div>
+      </div>` : ""}
       ${sessionLink ? `<p class="session-link-below">${sessionLink}</p>` : ""}
       ${pdfUrl ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
@@ -1523,6 +1530,111 @@ function renderModal(tune, onBack = null, siblings = null) {
       newColConfirm.disabled = false;
     }
   });
+
+  // ── Fetch ABC from TheSession ──────────────────────────────
+  const fetchAbcBtn = document.getElementById("fetch-session-abc");
+  if (fetchAbcBtn) {
+    const abcStatus = document.getElementById("fetch-abc-status");
+    const abcResults = document.getElementById("session-abc-results");
+
+    fetchAbcBtn.addEventListener("click", async () => {
+      fetchAbcBtn.disabled = true;
+      abcStatus.textContent = "Searching…";
+      abcResults.classList.add("hidden");
+      try {
+        const q = encodeURIComponent(tune.title);
+        const res = await fetch(`/api/thesession/search?q=${q}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Search failed");
+        if (!data.tunes || !data.tunes.length) {
+          abcStatus.textContent = "No matches found on TheSession.org.";
+          fetchAbcBtn.disabled = false;
+          return;
+        }
+        abcStatus.textContent = `${data.tunes.length} match${data.tunes.length === 1 ? "" : "es"} found — pick one:`;
+        abcResults.innerHTML = data.tunes.slice(0, 8).map(t => `
+          <div class="session-abc-match">
+            <button class="session-abc-pick" data-session-id="${t.id}">
+              <strong>${escHtml(t.name)}</strong>
+              <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type)}</span>
+              <span class="session-abc-meta">${t.tunebooks} setting${t.tunebooks === 1 ? "" : "s"}</span>
+            </button>
+          </div>`).join("");
+        abcResults.classList.remove("hidden");
+
+        // Wire up pick buttons
+        abcResults.querySelectorAll(".session-abc-pick").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const sessionId = btn.dataset.sessionId;
+            abcResults.innerHTML = '<p class="loading" style="padding:.3rem 0">Fetching ABC…</p>';
+            try {
+              const fRes = await fetch(`/api/thesession/fetch/${sessionId}`);
+              const fData = await fRes.json();
+              if (!fRes.ok) throw new Error(fData.detail || "Fetch failed");
+
+              const settings = fData.settings || [];
+              if (settings.length === 1) {
+                // Single setting — apply directly
+                await _applySessionAbc(tune.id, settings[0], fData);
+              } else {
+                // Multiple settings — show picker
+                abcResults.innerHTML = `<p class="fetch-abc-hint">Multiple settings found — choose one:</p>` +
+                  settings.map(s => `
+                    <div class="session-abc-match">
+                      <button class="session-setting-pick" data-idx="${s.index}">
+                        Setting ${s.index}: <strong>${escHtml(s.key)}${s.mode ? " " + escHtml(s.mode) : ""}</strong>
+                        ${s.member ? `<span class="session-abc-meta">by ${escHtml(s.member)}</span>` : ""}
+                      </button>
+                    </div>`).join("");
+                abcResults.querySelectorAll(".session-setting-pick").forEach(sBtn => {
+                  sBtn.addEventListener("click", async () => {
+                    const idx = Number(sBtn.dataset.idx);
+                    const setting = settings.find(s => s.index === idx) || settings[0];
+                    abcResults.innerHTML = '<p class="loading" style="padding:.3rem 0">Applying…</p>';
+                    await _applySessionAbc(tune.id, setting, fData);
+                  });
+                });
+              }
+            } catch (err) {
+              abcResults.innerHTML = `<p class="import-error" style="padding:.4rem .6rem">${escHtml(err.message)}</p>`;
+            }
+          });
+        });
+      } catch (err) {
+        abcStatus.textContent = `Error: ${err.message}`;
+        fetchAbcBtn.disabled = false;
+      }
+    });
+
+    async function _applySessionAbc(tuneId, setting, sessionData) {
+      try {
+        await fetch(`/api/tunes/${tuneId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            abc: setting.abc,
+            key: setting.key || undefined,
+            mode: setting.mode || undefined,
+          }),
+        });
+        // Update local tune object and re-render sheet music
+        tune.abc = setting.abc;
+        tune.key = setting.key || tune.key;
+        tune.mode = setting.mode || tune.mode;
+        tune.session_id = sessionData.session_id;
+
+        // Hide the fetch section, show the rendered ABC
+        const fetchSection = document.getElementById("fetch-abc-section");
+        if (fetchSection) fetchSection.remove();
+        renderSheetMusic(setting.abc);
+
+        // Refresh card in background
+        if (state.view === "library") loadTunes();
+      } catch (err) {
+        abcResults.innerHTML = `<p class="import-error" style="padding:.4rem .6rem">Failed to save: ${escHtml(err.message)}</p>`;
+      }
+    }
+  }
 
   // Attach audio panel
   const attachAudioBtn    = document.getElementById("attach-audio-btn");

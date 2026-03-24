@@ -1112,6 +1112,44 @@ button.set-tune-title:hover { text-decoration: underline; }
 }
 
 /* Transcribe-to-ABC row */
+/* Fetch ABC from TheSession */
+.fetch-abc-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin: .75rem 0 .5rem;
+  flex-wrap: wrap;
+}
+.fetch-abc-hint { font-size: .85rem; color: var(--text-muted); margin: .3rem 0; }
+.session-abc-results {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  margin-bottom: .75rem;
+}
+.session-abc-match { display: flex; }
+.session-abc-pick,
+.session-setting-pick {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .45rem .75rem;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .85rem;
+  transition: border-color .12s, background .12s;
+}
+.session-abc-pick:hover,
+.session-setting-pick:hover {
+  border-color: #10b981;
+  background: color-mix(in srgb, #10b981 8%, transparent);
+}
+.session-abc-meta { font-size: .78rem; color: var(--text-muted); margin-left: auto; }
+
 .transcribe-row {
   display: flex;
   align-items: center;
