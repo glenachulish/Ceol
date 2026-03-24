@@ -424,6 +424,142 @@ bulkMergeBtn.addEventListener("click", async () => {
   }
 });
 
+// ── Membership transfer (delete → import replacement) ─────────────────────────
+
+const _TRANSFER_KEY = "ceol_pending_transfer";
+const _pendingTransferBanner = document.getElementById("pending-transfer-banner");
+const _pendingTransferMsg    = document.getElementById("pending-transfer-msg");
+
+function _savePendingTransfer(data) { localStorage.setItem(_TRANSFER_KEY, JSON.stringify(data)); }
+function _getPendingTransfer() { try { return JSON.parse(localStorage.getItem(_TRANSFER_KEY)); } catch { return null; } }
+function _clearPendingTransfer() { localStorage.removeItem(_TRANSFER_KEY); }
+
+function _showPendingTransferBanner() {
+  const pt = _getPendingTransfer();
+  if (!pt) { _pendingTransferBanner.classList.add("hidden"); return; }
+  const parts = [];
+  if (pt.sets.length) parts.push(`${pt.sets.length} set${pt.sets.length !== 1 ? "s" : ""}`);
+  if (pt.collections.length) parts.push(`${pt.collections.length} collection${pt.collections.length !== 1 ? "s" : ""}`);
+  _pendingTransferMsg.textContent =
+    `📋 Memberships saved from "${pt.tuneName}" (${parts.join(" & ")}) — import or open a replacement tune to apply them.`;
+  _pendingTransferBanner.classList.remove("hidden");
+}
+
+document.getElementById("pending-transfer-dismiss").addEventListener("click", () => {
+  _clearPendingTransfer();
+  _showPendingTransferBanner();
+});
+
+async function _fetchTuneMemberships(tuneId) {
+  const [collections, sets] = await Promise.all([
+    apiFetch(`/api/tunes/${tuneId}/collections`),
+    apiFetch(`/api/tunes/${tuneId}/sets`),
+  ]);
+  return { collections, sets };
+}
+
+async function _applyTransfer(toTuneId) {
+  const pt = _getPendingTransfer();
+  if (!pt) return;
+  await Promise.all([
+    ...pt.sets.map(s => apiFetch(`/api/sets/${s.id}/tunes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tune_id: toTuneId }),
+    })),
+    ...pt.collections.map(c => apiFetch(`/api/collections/${c.id}/tunes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tune_id: toTuneId }),
+    })),
+  ]);
+  _clearPendingTransfer();
+  _showPendingTransferBanner();
+}
+
+async function _offerTransfer(newTuneId, newTuneName) {
+  const pt = _getPendingTransfer();
+  if (!pt) return;
+  const parts = [];
+  if (pt.sets.length) parts.push(`${pt.sets.length} set${pt.sets.length !== 1 ? "s" : ""}`);
+  if (pt.collections.length) parts.push(`${pt.collections.length} collection${pt.collections.length !== 1 ? "s" : ""}`);
+  modalContent.innerHTML = `
+    <h2 class="modal-title">Transfer Memberships?</h2>
+    <p>Apply the saved memberships from <strong>${escHtml(pt.tuneName)}</strong>
+       (${parts.join(" &amp; ")}) to <strong>${escHtml(newTuneName)}</strong>?</p>
+    <div class="notes-actions" style="margin-top:1.25rem">
+      <button id="transfer-yes-btn" class="btn-primary">Apply memberships</button>
+      <button id="transfer-no-btn" class="btn-secondary">No thanks</button>
+      <span id="transfer-status" class="notes-status"></span>
+    </div>`;
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  document.getElementById("transfer-no-btn").addEventListener("click", () => {
+    _clearPendingTransfer();
+    _showPendingTransferBanner();
+    closeModal();
+  });
+  document.getElementById("transfer-yes-btn").addEventListener("click", async () => {
+    const yesBtn = document.getElementById("transfer-yes-btn");
+    const status = document.getElementById("transfer-status");
+    yesBtn.disabled = true;
+    yesBtn.textContent = "Applying…";
+    try {
+      await _applyTransfer(newTuneId);
+      status.textContent = `✓ Applied ${parts.join(" & ")} from "${pt.tuneName}".`;
+      status.className = "notes-status notes-saved";
+      setTimeout(closeModal, 900);
+    } catch {
+      status.textContent = "Failed — please try again.";
+      yesBtn.disabled = false;
+      yesBtn.textContent = "Apply memberships";
+    }
+  });
+}
+
+// Show delete confirmation modal with optional membership-save checkbox.
+// onConfirmed(didSave) is called after the user confirms deletion.
+async function _confirmDeleteWithTransfer(tuneId, tuneName, onConfirmed) {
+  let memberships = { collections: [], sets: [] };
+  try { memberships = await _fetchTuneMemberships(tuneId); } catch { /* proceed without */ }
+  const hasMembers = memberships.collections.length > 0 || memberships.sets.length > 0;
+
+  const setList = memberships.sets.map(s => escHtml(s.name)).join(", ");
+  const colList = memberships.collections.map(c => escHtml(c.name)).join(", ");
+  const memberBlock = hasMembers ? `
+    <p class="modal-abc-label" style="margin-top:.5rem">This tune is in:<br>
+      ${memberships.sets.length ? `<strong>Sets:</strong> ${setList}<br>` : ""}
+      ${memberships.collections.length ? `<strong>Collections:</strong> ${colList}` : ""}
+    </p>
+    <label style="display:flex;align-items:center;gap:.5rem;margin-top:.75rem;cursor:pointer">
+      <input type="checkbox" id="del-save-members" checked />
+      Save memberships for a replacement tune
+    </label>` : "";
+
+  modalContent.innerHTML = `
+    <h2 class="modal-title">Delete tune?</h2>
+    <p>Delete <strong>${escHtml(tuneName)}</strong> from your library? This cannot be undone.</p>
+    ${memberBlock}
+    <div class="notes-actions" style="margin-top:1.25rem">
+      <button id="del-confirm-btn" class="btn-danger">Delete</button>
+      <button id="del-cancel-btn" class="btn-secondary">Cancel</button>
+    </div>`;
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+
+  document.getElementById("del-cancel-btn").addEventListener("click", closeModal);
+  document.getElementById("del-confirm-btn").addEventListener("click", async () => {
+    const saveChecked = hasMembers && document.getElementById("del-save-members").checked;
+    document.getElementById("del-confirm-btn").disabled = true;
+    if (saveChecked) {
+      _savePendingTransfer({ tuneName, ...memberships });
+    }
+    closeModal();
+    await onConfirmed(saveChecked);
+    if (saveChecked) _showPendingTransferBanner();
+  });
+}
+
 // ── Utilities ────────────────────────────────────────────────────────────────
 function debounce(fn, ms) {
   let t;
@@ -1446,28 +1582,32 @@ function renderModal(tune, onBack = null, siblings = null) {
   });
 
   // Delete tune from modal
-  document.getElementById("delete-tune-modal-btn").addEventListener("click", async (ev) => {
+  document.getElementById("delete-tune-modal-btn").addEventListener("click", async () => {
     const isVersion = !!tune.parent_id;
-    const msg = isVersion
-      ? `Delete this version ("${tune.version_label || tune.title}") from your library? The other versions will not be affected. This cannot be undone.`
-      : `Delete "${tune.title}" from your library? This cannot be undone.`;
-    if (!confirm(msg)) return;
-    ev.currentTarget.disabled = true;
-    try {
-      await apiDeleteTune(tune.id);
-      await Promise.all([loadTunes(), loadStats()]);
-      // If this was a version, re-open the parent's versions panel so the
-      // user can see the remaining versions rather than a blank modal.
-      if (isVersion) {
+    if (isVersion) {
+      // Version delete — simple confirm, no membership transfer needed
+      const msg = `Delete this version ("${tune.version_label || tune.title}") from your library? The other versions will not be affected. This cannot be undone.`;
+      if (!confirm(msg)) return;
+      try {
+        await apiDeleteTune(tune.id);
+        await Promise.all([loadTunes(), loadStats()]);
         if (onBack) onBack();
         else renderVersionsPanel(tune.parent_id);
-      } else {
-        closeModal();
+      } catch {
+        alert("Failed to delete. Please try again.");
       }
-    } catch {
-      alert("Failed to delete. Please try again.");
-      ev.currentTarget.disabled = false;
+      return;
     }
+    // Standalone tune — offer to save memberships for a replacement
+    await _confirmDeleteWithTransfer(tune.id, tune.title, async () => {
+      try {
+        await apiDeleteTune(tune.id);
+        await Promise.all([loadTunes(), loadStats()]);
+        closeModal();
+      } catch {
+        alert("Failed to delete. Please try again.");
+      }
+    });
   });
 
   // Render sheet music after paint (skip if no ABC — PDF or empty)
@@ -3315,6 +3455,7 @@ async function loadStats() {
 
 async function loadTunes() {
   tuneList.innerHTML = '<p class="loading">Loading…</p>';
+  _showPendingTransferBanner();
   try {
     const data = await fetchTunes();
     renderTunes(data);
@@ -3725,15 +3866,17 @@ tuneList.addEventListener("click", async e => {
     e.stopPropagation();
     const id = delBtn.dataset.id;
     const title = delBtn.closest(".tune-card")?.querySelector(".card-title")?.textContent || "this tune";
-    if (!confirm(`Delete "${title}" from your library? This cannot be undone.`)) return;
     delBtn.disabled = true;
-    try {
-      await apiDeleteTune(id);
-      loadTunes();
-    } catch {
-      alert("Failed to delete tune. Please try again.");
-      delBtn.disabled = false;
-    }
+    await _confirmDeleteWithTransfer(id, title, async () => {
+      try {
+        await apiDeleteTune(id);
+        loadTunes();
+      } catch {
+        alert("Failed to delete tune. Please try again.");
+        delBtn.disabled = false;
+      }
+    });
+    delBtn.disabled = false;
     return;
   }
 
@@ -4982,6 +5125,7 @@ function _ffCatRender(items) {
         await Promise.all([loadStats(), loadFilters()]);
         if (state.view === "library") loadTunes();
         _insertBuildSetBtn(btn, created.id);
+        _offerTransfer(created.id, t.title);
       } catch (err) {
         btn.textContent = "Error";
         btn.disabled = false;
@@ -5308,6 +5452,7 @@ document.getElementById("session-save-btn").addEventListener("click", async () =
         await Promise.all([loadStats(), loadFilters()]);
         if (state.view === "library") loadTunes();
         _insertBuildSetBtn(status, data.tune_id);
+        _offerTransfer(data.tune_id, data.title);
       }
     } else {
       btn.textContent = _checkedSettingIds.size > 1 ? `Save ${_checkedSettingIds.size} settings` : "Save to Library";
@@ -5364,7 +5509,7 @@ ffAddBtn.addEventListener("click", async () => {
     if (pdfUrl) noteParts.push(`FlutefFling sheet music (PDF): ${pdfUrl}`);
     if (mp3Url) noteParts.push(`FlutefFling MP3: ${mp3Url}`);
 
-    await apiFetch("/api/tunes", {
+    const ffCreated = await apiFetch("/api/tunes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, type: "", key: "", mode: "", abc: "", notes: noteParts.join("\n") }),
@@ -5375,6 +5520,7 @@ ffAddBtn.addEventListener("click", async () => {
     ffAddBtn.style.background = "var(--jig)";
     await Promise.all([loadStats(), loadFilters()]);
     if (state.view === "library") loadTunes();
+    _offerTransfer(ffCreated.id, title);
   } catch (err) {
     ffStatus.textContent = `Error: ${err.message}`;
     ffAddBtn.disabled    = false;

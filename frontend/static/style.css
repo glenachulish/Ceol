@@ -376,6 +376,20 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .tune-delete-btn:hover { color: var(--danger); }
 
 /* ── Select mode ──────────────────────────────────────────── */
+.pending-transfer-banner {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex-wrap: wrap;
+  padding: .5rem .75rem;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: var(--radius);
+  margin-bottom: .75rem;
+  font-size: .875rem;
+}
+.pending-transfer-banner span { flex: 1; }
+
 .bulk-bar {
   display: flex;
   align-items: center;

@@ -1175,6 +1175,21 @@ def get_tune_collections(tune_id: int):
     return [dict(r) for r in rows]
 
 
+@app.get("/api/tunes/{tune_id}/sets")
+def get_tune_sets(tune_id: int):
+    with _db() as conn:
+        rows = conn.execute(
+            """
+            SELECT s.id, s.name FROM sets s
+            JOIN set_tunes st ON st.set_id = s.id
+            WHERE st.tune_id = ?
+            ORDER BY s.name COLLATE NOCASE
+            """,
+            (tune_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 # ---------------------------------------------------------------------------
 # Import endpoint
 # ---------------------------------------------------------------------------
