@@ -670,6 +670,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   font-style: italic;
 }
 
+.col-add-set-row {
+  margin-top: .6rem;
+  padding-top: .5rem;
+  border-top: 1px dashed var(--border);
+}
 .col-section-label {
   font-size: .75rem;
   font-weight: 600;

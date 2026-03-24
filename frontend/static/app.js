@@ -3448,12 +3448,65 @@ function renderCollections(collections) {
             </div>`).join("");
         }
 
-        if (!html) {
-          tunesDiv.innerHTML = '<p class="set-empty">Empty — add tunes or sets to this collection.</p>';
-        } else {
-          tunesDiv.innerHTML = html;
+        // Footer: add-a-set button always visible
+        html += `<div class="col-add-set-row">
+          <button class="btn-set btn-sm col-add-set-btn" data-col-id="${id}">+ Add a set…</button>
+        </div>`;
 
-          tunesDiv.querySelectorAll(".tune-open-btn").forEach(tb => {
+        tunesDiv.innerHTML = html || '<p class="set-empty">Empty — add tunes or sets to this collection.</p>';
+
+        // Add-a-set picker
+        tunesDiv.querySelector(".col-add-set-btn").addEventListener("click", async () => {
+          const allSets = await apiFetch("/api/sets");
+          if (!allSets.length) { alert("No sets yet — create one in the Sets tab first."); return; }
+          const opts = allSets.map(s =>
+            `<label class="bulk-col-option">
+               <input type="radio" name="col-set-pick" value="${s.id}" />
+               ${escHtml(s.name)} <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
+             </label>`
+          ).join("");
+          modalContent.innerHTML = `
+            <h2 class="modal-title">Add Set to Collection</h2>
+            <div class="bulk-col-list">${opts}</div>
+            <div class="notes-actions" style="margin-top:1.25rem">
+              <button id="col-set-confirm" class="btn-set" disabled>Add Set</button>
+              <button id="col-set-cancel" class="btn-secondary">Cancel</button>
+              <span id="col-set-status" class="notes-status"></span>
+            </div>`;
+          modalOverlay.classList.remove("hidden");
+          document.body.style.overflow = "hidden";
+          const confirmBtn = document.getElementById("col-set-confirm");
+          modalContent.querySelectorAll("input[name=col-set-pick]").forEach(r =>
+            r.addEventListener("change", () => { confirmBtn.disabled = false; })
+          );
+          document.getElementById("col-set-cancel").addEventListener("click", closeModal);
+          confirmBtn.addEventListener("click", async () => {
+            const sel = modalContent.querySelector("input[name=col-set-pick]:checked");
+            if (!sel) return;
+            const status = document.getElementById("col-set-status");
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = "Adding…";
+            try {
+              const res = await apiFetch(`/api/collections/${id}/sets`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ set_id: Number(sel.value) }),
+              });
+              if (!res.added) { status.textContent = "Already in this collection."; status.className = "notes-status"; setTimeout(closeModal, 900); return; }
+              // Refresh the expanded view
+              closeModal();
+              tunesDiv.classList.add("hidden");
+              btn.textContent = "View";
+              btn.click(); // re-expand to show updated content
+            } catch {
+              status.textContent = "Failed — please try again.";
+              confirmBtn.disabled = false;
+              confirmBtn.textContent = "Add Set";
+            }
+          });
+        });
+
+        tunesDiv.querySelectorAll(".tune-open-btn").forEach(tb => {
             tb.addEventListener("click", async () => {
               await Promise.all([fetchSets(), fetchCollections()]);
               const tune = await fetchTune(tb.dataset.tuneId);
