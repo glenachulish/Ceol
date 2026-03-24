@@ -1594,6 +1594,9 @@ button.set-tune-title:hover { text-decoration: underline; }
   cursor: pointer;
 }
 .set-select:focus { border-color: var(--accent); }
+.set-select-collection { border-color: #f59e0b; color: #d97706; }
+.set-select-collection:focus { border-color: #f59e0b; }
+:root[data-theme="dark"] .set-select-collection { color: #fbbf24; }
 .set-status { font-size: .8rem; }
 .set-saved { color: var(--jig); }
 .set-error { color: var(--danger); }

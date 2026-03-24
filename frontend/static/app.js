@@ -1044,11 +1044,10 @@ function renderModal(tune, onBack = null, siblings = null) {
     .join("");
   const collectionsFooter = `<div class="modal-col-section">
     ${state.collections.length ? `<div class="modal-sets-row">
-        <select id="col-select" class="set-select">
+        <select id="col-select" class="set-select set-select-collection">
           <option value="">Add to a collection…</option>
           ${collectionsOptions}
         </select>
-        <button id="add-to-col-btn" class="btn-collection btn-sm">+ Add</button>
         <span id="col-status" class="set-status"></span>
       </div>` : ""}
     <div id="new-col-form" class="modal-new-col-form hidden">
@@ -1444,18 +1443,18 @@ function renderModal(tune, onBack = null, siblings = null) {
       _bldrStepMode([tune], { type: tune.type || "", minRating: "", collectionId: "", collectionName: "" }, backToTune);
     });
 
-  // Add to existing collection
-  const addToColBtn = document.getElementById("add-to-col-btn");
-  if (addToColBtn) {
-    addToColBtn.addEventListener("click", async () => {
-      const colId = document.getElementById("col-select").value;
+  // Add to existing collection — auto-add when a collection is selected
+  const colSelect = document.getElementById("col-select");
+  if (colSelect) {
+    colSelect.addEventListener("change", async () => {
+      const colId = colSelect.value;
       const colStatus = document.getElementById("col-status");
       if (!colId) return;
       try {
         const result = await apiAddTuneToCollection(colId, tune.id);
         colStatus.textContent = result.added ? "Added!" : "Already in collection.";
         colStatus.className = "set-status set-saved";
-        setTimeout(() => { colStatus.textContent = ""; }, 2000);
+        setTimeout(() => { colStatus.textContent = ""; colSelect.value = ""; }, 2000);
         await fetchCollections();
       } catch {
         colStatus.textContent = "Failed.";

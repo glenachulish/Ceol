@@ -357,6 +357,19 @@ def list_tunes(
     }
 
 
+@app.get("/api/tunes/recent")
+def get_recent_tunes(days: int = Query(7, ge=1, le=365)):
+    """Return tunes imported within the last `days` days, newest first."""
+    cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, title, type, key, mode, imported_at"
+            " FROM tunes WHERE imported_at >= ? ORDER BY imported_at DESC",
+            (cutoff,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 @app.get("/api/tunes/{tune_id}")
 def get_tune(tune_id: int):
     with _db() as conn:
@@ -1053,19 +1066,6 @@ class CollectionCreate(BaseModel):
 
 class CollectionTuneAdd(BaseModel):
     tune_id: int
-
-
-@app.get("/api/tunes/recent")
-def get_recent_tunes(days: int = Query(7, ge=1, le=365)):
-    """Return tunes imported within the last `days` days, newest first."""
-    cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-    with _db() as conn:
-        rows = conn.execute(
-            "SELECT id, title, type, key, mode, imported_at"
-            " FROM tunes WHERE imported_at >= ? ORDER BY imported_at DESC",
-            (cutoff,),
-        ).fetchall()
-    return [dict(r) for r in rows]
 
 
 @app.get("/api/collections")
