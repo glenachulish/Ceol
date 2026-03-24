@@ -3562,7 +3562,6 @@ function renderCollections(collections) {
               }
             });
           }
-        }
       } else {
         tunesDiv.classList.add("hidden");
         btn.textContent = "View";
