@@ -3402,7 +3402,6 @@ function renderCollections(collections) {
           <span class="set-count">${countLabel}</span>
         </div>
         <div class="set-card-actions">
-          <button class="btn-secondary col-strip-btn" data-col-id="${c.id}" title="Strip guitar chord symbols from all tunes in this collection">Strip chords</button>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
           <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">🗑</button>
         </div>
@@ -3448,9 +3447,10 @@ function renderCollections(collections) {
             </div>`).join("");
         }
 
-        // Footer: add-a-set button always visible
+        // Footer: add-a-set and strip-chords actions always visible
         html += `<div class="col-add-set-row">
           <button class="btn-set btn-sm col-add-set-btn" data-col-id="${id}">+ Add a set…</button>
+          <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${id}" title="Remove guitar chord symbols (e.g. &quot;Am&quot;) from ABC notation of all tunes in this collection">Strip chord symbols</button>
         </div>`;
 
         tunesDiv.innerHTML = html || '<p class="set-empty">Empty — add tunes or sets to this collection.</p>';
@@ -3541,6 +3541,26 @@ function renderCollections(collections) {
               }
             });
           });
+
+          // Strip chord symbols
+          const stripBtn = tunesDiv.querySelector(".col-strip-btn");
+          if (stripBtn) {
+            stripBtn.addEventListener("click", async () => {
+              const name = stripBtn.closest(".set-card").querySelector(".set-name").textContent;
+              if (!confirm(`Strip guitar chord symbols from all ABC tunes in "${name}"?\nThis edits the ABC directly and cannot be undone.`)) return;
+              stripBtn.disabled = true;
+              stripBtn.textContent = "Stripping…";
+              try {
+                const res = await apiFetch(`/api/collections/${id}/strip-chords`, { method: "POST" });
+                stripBtn.textContent = `Done — ${res.stripped} tune${res.stripped !== 1 ? "s" : ""} updated`;
+                setTimeout(() => { stripBtn.textContent = "Strip chord symbols"; stripBtn.disabled = false; }, 3000);
+              } catch {
+                alert("Failed. Please try again.");
+                stripBtn.textContent = "Strip chord symbols";
+                stripBtn.disabled = false;
+              }
+            });
+          }
         }
       } else {
         tunesDiv.classList.add("hidden");
@@ -3549,25 +3569,6 @@ function renderCollections(collections) {
     });
   });
 
-  // Strip guitar chord symbols from all tunes in a collection
-  collectionsList.querySelectorAll(".col-strip-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.colId;
-      const name = btn.closest(".set-card").querySelector(".set-name").textContent;
-      if (!confirm(`Strip guitar chord symbols from all ABC tunes in "${name}"? This edits the ABC directly and cannot be undone.`)) return;
-      btn.disabled = true;
-      btn.textContent = "Stripping…";
-      try {
-        const res = await apiFetch(`/api/collections/${id}/strip-chords`, { method: "POST" });
-        btn.textContent = `Stripped (${res.stripped} tune${res.stripped !== 1 ? "s" : ""} updated)`;
-        setTimeout(() => { btn.textContent = "Strip chords"; btn.disabled = false; }, 3000);
-      } catch {
-        alert("Failed to strip chords. Please try again.");
-        btn.textContent = "Strip chords";
-        btn.disabled = false;
-      }
-    });
-  });
 
   collectionsList.querySelectorAll(".col-delete-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
