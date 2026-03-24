@@ -3402,12 +3402,10 @@ function renderCollections(collections) {
           <span class="set-count">${countLabel}</span>
         </div>
         <div class="set-card-actions">
+          <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${c.id}">Strip chords</button>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
           <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">🗑</button>
         </div>
-      </div>
-      <div class="col-strip-row">
-        <button class="btn-collection btn-sm col-strip-btn" data-col-id="${c.id}">✂ Strip guitar chord symbols</button>
       </div>
       ${c.description ? `<p class="set-notes">${escHtml(c.description)}</p>` : ""}
       <div class="set-tunes-list hidden" id="col-tunes-${c.id}"></div>

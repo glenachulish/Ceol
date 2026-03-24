@@ -703,9 +703,6 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   font-style: italic;
 }
 
-.col-strip-row {
-  margin-top: .6rem;
-}
 .col-add-set-row {
   margin-top: .6rem;
   padding-top: .5rem;
