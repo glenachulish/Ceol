@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=58" />
+  <link rel="stylesheet" href="/static/style.css?v=59" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -139,14 +139,14 @@
     <div id="view-sets" class="hidden">
       <div class="view-header">
         <h2 class="section-title">Sets</h2>
-        <button id="new-set-btn" class="btn-primary">+ New Set</button>
-        <button id="build-set-btn" class="btn-secondary">🎵 Build a Set</button>
+        <button id="new-set-btn" class="btn-set">+ New Set</button>
+        <button id="build-set-btn" class="btn-set">🎵 Build a Set</button>
       </div>
       <div id="new-set-form" class="new-set-form hidden">
         <input id="new-set-name" type="text" placeholder="Set name…" maxlength="120" />
         <input id="new-set-notes" type="text" placeholder="Notes (optional)…" />
         <div class="form-actions">
-          <button id="create-set-btn" class="btn-primary">Create</button>
+          <button id="create-set-btn" class="btn-set">Create</button>
           <button id="cancel-set-btn" class="btn-secondary">Cancel</button>
         </div>
       </div>
@@ -159,13 +159,13 @@
     <div id="view-collections" class="hidden">
       <div class="view-header">
         <h2 class="section-title">Collections</h2>
-        <button id="new-collection-btn" class="btn-primary">+ New Collection</button>
+        <button id="new-collection-btn" class="btn-collection">+ New Collection</button>
       </div>
       <div id="new-collection-form" class="new-set-form hidden">
         <input id="new-collection-name" type="text" placeholder="Collection name…" maxlength="120" />
         <input id="new-collection-desc" type="text" placeholder="Description (optional)…" />
         <div class="form-actions">
-          <button id="create-collection-btn" class="btn-primary">Create</button>
+          <button id="create-collection-btn" class="btn-collection">Create</button>
           <button id="cancel-collection-btn" class="btn-secondary">Cancel</button>
         </div>
       </div>
@@ -232,7 +232,7 @@
         </label>
         <div id="import-result" class="import-result hidden"></div>
         <div class="import-actions">
-          <button id="import-submit" class="btn-primary" disabled>Import</button>
+          <button id="import-submit" class="btn-import" disabled>Import</button>
         </div>
       </div>
 
@@ -242,7 +242,7 @@
         <textarea id="paste-abc-input" class="paste-abc-textarea" placeholder="X:1&#10;T:The Morning Dew&#10;M:6/8&#10;L:1/8&#10;K:G&#10;…" rows="12"></textarea>
         <div id="paste-abc-result" class="import-result hidden"></div>
         <div class="import-actions">
-          <button id="paste-abc-submit" class="btn-primary">Import</button>
+          <button id="paste-abc-submit" class="btn-import">Import</button>
         </div>
       </div>
 
@@ -262,7 +262,7 @@
         </label>
         <div id="thecraic-import-result" class="import-result hidden"></div>
         <div class="import-actions">
-          <button id="thecraic-import-submit" class="btn-primary" disabled>Import from TheCraic</button>
+          <button id="thecraic-import-submit" class="btn-import" disabled>Import from TheCraic</button>
         </div>
       </div>
 
@@ -272,7 +272,7 @@
           <p class="import-desc">Search TheSession.org and preview a tune before adding it to your library.</p>
           <div class="session-search-row">
             <input id="session-search-input" type="search" placeholder="Search tunes on TheSession.org…" autocomplete="off" />
-            <button id="session-search-btn" class="btn-primary">Search</button>
+            <button id="session-search-btn" class="btn-import">Search</button>
           </div>
           <div id="session-results" class="session-results"></div>
           <div style="margin-top:0.75rem">
@@ -304,7 +304,7 @@
             <pre id="preview-abc-text" class="preview-abc-text"></pre>
           </div>
           <div class="session-preview-footer">
-            <button id="session-save-btn" class="btn-primary">Save to Library</button>
+            <button id="session-save-btn" class="btn-import">Save to Library</button>
             <a id="session-visit-btn" class="btn-secondary" target="_blank" rel="noopener noreferrer" href="#">View on TheSession ↗</a>
             <span id="session-save-status" class="notes-status"></span>
           </div>
@@ -356,7 +356,7 @@
             <input id="ff-title-input" type="text" class="ff-url-input"
               placeholder="e.g. The Morning Dew" autocomplete="off" />
 
-            <button id="ff-add-btn" class="btn-primary ff-add-btn">Add to Library</button>
+            <button id="ff-add-btn" class="btn-import ff-add-btn">Add to Library</button>
           </div>
           <div id="ff-status" class="ff-cat-status"></div>
         </details>
