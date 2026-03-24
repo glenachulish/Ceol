@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=59" />
+  <link rel="stylesheet" href="/static/style.css?v=60" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -211,6 +211,7 @@
       <!-- Import source tabs -->
       <div class="modal-tabs">
         <button class="tab-btn active" data-import-tab="file">ABC File</button>
+        <button class="tab-btn" data-import-tab="folder">Folder</button>
         <button class="tab-btn" data-import-tab="paste">Paste ABC</button>
         <button class="tab-btn" data-import-tab="thecraic">TheCraic</button>
         <button class="tab-btn" data-import-tab="session">TheSession.org</button>
@@ -233,6 +234,22 @@
         <div id="import-result" class="import-result hidden"></div>
         <div class="import-actions">
           <button id="import-submit" class="btn-import" disabled>Import</button>
+        </div>
+      </div>
+
+      <!-- Folder tab -->
+      <div id="import-tab-folder" class="tab-panel hidden">
+        <p class="import-desc">Select a folder of ABC files to import all tunes at once. All <code>.abc</code> and <code>.txt</code> files in the chosen folder will be processed.</p>
+        <label class="import-drop">
+          <input type="file" id="folder-input" webkitdirectory multiple />
+          <span class="import-icon">📂</span>
+          <span class="import-label">Click to choose a folder</span>
+          <span id="folder-summary" class="import-filename"></span>
+        </label>
+        <div id="folder-file-list" class="folder-file-list hidden"></div>
+        <div id="folder-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="folder-import-btn" class="btn-import" disabled>Import All</button>
         </div>
       </div>
 
@@ -653,6 +670,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=123"></script>
+  <script src="/static/app.js?v=124"></script>
 </body>
 </html>

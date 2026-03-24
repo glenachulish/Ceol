@@ -17,7 +17,7 @@ import zipfile
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import httpx
 import PyPDF2
@@ -1320,6 +1320,64 @@ async def import_abc(file: UploadFile = File(...)):
             imported += 1
 
     return {"imported": imported, "skipped": skipped}
+
+
+@app.post("/api/import/folder")
+async def import_folder(files: List[UploadFile] = File(...)):
+    """Import multiple .abc files at once (e.g. from a folder)."""
+    total_imported = 0
+    total_skipped = 0
+    file_results = []
+    import_date = date.today().isoformat()
+
+    for upload in files:
+        fname = upload.filename or ""
+        if not fname.lower().endswith((".abc", ".txt")):
+            continue
+        content = await upload.read()
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            text = content.decode("latin-1")
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".abc", mode="w", encoding="utf-8", delete=False
+        ) as f:
+            f.write(text)
+            tmp_path = f.name
+
+        try:
+            tunes = parse_abc_file(tmp_path)
+        finally:
+            os.unlink(tmp_path)
+
+        imported = 0
+        skipped = 0
+        with _db() as conn:
+            for tune in tunes:
+                if not tune.title:
+                    skipped += 1
+                    continue
+                cur = conn.execute(
+                    "INSERT INTO tunes (craic_id, title, type, key, mode, abc, notes)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (tune.craic_id, tune.title, tune.type, tune.key, tune.mode, tune.abc,
+                     f"Imported from file: {import_date}"),
+                )
+                tune_id = cur.lastrowid
+                for alias in tune.aliases:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?, ?)",
+                        (tune_id, alias),
+                    )
+                imported += 1
+
+        total_imported += imported
+        total_skipped += skipped
+        if imported or skipped:
+            file_results.append({"filename": fname, "imported": imported, "skipped": skipped})
+
+    return {"imported": total_imported, "skipped": total_skipped, "files": file_results}
 
 
 class ImportTextBody(BaseModel):

@@ -1035,7 +1035,7 @@ function renderModal(tune, onBack = null, siblings = null) {
   const setsFooter = `<div class="modal-sets-row">
       <button id="add-to-set-btn" class="btn-set btn-sm">+ Add to a set…</button>
       <button id="create-set-from-tune-btn" class="btn-set btn-sm">+ Create new set</button>
-      <button id="build-set-from-tune-btn" class="btn-secondary btn-sm">🎵 Build a Set from here</button>
+      <button id="build-set-from-tune-btn" class="btn-set btn-sm">🎵 Build a Set from here</button>
     </div>`;
 
   const collectionsOptions = state.collections
@@ -5506,6 +5506,67 @@ theCraicSubmit.addEventListener("click", async () => {
     theCraicSubmit.textContent = "Import from TheCraic";
   }
 });
+
+// ── Folder import ─────────────────────────────────────────────────────────────
+(function () {
+  const folderInput     = document.getElementById("folder-input");
+  const folderSummary   = document.getElementById("folder-summary");
+  const folderFileList  = document.getElementById("folder-file-list");
+  const folderImportBtn = document.getElementById("folder-import-btn");
+  const folderResult    = document.getElementById("folder-result");
+
+  folderInput.addEventListener("change", () => {
+    const files = Array.from(folderInput.files).filter(f =>
+      /\.(abc|txt)$/i.test(f.name)
+    );
+    folderResult.classList.add("hidden");
+    if (!files.length) {
+      folderSummary.textContent = "No .abc files found in that folder";
+      folderFileList.classList.add("hidden");
+      folderImportBtn.disabled = true;
+      return;
+    }
+    folderSummary.textContent = `${files.length} ABC file${files.length === 1 ? "" : "s"} found`;
+    folderFileList.innerHTML = `<ul>${files.map(f => `<li>📄 ${escHtml(f.name)}</li>`).join("")}</ul>`;
+    folderFileList.classList.remove("hidden");
+    folderImportBtn.disabled = false;
+  });
+
+  folderImportBtn.addEventListener("click", async () => {
+    const files = Array.from(folderInput.files).filter(f =>
+      /\.(abc|txt)$/i.test(f.name)
+    );
+    if (!files.length) return;
+    folderImportBtn.disabled = true;
+    folderImportBtn.textContent = "Importing…";
+    folderResult.classList.remove("hidden");
+    folderResult.className = "import-result";
+    folderResult.textContent = `Importing ${files.length} file${files.length === 1 ? "" : "s"}…`;
+
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("files", f));
+      const res = await fetch("/api/import/folder", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Import failed");
+
+      const parts = [];
+      if (data.imported) parts.push(`${data.imported} tune${data.imported === 1 ? "" : "s"} imported`);
+      if (data.skipped)  parts.push(`${data.skipped} skipped (no title)`);
+      folderResult.className = "import-result import-success";
+      folderResult.textContent = `✓ ${parts.join(", ")} from ${files.length} file${files.length === 1 ? "" : "s"}.`;
+      await Promise.all([loadStats(), loadFilters()]);
+      if (state.view === "library") loadTunes();
+    } catch (err) {
+      folderResult.className = "import-result import-error";
+      folderResult.textContent = `Error: ${err.message}`;
+      folderImportBtn.disabled = false;
+    } finally {
+      folderImportBtn.textContent = "Import All";
+      folderImportBtn.disabled = false;
+    }
+  });
+})();
 
 // ── TheCraic export ───────────────────────────────────────────────────────────
 document.getElementById("thecraic-export-btn").addEventListener("click", () => {
