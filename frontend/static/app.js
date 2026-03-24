@@ -1033,8 +1033,8 @@ function renderModal(tune, onBack = null, siblings = null) {
     return urls;
   })();
   const setsFooter = `<div class="modal-sets-row">
-      <button id="add-to-set-btn" class="btn-secondary btn-sm">+ Add to a set…</button>
-      <button id="create-set-from-tune-btn" class="btn-secondary btn-sm">+ Create new set</button>
+      <button id="add-to-set-btn" class="btn-set btn-sm">+ Add to a set…</button>
+      <button id="create-set-from-tune-btn" class="btn-set btn-sm">+ Create new set</button>
       <button id="build-set-from-tune-btn" class="btn-secondary btn-sm">🎵 Build a Set from here</button>
     </div>`;
 
@@ -1047,7 +1047,7 @@ function renderModal(tune, onBack = null, siblings = null) {
           <option value="">Add to a collection…</option>
           ${collectionsOptions}
         </select>
-        <button id="add-to-col-btn" class="btn-secondary">+ Add</button>
+        <button id="add-to-col-btn" class="btn-collection">+ Add</button>
         <span id="col-status" class="set-status"></span>
       </div>`
     : `<p class="modal-hint">Go to Collections to create one, then add this tune to it.</p>`;
@@ -2049,6 +2049,8 @@ function renderSheetMusic(abc) {
   _barSel = { start: null, end: null };
   _barMap = [];
   _visualObj = null;
+  // Stop any currently playing audio before re-rendering
+  if (_synthController) { try { _synthController.pause(); } catch {} }
   _synthController = null;
   _msPerMeasure = null;
   _loopSeeking = false;
@@ -2953,8 +2955,15 @@ function renderSets(sets) {
     return;
   }
 
-  setsList.innerHTML = sets.map(s => `
-    <div class="set-card" data-set-id="${s.id}" data-favourite="${s.is_favourite || 0}">
+  const _masteryLabels = ["Unrated","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
+
+  setsList.innerHTML = sets.map(s => {
+    const rating = s.rating || 0;
+    const stars = [1,2,3,4,5].map(n =>
+      `<button class="set-star-btn${rating >= n ? " filled" : ""}" data-n="${n}" data-set-id="${s.id}" title="${_masteryLabels[n]}">★</button>`
+    ).join("");
+    return `
+    <div class="set-card" data-set-id="${s.id}" data-favourite="${s.is_favourite || 0}" data-rating="${rating}">
       <div class="set-card-header">
         <div class="set-card-info">
           <span class="set-name">${escHtml(s.name)}</span>
@@ -2964,15 +2973,17 @@ function renderSets(sets) {
         <div class="set-card-actions">
           <button class="set-fav-btn${s.is_favourite ? " active" : ""}" data-set-id="${s.id}"
                   title="${s.is_favourite ? "Remove from favourites" : "Add to favourites"}">👍</button>
+          <button class="set-add-col-btn btn-collection btn-sm" data-set-id="${s.id}" title="Add to collection">+ Collection</button>
           <button class="btn-secondary set-expand-btn" data-set-id="${s.id}">View</button>
           <button class="btn-secondary set-music-btn" data-set-id="${s.id}" title="View full set sheet music">Sheet music</button>
           <button class="btn-danger set-delete-btn" data-set-id="${s.id}" title="Delete set">🗑</button>
         </div>
       </div>
+      <div class="set-stars">${stars}<span class="set-mastery-label">${rating ? _masteryLabels[rating] : ""}</span></div>
       ${s.notes ? `<p class="set-notes">${escHtml(s.notes)}</p>` : ""}
       <div class="set-tunes-list hidden" id="set-tunes-${s.id}"></div>
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
 
   function _renderSetTunes(tunesDiv, id, tunes) {
     // Build a lookup map so transitions can be rebuilt after reordering
@@ -3225,6 +3236,80 @@ function renderSets(sets) {
     });
   });
 
+  // Mastery star rating for sets
+  setsList.querySelectorAll(".set-star-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const card = btn.closest(".set-card");
+      const setId = btn.dataset.setId;
+      const n = Number(btn.dataset.n);
+      const current = Number(card.dataset.rating || 0);
+      const rating = n === current ? 0 : n;
+      try {
+        await apiFetch(`/api/sets/${setId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rating }),
+        });
+        card.dataset.rating = rating;
+        card.querySelectorAll(".set-star-btn").forEach((s, i) =>
+          s.classList.toggle("filled", i < rating)
+        );
+        const label = card.querySelector(".set-mastery-label");
+        if (label) label.textContent = rating ? _masteryLabels[rating] : "";
+      } catch { /* ignore */ }
+    });
+  });
+
+  // Add set to collection
+  setsList.querySelectorAll(".set-add-col-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const setId = btn.dataset.setId;
+      const cols = await apiFetch("/api/collections");
+      if (!cols.length) { alert("No collections yet — create one first in the Collections tab."); return; }
+      const existingOptions = cols.map(c =>
+        `<label class="bulk-col-option">
+           <input type="radio" name="set-col-pick" value="${c.id}" />
+           ${escHtml(c.name)}
+         </label>`
+      ).join("");
+      modalContent.innerHTML = `
+        <h2 class="modal-title">Add Set to Collection</h2>
+        <div class="bulk-col-list">${existingOptions}</div>
+        <div class="notes-actions" style="margin-top:1.25rem">
+          <button id="set-col-confirm" class="btn-collection" disabled>Add to Collection</button>
+          <button id="set-col-cancel" class="btn-secondary">Cancel</button>
+          <span id="set-col-status" class="notes-status"></span>
+        </div>`;
+      modalOverlay.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+      const confirmBtn = document.getElementById("set-col-confirm");
+      modalContent.querySelectorAll("input[name=set-col-pick]").forEach(r => {
+        r.addEventListener("change", () => { confirmBtn.disabled = false; });
+      });
+      document.getElementById("set-col-cancel").addEventListener("click", closeModal);
+      confirmBtn.addEventListener("click", async () => {
+        const sel = modalContent.querySelector("input[name=set-col-pick]:checked");
+        if (!sel) return;
+        const status = document.getElementById("set-col-status");
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = "Adding…";
+        try {
+          const res = await apiFetch(`/api/collections/${sel.value}/sets`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ set_id: Number(setId) }),
+          });
+          status.textContent = res.added ? "Added ✓" : "Already in that collection.";
+          status.className = "notes-status notes-saved";
+          setTimeout(closeModal, 700);
+        } catch {
+          status.textContent = "Failed — please try again.";
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "Add to Collection";
+        }
+      });
+    });
+  });
+
   setsList.querySelectorAll(".set-rename-btn").forEach(btn => {
     btn.addEventListener("click", e => {
       e.stopPropagation();
@@ -3304,22 +3389,28 @@ function renderCollections(collections) {
     return;
   }
 
-  collectionsList.innerHTML = collections.map(c => `
+  collectionsList.innerHTML = collections.map(c => {
+    const parts = [];
+    if (c.tune_count) parts.push(`${c.tune_count} tune${c.tune_count !== 1 ? "s" : ""}`);
+    if (c.set_count)  parts.push(`${c.set_count} set${c.set_count !== 1 ? "s" : ""}`);
+    const countLabel = parts.join(", ") || "empty";
+    return `
     <div class="set-card" data-col-id="${c.id}">
       <div class="set-card-header">
         <div class="set-card-info">
           <span class="set-name">${escHtml(c.name)}</span>
-          <span class="set-count">${c.tune_count} tune${c.tune_count !== 1 ? "s" : ""}</span>
+          <span class="set-count">${countLabel}</span>
         </div>
         <div class="set-card-actions">
+          <button class="btn-secondary col-strip-btn" data-col-id="${c.id}" title="Strip guitar chord symbols from all tunes in this collection">Strip chords</button>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
           <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">🗑</button>
         </div>
       </div>
       ${c.description ? `<p class="set-notes">${escHtml(c.description)}</p>` : ""}
       <div class="set-tunes-list hidden" id="col-tunes-${c.id}"></div>
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
 
   collectionsList.querySelectorAll(".col-expand-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -3330,18 +3421,37 @@ function renderCollections(collections) {
         tunesDiv.classList.remove("hidden");
         btn.textContent = "Hide";
         const colData = await apiGetCollection(id);
-        if (!colData.tunes || !colData.tunes.length) {
-          tunesDiv.innerHTML = '<p class="set-empty">No tunes yet – open a tune and use "Add to collection".</p>';
-        } else {
-          tunesDiv.innerHTML = colData.tunes.map(t => `
+        let html = "";
+
+        // Tunes section
+        if (colData.tunes && colData.tunes.length) {
+          html += `<p class="col-section-label">Tunes</p>`;
+          html += colData.tunes.map(t => `
             <div class="set-tune-row">
               <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
               <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
               <span class="badge badge-key">${escHtml(t.key || "")}</span>
               <button class="btn-icon remove-from-col"
                 data-col-id="${id}" data-tune-id="${t.id}" title="Remove from collection">🗑</button>
-            </div>
-          `).join("");
+            </div>`).join("");
+        }
+
+        // Sets section
+        if (colData.sets && colData.sets.length) {
+          html += `<p class="col-section-label" style="margin-top:.6rem">Sets</p>`;
+          html += colData.sets.map(s => `
+            <div class="set-tune-row col-set-row" data-set-id="${s.id}">
+              <span class="set-tune-title">${escHtml(s.name)}</span>
+              <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
+              <button class="btn-icon remove-from-col-set"
+                data-col-id="${id}" data-set-id="${s.id}" title="Remove set from collection">🗑</button>
+            </div>`).join("");
+        }
+
+        if (!html) {
+          tunesDiv.innerHTML = '<p class="set-empty">Empty — add tunes or sets to this collection.</p>';
+        } else {
+          tunesDiv.innerHTML = html;
 
           tunesDiv.querySelectorAll(".tune-open-btn").forEach(tb => {
             tb.addEventListener("click", async () => {
@@ -3359,14 +3469,21 @@ function renderCollections(collections) {
               try {
                 await apiRemoveTuneFromCollection(rb.dataset.colId, rb.dataset.tuneId);
                 rb.closest(".set-tune-row").remove();
-                const col = state.collections.find(c => String(c.id) === String(id));
-                if (col) {
-                  col.tune_count = Math.max(0, (col.tune_count || 1) - 1);
-                  const countEl = document.querySelector(`[data-col-id="${id}"] .set-count`);
-                  if (countEl) countEl.textContent = `${col.tune_count} tune${col.tune_count !== 1 ? "s" : ""}`;
-                }
               } catch {
                 alert("Failed to remove tune. Please try again.");
+                rb.disabled = false;
+              }
+            });
+          });
+
+          tunesDiv.querySelectorAll(".remove-from-col-set").forEach(rb => {
+            rb.addEventListener("click", async () => {
+              rb.disabled = true;
+              try {
+                await apiFetch(`/api/collections/${rb.dataset.colId}/sets/${rb.dataset.setId}`, { method: "DELETE" });
+                rb.closest(".set-tune-row").remove();
+              } catch {
+                alert("Failed to remove set. Please try again.");
                 rb.disabled = false;
               }
             });
@@ -3375,6 +3492,26 @@ function renderCollections(collections) {
       } else {
         tunesDiv.classList.add("hidden");
         btn.textContent = "View";
+      }
+    });
+  });
+
+  // Strip guitar chord symbols from all tunes in a collection
+  collectionsList.querySelectorAll(".col-strip-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.colId;
+      const name = btn.closest(".set-card").querySelector(".set-name").textContent;
+      if (!confirm(`Strip guitar chord symbols from all ABC tunes in "${name}"? This edits the ABC directly and cannot be undone.`)) return;
+      btn.disabled = true;
+      btn.textContent = "Stripping…";
+      try {
+        const res = await apiFetch(`/api/collections/${id}/strip-chords`, { method: "POST" });
+        btn.textContent = `Stripped (${res.stripped} tune${res.stripped !== 1 ? "s" : ""} updated)`;
+        setTimeout(() => { btn.textContent = "Strip chords"; btn.disabled = false; }, 3000);
+      } catch {
+        alert("Failed to strip chords. Please try again.");
+        btn.textContent = "Strip chords";
+        btn.disabled = false;
       }
     });
   });
@@ -3919,7 +4056,8 @@ document.addEventListener("keydown", e => {
 });
 
 function closeModal() {
-  if (_synthController) _synthController.pause();
+  if (_synthController) { try { _synthController.pause(); } catch {} }
+  if (_previewSynthCtrl) { try { _previewSynthCtrl.stop(); } catch {} _previewSynthCtrl = null; }
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";

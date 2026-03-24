@@ -916,7 +916,7 @@ class SetReorder(BaseModel):
 def list_sets():
     with _db() as conn:
         rows = conn.execute(
-            "SELECT id, name, notes, is_favourite, created_at FROM sets ORDER BY name COLLATE NOCASE"
+            "SELECT id, name, notes, is_favourite, rating, created_at FROM sets ORDER BY name COLLATE NOCASE"
         ).fetchall()
         result = []
         for r in rows:
@@ -932,6 +932,7 @@ class SetUpdate(BaseModel):
     name: Optional[str] = None
     notes: Optional[str] = None
     is_favourite: Optional[int] = None
+    rating: Optional[int] = None
 
 
 @app.patch("/api/sets/{set_id}")
@@ -990,6 +991,7 @@ def delete_set(set_id: int):
         if not conn.execute("SELECT 1 FROM sets WHERE id = ?", (set_id,)).fetchone():
             raise HTTPException(404, "Set not found")
         conn.execute("DELETE FROM set_tunes WHERE set_id = ?", (set_id,))
+        conn.execute("DELETE FROM collection_sets WHERE set_id = ?", (set_id,))
         conn.execute("DELETE FROM sets WHERE id = ?", (set_id,))
     return {"ok": True}
 
@@ -1065,6 +1067,9 @@ def list_collections():
             c["tune_count"] = conn.execute(
                 "SELECT COUNT(*) FROM collection_tunes WHERE collection_id = ?", (c["id"],)
             ).fetchone()[0]
+            c["set_count"] = conn.execute(
+                "SELECT COUNT(*) FROM collection_sets WHERE collection_id = ?", (c["id"],)
+            ).fetchone()[0]
             result.append(c)
     return result
 
@@ -1099,8 +1104,20 @@ def get_collection(col_id: int):
             """,
             (col_id,),
         ).fetchall()
+        sets = conn.execute(
+            """
+            SELECT s.id, s.name, s.rating, s.is_favourite, cs.added_at,
+                   (SELECT COUNT(*) FROM set_tunes WHERE set_id = s.id) AS tune_count
+            FROM collection_sets cs
+            JOIN sets s ON s.id = cs.set_id
+            WHERE cs.collection_id = ?
+            ORDER BY s.name COLLATE NOCASE
+            """,
+            (col_id,),
+        ).fetchall()
     result = dict(c)
     result["tunes"] = [dict(t) for t in tunes]
+    result["sets"] = [dict(s) for s in sets]
     return result
 
 
@@ -1158,6 +1175,74 @@ def remove_tune_from_collection(col_id: int, tune_id: int):
         if cur.rowcount == 0:
             raise HTTPException(404, "Tune not in collection")
     return {"ok": True}
+
+
+class CollectionSetAdd(BaseModel):
+    set_id: int
+
+
+@app.post("/api/collections/{col_id}/sets", status_code=201)
+def add_set_to_collection(col_id: int, body: CollectionSetAdd):
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM collections WHERE id = ?", (col_id,)).fetchone():
+            raise HTTPException(404, "Collection not found")
+        if not conn.execute("SELECT 1 FROM sets WHERE id = ?", (body.set_id,)).fetchone():
+            raise HTTPException(404, "Set not found")
+        if conn.execute(
+            "SELECT 1 FROM collection_sets WHERE collection_id = ? AND set_id = ?",
+            (col_id, body.set_id),
+        ).fetchone():
+            return {"ok": True, "added": False}
+        conn.execute(
+            "INSERT INTO collection_sets (collection_id, set_id) VALUES (?, ?)",
+            (col_id, body.set_id),
+        )
+    return {"ok": True, "added": True}
+
+
+@app.delete("/api/collections/{col_id}/sets/{set_id}")
+def remove_set_from_collection(col_id: int, set_id: int):
+    with _db() as conn:
+        cur = conn.execute(
+            "DELETE FROM collection_sets WHERE collection_id = ? AND set_id = ?",
+            (col_id, set_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Set not in collection")
+    return {"ok": True}
+
+
+@app.post("/api/collections/{col_id}/strip-chords")
+def strip_collection_chords(col_id: int):
+    """Remove guitar chord symbols (quoted strings) from all ABC in this collection's tunes."""
+    header_re = re.compile(r'^[A-Za-z%]\s*:')
+    chord_re  = re.compile(r'"[^"]*"')
+
+    def _strip(abc: str) -> str:
+        lines = []
+        for line in abc.splitlines():
+            if header_re.match(line.strip()):
+                lines.append(line)
+            else:
+                lines.append(chord_re.sub("", line))
+        return "\n".join(lines)
+
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM collections WHERE id = ?", (col_id,)).fetchone():
+            raise HTTPException(404, "Collection not found")
+        tunes = conn.execute(
+            """SELECT t.id, t.abc FROM tunes t
+               JOIN collection_tunes ct ON ct.tune_id = t.id
+               WHERE ct.collection_id = ? AND t.abc IS NOT NULL AND t.abc != ''""",
+            (col_id,),
+        ).fetchall()
+        stripped = 0
+        for t in tunes:
+            new_abc = _strip(t["abc"])
+            if new_abc != t["abc"]:
+                conn.execute("UPDATE tunes SET abc = ? WHERE id = ?", (new_abc, t["id"]))
+                stripped += 1
+    return {"ok": True, "stripped": stripped}
 
 
 @app.get("/api/tunes/{tune_id}/collections")
