@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=60" />
+  <link rel="stylesheet" href="/static/style.css?v=61" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body>
@@ -169,6 +169,25 @@
           <button id="cancel-collection-btn" class="btn-secondary">Cancel</button>
         </div>
       </div>
+      <!-- Smart collection: recently imported -->
+      <div class="smart-col-card" id="recent-imports-card">
+        <div class="smart-col-header">
+          <span class="smart-col-icon">📥</span>
+          <span class="smart-col-title">Recently Imported</span>
+          <div class="smart-col-ranges">
+            <button class="smart-range-btn active" data-days="1">Today</button>
+            <button class="smart-range-btn" data-days="7">This week</button>
+            <button class="smart-range-btn" data-days="30">This month</button>
+            <span class="smart-range-custom">
+              or last <input id="recent-days-input" type="number" min="1" max="365" value="7" />
+              <span>days</span>
+            </span>
+          </div>
+          <span id="recent-imports-count" class="smart-col-count"></span>
+        </div>
+        <div id="recent-imports-list" class="recent-imports-list hidden"></div>
+      </div>
+
       <div id="collections-list" class="sets-list">
         <p class="loading">Loading collections…</p>
       </div>
@@ -670,6 +689,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=124"></script>
+  <script src="/static/app.js?v=125"></script>
 </body>
 </html>

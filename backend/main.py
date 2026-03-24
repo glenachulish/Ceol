@@ -15,7 +15,7 @@ import tempfile
 import uuid
 import zipfile
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 
@@ -1053,6 +1053,19 @@ class CollectionCreate(BaseModel):
 
 class CollectionTuneAdd(BaseModel):
     tune_id: int
+
+
+@app.get("/api/tunes/recent")
+def get_recent_tunes(days: int = Query(7, ge=1, le=365)):
+    """Return tunes imported within the last `days` days, newest first."""
+    cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, title, type, key, mode, imported_at"
+            " FROM tunes WHERE imported_at >= ? ORDER BY imported_at DESC",
+            (cutoff,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 @app.get("/api/collections")

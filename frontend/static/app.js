@@ -3609,6 +3609,77 @@ function renderCollections(collections) {
   });
 }
 
+// ── Recently Imported smart collection ───────────────────────────────────────
+(function () {
+  let _recentDays = 7;
+
+  const rangeButtons  = document.querySelectorAll(".smart-range-btn");
+  const daysInput     = document.getElementById("recent-days-input");
+  const countEl       = document.getElementById("recent-imports-count");
+  const listEl        = document.getElementById("recent-imports-list");
+
+  function relativeDate(isoStr) {
+    if (!isoStr) return "";
+    const d = new Date(isoStr.replace(" ", "T") + "Z");
+    const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
+    if (diffDays === 0) return "today";
+    if (diffDays === 1) return "yesterday";
+    return `${diffDays} days ago`;
+  }
+
+  async function loadRecent(days) {
+    _recentDays = days;
+    countEl.textContent = "";
+    listEl.innerHTML = '<p class="loading" style="padding:.5rem 0">Loading…</p>';
+    listEl.classList.remove("hidden");
+    try {
+      const res = await fetch(`/api/tunes/recent?days=${days}`);
+      const tunes = await res.json();
+      countEl.textContent = `${tunes.length} tune${tunes.length === 1 ? "" : "s"}`;
+      if (!tunes.length) {
+        listEl.innerHTML = `<p class="empty" style="padding:.5rem 0">No tunes imported in this period.</p>`;
+        return;
+      }
+      listEl.innerHTML = tunes.map(t => `
+        <div class="set-tune-row">
+          <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
+          <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+          <span class="badge badge-key">${escHtml(t.key || "")}</span>
+          <span class="recent-import-date">${relativeDate(t.imported_at)}</span>
+        </div>`).join("");
+      // wire up tune-open buttons
+      listEl.querySelectorAll(".tune-open-btn").forEach(btn => {
+        btn.addEventListener("click", () => openTuneModal(Number(btn.dataset.tuneId)));
+      });
+    } catch {
+      listEl.innerHTML = '<p class="empty" style="padding:.5rem 0">Failed to load.</p>';
+    }
+  }
+
+  // Range preset buttons
+  rangeButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      rangeButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const days = Number(btn.dataset.days);
+      daysInput.value = days;
+      loadRecent(days);
+    });
+  });
+
+  // Custom days input
+  let _debounce;
+  daysInput.addEventListener("input", () => {
+    const days = Math.max(1, Math.min(365, Number(daysInput.value) || 1));
+    rangeButtons.forEach(b => b.classList.remove("active"));
+    clearTimeout(_debounce);
+    _debounce = setTimeout(() => loadRecent(days), 400);
+  });
+
+  // Expose so loadCollections can trigger a refresh
+  window._loadRecentImports = () => loadRecent(_recentDays);
+})();
+
 async function loadCollections() {
   collectionsList.innerHTML = '<p class="loading">Loading collections…</p>';
   try {
@@ -3617,6 +3688,7 @@ async function loadCollections() {
   } catch {
     collectionsList.innerHTML = '<p class="empty">Failed to load collections.</p>';
   }
+  if (window._loadRecentImports) window._loadRecentImports();
 }
 
 // ── Loaders ───────────────────────────────────────────────────────────────────
