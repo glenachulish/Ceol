@@ -788,6 +788,7 @@ async function apiDeleteTune(id) {
 // ── View switching ────────────────────────────────────────────────────────────
 function switchView(view) {
   state.view = view;
+  document.body.dataset.view = view;  // drives nav colour via body[data-view] CSS
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements].forEach(v => v.classList.add("hidden"));
   [navLibrary, navSets, navCollections].forEach(n => n.classList.remove("active"));
@@ -1041,16 +1042,23 @@ function renderModal(tune, onBack = null, siblings = null) {
   const collectionsOptions = state.collections
     .map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`)
     .join("");
-  const collectionsFooter = state.collections.length
-    ? `<div class="modal-sets-row">
+  const collectionsFooter = `<div class="modal-col-section">
+    ${state.collections.length ? `<div class="modal-sets-row">
         <select id="col-select" class="set-select">
           <option value="">Add to a collection…</option>
           ${collectionsOptions}
         </select>
-        <button id="add-to-col-btn" class="btn-collection">+ Add</button>
+        <button id="add-to-col-btn" class="btn-collection btn-sm">+ Add</button>
         <span id="col-status" class="set-status"></span>
-      </div>`
-    : `<p class="modal-hint">Go to Collections to create one, then add this tune to it.</p>`;
+      </div>` : ""}
+    <div id="new-col-form" class="modal-new-col-form hidden">
+      <input id="new-col-name" type="text" placeholder="New collection name…" maxlength="120" class="ff-url-input" />
+      <button id="new-col-confirm" class="btn-collection btn-sm">Create &amp; Add</button>
+      <button id="new-col-cancel" class="btn-secondary btn-sm">Cancel</button>
+      <span id="new-col-status" class="set-status"></span>
+    </div>
+    <button id="create-col-from-tune-btn" class="btn-collection btn-sm">+ New collection</button>
+  </div>`;
 
   modalContent.innerHTML = `
     ${backBtn}
@@ -1436,7 +1444,7 @@ function renderModal(tune, onBack = null, siblings = null) {
       _bldrStepMode([tune], { type: tune.type || "", minRating: "", collectionId: "", collectionName: "" }, backToTune);
     });
 
-  // Add to collection
+  // Add to existing collection
   const addToColBtn = document.getElementById("add-to-col-btn");
   if (addToColBtn) {
     addToColBtn.addEventListener("click", async () => {
@@ -1455,6 +1463,55 @@ function renderModal(tune, onBack = null, siblings = null) {
       }
     });
   }
+
+  // Create new collection from tune modal
+  const createColBtn   = document.getElementById("create-col-from-tune-btn");
+  const newColForm     = document.getElementById("new-col-form");
+  const newColName     = document.getElementById("new-col-name");
+  const newColConfirm  = document.getElementById("new-col-confirm");
+  const newColCancel   = document.getElementById("new-col-cancel");
+  const newColStatus   = document.getElementById("new-col-status");
+
+  createColBtn.addEventListener("click", () => {
+    newColForm.classList.remove("hidden");
+    createColBtn.classList.add("hidden");
+    newColName.focus();
+  });
+  newColCancel.addEventListener("click", () => {
+    newColForm.classList.add("hidden");
+    createColBtn.classList.remove("hidden");
+    newColName.value = "";
+    newColStatus.textContent = "";
+  });
+  newColName.addEventListener("keydown", e => { if (e.key === "Enter") newColConfirm.click(); });
+  newColConfirm.addEventListener("click", async () => {
+    const name = newColName.value.trim();
+    if (!name) { newColName.focus(); return; }
+    newColConfirm.disabled = true;
+    try {
+      const col = await apiCreateCollection(name, "");
+      await apiAddTuneToCollection(col.id, tune.id);
+      newColStatus.textContent = `Added to "${escHtml(name)}"!`;
+      newColStatus.className = "set-status set-saved";
+      newColForm.classList.add("hidden");
+      createColBtn.classList.remove("hidden");
+      newColName.value = "";
+      // Refresh the select dropdown with new collection
+      state.collections = await fetchCollections();
+      const sel = document.getElementById("col-select");
+      if (sel) {
+        const opt = document.createElement("option");
+        opt.value = col.id; opt.textContent = col.name;
+        sel.appendChild(opt);
+      }
+      setTimeout(() => { newColStatus.textContent = ""; }, 2500);
+    } catch {
+      newColStatus.textContent = "Failed.";
+      newColStatus.className = "set-status set-error";
+    } finally {
+      newColConfirm.disabled = false;
+    }
+  });
 
   // Attach audio panel
   const attachAudioBtn    = document.getElementById("attach-audio-btn");
