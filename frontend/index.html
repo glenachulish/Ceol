@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=63" />
+  <link rel="stylesheet" href="/static/style.css?v=64" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body data-view="library">
@@ -258,14 +258,17 @@
 
       <!-- Folder tab -->
       <div id="import-tab-folder" class="tab-panel hidden">
-        <p class="import-desc">Select a folder of ABC files to import all tunes at once. All <code>.abc</code> and <code>.txt</code> files in the chosen folder will be processed.</p>
+        <p class="import-desc">Select a folder to import its contents. The app will sort files
+          by type — <strong>ABC</strong> tunes are imported first, then
+          <strong>MP3</strong>, <strong>PDF</strong> and <strong>photo</strong>
+          files are matched to tunes by filename and attached automatically.</p>
         <label class="import-drop">
           <input type="file" id="folder-input" webkitdirectory multiple />
           <span class="import-icon">📂</span>
           <span class="import-label">Click to choose a folder</span>
           <span id="folder-summary" class="import-filename"></span>
         </label>
-        <div id="folder-file-list" class="folder-file-list hidden"></div>
+        <div id="folder-preview" class="folder-preview hidden"></div>
         <div id="folder-result" class="import-result hidden"></div>
         <div class="import-actions">
           <button id="folder-import-btn" class="btn-import" disabled>Import All</button>
@@ -689,6 +692,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=128"></script>
+  <script src="/static/app.js?v=129"></script>
 </body>
 </html>

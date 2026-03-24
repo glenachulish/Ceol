@@ -1833,18 +1833,21 @@ button.set-tune-title:hover { text-decoration: underline; }
   border: 1px solid rgba(239,68,68,.3);
 }
 
-/* Folder import file list */
-.folder-file-list {
-  max-height: 160px;
-  overflow-y: auto;
+/* Folder import preview */
+.folder-preview {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: .4rem .6rem;
+  padding: .6rem .8rem;
   margin-bottom: .75rem;
-  font-size: .82rem;
-  color: var(--text-muted);
+  font-size: .85rem;
 }
-.folder-file-list li { list-style: none; padding: .15rem 0; }
+.folder-category-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .3rem; }
+.folder-match-hint {
+  font-size: .78rem;
+  color: var(--text-muted);
+  margin: .5rem 0 0;
+  font-style: italic;
+}
 
 /* ── PDF bulk import ──────────────────────────────────────── */
 .import-drop-active { border-color: var(--accent) !important; background: var(--surface3); }

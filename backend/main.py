@@ -1337,17 +1337,48 @@ async def import_abc(file: UploadFile = File(...)):
 
 @app.post("/api/import/folder")
 async def import_folder(files: List[UploadFile] = File(...)):
-    """Import multiple .abc files at once (e.g. from a folder)."""
-    total_imported = 0
-    total_skipped = 0
-    file_results = []
-    import_date = date.today().isoformat()
+    """Smart folder import: handles ABC, MP3, PDF, and image files.
+
+    ABC files are imported as tunes first.  Non-ABC files are matched to
+    tunes by filename (case-insensitive), checking both newly-imported and
+    existing tunes.  Unmatched media files create a new tune entry with
+    the media attached.
+    """
+    ABC_EXTS = {".abc", ".txt"}
+    AUDIO_EXTS = {".mp3", ".m4a", ".ogg", ".wav"}
+    PDF_EXTS = {".pdf"}
+    IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
+    ALL_KNOWN = ABC_EXTS | AUDIO_EXTS | PDF_EXTS | IMAGE_EXTS
+
+    # Categorise uploads
+    abc_files: list[tuple[str, bytes]] = []        # (fname, content)
+    media_files: list[tuple[str, str, bytes]] = []  # (fname, category, content)
 
     for upload in files:
         fname = upload.filename or ""
-        if not fname.lower().endswith((".abc", ".txt")):
+        ext = Path(fname).suffix.lower()
+        if ext not in ALL_KNOWN:
             continue
         content = await upload.read()
+        if ext in ABC_EXTS:
+            abc_files.append((fname, content))
+        elif ext in AUDIO_EXTS:
+            media_files.append((fname, "audio", content))
+        elif ext in PDF_EXTS:
+            media_files.append((fname, "pdf", content))
+        elif ext in IMAGE_EXTS:
+            media_files.append((fname, "image", content))
+
+    import_date = date.today().isoformat()
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # ── Phase 1: import ABC files ─────────────────────────────────
+    abc_imported = 0
+    abc_skipped = 0
+    # title_lower → tune_id for matching media later
+    imported_title_map: dict[str, int] = {}
+
+    for fname, content in abc_files:
         try:
             text = content.decode("utf-8")
         except UnicodeDecodeError:
@@ -1358,39 +1389,102 @@ async def import_folder(files: List[UploadFile] = File(...)):
         ) as f:
             f.write(text)
             tmp_path = f.name
-
         try:
             tunes = parse_abc_file(tmp_path)
         finally:
             os.unlink(tmp_path)
 
-        imported = 0
-        skipped = 0
         with _db() as conn:
             for tune in tunes:
                 if not tune.title:
-                    skipped += 1
+                    abc_skipped += 1
                     continue
                 cur = conn.execute(
-                    "INSERT INTO tunes (craic_id, title, type, key, mode, abc, notes)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO tunes (craic_id, title, type, key, mode, abc, notes, imported_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))",
                     (tune.craic_id, tune.title, tune.type, tune.key, tune.mode, tune.abc,
                      f"Imported from file: {import_date}"),
                 )
                 tune_id = cur.lastrowid
+                imported_title_map[tune.title.strip().lower()] = tune_id
                 for alias in tune.aliases:
                     conn.execute(
                         "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?, ?)",
                         (tune_id, alias),
                     )
-                imported += 1
+                abc_imported += 1
 
-        total_imported += imported
-        total_skipped += skipped
-        if imported or skipped:
-            file_results.append({"filename": fname, "imported": imported, "skipped": skipped})
+    # ── Phase 2: match & attach media files ───────────────────────
+    audio_attached = 0
+    pdf_attached = 0
+    image_attached = 0
+    new_from_media = 0
 
-    return {"imported": total_imported, "skipped": total_skipped, "files": file_results}
+    def _find_tune_by_title(title_lower: str) -> Optional[int]:
+        """Check newly-imported tunes first, then search the whole library."""
+        if title_lower in imported_title_map:
+            return imported_title_map[title_lower]
+        with _db() as conn:
+            row = conn.execute(
+                "SELECT id FROM tunes WHERE LOWER(TRIM(title)) = ? LIMIT 1",
+                (title_lower,),
+            ).fetchone()
+            return row["id"] if row else None
+
+    def _store_file(content: bytes, ext: str) -> str:
+        stored_name = f"{uuid.uuid4().hex}{ext}"
+        (UPLOADS_DIR / stored_name).write_bytes(content)
+        return f"/api/uploads/{stored_name}"
+
+    def _append_note(tune_id: int, note_line: str):
+        with _db() as conn:
+            existing = conn.execute(
+                "SELECT notes FROM tunes WHERE id = ?", (tune_id,)
+            ).fetchone()
+            notes = (existing["notes"] or "") if existing else ""
+            sep = "\n" if notes.strip() else ""
+            conn.execute(
+                "UPDATE tunes SET notes = ? WHERE id = ?",
+                (notes + sep + note_line, tune_id),
+            )
+
+    for fname, category, content in media_files:
+        stem = Path(fname).stem.strip()
+        ext = Path(fname).suffix.lower()
+        title_lower = stem.lower()
+        tune_id = _find_tune_by_title(title_lower)
+
+        # If no match, create a bare tune entry
+        if tune_id is None:
+            with _db() as conn:
+                cur = conn.execute(
+                    "INSERT INTO tunes (title, notes, imported_at) VALUES (?, ?, datetime('now'))",
+                    (stem, f"Imported from folder: {import_date}"),
+                )
+                tune_id = cur.lastrowid
+                imported_title_map[title_lower] = tune_id
+                new_from_media += 1
+
+        url = _store_file(content, ext)
+
+        if category == "audio":
+            _append_note(tune_id, f"audio: {url}")
+            audio_attached += 1
+        elif category == "pdf":
+            _append_note(tune_id, f"sheet music (PDF): {url}")
+            pdf_attached += 1
+        elif category == "image":
+            _append_note(tune_id, f"sheet music (image): {url}")
+            image_attached += 1
+
+    return {
+        "abc_imported": abc_imported,
+        "abc_skipped": abc_skipped,
+        "audio_attached": audio_attached,
+        "pdf_attached": pdf_attached,
+        "image_attached": image_attached,
+        "new_from_media": new_from_media,
+    }
 
 
 class ImportTextBody(BaseModel):

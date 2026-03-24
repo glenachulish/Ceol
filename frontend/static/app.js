@@ -5647,60 +5647,94 @@ theCraicSubmit.addEventListener("click", async () => {
   }
 });
 
-// ── Folder import ─────────────────────────────────────────────────────────────
+// ── Folder import (smart multi-format) ────────────────────────────────────────
 (function () {
+  const ABC_RE   = /\.(abc|txt)$/i;
+  const AUDIO_RE = /\.(mp3|m4a|ogg|wav)$/i;
+  const PDF_RE   = /\.pdf$/i;
+  const IMAGE_RE = /\.(jpg|jpeg|png)$/i;
+  const ALL_RE   = /\.(abc|txt|mp3|m4a|ogg|wav|pdf|jpg|jpeg|png)$/i;
+
   const folderInput     = document.getElementById("folder-input");
   const folderSummary   = document.getElementById("folder-summary");
-  const folderFileList  = document.getElementById("folder-file-list");
+  const folderPreview   = document.getElementById("folder-preview");
   const folderImportBtn = document.getElementById("folder-import-btn");
   const folderResult    = document.getElementById("folder-result");
 
+  function categorise(files) {
+    const abc = [], audio = [], pdf = [], image = [], skipped = [];
+    for (const f of files) {
+      if (ABC_RE.test(f.name))        abc.push(f);
+      else if (AUDIO_RE.test(f.name)) audio.push(f);
+      else if (PDF_RE.test(f.name))   pdf.push(f);
+      else if (IMAGE_RE.test(f.name)) image.push(f);
+      else                            skipped.push(f);
+    }
+    return { abc, audio, pdf, image, skipped };
+  }
+
+  function renderPreview(cats) {
+    const rows = [];
+    if (cats.abc.length)   rows.push(`<li>🎵 <strong>${cats.abc.length}</strong> ABC tune file${cats.abc.length === 1 ? "" : "s"}</li>`);
+    if (cats.audio.length) rows.push(`<li>🎶 <strong>${cats.audio.length}</strong> audio file${cats.audio.length === 1 ? "" : "s"} (MP3/M4A/WAV)</li>`);
+    if (cats.pdf.length)   rows.push(`<li>📄 <strong>${cats.pdf.length}</strong> PDF file${cats.pdf.length === 1 ? "" : "s"}</li>`);
+    if (cats.image.length) rows.push(`<li>📷 <strong>${cats.image.length}</strong> photo${cats.image.length === 1 ? "" : "s"} (JPG/PNG)</li>`);
+    if (cats.skipped.length) rows.push(`<li style="color:var(--text-muted)">⏭ ${cats.skipped.length} unsupported file${cats.skipped.length === 1 ? "" : "s"} (ignored)</li>`);
+
+    let html = `<ul class="folder-category-list">${rows.join("")}</ul>`;
+    html += `<p class="folder-match-hint">ABC files create new tunes. Audio, PDF and photo files are matched to tunes by filename — unmatched files create a new tune entry.</p>`;
+    return html;
+  }
+
   folderInput.addEventListener("change", () => {
-    const files = Array.from(folderInput.files).filter(f =>
-      /\.(abc|txt)$/i.test(f.name)
-    );
+    const allFiles = Array.from(folderInput.files);
+    const known = allFiles.filter(f => ALL_RE.test(f.name));
+    const cats = categorise(allFiles);
     folderResult.classList.add("hidden");
-    if (!files.length) {
-      folderSummary.textContent = "No .abc files found in that folder";
-      folderFileList.classList.add("hidden");
+
+    if (!known.length) {
+      folderSummary.textContent = "No supported files found in that folder";
+      folderPreview.classList.add("hidden");
       folderImportBtn.disabled = true;
       return;
     }
-    folderSummary.textContent = `${files.length} ABC file${files.length === 1 ? "" : "s"} found`;
-    folderFileList.innerHTML = `<ul>${files.map(f => `<li>📄 ${escHtml(f.name)}</li>`).join("")}</ul>`;
-    folderFileList.classList.remove("hidden");
+    folderSummary.textContent = `${known.length} file${known.length === 1 ? "" : "s"} found`;
+    folderPreview.innerHTML = renderPreview(cats);
+    folderPreview.classList.remove("hidden");
     folderImportBtn.disabled = false;
   });
 
   folderImportBtn.addEventListener("click", async () => {
-    const files = Array.from(folderInput.files).filter(f =>
-      /\.(abc|txt)$/i.test(f.name)
-    );
-    if (!files.length) return;
+    const allFiles = Array.from(folderInput.files).filter(f => ALL_RE.test(f.name));
+    if (!allFiles.length) return;
     folderImportBtn.disabled = true;
     folderImportBtn.textContent = "Importing…";
     folderResult.classList.remove("hidden");
     folderResult.className = "import-result";
-    folderResult.textContent = `Importing ${files.length} file${files.length === 1 ? "" : "s"}…`;
+    folderResult.textContent = `Processing ${allFiles.length} file${allFiles.length === 1 ? "" : "s"}…`;
 
     try {
       const fd = new FormData();
-      files.forEach(f => fd.append("files", f));
+      allFiles.forEach(f => fd.append("files", f));
       const res = await fetch("/api/import/folder", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Import failed");
 
-      const parts = [];
-      if (data.imported) parts.push(`${data.imported} tune${data.imported === 1 ? "" : "s"} imported`);
-      if (data.skipped)  parts.push(`${data.skipped} skipped (no title)`);
+      const lines = [];
+      if (data.abc_imported)    lines.push(`🎵 ${data.abc_imported} tune${data.abc_imported === 1 ? "" : "s"} imported from ABC`);
+      if (data.abc_skipped)     lines.push(`⏭ ${data.abc_skipped} ABC tune${data.abc_skipped === 1 ? "" : "s"} skipped (no title)`);
+      if (data.audio_attached)  lines.push(`🎶 ${data.audio_attached} audio file${data.audio_attached === 1 ? "" : "s"} attached`);
+      if (data.pdf_attached)    lines.push(`📄 ${data.pdf_attached} PDF${data.pdf_attached === 1 ? "" : "s"} attached`);
+      if (data.image_attached)  lines.push(`📷 ${data.image_attached} photo${data.image_attached === 1 ? "" : "s"} attached`);
+      if (data.new_from_media)  lines.push(`➕ ${data.new_from_media} new tune${data.new_from_media === 1 ? "" : "s"} created from unmatched media`);
+
       folderResult.className = "import-result import-success";
-      folderResult.textContent = `✓ ${parts.join(", ")} from ${files.length} file${files.length === 1 ? "" : "s"}.`;
+      folderResult.innerHTML = lines.length ? lines.join("<br>") : "No files to import.";
       await Promise.all([loadStats(), loadFilters()]);
       if (state.view === "library") loadTunes();
     } catch (err) {
       folderResult.className = "import-result import-error";
       folderResult.textContent = `Error: ${err.message}`;
-      folderImportBtn.disabled = false;
     } finally {
       folderImportBtn.textContent = "Import All";
       folderImportBtn.disabled = false;
