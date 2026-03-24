@@ -786,9 +786,28 @@ async function apiDeleteTune(id) {
 
 
 // ── View switching ────────────────────────────────────────────────────────────
+// Nav colour map — inline styles beat all CSS specificity issues
+const _NAV_COLOURS = {
+  library:     { el: () => navLibrary,     bg: "#7c6af7" },
+  sets:        { el: () => navSets,        bg: "#0d9488" },
+  collections: { el: () => navCollections, bg: "#f59e0b" },
+};
+function _applyNavColour(view) {
+  Object.values(_NAV_COLOURS).forEach(({ el }) => {
+    const n = el();
+    n.style.background = ""; n.style.borderColor = ""; n.style.color = "";
+  });
+  const c = _NAV_COLOURS[view];
+  if (c) {
+    const n = c.el();
+    n.style.background = c.bg; n.style.borderColor = c.bg; n.style.color = "#fff";
+  }
+}
+
 function switchView(view) {
   state.view = view;
-  document.body.dataset.view = view;  // drives nav colour via body[data-view] CSS
+  document.body.dataset.view = view;
+  _applyNavColour(view);
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements].forEach(v => v.classList.add("hidden"));
   [navLibrary, navSets, navCollections].forEach(n => n.classList.remove("active"));
@@ -1043,20 +1062,20 @@ function renderModal(tune, onBack = null, siblings = null) {
     .map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`)
     .join("");
   const collectionsFooter = `<div class="modal-col-section">
-    ${state.collections.length ? `<div class="modal-sets-row">
-        <select id="col-select" class="set-select set-select-collection">
-          <option value="">Add to a collection…</option>
-          ${collectionsOptions}
-        </select>
-        <span id="col-status" class="set-status"></span>
-      </div>` : ""}
+    <div class="modal-sets-row">
+      <select id="col-select" class="set-select set-select-collection">
+        <option value="">Add to a collection…</option>
+        ${collectionsOptions}
+        <option value="__new__">＋ New collection…</option>
+      </select>
+      <span id="col-status" class="set-status"></span>
+    </div>
     <div id="new-col-form" class="modal-new-col-form hidden">
       <input id="new-col-name" type="text" placeholder="New collection name…" maxlength="120" class="ff-url-input" />
       <button id="new-col-confirm" class="btn-collection btn-sm">Create &amp; Add</button>
       <button id="new-col-cancel" class="btn-secondary btn-sm">Cancel</button>
       <span id="new-col-status" class="set-status"></span>
     </div>
-    <button id="create-col-from-tune-btn" class="btn-collection btn-sm">+ New collection</button>
   </div>`;
 
   modalContent.innerHTML = `
@@ -1443,42 +1462,38 @@ function renderModal(tune, onBack = null, siblings = null) {
       _bldrStepMode([tune], { type: tune.type || "", minRating: "", collectionId: "", collectionName: "" }, backToTune);
     });
 
-  // Add to existing collection — auto-add when a collection is selected
-  const colSelect = document.getElementById("col-select");
-  if (colSelect) {
-    colSelect.addEventListener("change", async () => {
-      const colId = colSelect.value;
-      const colStatus = document.getElementById("col-status");
-      if (!colId) return;
-      try {
-        const result = await apiAddTuneToCollection(colId, tune.id);
-        colStatus.textContent = result.added ? "Added!" : "Already in collection.";
-        colStatus.className = "set-status set-saved";
-        setTimeout(() => { colStatus.textContent = ""; colSelect.value = ""; }, 2000);
-        await fetchCollections();
-      } catch {
-        colStatus.textContent = "Failed.";
-        colStatus.className = "set-status set-error";
-      }
-    });
-  }
+  // Collection select: auto-add on pick, or show create form for __new__
+  const colSelect   = document.getElementById("col-select");
+  const newColForm  = document.getElementById("new-col-form");
+  const newColName  = document.getElementById("new-col-name");
+  const newColConfirm = document.getElementById("new-col-confirm");
+  const newColCancel  = document.getElementById("new-col-cancel");
+  const newColStatus  = document.getElementById("new-col-status");
+  const colStatus     = document.getElementById("col-status");
 
-  // Create new collection from tune modal
-  const createColBtn   = document.getElementById("create-col-from-tune-btn");
-  const newColForm     = document.getElementById("new-col-form");
-  const newColName     = document.getElementById("new-col-name");
-  const newColConfirm  = document.getElementById("new-col-confirm");
-  const newColCancel   = document.getElementById("new-col-cancel");
-  const newColStatus   = document.getElementById("new-col-status");
-
-  createColBtn.addEventListener("click", () => {
-    newColForm.classList.remove("hidden");
-    createColBtn.classList.add("hidden");
-    newColName.focus();
+  colSelect.addEventListener("change", async () => {
+    const colId = colSelect.value;
+    if (!colId) return;
+    if (colId === "__new__") {
+      colSelect.value = "";
+      newColForm.classList.remove("hidden");
+      newColName.focus();
+      return;
+    }
+    try {
+      const result = await apiAddTuneToCollection(colId, tune.id);
+      colStatus.textContent = result.added ? "Added!" : "Already in collection.";
+      colStatus.className = "set-status set-saved";
+      setTimeout(() => { colStatus.textContent = ""; colSelect.value = ""; }, 2000);
+      await fetchCollections();
+    } catch {
+      colStatus.textContent = "Failed.";
+      colStatus.className = "set-status set-error";
+    }
   });
+
   newColCancel.addEventListener("click", () => {
     newColForm.classList.add("hidden");
-    createColBtn.classList.remove("hidden");
     newColName.value = "";
     newColStatus.textContent = "";
   });
@@ -1493,16 +1508,13 @@ function renderModal(tune, onBack = null, siblings = null) {
       newColStatus.textContent = `Added to "${escHtml(name)}"!`;
       newColStatus.className = "set-status set-saved";
       newColForm.classList.add("hidden");
-      createColBtn.classList.remove("hidden");
       newColName.value = "";
-      // Refresh the select dropdown with new collection
       state.collections = await fetchCollections();
-      const sel = document.getElementById("col-select");
-      if (sel) {
-        const opt = document.createElement("option");
-        opt.value = col.id; opt.textContent = col.name;
-        sel.appendChild(opt);
-      }
+      // Insert new option before the __new__ sentinel
+      const newOpt = document.createElement("option");
+      newOpt.value = col.id; newOpt.textContent = col.name;
+      const sentinel = colSelect.querySelector("option[value='__new__']");
+      colSelect.insertBefore(newOpt, sentinel);
       setTimeout(() => { newColStatus.textContent = ""; }, 2500);
     } catch {
       newColStatus.textContent = "Failed.";
@@ -6626,6 +6638,7 @@ helpOverlay.addEventListener("click", e => { if (e.target === helpOverlay) _clos
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !helpOverlay.classList.contains("hidden")) _closeHelp(); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+_applyNavColour("library");  // set Library button solid on first paint
 (async () => {
   await Promise.allSettled([loadFilters(), loadStats(), fetchSets(), fetchCollections()]);
   await loadTunes();
