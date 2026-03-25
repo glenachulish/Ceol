@@ -1583,13 +1583,20 @@ button.set-tune-title:hover { text-decoration: underline; }
 
 /* Bar selection highlight for practice loop */
 #sheet-music-render { cursor: pointer; color: #000000; }
+#abc-fullscreen-render { cursor: pointer; color: #000000; }
 /* Handle both cases: class on an ancestor group OR on the element itself */
 #sheet-music-render .bar-selected path,
 #sheet-music-render .bar-selected rect,
 #sheet-music-render .bar-selected ellipse,
 #sheet-music-render path.bar-selected,
 #sheet-music-render rect.bar-selected,
-#sheet-music-render ellipse.bar-selected {
+#sheet-music-render ellipse.bar-selected,
+#abc-fullscreen-render .bar-selected path,
+#abc-fullscreen-render .bar-selected rect,
+#abc-fullscreen-render .bar-selected ellipse,
+#abc-fullscreen-render path.bar-selected,
+#abc-fullscreen-render rect.bar-selected,
+#abc-fullscreen-render ellipse.bar-selected {
   fill: var(--accent2) !important;
   opacity: 1;
 }
@@ -1599,7 +1606,13 @@ button.set-tune-title:hover { text-decoration: underline; }
 #sheet-music-render .bar-sel-start ellipse,
 #sheet-music-render path.bar-sel-start,
 #sheet-music-render rect.bar-sel-start,
-#sheet-music-render ellipse.bar-sel-start {
+#sheet-music-render ellipse.bar-sel-start,
+#abc-fullscreen-render .bar-sel-start path,
+#abc-fullscreen-render .bar-sel-start rect,
+#abc-fullscreen-render .bar-sel-start ellipse,
+#abc-fullscreen-render path.bar-sel-start,
+#abc-fullscreen-render rect.bar-sel-start,
+#abc-fullscreen-render ellipse.bar-sel-start {
   fill: var(--accent) !important;
   opacity: 1;
 }
@@ -1613,7 +1626,13 @@ button.set-tune-title:hover { text-decoration: underline; }
 #sheet-music-render .abcjs-highlight ellipse,
 #sheet-music-render path.abcjs-highlight,
 #sheet-music-render rect.abcjs-highlight,
-#sheet-music-render ellipse.abcjs-highlight {
+#sheet-music-render ellipse.abcjs-highlight,
+#abc-fullscreen-render .abcjs-highlight path,
+#abc-fullscreen-render .abcjs-highlight rect,
+#abc-fullscreen-render .abcjs-highlight ellipse,
+#abc-fullscreen-render path.abcjs-highlight,
+#abc-fullscreen-render rect.abcjs-highlight,
+#abc-fullscreen-render ellipse.abcjs-highlight {
   fill: #e65c00 !important;
 }
 #set-music-render { background: #fff; border-radius: var(--radius); padding: .5rem; }
@@ -1632,7 +1651,8 @@ button.set-tune-title:hover { text-decoration: underline; }
   fill: #e65c00 !important;
 }
 #sheet-music-render g.abcjs-highlight,
-#set-music-render g.abcjs-highlight {
+#set-music-render g.abcjs-highlight,
+#abc-fullscreen-render g.abcjs-highlight {
   filter: drop-shadow(0 0 6px rgba(230, 92, 0, 0.9));
 }
 
