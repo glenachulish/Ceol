@@ -240,6 +240,7 @@
         <button class="tab-btn" data-import-tab="paste">Paste</button>
         <button class="tab-btn" data-import-tab="thecraic">TheCraic</button>
         <button class="tab-btn" data-import-tab="session">TheSession</button>
+        <button class="tab-btn" data-import-tab="folktunefinder">FolkTuneFinder</button>
         <button class="tab-btn" data-import-tab="flutefling">FlutefFling</button>
         <button class="tab-btn" data-import-tab="dropbox">Dropbox</button>
       </div>
@@ -321,6 +322,31 @@
             <button id="session-save-btn" class="btn-primary">Save to Library</button>
             <a id="session-visit-btn" class="btn-secondary" target="_blank" rel="noopener noreferrer" href="#">View on TheSession ↗</a>
             <span id="session-save-status" class="notes-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="import-tab-folktunefinder" class="tab-panel hidden">
+        <div id="ftf-search-pane">
+          <p class="import-desc">Search <a href="https://www.folktunefinder.com" target="_blank" rel="noopener">FolkTuneFinder.com</a> — ~191,000 folk tunes.</p>
+          <div class="session-search-row">
+            <input id="ftf-search-input" type="search" placeholder="Search FolkTuneFinder…" autocomplete="off" />
+            <button id="ftf-search-btn" class="btn-primary">Search</button>
+          </div>
+          <div id="ftf-results" class="session-results"></div>
+        </div>
+        <div id="ftf-preview" class="session-preview hidden">
+          <div class="session-preview-header">
+            <button id="ftf-preview-back" class="btn-secondary btn-sm">← Back</button>
+            <span id="ftf-preview-title" class="session-preview-title-text"></span>
+          </div>
+          <div id="ftf-preview-sheet" class="preview-panel">
+            <div id="ftf-sheet-render"></div>
+          </div>
+          <div class="session-preview-footer">
+            <button id="ftf-save-btn" class="btn-primary">Save to Library</button>
+            <a id="ftf-visit-btn" class="btn-secondary" target="_blank" rel="noopener noreferrer" href="#">View on FolkTuneFinder ↗</a>
+            <span id="ftf-save-status" class="notes-status"></span>
           </div>
         </div>
       </div>
@@ -517,6 +543,21 @@
       <button id="library-backup-btn">Export Library</button>
       <button id="library-import-btn">Import Library</button>
       <button id="library-delete-btn">Delete Library</button>
+    </div>
+  </div>
+
+  <!-- ── ABC full-screen overlay ── -->
+  <div id="abc-fullscreen-overlay" class="abc-fullscreen-overlay hidden" role="dialog" aria-modal="true" aria-label="Full screen sheet music">
+    <div class="abc-fullscreen-header">
+      <span id="abc-fullscreen-title" class="abc-fullscreen-title-text"></span>
+      <button id="abc-fullscreen-close" class="abc-fullscreen-close" aria-label="Exit full screen">✕ Exit</button>
+    </div>
+    <div class="abc-fullscreen-body">
+      <div id="abc-fullscreen-render"></div>
+    </div>
+    <div class="abc-fullscreen-controls">
+      <div id="abc-fs-audio" class="abc-fs-audio-player"></div>
+      <div id="abc-fs-bar-info" class="bar-selection-info hidden"></div>
     </div>
   </div>
 

@@ -2094,6 +2094,231 @@ async def thesession_backfill_member_data():
     return {"updated": updated}
 
 # ---------------------------------------------------------------------------
+# FolkTuneFinder.com endpoints
+# ---------------------------------------------------------------------------
+
+_FTF_BASE = "https://www.folktunefinder.com"
+_FTF_HEADERS = {
+    "Accept": "application/json, text/html",
+    "User-Agent": "Ceol/0.1 trad-music-app",
+}
+
+
+@app.get("/api/folktunefinder/search")
+async def folktunefinder_search(q: str = Query(..., min_length=1)):
+    """Search FolkTuneFinder.com by title and return results."""
+    async with httpx.AsyncClient(headers=_FTF_HEADERS, timeout=15, follow_redirects=True) as client:
+        # Try the JSON API first
+        try:
+            resp = await client.get(
+                f"{_FTF_BASE}/api/v3/tunes/search",
+                params={"title": q, "rows": 30, "rollup": "true", "facet": "false"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("results", [])
+            tunes = []
+            for r in results:
+                titles = r.get("titles") or r.get("title") or ""
+                if isinstance(titles, list):
+                    titles = " / ".join(titles)
+                tunes.append({
+                    "id": r.get("id"),
+                    "name": str(titles),
+                    "score": r.get("score", 0),
+                    "key": r.get("key", ""),
+                    "rhythm": r.get("rhythm", ""),
+                    "time": r.get("time", ""),
+                })
+            return {
+                "tunes": tunes,
+                "total": data.get("num_total_results", len(tunes)),
+                "source": "api",
+            }
+        except Exception:
+            pass
+
+        # Fallback: scrape the HTML search page
+        try:
+            resp = await client.get(
+                f"{_FTF_BASE}/tunes",
+                params={"q": q},
+                headers={**_FTF_HEADERS, "Accept": "text/html"},
+            )
+            resp.raise_for_status()
+            html = resp.text
+            tunes = _parse_ftf_search_html(html)
+            return {"tunes": tunes, "total": len(tunes), "source": "html"}
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Could not reach FolkTuneFinder: {exc}")
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(502, f"FolkTuneFinder returned {exc.response.status_code}")
+
+
+def _parse_ftf_search_html(html: str) -> list[dict]:
+    """Best-effort parse of FolkTuneFinder HTML search results."""
+    tunes = []
+    # Look for tune links: /tunes/{id} with a title
+    for m in re.finditer(
+        r'<a[^>]+href=["\'](?:https?://(?:www\.)?folktunefinder\.com)?/tunes?/(\d+)["\'][^>]*>(.*?)</a>',
+        html, re.IGNORECASE | re.DOTALL
+    ):
+        tune_id = m.group(1)
+        name = re.sub(r'<[^>]+>', '', m.group(2)).strip()
+        if name and tune_id not in [t["id"] for t in tunes]:
+            tunes.append({"id": tune_id, "name": name, "score": 0, "key": "", "rhythm": "", "time": ""})
+    return tunes
+
+
+@app.get("/api/folktunefinder/tune/{tune_id}")
+async def folktunefinder_tune(tune_id: str):
+    """Fetch a single tune from FolkTuneFinder and extract ABC notation."""
+    async with httpx.AsyncClient(headers=_FTF_HEADERS, timeout=15, follow_redirects=True) as client:
+        # Try JSON API first
+        try:
+            resp = await client.get(
+                f"{_FTF_BASE}/api/v3/tunes/{tune_id}",
+                headers={**_FTF_HEADERS, "Accept": "application/json"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            abc = data.get("abc", "")
+            titles = data.get("titles") or data.get("title") or ""
+            if isinstance(titles, list):
+                titles = " / ".join(titles)
+            if abc:
+                return {
+                    "id": tune_id,
+                    "title": str(titles),
+                    "abc": abc,
+                    "key": data.get("key", ""),
+                    "rhythm": data.get("rhythm", ""),
+                    "source_url": f"{_FTF_BASE}/tunes/{tune_id}",
+                    "source": "api",
+                }
+        except Exception:
+            pass
+
+        # Fallback: scrape HTML tune page
+        try:
+            resp = await client.get(
+                f"{_FTF_BASE}/tunes/{tune_id}",
+                headers={**_FTF_HEADERS, "Accept": "text/html"},
+            )
+            resp.raise_for_status()
+        except httpx.RequestError as exc:
+            raise HTTPException(502, f"Could not reach FolkTuneFinder: {exc}")
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(502, f"FolkTuneFinder returned {exc.response.status_code}")
+
+        html = resp.text
+        abc = _extract_abc_from_html(html)
+        title = _extract_title_from_html(html)
+        if not abc:
+            raise HTTPException(404, "Could not extract ABC from this tune page")
+        return {
+            "id": tune_id,
+            "title": title,
+            "abc": abc,
+            "key": "",
+            "rhythm": "",
+            "source_url": f"{_FTF_BASE}/tunes/{tune_id}",
+            "source": "html",
+        }
+
+
+@app.post("/api/folktunefinder/import")
+async def folktunefinder_import(body: dict):
+    """Fetch a tune from FolkTuneFinder and save to the library."""
+    tune_id = body.get("tune_id")
+    if not tune_id:
+        raise HTTPException(400, "tune_id required")
+
+    # Fetch the tune data
+    tune_data = await folktunefinder_tune(str(tune_id))
+    abc = tune_data.get("abc", "")
+    title = body.get("title") or tune_data.get("title", "Untitled")
+    source_url = tune_data.get("source_url", "")
+
+    if not abc:
+        raise HTTPException(404, "No ABC found for this tune")
+
+    from backend.abc_parser import normalise_key
+    # Extract key from ABC
+    key_match = re.search(r'^K:\s*(.+)', abc, re.MULTILINE)
+    key_raw = key_match.group(1).strip() if key_match else ""
+    key_norm, mode_norm = normalise_key(key_raw) if key_raw else ("", "")
+
+    # Extract type from ABC
+    type_match = re.search(r'^R:\s*(.+)', abc, re.MULTILINE)
+    tune_type = type_match.group(1).strip().lower() if type_match else ""
+
+    import_date = date.today().isoformat()
+
+    with _db() as conn:
+        # Dedup by source_url
+        if source_url:
+            existing = conn.execute(
+                "SELECT id FROM tunes WHERE source_url = ?", (source_url,)
+            ).fetchone()
+            if existing:
+                return {"status": "exists", "tune_id": existing["id"], "title": title}
+
+        cur = conn.execute(
+            """INSERT INTO tunes (title, type, key, mode, abc, notes, source_url, imported_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (title, tune_type, key_norm, mode_norm, abc,
+             f"Imported from FolkTuneFinder: {import_date}",
+             source_url, import_date),
+        )
+        new_id = cur.lastrowid
+
+    return {"status": "saved", "tune_id": new_id, "title": title}
+
+
+def _extract_abc_from_html(html: str) -> str:
+    """Extract ABC notation from a FolkTuneFinder tune page HTML."""
+    # Look for ABC in <pre>, <code>, or <textarea> tags
+    for tag in ("pre", "code", "textarea"):
+        pattern = rf'<{tag}[^>]*>(.*?)</{tag}>'
+        for m in re.finditer(pattern, html, re.DOTALL | re.IGNORECASE):
+            content = m.group(1).strip()
+            # Unescape HTML entities
+            content = (content
+                       .replace("&lt;", "<").replace("&gt;", ">")
+                       .replace("&amp;", "&").replace("&#39;", "'")
+                       .replace("&quot;", '"'))
+            if re.search(r'^X:\s*\d', content, re.MULTILINE) or \
+               re.search(r'^T:', content, re.MULTILINE):
+                return content.strip()
+
+    # Look for ABC in data attributes
+    m = re.search(r'data-abc=["\']([^"\']+)["\']', html)
+    if m:
+        content = m.group(1).replace("\\n", "\n")
+        if re.search(r'^X:\s*\d', content, re.MULTILINE):
+            return content.strip()
+
+    return ""
+
+
+def _extract_title_from_html(html: str) -> str:
+    """Extract tune title from HTML page."""
+    m = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.DOTALL | re.IGNORECASE)
+    if m:
+        return re.sub(r'<[^>]+>', '', m.group(1)).strip()
+    m = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE)
+    if m:
+        title = m.group(1).strip()
+        # Remove site name suffix
+        for sep in (" - ", " | ", " – "):
+            if sep in title:
+                title = title.split(sep)[0].strip()
+        return title
+    return "Untitled"
+
+
+# ---------------------------------------------------------------------------
 # Tune versions
 # ---------------------------------------------------------------------------
 
