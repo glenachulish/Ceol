@@ -3993,6 +3993,63 @@ async function loadTunes() {
     tuneList.innerHTML = '<p class="empty">Failed to load tunes. Is the server running?</p>';
     console.error(err);
   }
+  // Check for version suggestions once per page-1 load (no filters active)
+  if (state.page === 1 && !state.q && !state.type && !state.key) {
+    _checkVersionSuggestions();
+  }
+}
+
+// ── Version similarity suggestions ────────────────────────────────────────────
+const _vsbEl = document.getElementById("version-suggestion-banner");
+let _vsbQueue = null;  // cached list; null = not yet fetched
+
+async function _checkVersionSuggestions() {
+  if (_vsbEl.classList.contains("hidden") === false) return; // already showing one
+  try {
+    if (_vsbQueue === null) {
+      const list = await apiFetch("/api/tunes/version-suggestions");
+      _vsbQueue = list;
+    }
+    _showNextVersionSuggestion();
+  } catch { /* silently ignore */ }
+}
+
+function _showNextVersionSuggestion() {
+  if (!_vsbQueue || !_vsbQueue.length) { _vsbEl.classList.add("hidden"); return; }
+  const { tune_a, tune_b } = _vsbQueue[0];
+  _vsbEl.innerHTML = `
+    <span class="vsb-text">
+      💡 <strong>${escHtml(tune_a.title)}</strong> and <strong>${escHtml(tune_b.title)}</strong>
+      look like the same tune — group as versions?
+    </span>
+    <span class="vsb-actions">
+      <button class="btn-primary btn-sm" id="vsb-group-btn">Group as versions</button>
+      <button class="btn-secondary btn-sm" id="vsb-dismiss-btn">Not the same</button>
+    </span>`;
+  _vsbEl.classList.remove("hidden");
+
+  document.getElementById("vsb-group-btn").addEventListener("click", async () => {
+    _vsbEl.classList.add("hidden");
+    const tunes = await Promise.all([fetchTune(tune_a.id), fetchTune(tune_b.id)]);
+    await Promise.all([fetchSets(), fetchCollections()]);
+    _showGroupDialog(tunes);
+    // Remove from queue (user will decide in the dialog; if they cancel we don't re-show)
+    _vsbQueue.shift();
+  });
+
+  document.getElementById("vsb-dismiss-btn").addEventListener("click", async () => {
+    _vsbEl.classList.add("hidden");
+    _vsbQueue.shift();
+    try {
+      await apiFetch("/api/tunes/version-suggestions/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tune_id_a: tune_a.id, tune_id_b: tune_b.id }),
+      });
+    } catch { /* persist best-effort */ }
+    // Show next suggestion if any (after a short pause so it doesn't feel jarring)
+    setTimeout(_showNextVersionSuggestion, 400);
+  });
 }
 
 async function loadSets() {

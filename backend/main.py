@@ -5,6 +5,7 @@ FastAPI backend serving tune data as JSON and the frontend SPA.
 
 from __future__ import annotations
 
+import difflib
 import io
 import json
 import math
@@ -2102,6 +2103,73 @@ def group_tunes(body: GroupTunesBody):
                     (parent_id, label.strip(), 1 if i == 0 else 0, tune_id),
                 )
     return {"id": parent_id, "title": title}
+
+
+# ---------------------------------------------------------------------------
+# Version suggestions — find tunes with similar names
+# ---------------------------------------------------------------------------
+
+def _title_norm(title: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace."""
+    return re.sub(r'\s+', ' ', re.sub(r"[^\w\s]", "", title.lower())).strip()
+
+
+def _title_similarity(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, _title_norm(a), _title_norm(b)).ratio()
+
+
+@app.get("/api/tunes/version-suggestions")
+def get_version_suggestions():
+    """Return pairs of standalone tunes whose names are >50% similar (not dismissed)."""
+    with _db() as conn:
+        # Only standalone tunes (not versions, not parents that already have children)
+        tunes = conn.execute(
+            "SELECT id, title FROM tunes "
+            "WHERE parent_id IS NULL "
+            "AND (SELECT COUNT(*) FROM tunes c WHERE c.parent_id = tunes.id) = 0 "
+            "ORDER BY id"
+        ).fetchall()
+        dismissed = {
+            (r["tune_id_a"], r["tune_id_b"])
+            for r in conn.execute("SELECT tune_id_a, tune_id_b FROM dismissed_groupings").fetchall()
+        }
+
+    tunes = [dict(t) for t in tunes]
+    suggestions = []
+    for i, a in enumerate(tunes):
+        for b in tunes[i + 1:]:
+            pair = (min(a["id"], b["id"]), max(a["id"], b["id"]))
+            if pair in dismissed:
+                continue
+            sim = _title_similarity(a["title"], b["title"])
+            if sim > 0.5:
+                suggestions.append({
+                    "tune_a": {"id": a["id"], "title": a["title"]},
+                    "tune_b": {"id": b["id"], "title": b["title"]},
+                    "similarity": round(sim, 2),
+                })
+                if len(suggestions) >= 20:
+                    break
+        if len(suggestions) >= 20:
+            break
+
+    # Return highest-similarity first
+    suggestions.sort(key=lambda x: x["similarity"], reverse=True)
+    return suggestions
+
+
+class DismissGroupingBody(BaseModel):
+    tune_id_a: int
+    tune_id_b: int
+
+
+@app.post("/api/tunes/version-suggestions/dismiss")
+def dismiss_version_suggestion(body: DismissGroupingBody):
+    """Permanently dismiss a version suggestion so it is never shown again."""
+    a, b = min(body.tune_id_a, body.tune_id_b), max(body.tune_id_a, body.tune_id_b)
+    with _db() as conn:
+        conn.execute("INSERT OR IGNORE INTO dismissed_groupings VALUES (?, ?)", (a, b))
+    return {"ok": True}
 
 
 @app.patch("/api/tunes/{tune_id}/set-default")

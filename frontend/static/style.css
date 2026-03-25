@@ -660,6 +660,23 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .new-set-form input:focus { border-color: var(--accent); }
 .form-actions { display: flex; gap: .5rem; }
 
+/* ── Version suggestion banner ───────────────────────────── */
+.version-suggestion-banner {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-wrap: wrap;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: .65rem 1rem;
+  margin-bottom: .75rem;
+  font-size: .88rem;
+}
+.version-suggestion-banner .vsb-text { flex: 1; min-width: 0; }
+.version-suggestion-banner .vsb-text strong { color: var(--text); }
+.version-suggestion-banner .vsb-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+
 /* ── Smart "Recently Imported" collection card ───────────── */
 .smart-col-card {
   background: var(--surface);

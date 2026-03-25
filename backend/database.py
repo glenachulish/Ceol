@@ -134,6 +134,12 @@ CREATE TABLE IF NOT EXISTS note_attachments (
     title         TEXT,                -- display title for links
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS dismissed_groupings (
+    tune_id_a     INTEGER NOT NULL,
+    tune_id_b     INTEGER NOT NULL,
+    PRIMARY KEY (tune_id_a, tune_id_b)
+);
 """
 
 
@@ -206,6 +212,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
                 set_id        INTEGER REFERENCES sets(id) ON DELETE CASCADE,
                 added_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (collection_id, set_id)
+            )
+        """)
+    if "dismissed_groupings" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE dismissed_groupings (
+                tune_id_a INTEGER NOT NULL,
+                tune_id_b INTEGER NOT NULL,
+                PRIMARY KEY (tune_id_a, tune_id_b)
             )
         """)
 
