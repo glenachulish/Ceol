@@ -2411,10 +2411,182 @@ const _abcFsCloseBtn = document.getElementById("abc-fullscreen-close");
 let _abcFsSynthCtrl = null;
 let _abcFsVisualObj = null;
 
+// Fullscreen-specific bar-selection state (mirrors the main-modal state)
+let _fsBarSel       = { start: null, end: null };
+let _fsBarMap       = [];
+let _fsBarFirstMs   = {};
+let _fsMsPerMeasure = null;
+let _fsLoopSeeking  = false;
+let _fsBarSeekPending = false;
+
+function _fsBuildBarMap() {
+  const render = document.getElementById("abc-fullscreen-render");
+  if (!render) return [];
+  const result = [];
+  for (const wrapper of render.querySelectorAll(".abcjs-staff-wrapper")) {
+    const seen = new Set();
+    for (const el of wrapper.querySelectorAll("[class]")) {
+      for (const cls of el.classList) {
+        const m = cls.match(/^abcjs-m(\d+)$/);
+        if (m) { seen.add(parseInt(m[1], 10)); break; }
+      }
+    }
+    for (const measure of [...seen].sort((a, b) => a - b)) {
+      result.push({ wrapper, measure });
+    }
+  }
+  return result;
+}
+
+function _fsBuildTimingMap() {
+  _fsBarFirstMs = {};
+  if (!_abcFsSynthCtrl || !_abcFsSynthCtrl.timer) return;
+  const events = _abcFsSynthCtrl.timer.noteTimings;
+  if (!events || !events.length) return;
+  if (_fsBarMap.length === 0) _fsBarMap = _fsBuildBarMap();
+  if (!_fsBarMap.length) return;
+
+  const wmToIdx = new Map();
+  _fsBarMap.forEach(({ wrapper, measure }, gi) => {
+    let inner = wmToIdx.get(wrapper);
+    if (!inner) { inner = new Map(); wmToIdx.set(wrapper, inner); }
+    inner.set(measure, gi);
+  });
+  for (const ev of events) {
+    if (!ev || !ev.elements) continue;
+    ev.elements.forEach(grp => {
+      if (!grp) return;
+      grp.forEach(el => {
+        if (!el || !el.classList) return;
+        let measure = null;
+        for (const cls of el.classList) {
+          const hit = cls.match(/^abcjs-m(\d+)$/);
+          if (hit) { measure = parseInt(hit[1], 10); break; }
+        }
+        if (measure === null) return;
+        const wrapper = el.closest && el.closest(".abcjs-staff-wrapper");
+        if (!wrapper) return;
+        const inner = wmToIdx.get(wrapper);
+        if (!inner) return;
+        const gi = inner.get(measure);
+        if (gi === undefined) return;
+        if (!Object.prototype.hasOwnProperty.call(_fsBarFirstMs, gi)) {
+          _fsBarFirstMs[gi] = ev.milliseconds;
+        }
+      });
+    });
+  }
+}
+
+function _fsBarMs(idx) {
+  return Object.prototype.hasOwnProperty.call(_fsBarFirstMs, idx)
+    ? _fsBarFirstMs[idx]
+    : idx * (_fsMsPerMeasure || 0);
+}
+
+function _fsSeekToBar(idx) {
+  if (!_abcFsSynthCtrl) return;
+  const buf = _abcFsSynthCtrl.midiBuffer;
+  if (!buf || !buf.duration) return;
+  const frac = Math.max(0, Math.min(1, _fsBarMs(idx) / (buf.duration * 1000)));
+  _abcFsSynthCtrl.seek(frac);
+}
+
+function _updateFsBarHighlight() {
+  const render = document.getElementById("abc-fullscreen-render");
+  if (!render) return;
+  render.querySelectorAll(".bar-selected, .bar-sel-start")
+    .forEach(el => el.classList.remove("bar-selected", "bar-sel-start"));
+  if (_fsBarSel.start === null) return;
+
+  const pending = _fsBarSel.end === null;
+  const cls = pending ? "bar-sel-start" : "bar-selected";
+  const lo = _fsBarSel.start;
+  const hi = pending ? lo : _fsBarSel.end;
+  for (let i = lo; i <= hi; i++) {
+    if (i >= _fsBarMap.length) break;
+    const { wrapper, measure } = _fsBarMap[i];
+    wrapper.querySelectorAll(`.abcjs-m${measure}`).forEach(el => el.classList.add(cls));
+  }
+}
+
+function _updateFsSelectionInfo() {
+  const el = document.getElementById("abc-fs-bar-info");
+  if (!el) return;
+  if (_fsBarSel.start === null) { el.classList.add("hidden"); return; }
+  const pending = _fsBarSel.end === null;
+  const lo = _fsBarSel.start + 1;
+  const hi = (pending ? _fsBarSel.start : _fsBarSel.end) + 1;
+  el.classList.remove("hidden");
+  const label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
+  el.innerHTML = pending
+    ? `<span>Bar ${lo} — tap another to extend, or tap again to loop this bar</span><button class="btn-secondary bar-sel-clear">✕</button>`
+    : `<span>${label} — press Play, enable Loop to repeat</span><button class="btn-secondary bar-sel-clear">✕</button>`;
+  el.querySelector(".bar-sel-clear").addEventListener("click", _clearFsBarSel);
+}
+
+function _clearFsBarSel() {
+  _fsBarSel = { start: null, end: null };
+  _fsBarSeekPending = false;
+  _fsLoopSeeking = false;
+  _updateFsBarHighlight();
+  _updateFsSelectionInfo();
+}
+
+function _fsMeasureClickHandler(e) {
+  const container = document.getElementById("abc-fullscreen-render");
+  let measure = null;
+  let el = e.target;
+  while (el && el !== container) {
+    for (const cls of (el.classList || [])) {
+      const m = cls.match(/^abcjs-m(\d+)$/);
+      if (m) { measure = parseInt(m[1], 10); break; }
+    }
+    if (measure !== null) break;
+    el = el.parentElement;
+  }
+  if (measure === null) return;
+
+  let wrapperEl = null;
+  let anc = el.parentElement;
+  while (anc && anc !== container) {
+    if (anc.classList && anc.classList.contains("abcjs-staff-wrapper")) { wrapperEl = anc; break; }
+    anc = anc.parentElement;
+  }
+  if (!wrapperEl) return;
+
+  if (_fsBarMap.length === 0) _fsBarMap = _fsBuildBarMap();
+  const idx = _fsBarMap.findIndex(b => b.wrapper === wrapperEl && b.measure === measure);
+  if (idx === -1) return;
+
+  const { start, end } = _fsBarSel;
+  if (start === null) {
+    _fsBarSel = { start: idx, end: null };
+  } else if (end === null) {
+    _fsBarSel = { start: Math.min(start, idx), end: Math.max(start, idx) };
+  } else {
+    _fsBarSel = { start: idx, end: null };
+  }
+  _fsBarSeekPending = true;
+  _updateFsBarHighlight();
+  _updateFsSelectionInfo();
+  if (_fsBarSel.start !== null) _fsSeekToBar(_fsBarSel.start);
+}
+
 function openAbcFullscreen(abc, title) {
   _abcFsTitleEl.textContent = title || "";
   _abcFsOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+
+  // Reset fullscreen bar-selection state
+  _fsBarSel = { start: null, end: null };
+  _fsBarMap = [];
+  _fsBarFirstMs = {};
+  _fsMsPerMeasure = null;
+  _fsLoopSeeking = false;
+  _fsBarSeekPending = false;
+  const fsBarInfo = document.getElementById("abc-fs-bar-info");
+  if (fsBarInfo) fsBarInfo.classList.add("hidden");
 
   // Request landscape on mobile (Screen Orientation API)
   try {
@@ -2429,9 +2601,7 @@ function openAbcFullscreen(abc, title) {
     // Determine optimal measures per line based on screen width
     const w = window.innerWidth;
     const measuresPerLine = w > 1200 ? 6 : w > 800 ? 5 : w > 500 ? 4 : 3;
-
-    // Scale staff to fill available width
-    const staffWidth = Math.max(300, w - 30);
+    const staffWidth = Math.max(300, w - 20);
 
     const visualObjs = ABCJS.renderAbc("abc-fullscreen-render", expandAbcRepeats(abc), {
       responsive: "resize",
@@ -2447,24 +2617,56 @@ function openAbcFullscreen(abc, title) {
     });
 
     _abcFsVisualObj = visualObjs && visualObjs[0] ? visualObjs[0] : null;
+    _fsMsPerMeasure = _abcFsVisualObj && typeof _abcFsVisualObj.millisecondsPerMeasure === "function"
+      ? _abcFsVisualObj.millisecondsPerMeasure()
+      : null;
 
-    // Set up synth playback in the fullscreen controls
+    // Wire bar-selection click handler
+    const renderEl = document.getElementById("abc-fullscreen-render");
+    if (renderEl) {
+      renderEl.removeEventListener("click", _fsMeasureClickHandler, true);
+      renderEl.addEventListener("click", _fsMeasureClickHandler, true);
+    }
+
+    // Set up synth playback with full cursor + loop logic
     const audioContainer = document.getElementById("abc-fs-audio");
     if (audioContainer && _abcFsVisualObj) {
       audioContainer.innerHTML = "";
 
       const cursorControl = {
-        onStart() {},
+        onStart() {
+          _fsBuildTimingMap();
+        },
         onEvent(ev) {
-          // Highlight notes during playback
+          // One-shot seek when bar selection is pending
+          if (_fsBarSeekPending && _fsBarSel.start !== null) {
+            _fsBarSeekPending = false;
+            const barIdx = _fsBarSel.start;
+            setTimeout(() => { if (_abcFsSynthCtrl) _fsSeekToBar(barIdx); }, 0);
+            return;
+          }
+
+          // Highlight current note
           document.querySelectorAll("#abc-fullscreen-render .abcjs-highlight")
             .forEach(el => el.classList.remove("abcjs-highlight"));
-          if (ev.elements) {
-            ev.elements.forEach(arr => {
-              arr.forEach(el => {
-                if (el.classList) el.classList.add("abcjs-highlight");
-              });
+          if (ev && ev.elements) {
+            ev.elements.forEach(grp => {
+              if (grp) grp.forEach(el => { if (el.classList) el.classList.add("abcjs-highlight"); });
             });
+          }
+
+          // Bar-range loop: jump back when playback passes the end of the selection
+          if (!_fsLoopSeeking
+              && _fsBarSel.start !== null && _fsBarSel.end !== null
+              && ev && _abcFsSynthCtrl && _abcFsSynthCtrl.isLooping) {
+            const endMs = Object.prototype.hasOwnProperty.call(_fsBarFirstMs, _fsBarSel.end + 1)
+              ? _fsBarFirstMs[_fsBarSel.end + 1]
+              : _fsBarMs(_fsBarSel.end) + (_fsMsPerMeasure || 0);
+            if (ev.milliseconds >= endMs) {
+              _fsLoopSeeking = true;
+              _fsSeekToBar(_fsBarSel.start);
+              setTimeout(() => { _fsLoopSeeking = false; }, 300);
+            }
           }
         },
         onFinished() {
@@ -2489,12 +2691,15 @@ function openAbcFullscreen(abc, title) {
 }
 
 function closeAbcFullscreen() {
-  // Stop playback
   if (_abcFsSynthCtrl) {
     try { _abcFsSynthCtrl.pause(); } catch {}
     _abcFsSynthCtrl = null;
   }
   _abcFsVisualObj = null;
+  // Remove click handler to avoid stacking listeners on re-open
+  const renderEl = document.getElementById("abc-fullscreen-render");
+  if (renderEl) renderEl.removeEventListener("click", _fsMeasureClickHandler, true);
+
   _abcFsOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 
