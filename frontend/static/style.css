@@ -1770,9 +1770,14 @@ button.set-tune-title:hover { text-decoration: underline; }
   cursor: pointer;
 }
 .set-select:focus { border-color: var(--accent); }
-.set-select-collection { border-color: #f59e0b; color: #d97706; }
-.set-select-collection:focus { border-color: #f59e0b; }
-:root[data-theme="dark"] .set-select-collection { color: #fbbf24; }
+.set-select-collection {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #fff;
+  font-weight: 600;
+}
+.set-select-collection:focus { border-color: #d97706; outline: none; }
+.set-select-collection option { background: var(--surface); color: var(--text); font-weight: 400; }
 .set-status { font-size: .8rem; }
 .set-saved { color: var(--jig); }
 .set-error { color: var(--danger); }

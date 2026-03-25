@@ -135,6 +135,9 @@
 .m-nav-btn.active {
   color: var(--accent);
 }
+/* Per-view active colours to match the desktop nav */
+.m-nav-btn[data-view="sets"].active     { color: #0d9488; }
+.m-nav-btn[data-view="collections"].active { color: #d97706; }
 
 /* Dim emoji icons when inactive so only the active tab stands out */
 .m-nav-btn:not(.active) .m-nav-icon { opacity: 0.35; }
