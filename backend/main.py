@@ -1225,6 +1225,32 @@ def remove_set_from_collection(col_id: int, set_id: int):
     return {"ok": True}
 
 
+@app.post("/api/tunes/{tune_id}/strip-chords")
+def strip_tune_chords(tune_id: int):
+    """Remove guitar chord symbols (quoted strings) from a single tune's ABC."""
+    header_re = re.compile(r'^[A-Za-z%]\s*:')
+    chord_re  = re.compile(r'"[^"]*"')
+
+    def _strip(abc: str) -> str:
+        lines = []
+        for line in abc.splitlines():
+            if header_re.match(line.strip()):
+                lines.append(line)
+            else:
+                lines.append(chord_re.sub("", line))
+        return "\n".join(lines)
+
+    with _db() as conn:
+        row = conn.execute("SELECT abc FROM tunes WHERE id = ?", (tune_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Tune not found")
+        old_abc = row["abc"] or ""
+        new_abc = _strip(old_abc)
+        removed = len(re.findall(r'"[^"]*"', old_abc)) - len(re.findall(r'"[^"]*"', new_abc))
+        conn.execute("UPDATE tunes SET abc = ? WHERE id = ?", (new_abc, tune_id))
+    return {"ok": True, "abc": new_abc, "removed": removed}
+
+
 @app.post("/api/collections/{col_id}/strip-chords")
 def strip_collection_chords(col_id: int):
     """Remove guitar chord symbols (quoted strings) from all ABC in this collection's tunes."""

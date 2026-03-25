@@ -795,12 +795,16 @@ const _NAV_COLOURS = {
 function _applyNavColour(view) {
   Object.values(_NAV_COLOURS).forEach(({ el }) => {
     const n = el();
-    n.style.background = ""; n.style.borderColor = ""; n.style.color = "";
+    n.style.removeProperty("background-color");
+    n.style.removeProperty("border-color");
+    n.style.removeProperty("color");
   });
   const c = _NAV_COLOURS[view];
   if (c) {
     const n = c.el();
-    n.style.background = c.bg; n.style.borderColor = c.bg; n.style.color = "#fff";
+    n.style.setProperty("background-color", c.bg, "important");
+    n.style.setProperty("border-color", c.bg, "important");
+    n.style.setProperty("color", "#fff", "important");
   }
 }
 
@@ -1107,13 +1111,15 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
-      ${!tune.abc ? `<div id="fetch-abc-section">
+      <div id="fetch-abc-section"${tune.abc ? ' class="fetch-abc-collapsed"' : ""}>
         <div class="fetch-abc-row">
-          <button id="fetch-session-abc" class="btn-import">🔍 Find ABC on TheSession.org</button>
+          ${tune.abc ? `<button id="fetch-abc-toggle" class="btn-secondary btn-sm">🔍 Find on TheSession.org…</button>` : ""}
+          <button id="fetch-session-abc" class="btn-import${tune.abc ? " hidden" : ""}">🔍 Find ABC on TheSession.org</button>
           <span id="fetch-abc-status" class="notes-status"></span>
+          ${tune.abc ? `<button id="strip-chords-btn" class="btn-secondary btn-sm" title="Remove guitar chord symbols from ABC">✂ Strip chords</button>` : ""}
         </div>
         <div id="session-abc-results" class="session-abc-results hidden"></div>
-      </div>` : ""}
+      </div>
       ${sessionLink ? `<p class="session-link-below">${sessionLink}</p>` : ""}
       ${pdfUrl ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
@@ -1634,6 +1640,40 @@ function renderModal(tune, onBack = null, siblings = null) {
         abcResults.innerHTML = `<p class="import-error" style="padding:.4rem .6rem">Failed to save: ${escHtml(err.message)}</p>`;
       }
     }
+  }
+
+  // Toggle "Find on TheSession" when tune already has ABC
+  const fetchAbcToggle = document.getElementById("fetch-abc-toggle");
+  if (fetchAbcToggle) {
+    fetchAbcToggle.addEventListener("click", () => {
+      const realBtn = document.getElementById("fetch-session-abc");
+      if (realBtn) {
+        realBtn.classList.toggle("hidden");
+        fetchAbcToggle.textContent = realBtn.classList.contains("hidden")
+          ? "🔍 Find on TheSession.org…"
+          : "▲ Hide search";
+      }
+    });
+  }
+
+  // Strip chords button (when tune has ABC)
+  const stripChordsBtn = document.getElementById("strip-chords-btn");
+  if (stripChordsBtn) {
+    stripChordsBtn.addEventListener("click", async () => {
+      stripChordsBtn.disabled = true;
+      stripChordsBtn.textContent = "Stripping…";
+      try {
+        const res = await apiFetch(`/api/tunes/${tune.id}/strip-chords`, { method: "POST" });
+        tune.abc = res.abc;
+        document.getElementById("abc-edit-textarea") && (document.getElementById("abc-edit-textarea").value = res.abc);
+        renderSheetMusic(res.abc);
+        stripChordsBtn.textContent = `✓ Stripped ${res.removed} chord${res.removed === 1 ? "" : "s"}`;
+        setTimeout(() => { stripChordsBtn.textContent = "✂ Strip chords"; stripChordsBtn.disabled = false; }, 3000);
+      } catch (err) {
+        stripChordsBtn.textContent = "✂ Strip chords";
+        stripChordsBtn.disabled = false;
+      }
+    });
   }
 
   // Attach audio panel
