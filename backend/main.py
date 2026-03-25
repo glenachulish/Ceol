@@ -2120,61 +2120,50 @@ async def thesession_backfill_member_data():
 # ---------------------------------------------------------------------------
 
 _FTF_BASE = "https://www.folktunefinder.com"
+# Use a realistic browser User-Agent so the site doesn't block us
 _FTF_HEADERS = {
-    "Accept": "application/json, text/html",
-    "User-Agent": "Ceol/0.1 trad-music-app",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-GB,en;q=0.9",
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
 }
 
 
 @app.get("/api/folktunefinder/search")
 async def folktunefinder_search(q: str = Query(..., min_length=1)):
-    """Search FolkTuneFinder.com by title and return results."""
-    async with httpx.AsyncClient(headers=_FTF_HEADERS, timeout=15, follow_redirects=True) as client:
-        # Try the JSON API first
-        try:
-            resp = await client.get(
-                f"{_FTF_BASE}/api/v3/tunes/search",
-                params={"title": q, "rows": 30, "rollup": "true", "facet": "false"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            results = data.get("results", [])
-            tunes = []
-            for r in results:
-                titles = r.get("titles") or r.get("title") or ""
-                if isinstance(titles, list):
-                    titles = " / ".join(titles)
-                tunes.append({
-                    "id": r.get("id"),
-                    "name": str(titles),
-                    "score": r.get("score", 0),
-                    "key": r.get("key", ""),
-                    "rhythm": r.get("rhythm", ""),
-                    "time": r.get("time", ""),
-                })
-            return {
-                "tunes": tunes,
-                "total": data.get("num_total_results", len(tunes)),
-                "source": "api",
-            }
-        except Exception:
-            pass
+    """Search FolkTuneFinder.com by title (HTML scraping)."""
+    import logging
+    log = logging.getLogger("ceol.ftf")
 
-        # Fallback: scrape the HTML search page
-        try:
-            resp = await client.get(
-                f"{_FTF_BASE}/tunes",
-                params={"q": q},
-                headers={**_FTF_HEADERS, "Accept": "text/html"},
-            )
-            resp.raise_for_status()
-            html = resp.text
-            tunes = _parse_ftf_search_html(html)
-            return {"tunes": tunes, "total": len(tunes), "source": "html"}
-        except httpx.RequestError as exc:
-            raise HTTPException(502, f"Could not reach FolkTuneFinder: {exc}")
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(502, f"FolkTuneFinder returned {exc.response.status_code}")
+    async with httpx.AsyncClient(headers=_FTF_HEADERS, timeout=20, follow_redirects=True) as client:
+        last_error = ""
+
+        # Try both URL formats the site is known to use
+        for url, params in [
+            (f"{_FTF_BASE}/tunes", {"q": q}),
+            (f"{_FTF_BASE}/tunes", {"features": f"Titles:{q}"}),
+        ]:
+            try:
+                resp = await client.get(url, params=params)
+                log.info("FTF search %s %s → %s", url, params, resp.status_code)
+                resp.raise_for_status()
+                html = resp.text
+                tunes = _parse_ftf_search_html(html)
+                if tunes:
+                    return {"tunes": tunes, "total": len(tunes), "source": "html"}
+                # Got a response but no results — keep trying the other URL
+                last_error = f"No tune links found in response from {url}"
+            except httpx.RequestError as exc:
+                last_error = f"Connection error: {exc}"
+                log.warning("FTF connection error: %s", exc)
+            except httpx.HTTPStatusError as exc:
+                last_error = f"HTTP {exc.response.status_code} from {url}"
+                log.warning("FTF HTTP error: %s", exc)
+
+        raise HTTPException(502, f"FolkTuneFinder search failed: {last_error}")
 
 
 def _parse_ftf_search_html(html: str) -> list[dict]:
@@ -2194,41 +2183,17 @@ def _parse_ftf_search_html(html: str) -> list[dict]:
 
 @app.get("/api/folktunefinder/tune/{tune_id}")
 async def folktunefinder_tune(tune_id: str):
-    """Fetch a single tune from FolkTuneFinder and extract ABC notation."""
-    async with httpx.AsyncClient(headers=_FTF_HEADERS, timeout=15, follow_redirects=True) as client:
-        # Try JSON API first
-        try:
-            resp = await client.get(
-                f"{_FTF_BASE}/api/v3/tunes/{tune_id}",
-                headers={**_FTF_HEADERS, "Accept": "application/json"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            abc = data.get("abc", "")
-            titles = data.get("titles") or data.get("title") or ""
-            if isinstance(titles, list):
-                titles = " / ".join(titles)
-            if abc:
-                return {
-                    "id": tune_id,
-                    "title": str(titles),
-                    "abc": abc,
-                    "key": data.get("key", ""),
-                    "rhythm": data.get("rhythm", ""),
-                    "source_url": f"{_FTF_BASE}/tunes/{tune_id}",
-                    "source": "api",
-                }
-        except Exception:
-            pass
+    """Fetch a single tune page from FolkTuneFinder and extract ABC notation."""
+    import logging
+    log = logging.getLogger("ceol.ftf")
 
-        # Fallback: scrape HTML tune page
+    async with httpx.AsyncClient(headers=_FTF_HEADERS, timeout=20, follow_redirects=True) as client:
         try:
-            resp = await client.get(
-                f"{_FTF_BASE}/tunes/{tune_id}",
-                headers={**_FTF_HEADERS, "Accept": "text/html"},
-            )
+            resp = await client.get(f"{_FTF_BASE}/tunes/{tune_id}")
+            log.info("FTF tune %s → %s", tune_id, resp.status_code)
             resp.raise_for_status()
         except httpx.RequestError as exc:
+            log.warning("FTF tune connection error: %s", exc)
             raise HTTPException(502, f"Could not reach FolkTuneFinder: {exc}")
         except httpx.HTTPStatusError as exc:
             raise HTTPException(502, f"FolkTuneFinder returned {exc.response.status_code}")
