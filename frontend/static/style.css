@@ -155,17 +155,12 @@ body[data-view="collections"] #nav-collections {
 
 /* Import Tunes — emerald green */
 #import-btn {
-  background: color-mix(in srgb, #10b981 15%, transparent);
-  border-color: #10b981;
+  background: color-mix(in srgb, #10b981 18%, var(--surface));
+  border-color: color-mix(in srgb, #10b981 40%, transparent);
   color: #059669;
 }
-#import-btn:hover {
-  background: color-mix(in srgb, #10b981 25%, transparent);
-  border-color: #10b981;
-  color: #047857;
-}
-:root[data-theme="dark"] #import-btn,
-:root[data-theme="dark"] #import-btn:hover { color: #34d399; }
+#import-btn:hover { background: color-mix(in srgb, #10b981 30%, var(--surface)); }
+:root[data-theme="dark"] #import-btn { color: #34d399; }
 
 /* ── Buttons ──────────────────────────────────────────────── */
 .btn-primary {
