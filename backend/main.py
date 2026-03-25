@@ -2051,11 +2051,13 @@ class GroupTunesBody(BaseModel):
     title: str
     tune_ids: list[int]
     labels: list[str]
+    existing_parent_id: Optional[int] = None
 
 
 @app.post("/api/tunes/group", status_code=201)
 def group_tunes(body: GroupTunesBody):
-    """Create a parent container and link existing tunes as versions under it."""
+    """Create a parent container and link existing tunes as versions under it.
+    If existing_parent_id is supplied, add tunes to that existing group instead."""
     title = body.title.strip()
     if not title:
         raise HTTPException(400, "Title required")
@@ -2064,16 +2066,41 @@ def group_tunes(body: GroupTunesBody):
     if len(body.tune_ids) != len(body.labels):
         raise HTTPException(400, "Must supply a label for each tune")
     with _db() as conn:
-        cur = conn.execute(
-            "INSERT INTO tunes (title, type, key, mode, abc, notes) VALUES (?, '', '', '', '', '')",
-            (title,),
-        )
-        parent_id = cur.lastrowid
-        for i, (tune_id, label) in enumerate(zip(body.tune_ids, body.labels)):
-            conn.execute(
-                "UPDATE tunes SET parent_id = ?, version_label = ?, is_default = ? WHERE id = ?",
-                (parent_id, label.strip(), 1 if i == 0 else 0, tune_id),
+        if body.existing_parent_id:
+            parent_row = conn.execute(
+                "SELECT id FROM tunes WHERE id = ? AND parent_id IS NULL",
+                (body.existing_parent_id,),
+            ).fetchone()
+            if not parent_row:
+                raise HTTPException(400, "Existing parent group not found")
+            parent_id = body.existing_parent_id
+            # Update the group title if changed
+            conn.execute("UPDATE tunes SET title = ? WHERE id = ?", (title, parent_id))
+            # Find the next label index (so new versions don't get is_default=1 unless group is empty)
+            existing_count = conn.execute(
+                "SELECT COUNT(*) FROM tunes WHERE parent_id = ?", (parent_id,)
+            ).fetchone()[0]
+            for i, (tune_id, label) in enumerate(zip(body.tune_ids, body.labels)):
+                # Detach from old parent if already a version elsewhere
+                conn.execute(
+                    "UPDATE tunes SET parent_id = NULL, version_label = '', is_default = 0 WHERE id = ? AND parent_id != ?",
+                    (tune_id, parent_id),
+                )
+                conn.execute(
+                    "UPDATE tunes SET parent_id = ?, version_label = ?, is_default = ? WHERE id = ?",
+                    (parent_id, label.strip(), 1 if existing_count == 0 and i == 0 else 0, tune_id),
+                )
+        else:
+            cur = conn.execute(
+                "INSERT INTO tunes (title, type, key, mode, abc, notes) VALUES (?, '', '', '', '', '')",
+                (title,),
             )
+            parent_id = cur.lastrowid
+            for i, (tune_id, label) in enumerate(zip(body.tune_ids, body.labels)):
+                conn.execute(
+                    "UPDATE tunes SET parent_id = ?, version_label = ?, is_default = ? WHERE id = ?",
+                    (parent_id, label.strip(), 1 if i == 0 else 0, tune_id),
+                )
     return {"id": parent_id, "title": title}
 
 

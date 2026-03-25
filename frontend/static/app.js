@@ -335,29 +335,41 @@ bulkAddCollectionBtn.addEventListener("click", async () => {
 // ── Group tunes as versions ───────────────────────────────────────────────────
 
 function _showGroupDialog(tunes) {
-  // tunes: array of {id, title, key}
+  // Split: is one of these tunes already a parent group?
+  const existingParent = tunes.find(t => t.version_count > 0);
+  const tunesToAdd = existingParent ? tunes.filter(t => t.id !== existingParent.id) : tunes;
+  const isAddingToExisting = !!existingParent;
+
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 
-  const labelInputs = tunes.map((t, i) =>
+  const labelInputs = tunesToAdd.map((t, i) =>
     `<label class="ff-url-label">Version label for <strong>${escHtml(t.title)}</strong>${t.key ? ` (${escHtml(t.key)})` : ""}</label>
      <input id="group-label-${i}" type="text" class="ff-url-input"
             value="${escHtml(t.key ? `Version in ${t.key}` : `Version ${i + 1}`)}"
             placeholder="e.g. Version in D" />`
   ).join("");
 
+  const titleDefault = existingParent ? existingParent.title : tunes[0].title;
+  const heading = isAddingToExisting
+    ? `Add to existing group "<strong>${escHtml(existingParent.title)}</strong>"`
+    : "Group as Versions";
+  const hint = isAddingToExisting
+    ? `The selected tune${tunesToAdd.length > 1 ? "s" : ""} will be added as ${tunesToAdd.length > 1 ? "versions" : "a version"} in the existing group.`
+    : "These tunes will be grouped under a single entry. Each version remains its own tune with its own sheet music — they are just listed together when you click the group name.";
+
   modalContent.innerHTML = `
-    <h2 class="modal-title">Group as Versions</h2>
-    <p class="modal-abc-label">These tunes will be grouped under a single entry. Each version remains its own tune with its own sheet music — they are just listed together when you click the group name.</p>
+    <h2 class="modal-title">${heading}</h2>
+    <p class="modal-abc-label">${hint}</p>
 
     <div class="merge-form">
       <label class="ff-url-label">Group title (shown in the library)</label>
-      <input id="group-title" type="text" class="ff-url-input" value="${escHtml(tunes[0].title)}" />
+      <input id="group-title" type="text" class="ff-url-input" value="${escHtml(titleDefault)}" />
       ${labelInputs}
     </div>
 
     <div class="notes-actions" style="margin-top:1.25rem">
-      <button id="group-confirm-btn" class="btn-primary">Create group</button>
+      <button id="group-confirm-btn" class="btn-primary">${isAddingToExisting ? "Add to group" : "Create group"}</button>
       <button id="group-cancel-btn" class="btn-secondary">Cancel</button>
       <span id="group-status" class="notes-status"></span>
     </div>
@@ -367,7 +379,7 @@ function _showGroupDialog(tunes) {
 
   document.getElementById("group-confirm-btn").addEventListener("click", async () => {
     const groupTitle = document.getElementById("group-title").value.trim();
-    const labels = tunes.map((_, i) =>
+    const labels = tunesToAdd.map((_, i) =>
       document.getElementById(`group-label-${i}`).value.trim()
     );
     const status = document.getElementById("group-status");
@@ -375,7 +387,7 @@ function _showGroupDialog(tunes) {
 
     const confirmBtn = document.getElementById("group-confirm-btn");
     confirmBtn.disabled = true;
-    confirmBtn.textContent = "Grouping…";
+    confirmBtn.textContent = isAddingToExisting ? "Adding…" : "Grouping…";
     status.textContent = "";
 
     try {
@@ -384,8 +396,9 @@ function _showGroupDialog(tunes) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: groupTitle,
-          tune_ids: tunes.map(t => Number(t.id)),
+          tune_ids: tunesToAdd.map(t => Number(t.id)),
           labels,
+          existing_parent_id: existingParent ? Number(existingParent.id) : null,
         }),
       });
       closeModal();
@@ -394,7 +407,7 @@ function _showGroupDialog(tunes) {
     } catch (err) {
       status.textContent = `Error: ${err.message}`;
       confirmBtn.disabled = false;
-      confirmBtn.textContent = "Create group";
+      confirmBtn.textContent = isAddingToExisting ? "Add to group" : "Create group";
     }
   });
 }
@@ -402,13 +415,13 @@ function _showGroupDialog(tunes) {
 bulkMergeBtn.addEventListener("click", async () => {
   if (_selectedIds.size < 2) return;
   const ids = [..._selectedIds];
-  // Reject if any selected card is itself a parent (already has versions)
-  const parentCards = ids.filter(id => {
+  // Reject only if multiple selected cards are parents (ambiguous merge)
+  const parentIds = ids.filter(id => {
     const card = tuneList.querySelector(`.tune-card[data-id="${id}"]`);
     return card && Number(card.dataset.versions || 0) > 0;
   });
-  if (parentCards.length > 0) {
-    alert("One or more selected tunes already have versions. Ungroup them first before re-grouping.");
+  if (parentIds.length > 1) {
+    alert("Multiple groups selected. Please select at most one existing group plus any standalone tunes to add to it.");
     return;
   }
   bulkMergeBtn.disabled = true;
