@@ -375,12 +375,34 @@ def get_recent_tunes(days: int = Query(7, ge=1, le=365)):
 # Version suggestions — must be declared before /api/tunes/{tune_id}
 # ---------------------------------------------------------------------------
 
-def _title_norm(title: str) -> str:
-    return re.sub(r'\s+', ' ', re.sub(r"[^\w\s]", "", title.lower())).strip()
+_TITLE_STOP_WORDS = frozenset({
+    "the", "a", "an",                                   # articles
+    "jig", "reel", "hornpipe", "polka", "waltz", "slip",
+    "strathspey", "march", "slide", "mazurka", "barndance",  # tune types
+})
+
+
+def _title_meaningful_words(title: str) -> frozenset:
+    """Return the set of meaningful words in a title (no articles, no tune types)."""
+    words = re.sub(r"[^\w\s]", "", title.lower()).split()
+    meaningful = frozenset(w for w in words if w not in _TITLE_STOP_WORDS)
+    # Fall back to all words if stripping leaves nothing (e.g. title is just "Jig")
+    return meaningful if meaningful else frozenset(words)
 
 
 def _title_similarity(a: str, b: str) -> float:
-    return difflib.SequenceMatcher(None, _title_norm(a), _title_norm(b)).ratio()
+    """Jaccard similarity on meaningful title words.
+
+    This avoids false positives from shared articles or tune-type suffixes
+    (e.g. 'The Kesh Jig' vs 'The Morning Jig' → 0.0, not 0.6).
+    """
+    wa = _title_meaningful_words(a)
+    wb = _title_meaningful_words(b)
+    if not wa and not wb:
+        return 1.0
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / len(wa | wb)
 
 
 @app.get("/api/tunes/version-suggestions")
