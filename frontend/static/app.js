@@ -2418,6 +2418,7 @@ let _fsBarFirstMs   = {};
 let _fsMsPerMeasure = null;
 let _fsLoopSeeking  = false;
 let _fsBarSeekPending = false;
+let _fsLastHighlighted = []; // per-tune colour highlights (set fullscreen mode)
 
 function _fsBuildBarMap() {
   const render = document.getElementById("abc-fullscreen-render");
@@ -2573,7 +2574,8 @@ function _fsMeasureClickHandler(e) {
   if (_fsBarSel.start !== null) _fsSeekToBar(_fsBarSel.start);
 }
 
-function openAbcFullscreen(abc, title) {
+function openAbcFullscreen(abc, title, opts = {}) {
+  const { tuneRanges = null, tuneColors = null } = opts;
   _abcFsTitleEl.textContent = title || "";
   _abcFsOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -2585,6 +2587,8 @@ function openAbcFullscreen(abc, title) {
   _fsMsPerMeasure = null;
   _fsLoopSeeking = false;
   _fsBarSeekPending = false;
+  _fsLastHighlighted.forEach(el => { el.style.fill = ''; });
+  _fsLastHighlighted = [];
   const fsBarInfo = document.getElementById("abc-fs-bar-info");
   if (fsBarInfo) fsBarInfo.classList.add("hidden");
 
@@ -2647,12 +2651,30 @@ function openAbcFullscreen(abc, title) {
           }
 
           // Highlight current note
-          document.querySelectorAll("#abc-fullscreen-render .abcjs-highlight")
-            .forEach(el => el.classList.remove("abcjs-highlight"));
-          if (ev && ev.elements) {
-            ev.elements.forEach(grp => {
-              if (grp) grp.forEach(el => { if (el.classList) el.classList.add("abcjs-highlight"); });
-            });
+          if (tuneRanges && tuneColors) {
+            // Per-tune colour mode (set fullscreen): use inline fill, not class
+            _fsLastHighlighted.forEach(el => { el.style.fill = ''; });
+            _fsLastHighlighted = [];
+            if (ev?.elements) {
+              const sc = ev.startChar ?? -1;
+              let tuneIdx = tuneRanges.length - 1;
+              for (let i = 0; i < tuneRanges.length; i++) {
+                if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
+              }
+              const color = tuneColors[tuneIdx % tuneColors.length];
+              ev.elements.forEach(grp => {
+                if (!grp) return;
+                grp.forEach(el => { el.style.fill = color; _fsLastHighlighted.push(el); });
+              });
+            }
+          } else {
+            document.querySelectorAll("#abc-fullscreen-render .abcjs-highlight")
+              .forEach(el => el.classList.remove("abcjs-highlight"));
+            if (ev && ev.elements) {
+              ev.elements.forEach(grp => {
+                if (grp) grp.forEach(el => { if (el.classList) el.classList.add("abcjs-highlight"); });
+              });
+            }
           }
 
           // Bar-range loop: jump back when playback passes the end of the selection
@@ -2670,8 +2692,13 @@ function openAbcFullscreen(abc, title) {
           }
         },
         onFinished() {
-          document.querySelectorAll("#abc-fullscreen-render .abcjs-highlight")
-            .forEach(el => el.classList.remove("abcjs-highlight"));
+          if (tuneRanges && tuneColors) {
+            _fsLastHighlighted.forEach(el => { el.style.fill = ''; });
+            _fsLastHighlighted = [];
+          } else {
+            document.querySelectorAll("#abc-fullscreen-render .abcjs-highlight")
+              .forEach(el => el.classList.remove("abcjs-highlight"));
+          }
         },
       };
 
@@ -2696,6 +2723,8 @@ function closeAbcFullscreen() {
     _abcFsSynthCtrl = null;
   }
   _abcFsVisualObj = null;
+  _fsLastHighlighted.forEach(el => { el.style.fill = ''; });
+  _fsLastHighlighted = [];
   // Remove click handler to avoid stacking listeners on re-open
   const renderEl = document.getElementById("abc-fullscreen-render");
   if (renderEl) renderEl.removeEventListener("click", _fsMeasureClickHandler, true);
@@ -3211,6 +3240,7 @@ function openFullSetModal(setData) {
     ${hasAbc ? `
       <div class="set-full-hd-row" style="margin-top:1.5rem">
         <h3 class="set-music-section-hd">${tunesWithAbc.length > 1 ? "Full set" : "Playback"}</h3>
+        <button class="btn-secondary btn-sm abc-fs-btn" id="set-full-fs-btn" title="Full screen sheet music">⛶ Full screen</button>
         <button class="btn-secondary btn-sm" id="set-full-print-btn" title="Print full set sheet music">⎙ Print</button>
       </div>
       ${timelineHtml}
@@ -3260,10 +3290,23 @@ function openFullSetModal(setData) {
 
   if (!hasAbc) return;
 
+  const TUNE_COLORS = ['#7c6af7', '#0d9488', '#f472b6', '#fb923c'];
+  const _setCombined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
+
+  // Wire fullscreen button (uses combined ABC with per-tune colour highlights)
+  const setFsBtn = document.getElementById("set-full-fs-btn");
+  if (setFsBtn && _setCombined) {
+    setFsBtn.addEventListener("click", () => {
+      if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} }
+      openAbcFullscreen(_setCombined.abc, setData.name, {
+        tuneRanges: _setCombined.tuneRanges,
+        tuneColors: TUNE_COLORS,
+      });
+    });
+  }
+
   requestAnimationFrame(() => {
     if (typeof ABCJS === "undefined") return;
-
-    const TUNE_COLORS = ['#7c6af7', '#0d9488', '#f472b6', '#fb923c'];
 
     // Render individual reference sheets with each tune's colour
     tunesWithAbc.forEach((t, i) => {
@@ -3283,7 +3326,7 @@ function openFullSetModal(setData) {
     });
 
     // Render combined ABC into the visible Full Set section
-    const combined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
+    const combined = _setCombined;
     if (!combined) return;
     const { abc: playbackAbc, tuneRanges } = combined;
 
