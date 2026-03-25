@@ -1458,7 +1458,7 @@ async def import_folder(files: List[UploadFile] = File(...)):
         if tune_id is None:
             with _db() as conn:
                 cur = conn.execute(
-                    "INSERT INTO tunes (title, notes, imported_at) VALUES (?, ?, datetime('now'))",
+                    "INSERT INTO tunes (title, type, key, mode, abc, notes, imported_at) VALUES (?, '', '', '', '', ?, datetime('now'))",
                     (stem, f"Imported from folder: {import_date}"),
                 )
                 tune_id = cur.lastrowid

@@ -3829,7 +3829,13 @@ function renderCollections(collections) {
         </div>`).join("");
       // wire up tune-open buttons
       listEl.querySelectorAll(".tune-open-btn").forEach(btn => {
-        btn.addEventListener("click", () => openTuneModal(Number(btn.dataset.tuneId)));
+        btn.addEventListener("click", async () => {
+          const tune = await fetchTune(btn.dataset.tuneId);
+          await Promise.all([fetchSets(), fetchCollections()]);
+          renderModal(tune);
+          modalOverlay.classList.remove("hidden");
+          document.body.style.overflow = "hidden";
+        });
       });
     } catch {
       listEl.innerHTML = '<p class="empty" style="padding:.5rem 0">Failed to load.</p>';
@@ -3855,6 +3861,15 @@ function renderCollections(collections) {
     clearTimeout(_debounce);
     _debounce = setTimeout(() => loadRecent(days), 400);
   });
+
+  // Hide / Show button
+  const hideBtn = document.getElementById("recent-imports-hide-btn");
+  if (hideBtn) {
+    hideBtn.addEventListener("click", () => {
+      const hidden = listEl.classList.toggle("hidden");
+      hideBtn.textContent = hidden ? "Show" : "Hide";
+    });
+  }
 
   // Expose so loadCollections can trigger a refresh
   window._loadRecentImports = () => loadRecent(_recentDays);
