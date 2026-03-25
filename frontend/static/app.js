@@ -1114,6 +1114,7 @@ function renderModal(tune, onBack = null, siblings = null) {
 
     <div id="tab-music" class="tab-panel">
       <div class="sheet-music-wrap">
+        ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
         <div id="sheet-music-render"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
         ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
@@ -1849,6 +1850,12 @@ function renderModal(tune, onBack = null, siblings = null) {
       renderSheetMusic(tune.abc);
     }
   });
+
+  // Full-screen button
+  const abcFsBtn = document.getElementById("abc-fs-btn");
+  if (abcFsBtn) {
+    abcFsBtn.addEventListener("click", () => openAbcFullscreen(tune.abc, tune.title));
+  }
 }
 
 // ── Inline type/key editing in modal ─────────────────────────────────────────
@@ -2396,6 +2403,43 @@ function renderSheetMusic(abc) {
     if (container) container.textContent = "(Could not render sheet music)";
   }
 }
+
+// ── ABC full-screen overlay ───────────────────────────────────────────────────
+const _abcFsOverlay = document.getElementById("abc-fullscreen-overlay");
+const _abcFsTitleEl = document.getElementById("abc-fullscreen-title");
+const _abcFsCloseBtn = document.getElementById("abc-fullscreen-close");
+
+function openAbcFullscreen(abc, title) {
+  _abcFsTitleEl.textContent = title || "";
+  _abcFsOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  requestAnimationFrame(() => {
+    if (typeof ABCJS === "undefined") return;
+    ABCJS.renderAbc("abc-fullscreen-render", expandAbcRepeats(abc), {
+      responsive: "resize",
+      wrap: { preferredMeasuresPerLine: 4 },
+      add_classes: true,
+      paddingbottom: 20,
+      paddingleft: 20,
+      paddingright: 20,
+      paddingtop: 20,
+      selectTypes: false,
+      foregroundColor: "#000000",
+    });
+  });
+}
+
+function closeAbcFullscreen() {
+  _abcFsOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+_abcFsCloseBtn.addEventListener("click", closeAbcFullscreen);
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !_abcFsOverlay.classList.contains("hidden")) {
+    closeAbcFullscreen();
+  }
+});
 
 // Prepare ABC for rendering.
 // TheSession tunes use bare ! as linebreak markers; convert to \n.
