@@ -2116,12 +2116,12 @@ async def thesession_backfill_member_data():
     return {"updated": updated}
 
 # ---------------------------------------------------------------------------
-# FolkTuneFinder.com endpoints
+# ABC Tune Search — abcnotation.com (~800k tunes)
+# (was FolkTuneFinder; that site blocks server-side requests with 403)
 # ---------------------------------------------------------------------------
 
-_FTF_BASE = "https://www.folktunefinder.com"
-# Use a realistic browser User-Agent so the site doesn't block us
-_FTF_HEADERS = {
+_ABN_BASE = "https://abcnotation.com"
+_ABN_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-GB,en;q=0.9",
     "User-Agent": (
@@ -2134,94 +2134,147 @@ _FTF_HEADERS = {
 
 @app.get("/api/folktunefinder/search")
 async def folktunefinder_search(q: str = Query(..., min_length=1)):
-    """Search FolkTuneFinder.com by title (HTML scraping)."""
+    """Search abcnotation.com by title and return results."""
     import logging
-    log = logging.getLogger("ceol.ftf")
+    log = logging.getLogger("ceol.abn")
 
-    async with httpx.AsyncClient(headers=_FTF_HEADERS, timeout=20, follow_redirects=True) as client:
-        last_error = ""
+    async with httpx.AsyncClient(headers=_ABN_HEADERS, timeout=20, follow_redirects=True) as client:
+        try:
+            resp = await client.get(f"{_ABN_BASE}/search", params={"q": q})
+            log.info("ABN search → %s", resp.status_code)
+            resp.raise_for_status()
+        except httpx.RequestError as exc:
+            log.warning("ABN connection error: %s", exc)
+            raise HTTPException(502, f"Could not reach abcnotation.com: {exc}")
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(502, f"abcnotation.com returned {exc.response.status_code}")
 
-        # Try both URL formats the site is known to use
-        for url, params in [
-            (f"{_FTF_BASE}/tunes", {"q": q}),
-            (f"{_FTF_BASE}/tunes", {"features": f"Titles:{q}"}),
-        ]:
-            try:
-                resp = await client.get(url, params=params)
-                log.info("FTF search %s %s → %s", url, params, resp.status_code)
-                resp.raise_for_status()
-                html = resp.text
-                tunes = _parse_ftf_search_html(html)
-                if tunes:
-                    return {"tunes": tunes, "total": len(tunes), "source": "html"}
-                # Got a response but no results — keep trying the other URL
-                last_error = f"No tune links found in response from {url}"
-            except httpx.RequestError as exc:
-                last_error = f"Connection error: {exc}"
-                log.warning("FTF connection error: %s", exc)
-            except httpx.HTTPStatusError as exc:
-                last_error = f"HTTP {exc.response.status_code} from {url}"
-                log.warning("FTF HTTP error: %s", exc)
-
-        raise HTTPException(502, f"FolkTuneFinder search failed: {last_error}")
+    tunes = _parse_abn_search_html(resp.text)
+    if not tunes:
+        return {"tunes": [], "total": 0, "source": "html"}
+    return {"tunes": tunes, "total": len(tunes), "source": "html"}
 
 
-def _parse_ftf_search_html(html: str) -> list[dict]:
-    """Best-effort parse of FolkTuneFinder HTML search results."""
+def _parse_abn_search_html(html: str) -> list[dict]:
+    """Parse abcnotation.com search results.
+
+    Each result is a <div class="tune"> with a link like:
+      <a href="/tune#http://example.com/file.abc,N">Title</a>
+    The fragment encodes: source_abc_url,tune_index_in_file
+    We URL-encode the fragment and use it as the tune ID.
+    """
+    import urllib.parse
     tunes = []
-    # Look for tune links: /tunes/{id} with a title
+    seen = set()
     for m in re.finditer(
-        r'<a[^>]+href=["\'](?:https?://(?:www\.)?folktunefinder\.com)?/tunes?/(\d+)["\'][^>]*>(.*?)</a>',
+        r'<a\s[^>]*href=["\'](?:https?://abcnotation\.com)?/tune#([^"\'>\s]+)["\'][^>]*>(.*?)</a>',
         html, re.IGNORECASE | re.DOTALL
     ):
-        tune_id = m.group(1)
+        fragment = m.group(1).strip()   # e.g. "http://example.com/tunes.abc,5"
         name = re.sub(r'<[^>]+>', '', m.group(2)).strip()
-        if name and tune_id not in [t["id"] for t in tunes]:
-            tunes.append({"id": tune_id, "name": name, "score": 0, "key": "", "rhythm": "", "time": ""})
+        if not name or fragment in seen:
+            continue
+        seen.add(fragment)
+        # fragment = "source_url,index" — split on last comma
+        comma = fragment.rfind(",")
+        if comma == -1:
+            continue
+        source_url = fragment[:comma]
+        try:
+            idx = int(fragment[comma + 1:])
+        except ValueError:
+            continue
+        # Encode the fragment so it survives a URL path segment
+        tune_id = urllib.parse.quote(fragment, safe="")
+        tunes.append({
+            "id": tune_id,
+            "name": name,
+            "source_url": source_url,
+            "index": idx,
+            "key": "",
+            "rhythm": "",
+        })
+        if len(tunes) >= 30:
+            break
     return tunes
 
 
-@app.get("/api/folktunefinder/tune/{tune_id}")
+@app.get("/api/folktunefinder/tune/{tune_id:path}")
 async def folktunefinder_tune(tune_id: str):
-    """Fetch a single tune page from FolkTuneFinder and extract ABC notation."""
-    import logging
-    log = logging.getLogger("ceol.ftf")
+    """Fetch ABC for a tune indexed by abcnotation.com.
 
-    async with httpx.AsyncClient(headers=_FTF_HEADERS, timeout=20, follow_redirects=True) as client:
+    tune_id is URL-encoded "source_abc_url,N".
+    We fetch the source ABC file and extract the Nth tune.
+    """
+    import logging, urllib.parse
+    log = logging.getLogger("ceol.abn")
+
+    fragment = urllib.parse.unquote(tune_id)
+    comma = fragment.rfind(",")
+    if comma == -1:
+        raise HTTPException(400, "Invalid tune id")
+    source_url = fragment[:comma]
+    try:
+        idx = int(fragment[comma + 1:])
+    except ValueError:
+        raise HTTPException(400, "Invalid tune index")
+
+    async with httpx.AsyncClient(headers=_ABN_HEADERS, timeout=20, follow_redirects=True) as client:
         try:
-            resp = await client.get(f"{_FTF_BASE}/tunes/{tune_id}")
-            log.info("FTF tune %s → %s", tune_id, resp.status_code)
+            resp = await client.get(source_url)
+            log.info("ABN source %s → %s", source_url, resp.status_code)
             resp.raise_for_status()
         except httpx.RequestError as exc:
-            log.warning("FTF tune connection error: %s", exc)
-            raise HTTPException(502, f"Could not reach FolkTuneFinder: {exc}")
+            log.warning("ABN source fetch error: %s", exc)
+            raise HTTPException(502, f"Could not fetch ABC source: {exc}")
         except httpx.HTTPStatusError as exc:
-            raise HTTPException(502, f"FolkTuneFinder returned {exc.response.status_code}")
+            raise HTTPException(502, f"ABC source returned {exc.response.status_code}")
 
-        html = resp.text
-        abc = _extract_abc_from_html(html)
-        title = _extract_title_from_html(html)
-        if not abc:
-            raise HTTPException(404, "Could not extract ABC from this tune page")
-        return {
-            "id": tune_id,
-            "title": title,
-            "abc": abc,
-            "key": "",
-            "rhythm": "",
-            "source_url": f"{_FTF_BASE}/tunes/{tune_id}",
-            "source": "html",
-        }
+    abc_file = resp.text
+    tunes = _split_abc_file(abc_file)
+    if idx >= len(tunes):
+        # Fall back to first tune if index is out of range
+        idx = 0
+    if not tunes:
+        raise HTTPException(404, "No tunes found in source file")
+
+    abc = tunes[idx]
+    title_m = re.search(r'^T:\s*(.+)', abc, re.MULTILINE)
+    title = title_m.group(1).strip() if title_m else "Untitled"
+
+    return {
+        "id": tune_id,
+        "title": title,
+        "abc": abc.strip(),
+        "key": "",
+        "rhythm": "",
+        "source_url": source_url,
+        "source": "abcnotation",
+    }
+
+
+def _split_abc_file(text: str) -> list[str]:
+    """Split an ABC file into individual tune strings, split on X: header lines."""
+    tunes = []
+    current: list[str] = []
+    for line in text.splitlines(keepends=True):
+        if re.match(r'^X:\s*\d', line) and current:
+            tunes.append("".join(current))
+            current = []
+        current.append(line)
+    if current:
+        tunes.append("".join(current))
+    # Drop any leading junk before the first X:
+    return [t for t in tunes if re.search(r'^X:\s*\d', t, re.MULTILINE)]
 
 
 @app.post("/api/folktunefinder/import")
 async def folktunefinder_import(body: dict):
-    """Fetch a tune from FolkTuneFinder and save to the library."""
+    """Fetch a tune from abcnotation.com and save to the library."""
     tune_id = body.get("tune_id")
     if not tune_id:
         raise HTTPException(400, "tune_id required")
 
-    # Fetch the tune data
     tune_data = await folktunefinder_tune(str(tune_id))
     abc = tune_data.get("abc", "")
     title = body.get("title") or tune_data.get("title", "Untitled")
@@ -2231,19 +2284,14 @@ async def folktunefinder_import(body: dict):
         raise HTTPException(404, "No ABC found for this tune")
 
     from backend.abc_parser import normalise_key
-    # Extract key from ABC
     key_match = re.search(r'^K:\s*(.+)', abc, re.MULTILINE)
     key_raw = key_match.group(1).strip() if key_match else ""
     key_norm, mode_norm = normalise_key(key_raw) if key_raw else ("", "")
-
-    # Extract type from ABC
     type_match = re.search(r'^R:\s*(.+)', abc, re.MULTILINE)
     tune_type = type_match.group(1).strip().lower() if type_match else ""
-
     import_date = date.today().isoformat()
 
     with _db() as conn:
-        # Dedup by source_url
         if source_url:
             existing = conn.execute(
                 "SELECT id FROM tunes WHERE source_url = ?", (source_url,)
@@ -2255,53 +2303,12 @@ async def folktunefinder_import(body: dict):
             """INSERT INTO tunes (title, type, key, mode, abc, notes, source_url, imported_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (title, tune_type, key_norm, mode_norm, abc,
-             f"Imported from FolkTuneFinder: {import_date}",
+             f"Imported from abcnotation.com: {import_date}",
              source_url, import_date),
         )
         new_id = cur.lastrowid
 
     return {"status": "saved", "tune_id": new_id, "title": title}
-
-
-def _extract_abc_from_html(html: str) -> str:
-    """Extract ABC notation from a FolkTuneFinder tune page HTML."""
-    # Look for ABC in <pre>, <code>, or <textarea> tags
-    for tag in ("pre", "code", "textarea"):
-        pattern = rf'<{tag}[^>]*>(.*?)</{tag}>'
-        for m in re.finditer(pattern, html, re.DOTALL | re.IGNORECASE):
-            content = m.group(1).strip()
-            # Unescape HTML entities
-            content = (content
-                       .replace("&lt;", "<").replace("&gt;", ">")
-                       .replace("&amp;", "&").replace("&#39;", "'")
-                       .replace("&quot;", '"'))
-            if re.search(r'^X:\s*\d', content, re.MULTILINE) or \
-               re.search(r'^T:', content, re.MULTILINE):
-                return content.strip()
-
-    # Look for ABC in data attributes
-    m = re.search(r'data-abc=["\']([^"\']+)["\']', html)
-    if m:
-        content = m.group(1).replace("\\n", "\n")
-        if re.search(r'^X:\s*\d', content, re.MULTILINE):
-            return content.strip()
-
-    return ""
-
-
-def _extract_title_from_html(html: str) -> str:
-    """Extract tune title from HTML page."""
-    m = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.DOTALL | re.IGNORECASE)
-    if m:
-        return re.sub(r'<[^>]+>', '', m.group(1)).strip()
-    m = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE)
-    if m:
-        title = m.group(1).strip()
-        # Remove site name suffix
-        for sep in (" - ", " | ", " – "):
-            if sep in title:
-                title = title.split(sep)[0].strip()
-        return title
     return "Untitled"
 
 

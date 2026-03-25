@@ -6531,7 +6531,9 @@ function showFtfPreview(tuneData) {
   preview.classList.remove("hidden");
   document.getElementById("ftf-preview-title").textContent = tuneData.title || "Untitled";
   const visitBtn = document.getElementById("ftf-visit-btn");
-  visitBtn.href = tuneData.source_url || "#";
+  // Link to the abcnotation.com tune page (fragment URL)
+  const ftfFragment = tuneData.id ? decodeURIComponent(tuneData.id) : "";
+  visitBtn.href = ftfFragment ? `https://abcnotation.com/tune#${ftfFragment}` : (tuneData.source_url || "#");
 
   // Reset save button
   const saveBtn = document.getElementById("ftf-save-btn");
