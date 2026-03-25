@@ -2238,16 +2238,21 @@ function _buildBarTimingMap() {
       if (!grp) return;
       grp.forEach(el => {
         if (!el || !el.classList) return;
-        // Find abcjs-mN class for the measure-within-line index.
-        let measure = null;
-        for (const cls of el.classList) {
-          const hit = cls.match(/^abcjs-m(\d+)$/);
-          if (hit) { measure = parseInt(hit[1], 10); break; }
-        }
-        if (measure === null) return;
-        // Walk up to the containing staff-wrapper to resolve global index.
+        // Walk up ancestors to find abcjs-mN (ABCJS may put it on a parent group,
+        // not directly on the highlighted element).
         const wrapper = el.closest && el.closest('.abcjs-staff-wrapper');
         if (!wrapper) return;
+        let measure = null;
+        let target = el;
+        while (target && target !== wrapper) {
+          for (const cls of target.classList) {
+            const hit = cls.match(/^abcjs-m(\d+)$/);
+            if (hit) { measure = parseInt(hit[1], 10); break; }
+          }
+          if (measure !== null) break;
+          target = target.parentElement;
+        }
+        if (measure === null) return;
         const inner = wrapperMeasureToIdx.get(wrapper);
         if (!inner) return;
         const globalIdx = inner.get(measure);
@@ -2476,14 +2481,21 @@ function _fsBuildTimingMap() {
       if (!grp) return;
       grp.forEach(el => {
         if (!el || !el.classList) return;
-        let measure = null;
-        for (const cls of el.classList) {
-          const hit = cls.match(/^abcjs-m(\d+)$/);
-          if (hit) { measure = parseInt(hit[1], 10); break; }
-        }
-        if (measure === null) return;
+        // Walk up ancestors to find abcjs-mN (ABCJS may put it on a parent group,
+        // not directly on the highlighted element).
         const wrapper = el.closest && el.closest(".abcjs-staff-wrapper");
         if (!wrapper) return;
+        let measure = null;
+        let target = el;
+        while (target && target !== wrapper) {
+          for (const cls of target.classList) {
+            const hit = cls.match(/^abcjs-m(\d+)$/);
+            if (hit) { measure = parseInt(hit[1], 10); break; }
+          }
+          if (measure !== null) break;
+          target = target.parentElement;
+        }
+        if (measure === null) return;
         const inner = wmToIdx.get(wrapper);
         if (!inner) return;
         const gi = inner.get(measure);
@@ -3202,7 +3214,8 @@ function openFullSetModal(setData) {
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
 
   const trackRows = tunes.map((t, i) => `
-    <div class="set-track-item">
+    <div class="set-track-item" draggable="true" data-tune-id="${t.id}">
+      <span class="set-track-drag" title="Drag to reorder">⠿</span>
       <span class="set-track-num">${i + 1}</span>
       <span class="set-track-title">${escHtml(t.title)}</span>
       <span class="set-track-meta">${[t.type, t.key].filter(Boolean).map(escHtml).join(" · ") || ""}</span>
@@ -3269,6 +3282,139 @@ function openFullSetModal(setData) {
 
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+
+  // ── Drag-and-drop reordering for track list ──────────────────────────────
+  {
+    const trackList = modalContent.querySelector(".set-track-list");
+    function _reorderSetSheetMusic(orderedTunes) {
+      // Rebuild individual sheet music section (preserves existing rendered SVGs where possible)
+      const sheetsEl = document.getElementById("set-music-sheets");
+      if (!sheetsEl) return;
+      const tunesWithAbc = orderedTunes.filter(t => t.abc);
+      const TUNE_COLORS = ['#7c6af7', '#0d9488', '#f472b6', '#fb923c'];
+      sheetsEl.innerHTML = tunesWithAbc.map((t, i) => `
+        <div class="set-tune-sheet" id="set-tune-sheet-${i}">
+          <h4 class="set-tune-sheet-title">${i + 1}. ${escHtml(t.title)}</h4>
+          <div id="set-tune-render-${i}"></div>
+        </div>`).join('');
+      requestAnimationFrame(() => {
+        tunesWithAbc.forEach((t, i) => {
+          const id = `set-tune-render-${i}`;
+          try {
+            ABCJS.renderAbc(id, expandAbcRepeats(t.abc), {
+              responsive: "resize", add_classes: true,
+              paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
+              foregroundColor: TUNE_COLORS[i % TUNE_COLORS.length], scale: 1.1,
+            });
+            _patchSvgViewBox(id);
+          } catch {}
+        });
+        // Rebuild combined playback ABC
+        if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
+        const combined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
+        const renderEl = document.getElementById("set-full-render");
+        const audioEl = document.getElementById("set-full-audio");
+        if (!combined || !renderEl) return;
+        try {
+          const fullVisual = ABCJS.renderAbc("set-full-render", combined.abc, {
+            responsive: "resize", add_classes: true,
+            paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
+            foregroundColor: "#000000", scale: 1.0,
+          });
+          _patchSvgViewBox("set-full-render");
+          if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+          let _lastHighlighted = [];
+          const cursorControl = {
+            onEvent(ev) {
+              _lastHighlighted.forEach(el => { el.style.fill = ''; });
+              _lastHighlighted = [];
+              if (!ev?.elements) return;
+              const sc = ev.startChar ?? -1;
+              let tuneIdx = combined.tuneRanges.length - 1;
+              for (let i = 0; i < combined.tuneRanges.length; i++) {
+                if (sc >= combined.tuneRanges[i].start && sc <= combined.tuneRanges[i].end) { tuneIdx = i; break; }
+              }
+              const color = TUNE_COLORS[tuneIdx % TUNE_COLORS.length];
+              ev.elements.forEach(grp => { if (grp) grp.forEach(el => { el.style.fill = color; _lastHighlighted.push(el); }); });
+            },
+            onFinished() { _lastHighlighted.forEach(el => { el.style.fill = ''; }); _lastHighlighted = []; },
+          };
+          if (audioEl) audioEl.innerHTML = '';
+          _setMusicSynth = new ABCJS.synth.SynthController();
+          _setMusicSynth.load("#set-full-audio", cursorControl, {
+            displayLoop: false, displayRestart: true, displayPlay: true,
+            displayProgress: true, displayWarp: true,
+          });
+          _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
+            .then(() => _setMusicSynth.setWarp(100))
+            .catch(() => {});
+        } catch {}
+        // Rewire fullscreen button for new combined ABC
+        const fsBtn = document.getElementById("set-full-fs-btn");
+        if (fsBtn && combined) {
+          fsBtn.onclick = () => {
+            if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} }
+            openAbcFullscreen(combined.abc, setData.name, {
+              tuneRanges: combined.tuneRanges,
+              tuneColors: TUNE_COLORS,
+            });
+          };
+        }
+      });
+    }
+
+    if (trackList && tunes.length > 1) {
+      let dragSrcTuneId = null;
+      trackList.querySelectorAll(".set-track-item").forEach(item => {
+        item.addEventListener("dragstart", e => {
+          dragSrcTuneId = parseInt(item.dataset.tuneId, 10);
+          item.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+        });
+        item.addEventListener("dragend", () => {
+          item.classList.remove("dragging");
+          trackList.querySelectorAll(".set-track-item").forEach(el => el.classList.remove("drag-over"));
+        });
+        item.addEventListener("dragover", e => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+        });
+        item.addEventListener("dragenter", e => { e.preventDefault(); item.classList.add("drag-over"); });
+        item.addEventListener("dragleave", () => item.classList.remove("drag-over"));
+        item.addEventListener("drop", async e => {
+          e.preventDefault();
+          item.classList.remove("drag-over");
+          const destTuneId = parseInt(item.dataset.tuneId, 10);
+          if (!dragSrcTuneId || dragSrcTuneId === destTuneId) return;
+          // Reorder tunes array: move src to dest position
+          const srcIdx = tunes.findIndex(t => t.id === dragSrcTuneId);
+          const dstIdx = tunes.findIndex(t => t.id === destTuneId);
+          if (srcIdx === -1 || dstIdx === -1) return;
+          const [moved] = tunes.splice(srcIdx, 1);
+          tunes.splice(dstIdx, 0, moved);
+          // Reorder DOM items to match new tunes array order
+          tunes.forEach(t => {
+            const el = trackList.querySelector(`[data-tune-id="${t.id}"]`);
+            if (el) trackList.appendChild(el);
+          });
+          // Update track numbers
+          trackList.querySelectorAll(".set-track-item").forEach((el, i) => {
+            const numEl = el.querySelector(".set-track-num");
+            if (numEl) numEl.textContent = i + 1;
+          });
+          // Persist to backend
+          try {
+            await apiFetch(`/api/sets/${setData.id}/tunes/reorder`, {
+              method: "PUT",
+              body: JSON.stringify({ order: tunes.map(t => t.id) }),
+            });
+          } catch (err) { console.warn("Set reorder failed:", err); }
+          // Rebuild sheet music for new order
+          _reorderSetSheetMusic(tunes);
+        });
+      });
+    }
+  }
 
   modalContent.querySelectorAll(".set-trans-play-btn, .set-trans-music-btn").forEach(btn => {
     btn.addEventListener("click", () => {

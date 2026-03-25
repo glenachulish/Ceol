@@ -1909,10 +1909,15 @@ button.set-tune-title:hover { text-decoration: underline; }
 /* ── Full-set music modal ─────────────────────────────────── */
 .set-track-list { display: flex; flex-direction: column; gap: .25rem; margin-top: .75rem; }
 .set-track-item {
-  display: flex; align-items: baseline; gap: .55rem;
+  display: flex; align-items: center; gap: .55rem;
   padding: .3rem .5rem; border-radius: 6px;
   background: var(--surface2);
+  cursor: grab;
+  user-select: none;
 }
+.set-track-item.drag-over { outline: 2px dashed var(--accent); background: var(--surface); }
+.set-track-item.dragging { opacity: 0.4; }
+.set-track-drag { font-size: .85rem; color: var(--text-muted); cursor: grab; padding: 0 .1rem; flex-shrink: 0; }
 .set-track-num { font-size: .75rem; font-weight: 700; color: var(--text-muted); min-width: 1.4rem; text-align: right; }
 .set-track-title { font-size: .9rem; font-weight: 600; flex: 1; }
 .set-track-meta { font-size: .75rem; color: var(--text-muted); }
