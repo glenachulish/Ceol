@@ -4206,7 +4206,20 @@ function renderCollections(collections) {
         btn.addEventListener("click", async () => {
           const tune = await fetchTune(btn.dataset.tuneId);
           await Promise.all([fetchSets(), fetchCollections()]);
-          renderModal(tune);
+          // If this tune is a version (has a parent), open the parent's versions panel
+          // so the user sees the full tune page with all versions, not a blank entry.
+          if (tune.parent_id) {
+            const { versions } = await apiFetch(`/api/tunes/${tune.parent_id}/versions`);
+            if (versions && versions.length > 0) {
+              const defaultVer = versions.find(v => v.is_default) || versions[0];
+              const parentTune = await fetchTune(defaultVer.id);
+              renderModal(parentTune, () => renderVersionsPanel(tune.parent_id), versions);
+            } else {
+              renderModal(tune);
+            }
+          } else {
+            renderModal(tune);
+          }
           modalOverlay.classList.remove("hidden");
           document.body.style.overflow = "hidden";
         });
@@ -6974,6 +6987,21 @@ document.getElementById("dedup-versions-btn").addEventListener("click", async ()
     await Promise.all([loadStats(), loadFilters(), loadTunes()]);
   }
 });
+
+const _rationaliseBtn = document.getElementById("rationalise-btn");
+if (_rationaliseBtn) {
+  _rationaliseBtn.addEventListener("click", async () => {
+    libraryMenu.classList.add("hidden");
+    if (!confirm("Scan the whole library for tunes with identical notes and merge duplicates?\n\nRatings, hitlist flags, sets, and collections will be preserved on the surviving tune.")) return;
+    const { removed, groups } = await apiFetch("/api/tunes/rationalise", { method: "POST" });
+    if (removed === 0) {
+      alert("No identical tunes found — library is already clean.");
+    } else {
+      alert(`Merged ${groups} group${groups !== 1 ? "s" : ""} of identical tunes, removing ${removed} duplicate${removed !== 1 ? "s" : ""}.\n\nRatings, hitlist, sets and collections were carried over to the kept tune.`);
+      await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+    }
+  });
+}
 
 libraryBackupBtn.addEventListener("click", () => {
   libraryMenu.classList.add("hidden");

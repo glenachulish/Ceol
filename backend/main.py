@@ -364,7 +364,7 @@ def get_recent_tunes(days: int = Query(7, ge=1, le=365)):
     cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
     with _db() as conn:
         rows = conn.execute(
-            "SELECT id, title, type, key, mode, imported_at"
+            "SELECT id, title, type, key, mode, imported_at, parent_id"
             " FROM tunes WHERE imported_at >= ? ORDER BY imported_at DESC",
             (cutoff,),
         ).fetchall()
@@ -2224,6 +2224,126 @@ def dedup_versions_endpoint():
     with _db() as conn:
         removed = _dedup_versions(conn)
     return {"removed": removed}
+
+
+@app.post("/api/tunes/rationalise")
+def rationalise_tunes():
+    """Find all tunes with identical ABC across the whole library and merge them.
+
+    For each group of tunes sharing identical ABC (after whitespace normalisation):
+      - Keep the tune with the highest rating (tie → lowest id).
+      - Merge onto the winner: max rating, on_hitlist if any, and all set /
+        collection / tag / alias memberships from the losers.
+      - Delete the losers.
+    Returns {"removed": N, "groups": M}.
+    """
+    import re
+
+    def _norm(abc: str) -> str:
+        return re.sub(r"\s+", "", abc or "").lower()
+
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, abc, rating, on_hitlist FROM tunes "
+            "WHERE abc IS NOT NULL AND abc != ''"
+        ).fetchall()
+
+        # Group by normalised ABC
+        groups: dict[str, list] = {}
+        for r in rows:
+            key = _norm(r["abc"])
+            if key:
+                groups.setdefault(key, []).append(r)
+
+        removed = 0
+        groups_merged = 0
+
+        for tunes in groups.values():
+            if len(tunes) < 2:
+                continue
+
+            groups_merged += 1
+            # Winner = highest rating; tie → lowest id
+            tunes.sort(key=lambda t: (-(t["rating"] or 0), t["id"]))
+            winner_id = tunes[0]["id"]
+            losers = tunes[1:]
+
+            # Merge scalar fields onto winner
+            max_rating = max(t["rating"] or 0 for t in tunes)
+            any_hitlist = int(any(t["on_hitlist"] for t in tunes))
+            conn.execute(
+                "UPDATE tunes SET rating = ?, on_hitlist = ? WHERE id = ?",
+                (max_rating, any_hitlist, winner_id),
+            )
+
+            for loser in losers:
+                loser_id = loser["id"]
+
+                # Transfer set memberships (set_tunes has no UNIQUE on set_id+tune_id)
+                loser_sets = conn.execute(
+                    "SELECT set_id, position, key_override FROM set_tunes WHERE tune_id = ?",
+                    (loser_id,),
+                ).fetchall()
+                winner_sets = {
+                    r["set_id"] for r in conn.execute(
+                        "SELECT set_id FROM set_tunes WHERE tune_id = ?", (winner_id,)
+                    ).fetchall()
+                }
+                for st in loser_sets:
+                    if st["set_id"] not in winner_sets:
+                        conn.execute(
+                            "INSERT INTO set_tunes (set_id, tune_id, position, key_override)"
+                            " VALUES (?,?,?,?)",
+                            (st["set_id"], winner_id, st["position"], st["key_override"]),
+                        )
+                conn.execute("DELETE FROM set_tunes WHERE tune_id = ?", (loser_id,))
+
+                # Transfer collection memberships (PRIMARY KEY (collection_id, tune_id))
+                conn.execute(
+                    "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id)"
+                    " SELECT collection_id, ? FROM collection_tunes WHERE tune_id = ?",
+                    (winner_id, loser_id),
+                )
+                conn.execute("DELETE FROM collection_tunes WHERE tune_id = ?", (loser_id,))
+
+                # Transfer tags (PRIMARY KEY (tune_id, tag_id))
+                conn.execute(
+                    "INSERT OR IGNORE INTO tune_tags (tune_id, tag_id)"
+                    " SELECT ?, tag_id FROM tune_tags WHERE tune_id = ?",
+                    (winner_id, loser_id),
+                )
+                conn.execute("DELETE FROM tune_tags WHERE tune_id = ?", (loser_id,))
+
+                # Transfer aliases (no UNIQUE constraint — check manually)
+                existing_aliases = {
+                    r["alias"] for r in conn.execute(
+                        "SELECT alias FROM tune_aliases WHERE tune_id = ?", (winner_id,)
+                    ).fetchall()
+                }
+                for r in conn.execute(
+                    "SELECT alias FROM tune_aliases WHERE tune_id = ?", (loser_id,)
+                ).fetchall():
+                    if r["alias"] not in existing_aliases:
+                        conn.execute(
+                            "INSERT INTO tune_aliases (tune_id, alias) VALUES (?,?)",
+                            (winner_id, r["alias"]),
+                        )
+                        existing_aliases.add(r["alias"])
+                conn.execute("DELETE FROM tune_aliases WHERE tune_id = ?", (loser_id,))
+
+                # Unlink any child tunes that point to this loser as their parent
+                conn.execute(
+                    "UPDATE tunes SET parent_id = NULL, version_label = '', is_default = 0"
+                    " WHERE parent_id = ?",
+                    (loser_id,),
+                )
+                conn.execute("DELETE FROM tunes WHERE id = ?", (loser_id,))
+                removed += 1
+
+        # Clean up any version groups left with 0 or 1 members
+        _dedup_versions(conn)
+
+    return {"removed": removed, "groups": groups_merged}
 
 
 # ---------------------------------------------------------------------------
