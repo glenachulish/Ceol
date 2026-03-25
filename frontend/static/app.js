@@ -2084,10 +2084,17 @@ function _buildBarMap() {
 
   for (const wrapper of wrappers) {
     const seenMeasures = new Set();
-    for (const el of wrapper.querySelectorAll("[class]")) {
-      for (const cls of el.classList) {
-        const m = cls.match(/^abcjs-m(\d+)$/);
-        if (m) { seenMeasures.add(parseInt(m[1], 10)); break; }
+    // Only count measures that contain actual notes/rests — this excludes
+    // barline elements (including : repeat signs) and phantom wrappers
+    // created by %%text annotations or inline key/metre changes.
+    for (const el of wrapper.querySelectorAll(".abcjs-note, .abcjs-rest")) {
+      let target = el;
+      while (target && target !== wrapper) {
+        for (const cls of target.classList) {
+          const m = cls.match(/^abcjs-m(\d+)$/);
+          if (m) { seenMeasures.add(parseInt(m[1], 10)); break; }
+        }
+        target = target.parentElement;
       }
     }
     for (const measure of [...seenMeasures].sort((a, b) => a - b)) {
@@ -2104,10 +2111,13 @@ function _buildBarMap() {
 function _sheetMusicClickHandler(e) {
   const container = document.getElementById("sheet-music-render");
 
-  // Walk up to find abcjs-mN.
+  // Walk up to find abcjs-mN, ignoring barline elements (: repeat signs etc.)
   let measure = null;
   let el = e.target;
   while (el && el !== container) {
+    // Barline elements (abcjs-bar, abcjs-bar-repeat, abcjs-bar-dbl …) are not
+    // selectable bars — clicking them should be silently ignored.
+    if (/\babcjs-bar/.test(el.getAttribute("class") || "")) return;
     for (const cls of (el.classList || [])) {
       const m = cls.match(/^abcjs-m(\d+)$/);
       if (m) { measure = parseInt(m[1], 10); break; }
@@ -2426,10 +2436,17 @@ function _fsBuildBarMap() {
   const result = [];
   for (const wrapper of render.querySelectorAll(".abcjs-staff-wrapper")) {
     const seen = new Set();
-    for (const el of wrapper.querySelectorAll("[class]")) {
-      for (const cls of el.classList) {
-        const m = cls.match(/^abcjs-m(\d+)$/);
-        if (m) { seen.add(parseInt(m[1], 10)); break; }
+    // Only count measures with actual notes/rests — excludes barline elements
+    // (: repeat signs, bar-dbl, etc.) and phantom wrappers from %%text
+    // annotations or inline [K:] changes between tunes in a set.
+    for (const el of wrapper.querySelectorAll(".abcjs-note, .abcjs-rest")) {
+      let target = el;
+      while (target && target !== wrapper) {
+        for (const cls of target.classList) {
+          const m = cls.match(/^abcjs-m(\d+)$/);
+          if (m) { seen.add(parseInt(m[1], 10)); break; }
+        }
+        target = target.parentElement;
       }
     }
     for (const measure of [...seen].sort((a, b) => a - b)) {
@@ -2539,6 +2556,8 @@ function _fsMeasureClickHandler(e) {
   let measure = null;
   let el = e.target;
   while (el && el !== container) {
+    // Ignore clicks on barline elements (: repeat signs, bar-dbl, etc.)
+    if (/\babcjs-bar/.test(el.getAttribute("class") || "")) return;
     for (const cls of (el.classList || [])) {
       const m = cls.match(/^abcjs-m(\d+)$/);
       if (m) { measure = parseInt(m[1], 10); break; }
