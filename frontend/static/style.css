@@ -2885,3 +2885,59 @@ button.set-tune-title:hover { text-decoration: underline; }
   .filter-row select { flex: 1 1 140px; }
   .modal-wide { max-width: 100%; }
 }
+
+/* ── Composer / transcriber line in tune modal ───────────────────────────── */
+.tune-composer-line {
+  display: flex; gap: .75rem; flex-wrap: wrap;
+  font-size: .8rem; color: var(--text-muted);
+  margin: .15rem 0 .4rem;
+}
+.tune-composer { font-style: italic; }
+.tune-transcriber { font-style: italic; }
+
+/* ── Modal export button (inline in h2) ──────────────────────────────────── */
+.modal-export-btn {
+  font-size: .75rem; padding: .2rem .55rem;
+  vertical-align: middle; margin-left: .6rem;
+  text-decoration: none;
+}
+
+/* ── Discography scanner panel ───────────────────────────────────────────── */
+.discography-panel {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin: .75rem 0 1rem;
+}
+.discography-title { font-size: .95rem; font-weight: 700; margin: 0 0 .25rem; }
+.discography-hint  { font-size: .82rem; color: var(--text-muted); margin: 0 0 .75rem; }
+.discography-artists {
+  display: flex; flex-wrap: wrap; gap: .4rem; align-items: center;
+  margin-bottom: .75rem;
+}
+.discography-artists-label { font-size: .78rem; color: var(--text-muted); margin-right: .2rem; }
+.discog-artist-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: .25rem .7rem;
+  font-size: .8rem; cursor: pointer; color: var(--text);
+  transition: background .15s;
+}
+.discog-artist-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.discography-form { display: flex; flex-direction: column; gap: .5rem; }
+.discography-form input {
+  width: 100%; max-width: 480px;
+  padding: .45rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: .9rem;
+}
+.discog-status {
+  margin-top: .6rem; font-size: .85rem; padding: .5rem .75rem;
+  border-radius: 6px; background: var(--surface);
+  border: 1px solid var(--border);
+}
+.discog-status.discog-ok  { border-color: #0d9488; color: #0d9488; }
+.discog-status.discog-err { border-color: #ef4444; color: #ef4444; }

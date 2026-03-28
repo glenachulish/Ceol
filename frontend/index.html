@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=74" />
+  <link rel="stylesheet" href="/static/style.css?v=75" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body data-view="library">
@@ -73,6 +73,7 @@
           <select id="filter-type"><option value="">All types</option></select>
           <select id="filter-key"><option value="">All keys</option></select>
           <select id="filter-mode"><option value="">All modes</option></select>
+          <select id="filter-composer"><option value="">All composers</option></select>
           <select id="filter-rating">
             <option value="">Any mastery</option>
             <option value="1">★ + mastery</option>
@@ -163,6 +164,31 @@
       <div class="view-header">
         <h2 class="section-title">Collections</h2>
         <button id="new-collection-btn" class="btn-collection">+ New Collection</button>
+        <button id="discography-btn" class="btn-secondary">🎵 Build from Discography</button>
+      </div>
+      <!-- Discography scanner panel -->
+      <div id="discography-panel" class="discography-panel hidden">
+        <h3 class="discography-title">Build a Collection from an Artist's Discography</h3>
+        <p class="discography-hint">Searches TheSession.org recordings and matches tunes already in your library.</p>
+        <div class="discography-artists">
+          <span class="discography-artists-label">Quick-pick:</span>
+          <button class="discog-artist-btn" data-artist="Michael McGoldrick">Michael McGoldrick</button>
+          <button class="discog-artist-btn" data-artist="Lúnasa">Lúnasa</button>
+          <button class="discog-artist-btn" data-artist="Ian and Allan MacDonald">Ian &amp; Allan MacDonald</button>
+          <button class="discog-artist-btn" data-artist="Alasdair Fraser">Alasdair Fraser</button>
+          <button class="discog-artist-btn" data-artist="Matt Molloy">Matt Molloy</button>
+          <button class="discog-artist-btn" data-artist="Altan">Altan</button>
+          <button class="discog-artist-btn" data-artist="Dervish">Dervish</button>
+        </div>
+        <div class="discography-form">
+          <input id="discog-artist-input" type="text" placeholder="Artist name (as on TheSession.org)…" maxlength="120" />
+          <input id="discog-col-name-input" type="text" placeholder="Collection name (optional — defaults to 'Artist Repertoire')…" maxlength="120" />
+          <div class="form-actions">
+            <button id="discog-scan-btn" class="btn-primary">🔍 Scan &amp; Build Collection</button>
+            <button id="discog-cancel-btn" class="btn-secondary">Cancel</button>
+          </div>
+        </div>
+        <div id="discog-status" class="discog-status hidden"></div>
       </div>
       <div id="new-collection-form" class="new-set-form hidden">
         <input id="new-collection-name" type="text" placeholder="Collection name…" maxlength="120" />
@@ -711,6 +737,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=140"></script>
+  <script src="/static/app.js?v=141"></script>
 </body>
 </html>

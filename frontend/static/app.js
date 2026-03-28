@@ -9,6 +9,7 @@ const state = {
   type: "",
   key: "",
   mode: "",
+  composer: "",
   hitlist: false,
   favourite: false,
   min_rating: 0,
@@ -21,6 +22,7 @@ const searchEl         = document.getElementById("search");
 const filterType       = document.getElementById("filter-type");
 const filterKey        = document.getElementById("filter-key");
 const filterMode       = document.getElementById("filter-mode");
+const filterComposer   = document.getElementById("filter-composer");
 const filterRating     = document.getElementById("filter-rating");
 const filterHitlistBtn   = document.getElementById("filter-hitlist-btn");
 const filterFavouriteBtn = document.getElementById("filter-favourite-btn");
@@ -650,6 +652,7 @@ async function fetchTunes() {
   if (state.type)       params.set("type",        state.type);
   if (state.key)        params.set("key",         state.key);
   if (state.mode)       params.set("mode",        state.mode);
+  if (state.composer)   params.set("composer",    state.composer);
   if (state.hitlist)    params.set("hitlist",     "1");
   if (state.favourite)  params.set("favourite",   "1");
   if (state.min_rating) params.set("min_rating",  state.min_rating);
@@ -865,7 +868,7 @@ function renderTunes(data) {
 
   if (!tunes.length) {
     pagination.innerHTML = "";
-    const noFilters = !state.q && !state.type && !state.key && !state.mode && !state.hitlist && !state.favourite && !state.min_rating;
+    const noFilters = !state.q && !state.type && !state.key && !state.mode && !state.composer && !state.hitlist && !state.favourite && !state.min_rating;
     if (noFilters) {
       tuneList.innerHTML = `
         <div class="empty-library">
@@ -1095,12 +1098,19 @@ function renderModal(tune, onBack = null, siblings = null) {
     </div>
   </div>`;
 
+  const composerLine = (tune.composer || tune.transcribed_by) ? `
+    <div class="tune-composer-line">
+      ${tune.composer ? `<span class="tune-composer">♪ ${escHtml(tune.composer)}</span>` : ""}
+      ${tune.transcribed_by ? `<span class="tune-transcriber">ABC: ${escHtml(tune.transcribed_by)}</span>` : ""}
+    </div>` : "";
+
   modalContent.innerHTML = `
     ${backBtn}
     <h2 class="modal-title"><span id="modal-title-text">${escHtml(tune.title)}</span><button class="title-edit-btn" id="title-edit-btn" title="Edit title">✎</button></h2>
     ${versionLine}
     ${siblingsStrip}
     <div class="modal-meta" id="modal-typkey-meta">${typeBadge}${keyBadge}</div>
+    ${composerLine}
     ${ratingRow}
     ${aliasLine}
     ${importedLine}
@@ -1213,6 +1223,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         <button id="modal-fav-btn" class="btn-secondary${tune.is_favourite ? " fav-active" : ""}">
           👍 ${tune.is_favourite ? "Favourite" : "Add to Favourites"}
         </button>
+        <a id="export-tune-btn" class="btn-secondary" href="/api/export/tune/${tune.id}" download title="Download as .ceol.json for sharing">⬇ Export</a>
         <button id="delete-tune-modal-btn" class="btn-danger" data-tune-id="${tune.id}">
           ${tune.parent_id ? "Delete this version" : "Delete from Library"}
         </button>
@@ -3259,7 +3270,9 @@ function openFullSetModal(setData) {
   }
 
   modalContent.innerHTML = `
-    <h2 class="modal-title">${escHtml(setData.name)}</h2>
+    <h2 class="modal-title">${escHtml(setData.name)}
+      <a class="btn-secondary btn-sm modal-export-btn" href="/api/export/set/${setData.id}" download title="Download as .ceol.json">⬇ Export</a>
+    </h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
     ${hasAbc ? `
       <h3 class="set-music-section-hd">Sheet music <span class="set-music-count">(${tunesWithAbc.length} of ${tunes.length} tunes)</span></h3>
@@ -4165,6 +4178,7 @@ function renderCollections(collections) {
         </div>
         <div class="set-card-actions">
           <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${c.id}">Strip chords</button>
+          <a class="btn-secondary btn-sm" href="/api/export/collection/${c.id}" download title="Export as .ceol.json">⬇ Export</a>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
           <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">🗑</button>
         </div>
@@ -4485,7 +4499,7 @@ async function loadCollections() {
 async function loadFilters() {
   let types, keys, modes;
   try {
-    ({ types, keys, modes } = await fetchFilters());
+    ({ types, keys, modes, composers } = await fetchFilters());
   } catch { return; }
   if (!types) return;
 
@@ -4493,6 +4507,7 @@ async function loadFilters() {
   filterType.innerHTML = '<option value="">All types</option>';
   filterKey.innerHTML  = '<option value="">All keys</option>';
   filterMode.innerHTML = '<option value="">All modes</option>';
+  if (filterComposer) filterComposer.innerHTML = '<option value="">All composers</option>';
 
   types.forEach(t => {
     const o = document.createElement("option");
@@ -4508,6 +4523,12 @@ async function loadFilters() {
     const o = document.createElement("option");
     o.value = m; o.textContent = m.charAt(0).toUpperCase() + m.slice(1);
     filterMode.appendChild(o);
+  });
+  (composers || []).forEach(c => {
+    if (!filterComposer) return;
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c;
+    filterComposer.appendChild(o);
   });
 }
 
@@ -4802,6 +4823,7 @@ searchEl.addEventListener("input", () => { state.q = searchEl.value.trim(); debo
 filterType.addEventListener("change", () => { state.type = filterType.value; state.page = 1; loadTunes(); });
 filterKey.addEventListener("change",  () => { state.key  = filterKey.value;  state.page = 1; loadTunes(); });
 filterMode.addEventListener("change", () => { state.mode = filterMode.value; state.page = 1; loadTunes(); });
+if (filterComposer) filterComposer.addEventListener("change", () => { state.composer = filterComposer.value; state.page = 1; loadTunes(); });
 
 filterRating.addEventListener("change", () => {
   state.min_rating = Number(filterRating.value) || 0;
@@ -4905,9 +4927,10 @@ document.getElementById("print-btn").addEventListener("click", async () => {
 clearBtn.addEventListener("click", () => {
   searchEl.value = "";
   filterType.value = filterKey.value = filterMode.value = filterRating.value = "";
+  if (filterComposer) filterComposer.value = "";
   filterHitlistBtn.classList.remove("active");
   filterFavouriteBtn.classList.remove("active");
-  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", hitlist: false, favourite: false, min_rating: 0 });
+  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", composer: "", hitlist: false, favourite: false, min_rating: 0 });
   loadTunes();
 });
 
@@ -5546,6 +5569,70 @@ createCollectionBtn.addEventListener("click", async () => {
 });
 
 newCollectionName.addEventListener("keydown", e => { if (e.key === "Enter") createCollectionBtn.click(); });
+
+// ── Discography scanner ───────────────────────────────────────────────────────
+{
+  const discogBtn     = document.getElementById("discography-btn");
+  const discogPanel   = document.getElementById("discography-panel");
+  const discogArtist  = document.getElementById("discog-artist-input");
+  const discogColName = document.getElementById("discog-col-name-input");
+  const discogScanBtn = document.getElementById("discog-scan-btn");
+  const discogCancel  = document.getElementById("discog-cancel-btn");
+  const discogStatus  = document.getElementById("discog-status");
+
+  if (discogBtn) {
+    discogBtn.addEventListener("click", () => {
+      discogPanel.classList.toggle("hidden");
+      if (!discogPanel.classList.contains("hidden")) discogArtist.focus();
+    });
+  }
+  if (discogCancel) {
+    discogCancel.addEventListener("click", () => {
+      discogPanel.classList.add("hidden");
+      discogArtist.value = "";
+      discogColName.value = "";
+      discogStatus.classList.add("hidden");
+    });
+  }
+
+  // Quick-pick artist buttons
+  document.querySelectorAll(".discog-artist-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      discogArtist.value = btn.dataset.artist;
+      discogColName.value = `${btn.dataset.artist} Repertoire`;
+    });
+  });
+
+  if (discogScanBtn) {
+    discogScanBtn.addEventListener("click", async () => {
+      const artist = discogArtist.value.trim();
+      if (!artist) { discogArtist.focus(); return; }
+      discogScanBtn.disabled = true;
+      discogStatus.textContent = `Searching TheSession.org for "${artist}" recordings…`;
+      discogStatus.className = "discog-status";
+      try {
+        const result = await apiFetch("/api/discography/scan", {
+          method: "POST",
+          body: JSON.stringify({
+            artist,
+            collection_name: discogColName.value.trim() || undefined,
+          }),
+        });
+        discogStatus.textContent =
+          `Done! Found ${result.session_tunes_found} tunes on TheSession, `
+          + `matched ${result.matched_in_library} in your library. `
+          + `Collection "${result.collection_name}" ${result.matched_in_library > 0 ? "created/updated." : "is empty."}`;
+        discogStatus.classList.add("discog-ok");
+        loadCollections();
+      } catch (err) {
+        discogStatus.textContent = `Error: ${err.message || "scan failed"}`;
+        discogStatus.classList.add("discog-err");
+      } finally {
+        discogScanBtn.disabled = false;
+      }
+    });
+  }
+}
 
 // ── Import ────────────────────────────────────────────────────────────────────
 importBtn.addEventListener("click", () => {

@@ -177,6 +177,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE tunes ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0")
     if "is_favourite" not in existing_cols:
         conn.execute("ALTER TABLE tunes ADD COLUMN is_favourite INTEGER NOT NULL DEFAULT 0")
+    if "composer" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN composer TEXT NOT NULL DEFAULT ''")
+    if "transcribed_by" not in existing_cols:
+        conn.execute("ALTER TABLE tunes ADD COLUMN transcribed_by TEXT NOT NULL DEFAULT ''")
 
     # sets table migrations
     existing_set_cols = {row[1] for row in conn.execute("PRAGMA table_info(sets)").fetchall()}

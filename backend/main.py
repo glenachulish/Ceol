@@ -72,6 +72,34 @@ def _auto_classify_untyped() -> None:
 
 _auto_classify_untyped()
 
+
+def _abc_header(abc: str, field: str) -> str:
+    """Extract value of an ABC header field, e.g. 'C' → composer, 'Z' → transcription."""
+    if not abc:
+        return ""
+    m = re.search(rf"^{re.escape(field)}:(.+)$", abc, re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
+def _populate_composer_fields() -> None:
+    """Parse C: and Z: from existing ABC and store in composer / transcribed_by."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, abc FROM tunes WHERE (composer = '' OR composer IS NULL)"
+            " OR (transcribed_by = '' OR transcribed_by IS NULL)"
+        ).fetchall()
+        for row in rows:
+            c = _abc_header(row["abc"], "C")
+            z = _abc_header(row["abc"], "Z")
+            if c or z:
+                conn.execute(
+                    "UPDATE tunes SET composer = ?, transcribed_by = ? WHERE id = ?",
+                    (c, z, row["id"]),
+                )
+
+
+_populate_composer_fields()
+
 _base_dir = os.environ.get("CEOL_BASE_DIR")
 _data_dir = os.environ.get("CEOL_DATA_DIR")
 FRONTEND_DIR = Path(_base_dir) / "frontend" if _base_dir else Path(__file__).parent.parent / "frontend"
@@ -276,6 +304,8 @@ def list_tunes(
     favourite: Optional[int] = Query(None, description="1 = favourites only"),
     min_rating: Optional[int] = Query(None, ge=1, le=5, description="Minimum star rating"),
     collection_id: Optional[int] = Query(None, description="Filter by collection ID"),
+    composer: Optional[str] = Query(None, description="Filter by composer"),
+    transcribed_by: Optional[str] = Query(None, description="Filter by ABC transcriber"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=10000),
 ):
@@ -318,6 +348,14 @@ def list_tunes(
             "EXISTS (SELECT 1 FROM collection_tunes ct WHERE ct.tune_id = t.id AND ct.collection_id = ?)"
         )
         params.append(collection_id)
+
+    if composer:
+        conditions.append("t.composer LIKE ?")
+        params.append(f"%{composer}%")
+
+    if transcribed_by:
+        conditions.append("t.transcribed_by LIKE ?")
+        params.append(f"%{transcribed_by}%")
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     offset = (page - 1) * page_size
@@ -561,6 +599,8 @@ class TuneUpdate(BaseModel):
     rating: Optional[int] = None
     on_hitlist: Optional[int] = None
     is_favourite: Optional[int] = None
+    composer: Optional[str] = None
+    transcribed_by: Optional[str] = None
 
 
 @app.patch("/api/tunes/{tune_id}")
@@ -569,6 +609,14 @@ def update_tune(tune_id: int, body: TuneUpdate):
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(400, "No fields to update")
+    # Auto-extract composer/transcribed_by from updated ABC if not explicitly set
+    if "abc" in fields and "composer" not in fields and "transcribed_by" not in fields:
+        c = _abc_header(fields["abc"], "C")
+        z = _abc_header(fields["abc"], "Z")
+        if c:
+            fields["composer"] = c
+        if z:
+            fields["transcribed_by"] = z
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [tune_id]
     with _db() as conn:
@@ -644,20 +692,30 @@ def get_filter_options():
     with _db() as conn:
         types = [
             r[0] for r in conn.execute(
-                "SELECT DISTINCT type FROM tunes WHERE type IS NOT NULL ORDER BY type"
+                "SELECT DISTINCT type FROM tunes WHERE type IS NOT NULL AND type != '' ORDER BY type"
             ).fetchall()
         ]
         keys = [
             r[0] for r in conn.execute(
-                "SELECT DISTINCT key FROM tunes WHERE key IS NOT NULL ORDER BY key"
+                "SELECT DISTINCT key FROM tunes WHERE key IS NOT NULL AND key != '' ORDER BY key"
             ).fetchall()
         ]
         modes = [
             r[0] for r in conn.execute(
-                "SELECT DISTINCT mode FROM tunes WHERE mode IS NOT NULL ORDER BY mode"
+                "SELECT DISTINCT mode FROM tunes WHERE mode IS NOT NULL AND mode != '' ORDER BY mode"
             ).fetchall()
         ]
-    return {"types": types, "keys": keys, "modes": modes}
+        composers = [
+            r[0] for r in conn.execute(
+                "SELECT DISTINCT composer FROM tunes WHERE composer IS NOT NULL AND composer != '' ORDER BY composer COLLATE NOCASE"
+            ).fetchall()
+        ]
+        transcribers = [
+            r[0] for r in conn.execute(
+                "SELECT DISTINCT transcribed_by FROM tunes WHERE transcribed_by IS NOT NULL AND transcribed_by != '' ORDER BY transcribed_by COLLATE NOCASE"
+            ).fetchall()
+        ]
+    return {"types": types, "keys": keys, "modes": modes, "composers": composers, "transcribers": transcribers}
 
 
 # ---------------------------------------------------------------------------
@@ -1816,6 +1874,241 @@ def export_thecraic(filename: str = Query(None)):
         media_type="text/plain; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# JSON export (tune / set / collection) — shareable .ceol.json files
+# ---------------------------------------------------------------------------
+
+def _safe_filename(name: str, suffix: str) -> str:
+    return re.sub(r"[^\w\s\-]", "", name).strip()[:60].replace(" ", "_") + suffix
+
+
+def _tune_export_dict(conn, tune_id: int) -> dict:
+    """Return a serialisable dict for a single tune."""
+    row = conn.execute("SELECT * FROM tunes WHERE id = ?", (tune_id,)).fetchone()
+    if not row:
+        return {}
+    t = dict(row)
+    t["aliases"] = [r["alias"] for r in conn.execute(
+        "SELECT alias FROM tune_aliases WHERE tune_id = ?", (tune_id,)).fetchall()]
+    t["tags"] = [r["name"] for r in conn.execute(
+        "SELECT tg.name FROM tags tg JOIN tune_tags tt ON tt.tag_id=tg.id WHERE tt.tune_id=?",
+        (tune_id,)).fetchall()]
+    return {
+        "title": t.get("title", ""),
+        "type": t.get("type", ""),
+        "key": t.get("key", ""),
+        "mode": t.get("mode", ""),
+        "abc": t.get("abc", ""),
+        "notes": t.get("notes", ""),
+        "composer": t.get("composer", ""),
+        "transcribed_by": t.get("transcribed_by", ""),
+        "aliases": t["aliases"],
+        "tags": t["tags"],
+        "rating": t.get("rating", 0),
+        "on_hitlist": t.get("on_hitlist", 0),
+        "is_favourite": t.get("is_favourite", 0),
+        "session_id": t.get("session_id"),
+        "source_url": t.get("source_url", ""),
+    }
+
+
+def _json_response(payload: dict, filename: str) -> StreamingResponse:
+    buf = io.BytesIO(json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
+    return StreamingResponse(
+        buf,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/export/tune/{tune_id}")
+def export_tune(tune_id: int):
+    with _db() as conn:
+        row = conn.execute("SELECT title FROM tunes WHERE id = ?", (tune_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Tune not found")
+        td = _tune_export_dict(conn, tune_id)
+    payload = {
+        "ceol": 1, "type": "tune",
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "tunes": [td],
+    }
+    return _json_response(payload, _safe_filename(td["title"], ".ceol.json"))
+
+
+@app.get("/api/export/set/{set_id}")
+def export_set(set_id: int):
+    with _db() as conn:
+        s = conn.execute("SELECT * FROM sets WHERE id = ?", (set_id,)).fetchone()
+        if not s:
+            raise HTTPException(404, "Set not found")
+        s = dict(s)
+        tune_rows = conn.execute(
+            "SELECT t.id, st.position, st.key_override FROM set_tunes st"
+            " JOIN tunes t ON t.id = st.tune_id WHERE st.set_id = ? ORDER BY st.position",
+            (set_id,),
+        ).fetchall()
+        tunes_data = []
+        for tr in tune_rows:
+            td = _tune_export_dict(conn, tr["id"])
+            td["_position"] = tr["position"]
+            if tr["key_override"]:
+                td["_key_override"] = tr["key_override"]
+            tunes_data.append(td)
+    payload = {
+        "ceol": 1, "type": "set",
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "name": s["name"],
+        "notes": s.get("notes", ""),
+        "tunes": tunes_data,
+    }
+    return _json_response(payload, _safe_filename(s["name"], ".ceol.json"))
+
+
+@app.get("/api/export/collection/{col_id}")
+def export_collection(col_id: int):
+    with _db() as conn:
+        c = conn.execute("SELECT * FROM collections WHERE id = ?", (col_id,)).fetchone()
+        if not c:
+            raise HTTPException(404, "Collection not found")
+        c = dict(c)
+        tune_rows = conn.execute(
+            "SELECT t.id FROM collection_tunes ct JOIN tunes t ON t.id = ct.tune_id"
+            " WHERE ct.collection_id = ? ORDER BY t.title COLLATE NOCASE",
+            (col_id,),
+        ).fetchall()
+        tunes_data = [_tune_export_dict(conn, r["id"]) for r in tune_rows]
+        set_rows = conn.execute(
+            "SELECT s.id FROM collection_sets cs JOIN sets s ON s.id = cs.set_id"
+            " WHERE cs.collection_id = ? ORDER BY s.name COLLATE NOCASE",
+            (col_id,),
+        ).fetchall()
+        sets_data = []
+        for sr in set_rows:
+            s = conn.execute("SELECT * FROM sets WHERE id = ?", (sr["id"],)).fetchone()
+            s = dict(s)
+            str_ = conn.execute(
+                "SELECT t.id, st.position FROM set_tunes st JOIN tunes t ON t.id=st.tune_id"
+                " WHERE st.set_id = ? ORDER BY st.position", (sr["id"],)).fetchall()
+            sets_data.append({
+                "name": s["name"],
+                "notes": s.get("notes", ""),
+                "tunes": [{"title": dict(conn.execute("SELECT title FROM tunes WHERE id=?", (r["id"],)).fetchone())["title"],
+                            "position": r["position"]} for r in str_],
+            })
+    payload = {
+        "ceol": 1, "type": "collection",
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "name": c["name"],
+        "description": c.get("description", ""),
+        "tunes": tunes_data,
+        "sets": sets_data,
+    }
+    return _json_response(payload, _safe_filename(c["name"], ".ceol.json"))
+
+
+# ---------------------------------------------------------------------------
+# Discography scanner — build a collection from TheSession recordings
+# ---------------------------------------------------------------------------
+
+class DiscographyScanRequest(BaseModel):
+    artist: str
+    collection_name: Optional[str] = None
+
+
+@app.post("/api/discography/scan")
+async def scan_discography(body: DiscographyScanRequest):
+    """
+    Search TheSession.org recordings for an artist, collect all tune names/IDs,
+    match against the local library, and create (or replace) a Collection.
+    """
+    import urllib.parse as _urlparse
+    artist = body.artist.strip()
+    if not artist:
+        raise HTTPException(400, "artist is required")
+    col_name = (body.collection_name or f"{artist} Repertoire").strip()
+
+    all_tune_sessions: dict[int, str] = {}  # session_tune_id → name
+    page = 1
+    async with httpx.AsyncClient(timeout=20, headers=_SESSION_HEADERS) as client:
+        while True:
+            url = (f"{_SESSION_BASE}/recordings/search"
+                   f"?q={_urlparse.quote(artist)}&format=json&perpage=50&page={page}")
+            try:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                data = resp.json()
+            except Exception:
+                break
+            recordings = data.get("recordings", [])
+            if not recordings:
+                break
+            for rec in recordings:
+                for member in rec.get("members", []):
+                    tune = member.get("tune", {})
+                    tid = tune.get("id")
+                    tname = tune.get("name", "")
+                    if tid and tname:
+                        all_tune_sessions[int(tid)] = tname
+            pages = data.get("pages", 1)
+            if page >= pages:
+                break
+            page += 1
+
+    matched_local_ids: list[int] = []
+    with _db() as conn:
+        for sid, name in all_tune_sessions.items():
+            # Match by TheSession ID first
+            row = conn.execute(
+                "SELECT id FROM tunes WHERE session_id = ? AND parent_id IS NULL",
+                (str(sid),),
+            ).fetchone()
+            if row:
+                if row["id"] not in matched_local_ids:
+                    matched_local_ids.append(row["id"])
+                continue
+            # Fallback: title match (exact, case-insensitive)
+            rows = conn.execute(
+                "SELECT id FROM tunes WHERE LOWER(title) = LOWER(?)"
+                " AND parent_id IS NULL",
+                (name,),
+            ).fetchall()
+            for r in rows:
+                if r["id"] not in matched_local_ids:
+                    matched_local_ids.append(r["id"])
+
+        # Create or replace collection
+        existing = conn.execute(
+            "SELECT id FROM collections WHERE name = ?", (col_name,)
+        ).fetchone()
+        if existing:
+            col_id = existing["id"]
+            conn.execute("DELETE FROM collection_tunes WHERE collection_id = ?", (col_id,))
+            conn.execute(
+                "UPDATE collections SET description = ? WHERE id = ?",
+                (f"Auto-built from TheSession recordings — {artist}", col_id),
+            )
+        else:
+            cur = conn.execute(
+                "INSERT INTO collections (name, description) VALUES (?, ?)",
+                (col_name, f"Auto-built from TheSession recordings — {artist}"),
+            )
+            col_id = cur.lastrowid
+
+        for tid in matched_local_ids:
+            conn.execute(
+                "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id) VALUES (?, ?)",
+                (col_id, tid),
+            )
+
+    return {
+        "collection_id": col_id,
+        "collection_name": col_name,
+        "session_tunes_found": len(all_tune_sessions),
+        "matched_in_library": len(matched_local_ids),
+    }
 
 
 # ---------------------------------------------------------------------------
