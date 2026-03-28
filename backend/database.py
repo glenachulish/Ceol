@@ -4,8 +4,17 @@ Creates all tables from the project schema.
 """
 
 import os
+import re
 import sqlite3
 from pathlib import Path
+
+
+def _search_norm(s: str | None) -> str:
+    """Normalise a string for search: lowercase, strip punctuation/apostrophes."""
+    if not s:
+        return ""
+    # Remove all characters that are not letters, digits, or whitespace
+    return re.sub(r"[^\w\s]", "", s, flags=re.UNICODE).lower()
 
 _data_dir = os.environ.get("CEOL_DATA_DIR")
 DB_PATH = Path(_data_dir) / "ceol.db" if _data_dir else Path(__file__).parent.parent / "data" / "ceol.db"
@@ -148,6 +157,7 @@ def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
+    conn.create_function("search_norm", 1, _search_norm)
     return conn
 
 

@@ -12,6 +12,7 @@ import math
 import os
 import re
 import shutil
+import socket
 import tempfile
 import uuid
 import zipfile
@@ -336,11 +337,14 @@ def list_tunes(
     params: list = []
 
     if q:
+        # Normalise query: strip punctuation and lowercase for a forgiving search
+        import re as _re
+        q_norm = _re.sub(r"[^\w\s]", "", q, flags=_re.UNICODE).lower()
+        like = f"%{q_norm}%"
         conditions.append(
-            "(t.title LIKE ? OR EXISTS "
-            "(SELECT 1 FROM tune_aliases a WHERE a.tune_id = t.id AND a.alias LIKE ?))"
+            "(search_norm(t.title) LIKE ? OR EXISTS "
+            "(SELECT 1 FROM tune_aliases a WHERE a.tune_id = t.id AND search_norm(a.alias) LIKE ?))"
         )
-        like = f"%{q}%"
         params += [like, like]
 
     if type:
@@ -1019,6 +1023,17 @@ def api_classify_types(force: bool = False):
 def get_info():
     bak1 = DB_PATH.parent / "ceol.db.bak1"
     bak2 = DB_PATH.parent / "ceol.db.bak2"
+    # Detect the local network IP so user can access from phone
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        local_ip = None
+    port = int(os.environ.get("PORT", 8001))
+    mobile_url = f"http://{local_ip}:{port}/mobile" if local_ip else None
+    desktop_url = f"http://{local_ip}:{port}" if local_ip else None
     return {
         "app_dir": str(APP_DIR),
         "database": str(DB_PATH.resolve()),
@@ -1026,6 +1041,9 @@ def get_info():
         "backup2": str(bak2.resolve()) if bak2.exists() else None,
         "uploads": str(UPLOADS_DIR.resolve()),
         "info_file": str((DB_PATH.parent / "app_info.txt").resolve()),
+        "local_ip": local_ip,
+        "mobile_url": mobile_url,
+        "desktop_url": desktop_url,
     }
 
 

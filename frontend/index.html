@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=77" />
+  <link rel="stylesheet" href="/static/style.css?v=78" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
-<body data-view="library">
+<body data-view="collections">
   <header>
     <div class="header-inner">
       <div class="header-top-row">
@@ -20,9 +20,9 @@
         <button id="theme-toggle-btn" class="help-btn" aria-label="Toggle theme" data-tooltip="Toggle light/dark/auto theme">🌙</button>
       </div>
       <nav class="header-nav">
-        <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
+        <button id="nav-library" class="nav-btn" data-tooltip="Browse &amp; search your tune collection">Library</button>
         <button id="nav-sets" class="nav-btn" data-tooltip="Group tunes into practice sets">Sets</button>
-        <button id="nav-collections" class="nav-btn" data-tooltip="Organise tunes into themed collections">Collections</button>
+        <button id="nav-collections" class="nav-btn active" data-tooltip="Organise tunes into themed collections">Collections</button>
       </nav>
       <div class="header-actions">
         <div class="library-menu-wrap">
@@ -43,6 +43,8 @@
           <div id="nav-more-menu" class="library-menu hidden">
             <button id="nav-notes" class="library-menu-item">📝 Notes</button>
             <button id="nav-achievements" class="library-menu-item">⭐ Achievements</button>
+            <hr class="library-menu-divider" />
+            <a href="/mobile" target="_blank" rel="noopener" class="library-menu-item library-menu-link">📱 Mobile view</a>
             <hr class="library-menu-divider" />
             <button id="help-btn" class="library-menu-item">? Help</button>
           </div>
@@ -73,7 +75,7 @@
     </div>
 
     <!-- ── Library view ── -->
-    <div id="view-library">
+    <div id="view-library" class="hidden">
       <section class="filters">
         <div class="filter-row">
           <input
@@ -173,7 +175,7 @@
     </div>
 
     <!-- ── Collections view ── -->
-    <div id="view-collections" class="hidden">
+    <div id="view-collections">
       <div class="view-header">
         <h2 class="section-title">Collections</h2>
         <button id="new-collection-btn" class="btn-collection">+ New Collection</button>
@@ -783,6 +785,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=143"></script>
+  <script src="/static/app.js?v=144"></script>
 </body>
 </html>

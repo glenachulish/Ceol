@@ -2988,3 +2988,12 @@ a.bandcamp-link:hover { opacity: .85; }
 
 /* FF play button at top of sheet music */
 .ff-download-row--top { margin-bottom: .5rem; }
+
+/* Mobile access link in info modal */
+.info-mobile-link {
+  color: var(--accent2);
+  font-weight: 600;
+  word-break: break-all;
+  text-decoration: none;
+}
+.info-mobile-link:hover { text-decoration: underline; }

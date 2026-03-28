@@ -3,7 +3,7 @@
 const PAGE_SIZE = 48;
 
 const state = {
-  view: "library",
+  view: "collections",
   page: 1,
   q: "",
   type: "",
@@ -7623,9 +7623,22 @@ infoBtn.addEventListener("click", async () => {
   const info = await fetch("/api/info").then(r => r.json());
   const bak1 = info.backup1 ? `<code>${info.backup1}</code>` : "<em>none yet</em>";
   const bak2 = info.backup2 ? `<code>${info.backup2}</code>` : "<em>none yet</em>";
+  const mobileRow = info.mobile_url ? `
+    <tr>
+      <th>Open on phone / tablet</th>
+      <td>
+        <a href="${escHtml(info.mobile_url)}" target="_blank" rel="noopener" class="info-mobile-link">📱 ${escHtml(info.mobile_url)}</a>
+        <br><span class="modal-hint" style="font-size:.8rem">Type this URL into your phone's browser while on the same Wi-Fi network</span>
+      </td>
+    </tr>
+    <tr>
+      <th>Desktop URL (on network)</th>
+      <td><a href="${escHtml(info.desktop_url)}" target="_blank" rel="noopener" class="info-mobile-link">${escHtml(info.desktop_url)}</a></td>
+    </tr>` : "";
   modalContent.innerHTML = `
     <h2 class="modal-title">App Info</h2>
     <table class="info-table">
+      ${mobileRow}
       <tr><th>App directory</th><td><code>${info.app_dir}</code></td></tr>
       <tr><th>Database</th><td><code>${info.database}</code></td></tr>
       <tr><th>Backup 1 (most recent)</th><td>${bak1}</td></tr>
@@ -7691,8 +7704,9 @@ helpOverlay.addEventListener("click", e => { if (e.target === helpOverlay) _clos
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !helpOverlay.classList.contains("hidden")) _closeHelp(); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-_applyNavColour("library");  // set Library button solid on first paint
+_applyNavColour("collections");  // set Collections button solid on first paint
 (async () => {
   await Promise.allSettled([loadFilters(), loadStats(), fetchSets(), fetchCollections()]);
-  await loadTunes();
+  switchView("collections");
+  loadTunes();  // preload library in background for instant switching
 })();
