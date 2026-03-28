@@ -979,6 +979,23 @@ function renderNotesHtml(text) {
       </div>`);
     } else if (/\.pdf(\?|$)/i.test(url)) {
       parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">📄 ${escHtml(shortUrl(url))}</a>`);
+    } else if (/\.bandcamp\.com/i.test(url)) {
+      // Extract a readable label: album/track name from path or hostname
+      let bandcampLabel = shortUrl(url);
+      try {
+        const u = new URL(url);
+        const parts2 = u.pathname.replace(/^\//, "").split("/");
+        // pathname like /album/my-album-name or /track/my-track
+        if (parts2.length >= 2 && (parts2[0] === "album" || parts2[0] === "track")) {
+          bandcampLabel = parts2[1].replace(/-/g, " ");
+        } else {
+          bandcampLabel = u.hostname.replace(".bandcamp.com", "");
+        }
+      } catch { /* keep default */ }
+      parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="bandcamp-link">
+        <span class="bandcamp-link-icon">🎵</span>
+        <span class="bandcamp-link-text">Listen on Bandcamp — ${escHtml(bandcampLabel)}</span>
+      </a>`);
     } else {
       parts.push(`<a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${escHtml(shortUrl(url))}</a>`);
     }
@@ -1125,6 +1142,12 @@ function renderModal(tune, onBack = null, siblings = null) {
     <div id="tab-music" class="tab-panel">
       <div class="sheet-music-wrap">
         ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
+        ${notesAudioUrls.length ? notesAudioUrls.map((u, i) => {
+          const label = notesAudioUrls.length > 1 ? `▶ Play MP3 ${i + 1}` : "▶ Play MP3";
+          return `<div class="ff-download-row ff-download-row--top">
+            <button class="btn-secondary media-play-btn" data-url="${escHtml(u)}" data-media-type="audio">${label}</button>
+          </div>`;
+        }).join("") : ""}
         <div id="sheet-music-render"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
         ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
@@ -5124,6 +5147,18 @@ navCollections.addEventListener("click",  () => switchView("collections"));
 navNotes.addEventListener("click",        () => switchView("notes"));
 navAchievements.addEventListener("click", () => switchView("achievements"));
 
+// Links ▾ dropdown
+const navLinksBtn  = document.getElementById("nav-links-btn");
+const navLinksMenu = document.getElementById("nav-links-menu");
+if (navLinksBtn && navLinksMenu) {
+  navLinksBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    navLinksMenu.classList.toggle("hidden");
+  });
+  document.addEventListener("click", () => navLinksMenu.classList.add("hidden"));
+  navLinksMenu.addEventListener("click", e => e.stopPropagation());
+}
+
 // More ▾ dropdown (desktop nav)
 if (navMoreBtn && navMoreMenu) {
   navMoreBtn.addEventListener("click", e => {
@@ -5748,13 +5783,14 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
 
 // ── PDF Bulk Import ────────────────────────────────────────────────────────────
 {
-  const fileInput   = document.getElementById("pdf-file-input");
-  const dropZone    = document.getElementById("pdf-drop-zone");
-  const fileCount   = document.getElementById("pdf-file-count");
-  const previewArea = document.getElementById("pdf-preview-area");
-  const previewBody = document.getElementById("pdf-preview-body");
-  const importBtn   = document.getElementById("pdf-import-btn");
-  const resultDiv   = document.getElementById("pdf-result");
+  const fileInput         = document.getElementById("pdf-file-input");
+  const dropZone          = document.getElementById("pdf-drop-zone");
+  const fileCount         = document.getElementById("pdf-file-count");
+  const previewArea       = document.getElementById("pdf-preview-area");
+  const previewBody       = document.getElementById("pdf-preview-body");
+  const importBtn         = document.getElementById("pdf-import-btn");
+  const resultDiv         = document.getElementById("pdf-result");
+  const pdfCollectionName = document.getElementById("pdf-collection-name");
 
   let _selectedFiles = [];
   let _previewData   = [];  // [{filename, title, action, existing_id, existing_title}]
@@ -5836,11 +5872,14 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     const fd = new FormData();
     _selectedFiles.forEach(f => fd.append("files", f));
 
-    const params = new URLSearchParams({
+    const colName = pdfCollectionName ? pdfCollectionName.value.trim() : "";
+    const paramsObj = {
       titles: JSON.stringify(titles),
       actions: JSON.stringify(actions),
       existing_ids: JSON.stringify(existingIds),
-    });
+    };
+    if (colName) paramsObj.collection_name = colName;
+    const params = new URLSearchParams(paramsObj);
 
     let data;
     try {
@@ -5859,7 +5898,8 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     const parts = [];
     if (created)  parts.push(`${created} new tune${created  !== 1 ? "s" : ""} created`);
     if (attached) parts.push(`${attached} tune${attached !== 1 ? "s" : ""} updated with PDF`);
-    resultDiv.textContent = parts.join(", ") + ".";
+    if (data.collection_id && colName) parts.push(`📁 Added to collection "${escHtml(colName)}"`);
+    resultDiv.innerHTML = parts.join(", ") + ".";
     resultDiv.className = "import-result import-success";
     resultDiv.classList.remove("hidden");
     previewArea.classList.add("hidden");
@@ -6559,11 +6599,13 @@ theCraicSubmit.addEventListener("click", async () => {
   const IMAGE_RE = /\.(jpg|jpeg|png)$/i;
   const ALL_RE   = /\.(abc|txt|mp3|m4a|ogg|wav|pdf|jpg|jpeg|png)$/i;
 
-  const folderInput     = document.getElementById("folder-input");
-  const folderSummary   = document.getElementById("folder-summary");
-  const folderPreview   = document.getElementById("folder-preview");
-  const folderImportBtn = document.getElementById("folder-import-btn");
-  const folderResult    = document.getElementById("folder-result");
+  const folderInput           = document.getElementById("folder-input");
+  const folderSummary         = document.getElementById("folder-summary");
+  const folderPreview         = document.getElementById("folder-preview");
+  const folderImportBtn       = document.getElementById("folder-import-btn");
+  const folderResult          = document.getElementById("folder-result");
+  const folderCollectionRow   = document.getElementById("folder-collection-row");
+  const folderCollectionName  = document.getElementById("folder-collection-name");
 
   function categorise(files) {
     const abc = [], audio = [], pdf = [], image = [], skipped = [];
@@ -6605,6 +6647,7 @@ theCraicSubmit.addEventListener("click", async () => {
     folderSummary.textContent = `${known.length} file${known.length === 1 ? "" : "s"} found`;
     folderPreview.innerHTML = renderPreview(cats);
     folderPreview.classList.remove("hidden");
+    folderCollectionRow.classList.remove("hidden");
     folderImportBtn.disabled = false;
   });
 
@@ -6618,9 +6661,11 @@ theCraicSubmit.addEventListener("click", async () => {
     folderResult.textContent = `Processing ${allFiles.length} file${allFiles.length === 1 ? "" : "s"}…`;
 
     try {
+      const colName = folderCollectionName ? folderCollectionName.value.trim() : "";
+      const url = colName ? `/api/import/folder?collection_name=${encodeURIComponent(colName)}` : "/api/import/folder";
       const fd = new FormData();
       allFiles.forEach(f => fd.append("files", f));
-      const res = await fetch("/api/import/folder", { method: "POST", body: fd });
+      const res = await fetch(url, { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Import failed");
 
@@ -6631,6 +6676,7 @@ theCraicSubmit.addEventListener("click", async () => {
       if (data.pdf_attached)    lines.push(`📄 ${data.pdf_attached} PDF${data.pdf_attached === 1 ? "" : "s"} attached`);
       if (data.image_attached)  lines.push(`📷 ${data.image_attached} photo${data.image_attached === 1 ? "" : "s"} attached`);
       if (data.new_from_media)  lines.push(`➕ ${data.new_from_media} new tune${data.new_from_media === 1 ? "" : "s"} created from unmatched media`);
+      if (data.collection_id)   lines.push(`📁 Added to collection "${escHtml(colName)}"`);
 
       folderResult.className = "import-result import-success";
       folderResult.innerHTML = lines.length ? lines.join("<br>") : "No files to import.";
@@ -6645,6 +6691,60 @@ theCraicSubmit.addEventListener("click", async () => {
     }
   });
 })();
+
+// ── YouTube import ────────────────────────────────────────────────────────────
+{
+  const ytUrlInput      = document.getElementById("yt-url-input");
+  const ytTitleInput    = document.getElementById("yt-title-input");
+  const ytParentInput   = document.getElementById("yt-parent-input");
+  const ytVersionLabel  = document.getElementById("yt-version-label-input");
+  const ytImportBtn     = document.getElementById("yt-import-btn");
+  const ytResult        = document.getElementById("yt-import-result");
+
+  ytImportBtn.addEventListener("click", async () => {
+    const url = ytUrlInput.value.trim();
+    if (!url) { ytResult.textContent = "Please enter a YouTube URL."; ytResult.className = "import-result import-error"; ytResult.classList.remove("hidden"); return; }
+
+    ytImportBtn.disabled = true;
+    ytImportBtn.textContent = "Importing…";
+    ytResult.classList.add("hidden");
+
+    try {
+      const body = { url };
+      const title = ytTitleInput.value.trim();
+      if (title) body.title = title;
+      const parentId = ytParentInput ? parseInt(ytParentInput.value, 10) : NaN;
+      if (!isNaN(parentId) && parentId > 0) {
+        body.parent_id = parentId;
+        const vl = ytVersionLabel ? ytVersionLabel.value.trim() : "";
+        if (vl) body.version_label = vl;
+      }
+
+      const data = await apiFetch("/api/import/youtube", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      ytResult.innerHTML = `✅ Created tune <strong>${escHtml(data.title)}</strong> (ID ${data.tune_id})`;
+      ytResult.className = "import-result import-success";
+      ytResult.classList.remove("hidden");
+      ytUrlInput.value = "";
+      ytTitleInput.value = "";
+      if (ytParentInput) ytParentInput.value = "";
+      if (ytVersionLabel) ytVersionLabel.value = "";
+      await Promise.all([loadStats(), loadFilters()]);
+      if (state.view === "library") loadTunes();
+    } catch (err) {
+      ytResult.textContent = `Error: ${err.message}`;
+      ytResult.className = "import-result import-error";
+      ytResult.classList.remove("hidden");
+    } finally {
+      ytImportBtn.disabled = false;
+      ytImportBtn.textContent = "Import YouTube video";
+    }
+  });
+}
 
 // ── TheCraic export ───────────────────────────────────────────────────────────
 document.getElementById("thecraic-export-btn").addEventListener("click", () => {

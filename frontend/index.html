@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=76" />
+  <link rel="stylesheet" href="/static/style.css?v=77" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body data-view="library">
@@ -25,6 +25,19 @@
         <button id="nav-collections" class="nav-btn" data-tooltip="Organise tunes into themed collections">Collections</button>
       </nav>
       <div class="header-actions">
+        <div class="library-menu-wrap">
+          <button id="nav-links-btn" class="btn-secondary" data-tooltip-left data-tooltip="Useful external links">Links ▾</button>
+          <div id="nav-links-menu" class="library-menu hidden">
+            <a href="https://michaeleskin.com/abctools/abctools.html" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 Michael Eskin's ABC Tools</a>
+            <a href="https://www.nigelgatherer.com/tunes.html" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 Nigel Gatherer</a>
+            <a href="https://flutefling.scot/" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 FlutefFling.scot</a>
+            <hr class="library-menu-divider" />
+            <a href="https://projects.handsupfortrad.scot/handsupfortrad/" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 Hands Up for Trad</a>
+            <a href="https://www.youtube.com/@handsupfortrad" target="_blank" rel="noopener" class="library-menu-item library-menu-link">▶ Hands Up for Trad (YouTube)</a>
+            <hr class="library-menu-divider" />
+            <a href="https://thesession.org/" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 TheSession.org</a>
+          </div>
+        </div>
         <div class="library-menu-wrap">
           <button id="nav-more-btn" class="btn-secondary" data-tooltip-left data-tooltip="Notes, Achievements &amp; Help">More ▾</button>
           <div id="nav-more-menu" class="library-menu hidden">
@@ -269,6 +282,7 @@
         <button class="tab-btn" data-import-tab="pdf">PDF Files</button>
         <button class="tab-btn" data-import-tab="book">PDF Book</button>
         <button class="tab-btn" data-import-tab="photos">Photos</button>
+        <button class="tab-btn" data-import-tab="youtube">YouTube</button>
       </div>
 
       <!-- ABC file tab -->
@@ -299,6 +313,10 @@
           <span id="folder-summary" class="import-filename"></span>
         </label>
         <div id="folder-preview" class="folder-preview hidden"></div>
+        <div id="folder-collection-row" class="book-meta-row hidden">
+          <label class="book-meta-label" for="folder-collection-name">Auto-create collection</label>
+          <input id="folder-collection-name" class="book-meta-input" type="text" placeholder="Collection name (optional)" />
+        </div>
         <div id="folder-result" class="import-result hidden"></div>
         <div class="import-actions">
           <button id="folder-import-btn" class="btn-import" disabled>Import All</button>
@@ -494,6 +512,10 @@
             </thead>
             <tbody id="pdf-preview-body"></tbody>
           </table>
+          <div class="book-meta-row" style="margin-top:.75rem">
+            <label class="book-meta-label" for="pdf-collection-name">Auto-create collection</label>
+            <input id="pdf-collection-name" class="book-meta-input" type="text" placeholder="Collection name (optional)" />
+          </div>
           <div class="import-actions">
             <button id="pdf-import-btn" class="btn-primary">Import</button>
           </div>
@@ -608,6 +630,30 @@
           </div>
         </div>
         <div id="photos-result" class="import-result hidden"></div>
+      </div>
+
+      <!-- YouTube import tab -->
+      <div id="import-tab-youtube" class="tab-panel hidden">
+        <p class="import-desc">Paste a YouTube URL to create a tune entry with the video linked in notes. You can optionally rename it and group it as a version of an existing tune.</p>
+        <div class="yt-import-form">
+          <div class="yt-import-row">
+            <label class="yt-import-label" for="yt-url-input">YouTube URL</label>
+            <input id="yt-url-input" type="url" class="ff-url-input" placeholder="https://www.youtube.com/watch?v=…" />
+          </div>
+          <div class="yt-import-row">
+            <label class="yt-import-label" for="yt-title-input">Title <span class="text-muted">(optional — fetched from YouTube if blank)</span></label>
+            <input id="yt-title-input" type="text" class="ff-url-input" placeholder="Leave blank to use video title" />
+          </div>
+          <div class="yt-import-row">
+            <label class="yt-import-label" for="yt-parent-input">Group as version of <span class="text-muted">(optional tune ID)</span></label>
+            <input id="yt-parent-input" type="number" class="book-meta-input" placeholder="Tune ID" min="1" />
+            <input id="yt-version-label-input" type="text" class="book-meta-input" placeholder="Version label" style="margin-left:.5rem" />
+          </div>
+        </div>
+        <div id="yt-import-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="yt-import-btn" class="btn-import">Import YouTube video</button>
+        </div>
       </div>
     </div>
   </div>
@@ -737,6 +783,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=142"></script>
+  <script src="/static/app.js?v=143"></script>
 </body>
 </html>

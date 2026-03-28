@@ -1532,7 +1532,10 @@ async def import_abc(file: UploadFile = File(...)):
 
 
 @app.post("/api/import/folder")
-async def import_folder(files: List[UploadFile] = File(...)):
+async def import_folder(
+    files: List[UploadFile] = File(...),
+    collection_name: Optional[str] = Query(None),
+):
     """Smart folder import: handles ABC, MP3, PDF, and image files.
 
     ABC files are imported as tunes first.  Non-ABC files are matched to
@@ -1673,6 +1676,20 @@ async def import_folder(files: List[UploadFile] = File(...)):
             _append_note(tune_id, f"sheet music (image): {url}")
             image_attached += 1
 
+    # Optionally create a collection for all imported tunes
+    col_id = None
+    all_tune_ids = list(imported_title_map.values())
+    if collection_name and all_tune_ids:
+        with _db() as conn:
+            cur = conn.execute(
+                "INSERT INTO collections (name) VALUES (?)", (collection_name.strip(),)
+            )
+            col_id = cur.lastrowid
+            conn.executemany(
+                "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id) VALUES (?, ?)",
+                [(col_id, tid) for tid in all_tune_ids],
+            )
+
     return {
         "abc_imported": abc_imported,
         "abc_skipped": abc_skipped,
@@ -1680,7 +1697,57 @@ async def import_folder(files: List[UploadFile] = File(...)):
         "pdf_attached": pdf_attached,
         "image_attached": image_attached,
         "new_from_media": new_from_media,
+        "collection_id": col_id,
     }
+
+
+class YouTubeImportBody(BaseModel):
+    url: str
+    title: Optional[str] = None
+    parent_id: Optional[int] = None
+    version_label: Optional[str] = None
+
+
+@app.post("/api/import/youtube", status_code=201)
+async def import_youtube(body: YouTubeImportBody):
+    """Create a tune entry with a YouTube URL in notes.
+
+    Optionally resolves the video title via the oEmbed API if no title given.
+    Optionally groups as a version under an existing parent tune.
+    """
+    url = body.url.strip()
+    # Extract video id for validation
+    yt_re = re.search(r"(?:youtube\.com/watch\?.*v=|youtu\.be/)([A-Za-z0-9_-]{11})", url)
+    if not yt_re:
+        raise HTTPException(400, "Not a recognisable YouTube URL")
+
+    title = (body.title or "").strip()
+    if not title:
+        # Try oEmbed
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.get(
+                    "https://www.youtube.com/oembed",
+                    params={"url": url, "format": "json"},
+                )
+                if r.status_code == 200:
+                    title = r.json().get("title", "").strip()
+        except Exception:
+            pass
+    if not title:
+        title = f"YouTube – {yt_re.group(1)}"
+
+    notes = url
+
+    with _db() as conn:
+        cur = conn.execute(
+            """INSERT INTO tunes (title, abc, notes, parent_id, version_label, imported_at)
+               VALUES (?, '', ?, ?, ?, datetime('now'))""",
+            (title, notes, body.parent_id, body.version_label or ""),
+        )
+        tune_id = cur.lastrowid
+
+    return {"tune_id": tune_id, "title": title}
 
 
 class ImportTextBody(BaseModel):
@@ -4360,6 +4427,7 @@ async def confirm_pdf_imports(
     titles: str = Query(...),       # JSON array of titles (one per file)
     actions: str = Query(...),      # JSON array of "attach"|"create" (one per file)
     existing_ids: str = Query(...), # JSON array of int|null (one per file)
+    collection_name: Optional[str] = Query(None),  # optional: auto-create collection
 ):
     """
     Save uploaded PDFs and create/update tune entries based on user-confirmed plan.
@@ -4370,6 +4438,7 @@ async def confirm_pdf_imports(
 
     import_date = date.today().isoformat()
     results = []
+    new_tune_ids: list[int] = []
 
     with _db() as conn:
         for i, f in enumerate(files):
@@ -4403,9 +4472,24 @@ async def confirm_pdf_imports(
                        VALUES (?, '', ?, datetime('now'))""",
                     (title, f"Imported from PDF: {import_date}\n{pdf_note}"),
                 )
-                results.append({"action": "created", "tune_id": cur.lastrowid, "title": title})
+                tid = cur.lastrowid
+                new_tune_ids.append(tid)
+                results.append({"action": "created", "tune_id": tid, "title": title})
 
-    return {"results": results}
+        # Optionally create a collection containing all newly-created tunes
+        col_id = None
+        if collection_name and new_tune_ids:
+            col_name = collection_name.strip()
+            cur = conn.execute(
+                "INSERT INTO collections (name) VALUES (?)", (col_name,)
+            )
+            col_id = cur.lastrowid
+            conn.executemany(
+                "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id) VALUES (?, ?)",
+                [(col_id, tid) for tid in new_tune_ids],
+            )
+
+    return {"results": results, "collection_id": col_id}
 
 
 # ---------------------------------------------------------------------------

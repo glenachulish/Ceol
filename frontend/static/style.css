@@ -2949,3 +2949,42 @@ button.set-tune-title:hover { text-decoration: underline; }
 .bar-loop-toggle.loop-active {
   background: var(--accent); border-color: var(--accent); color: #fff;
 }
+
+/* ── Links dropdown – anchor items ──────────────────────────────────────── */
+a.library-menu-link {
+  display: block;
+  padding: .45rem .9rem;
+  font-size: .9rem;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .1s;
+}
+a.library-menu-link:hover { background: rgba(255,255,255,.06); }
+
+/* ── Bandcamp link card ───────────────────────────────────────────────── */
+a.bandcamp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .35rem .75rem;
+  background: #1da0c3;
+  color: #fff;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-size: .88rem;
+  font-weight: 500;
+  margin: .2rem 0;
+  transition: opacity .15s;
+}
+a.bandcamp-link:hover { opacity: .85; }
+.bandcamp-link-icon { font-size: 1rem; }
+.bandcamp-link-text { }
+
+/* ── YouTube import form ─────────────────────────────────────────────── */
+.yt-import-form { display: flex; flex-direction: column; gap: .75rem; margin-top: .5rem; }
+.yt-import-row  { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+.yt-import-label { min-width: 9rem; font-size: .88rem; color: var(--text-muted); }
+
+/* FF play button at top of sheet music */
+.ff-download-row--top { margin-bottom: .5rem; }
