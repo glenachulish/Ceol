@@ -2198,7 +2198,6 @@ function _onMeasureClicked(m) {
     _barLooping = false;
   }
 
-  _barSeekPending = true;   // arm the seek for the next Play press
   _updateBarHighlight();
   _updateSelectionInfo();
   _applySelectionToPlayer();
@@ -2395,30 +2394,16 @@ function renderSheetMusic(abc) {
 
     // Cursor control: highlights the current note during playback
     const cursorControl = {
-      // _barSeekPending is set when the user clicks a bar selection.
-      // We consume it on the FIRST onEvent (midiBuffer is fully started and
-      // midiBuffer.duration is available for an accurate seek fraction).
-      // Using onEvent rather than onStart avoids the ambiguous timing window
-      // around when midiBuffer.start() is called.
       onStart() {
         // Build the accurate bar→MIDI-time map from ABCJS's pre-computed noteTimings.
         _buildBarTimingMap();
-        // Re-arm seek whenever playback (re)starts — handles warp/speed changes
-        // and the restart button without losing the bar selection.
+        // Seek to selected bar immediately on (re)start — avoids briefly playing
+        // from bar 0 before the seek fires.  Handles warp changes too.
         if (_barSel.start !== null) {
-          _barSeekPending = true;
+          setTimeout(() => { if (_synthController) _seekToBar(_barSel.start); }, 0);
         }
       },
-      onEvent(ev) {
-        // One-shot seek: consume pending seek on first event after (re)start.
-        if (_barSeekPending && _barSel.start !== null) {
-          _barSeekPending = false;
-          const barIdx = _barSel.start;
-          setTimeout(() => { if (_synthController) _seekToBar(barIdx); }, 0);
-          return;
-        }
-
-        document.querySelectorAll("#sheet-music-render .abcjs-highlight")
+      onEvent(ev) {        document.querySelectorAll("#sheet-music-render .abcjs-highlight")
           .forEach(el => el.classList.remove("abcjs-highlight"));
         if (ev && ev.elements) {
           ev.elements.forEach(grp => {
@@ -2735,21 +2720,12 @@ function openAbcFullscreen(abc, title, opts = {}) {
       const cursorControl = {
         onStart() {
           _fsBuildTimingMap();
-          // Re-arm seek on every (re)start — handles warp/speed changes
+          // Seek to selected bar immediately on (re)start — same fix as modal.
           if (_fsBarSel.start !== null) {
-            _fsBarSeekPending = true;
+            setTimeout(() => { if (_abcFsSynthCtrl) _fsSeekToBar(_fsBarSel.start); }, 0);
           }
         },
-        onEvent(ev) {
-          // One-shot seek when bar selection is pending (after start/restart)
-          if (_fsBarSeekPending && _fsBarSel.start !== null) {
-            _fsBarSeekPending = false;
-            const barIdx = _fsBarSel.start;
-            setTimeout(() => { if (_abcFsSynthCtrl) _fsSeekToBar(barIdx); }, 0);
-            return;
-          }
-
-          // Highlight current note
+        onEvent(ev) {          // Highlight current note
           if (tuneRanges && tuneColors) {
             _fsLastHighlighted.forEach(el => { el.style.fill = ''; });
             _fsLastHighlighted = [];
@@ -3205,7 +3181,7 @@ let _setMusicSynth = null;
 function openSetMusicModal(title, abc, opts = {}) {
   // Backwards-compat: openSetMusicModal(title, abc, true) → {isTransition:true}
   if (opts === true) opts = { isTransition: true };
-  const { isTransition = false, onBack = null } = opts;
+  const { isTransition = false, onBack = null, autoPlay = false } = opts;
 
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
 
@@ -3273,6 +3249,7 @@ function openSetMusicModal(title, abc, opts = {}) {
       });
       _setMusicSynth.setTune(visualObjs[0], false, { program: 73 })
         .then(() => _setMusicSynth.setWarp(100))
+        .then(() => { if (autoPlay && _setMusicSynth) _setMusicSynth.play(); })
         .catch(err => { console.warn("Set music audio init failed:", err); });
     } catch (err) {
       console.warn("Set music render failed:", err);
@@ -3345,7 +3322,7 @@ function openFullSetModal(setData) {
     ${hasAbc ? `
       <div class="set-full-hd-row" style="margin-top:1.5rem">
         <h3 class="set-music-section-hd">${tunesWithAbc.length > 1 ? "Full set" : "Playback"}</h3>
-        <button class="btn-secondary btn-sm abc-fs-btn" id="set-full-fs-btn" title="Full screen sheet music">⛶ Full screen</button>
+        <button class="btn-secondary btn-sm" id="set-full-fs-btn" title="Full screen sheet music">⛶ Full screen</button>
         <button class="btn-secondary btn-sm" id="set-full-print-btn" title="Print full set sheet music">⎙ Print</button>
       </div>
       ${timelineHtml}
@@ -3495,8 +3472,10 @@ function openFullSetModal(setData) {
       const b = tunes[Number(btn.dataset.idxB)];
       const transAbc = buildTransitionAbc(a, b);
       if (!transAbc) return;
+      const isPlayBtn = btn.classList.contains("set-trans-play-btn");
       openSetMusicModal(`${a.title} → ${b.title}`, transAbc, {
         isTransition: true,
+        autoPlay: isPlayBtn,
         onBack: () => openFullSetModal(setData),
       });
     });
@@ -5484,6 +5463,14 @@ async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
       <button class="modal-back-btn" id="bldr-back">← Back</button>
       <h2 class="modal-title">What comes next?</h2>
       <p class="modal-hint">Last tune: <span class="badge ${keyBadgeClass(lastTune.key)}">${escHtml(lastTune.key || "?")}</span> <strong>${escHtml(lastTune.title)}</strong></p>
+      <div class="bldr-filter-bar bldr-filter-bar--compact">
+        <div class="bldr-type-row">
+          <label class="bldr-label">Collection</label>
+          <select id="bldr-step-collection" class="bldr-type-select">
+            <option value="">All collections</option>
+          </select>
+        </div>
+      </div>
       ${_bldrFilterSummary(filters)}
       <div class="bldr-current-set">${currentHtml}</div>
       <div class="bldr-actions-row">
@@ -5494,6 +5481,24 @@ async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
       ${groups.length
         ? groupsHtml
         : `<p class="bldr-empty">No compatible tunes found in your library for <strong>${escHtml(lastTune.key || "this key")}</strong>.</p>`}`;
+
+    // Populate + wire collection dropdown in step mode
+    const stepColEl = document.getElementById("bldr-step-collection");
+    if (stepColEl) {
+      apiFetch("/api/collections").then(cols => {
+        cols.forEach(c => {
+          const o = document.createElement("option");
+          o.value = c.id; o.textContent = c.name;
+          if (String(c.id) === String(filters.collectionId)) o.selected = true;
+          stepColEl.appendChild(o);
+        });
+      }).catch(() => {});
+      stepColEl.addEventListener("change", () => {
+        const sel = stepColEl.options[stepColEl.selectedIndex];
+        const newFilters = { ...filters, collectionId: stepColEl.value, collectionName: stepColEl.value ? sel.text : "" };
+        _bldrStepMode(selectedTunes, newFilters, onFirstBack);
+      });
+    }
 
     document.getElementById("bldr-back").addEventListener("click", () => {
       if (selectedTunes.length > 1) _bldrStepMode(selectedTunes.slice(0, -1), filters, onFirstBack);
@@ -5508,7 +5513,7 @@ async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
     });
 
     document.getElementById("bldr-save-btn").addEventListener("click", () => {
-      const defaultName = selectedTunes.map(t => t.key || t.title).join(" · ");
+      const defaultName = selectedTunes[0] ? `${selectedTunes[0].title} – Set` : "New Set";
       _bldrSave(selectedTunes, defaultName, render);
     });
 
