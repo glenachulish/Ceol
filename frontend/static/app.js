@@ -2065,6 +2065,7 @@ let _visualObj = null;
 let _synthController = null;
 let _msPerMeasure = null;
 let _barSel = { start: null, end: null };
+let _barLooping = false;    // user's loop toggle (independent of ABCJS loop button)
 let _loopSeeking = false;   // guard against rapid re-fires of the loop seek
 
 // ── TheSession preview state ──────────────────────────────────────────────────
@@ -2167,9 +2168,11 @@ function _onMeasureClicked(m) {
   } else if (end === null) {
     // Second click: confirm selection — same bar is valid (single-bar loop)
     _barSel = { start: Math.min(start, m), end: Math.max(start, m) };
+    _barLooping = true;   // auto-enable loop when range confirmed
   } else {
     // Range already confirmed → start fresh
     _barSel = { start: m, end: null };
+    _barLooping = false;
   }
 
   _barSeekPending = true;   // arm the seek for the next Play press
@@ -2203,15 +2206,22 @@ function _updateSelectionInfo() {
   const isPending = _barSel.end === null;
   const lo = _barSel.start + 1;
   const hi = (isPending ? _barSel.start : _barSel.end) + 1;
+  const label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
 
   el.classList.remove("hidden");
   if (isPending) {
-    el.innerHTML = `<span>Bar ${lo} selected — click another bar to extend, or click again to loop just this bar</span>`
+    el.innerHTML = `<span>${label} — click another bar to extend, or same bar again to loop</span>`
       + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
   } else {
-    const label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
-    el.innerHTML = `<span>${label} selected — press Play, then enable the Loop button to repeat</span>`
+    const loopActive = _barLooping;
+    el.innerHTML = `<span>${label}</span>`
+      + `<button class="btn-secondary bar-loop-toggle${loopActive ? " loop-active" : ""}" title="Toggle looping">`
+      + `${loopActive ? "⟳ Looping" : "⟳ Loop off"}</button>`
       + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
+    el.querySelector(".bar-loop-toggle").addEventListener("click", () => {
+      _barLooping = !_barLooping;
+      _updateSelectionInfo();
+    });
   }
   el.querySelector(".bar-sel-clear").addEventListener("click", _clearBarSel);
 }
@@ -2295,6 +2305,7 @@ function _seekToBar(barIndex) {
 
 function _clearBarSel() {
   _barSel = { start: null, end: null };
+  _barLooping = false;
   _barSeekPending = false;
   _loopSeeking = false;
   _updateBarHighlight();
@@ -2367,14 +2378,16 @@ function renderSheetMusic(abc) {
       // Using onEvent rather than onStart avoids the ambiguous timing window
       // around when midiBuffer.start() is called.
       onStart() {
-        // Build the accurate bar→MIDI-time map from ABCJS's pre-computed
-        // noteTimings.  Called synchronously before the first onEvent so the
-        // map is ready when the pending seek fires.
+        // Build the accurate bar→MIDI-time map from ABCJS's pre-computed noteTimings.
         _buildBarTimingMap();
+        // Re-arm seek whenever playback (re)starts — handles warp/speed changes
+        // and the restart button without losing the bar selection.
+        if (_barSel.start !== null) {
+          _barSeekPending = true;
+        }
       },
       onEvent(ev) {
-        // One-shot seek: consume pending seek on first event after selection.
-        // Queue via setTimeout so it fires OUTSIDE this ABCJS timer callback.
+        // One-shot seek: consume pending seek on first event after (re)start.
         if (_barSeekPending && _barSel.start !== null) {
           _barSeekPending = false;
           const barIdx = _barSel.start;
@@ -2389,13 +2402,10 @@ function renderSheetMusic(abc) {
             if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
           });
         }
-        // Bar-range loop: jump back once playback passes the end of the selection.
-        // Requires a confirmed selection (end !== null); single-bar loops work too.
-        // endTimeMs uses the accurate MIDI map so it works in Part B of AABB tunes.
-        if (!_loopSeeking
-            && _barSel.start !== null && _barSel.end !== null
-            && ev && _synthController.isLooping) {
-          // End time = start of the bar AFTER the selection (or last bar + 1 measure)
+        // Bar-range loop: controlled by our own _barLooping toggle (not the
+        // ABCJS loop button) so it survives warp/speed changes.
+        if (!_loopSeeking && _barLooping
+            && _barSel.start !== null && _barSel.end !== null && ev) {
           const endTimeMs = Object.prototype.hasOwnProperty.call(_barFirstMs, _barSel.end + 1)
             ? _barFirstMs[_barSel.end + 1]
             : _barMs(_barSel.end) + (_msPerMeasure || 0);
@@ -2409,12 +2419,17 @@ function renderSheetMusic(abc) {
       onFinished() {
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")
           .forEach(el => el.classList.remove("abcjs-highlight"));
+        // If looping, restart from selection start
+        if (_barLooping && _barSel.start !== null && _synthController) {
+          _barSeekPending = true;
+          try { _synthController.play(); } catch {}
+        }
       },
     };
 
     _synthController = new ABCJS.synth.SynthController();
     _synthController.load("#audio-player-container", cursorControl, {
-      displayLoop: true,
+      displayLoop: false,
       displayRestart: true,
       displayPlay: true,
       displayProgress: true,
@@ -2442,6 +2457,7 @@ let _fsBarSel       = { start: null, end: null };
 let _fsBarMap       = [];
 let _fsBarFirstMs   = {};
 let _fsMsPerMeasure = null;
+let _fsLooping      = false;   // user's loop toggle for fullscreen
 let _fsLoopSeeking  = false;
 let _fsBarSeekPending = false;
 let _fsLastHighlighted = []; // per-tune colour highlights (set fullscreen mode)
@@ -2558,16 +2574,27 @@ function _updateFsSelectionInfo() {
   const pending = _fsBarSel.end === null;
   const lo = _fsBarSel.start + 1;
   const hi = (pending ? _fsBarSel.start : _fsBarSel.end) + 1;
-  el.classList.remove("hidden");
   const label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
-  el.innerHTML = pending
-    ? `<span>Bar ${lo} — tap another to extend, or tap again to loop this bar</span><button class="btn-secondary bar-sel-clear">✕</button>`
-    : `<span>${label} — press Play, enable Loop to repeat</span><button class="btn-secondary bar-sel-clear">✕</button>`;
+  el.classList.remove("hidden");
+  if (pending) {
+    el.innerHTML = `<span>${label} — tap another to extend, or same bar to loop just this one</span>`
+      + `<button class="btn-secondary bar-sel-clear">✕</button>`;
+  } else {
+    el.innerHTML = `<span>${label}</span>`
+      + `<button class="btn-secondary bar-loop-toggle${_fsLooping ? " loop-active" : ""}">`
+      + `${_fsLooping ? "⟳ Looping" : "⟳ Loop off"}</button>`
+      + `<button class="btn-secondary bar-sel-clear">✕</button>`;
+    el.querySelector(".bar-loop-toggle").addEventListener("click", () => {
+      _fsLooping = !_fsLooping;
+      _updateFsSelectionInfo();
+    });
+  }
   el.querySelector(".bar-sel-clear").addEventListener("click", _clearFsBarSel);
 }
 
 function _clearFsBarSel() {
   _fsBarSel = { start: null, end: null };
+  _fsLooping = false;
   _fsBarSeekPending = false;
   _fsLoopSeeking = false;
   _updateFsBarHighlight();
@@ -2607,8 +2634,10 @@ function _fsMeasureClickHandler(e) {
     _fsBarSel = { start: idx, end: null };
   } else if (end === null) {
     _fsBarSel = { start: Math.min(start, idx), end: Math.max(start, idx) };
+    _fsLooping = true;   // auto-enable loop when range confirmed
   } else {
     _fsBarSel = { start: idx, end: null };
+    _fsLooping = false;
   }
   _fsBarSeekPending = true;
   _updateFsBarHighlight();
@@ -2624,6 +2653,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
 
   // Reset fullscreen bar-selection state
   _fsBarSel = { start: null, end: null };
+  _fsLooping = false;
   _fsBarMap = [];
   _fsBarFirstMs = {};
   _fsMsPerMeasure = null;
@@ -2682,9 +2712,13 @@ function openAbcFullscreen(abc, title, opts = {}) {
       const cursorControl = {
         onStart() {
           _fsBuildTimingMap();
+          // Re-arm seek on every (re)start — handles warp/speed changes
+          if (_fsBarSel.start !== null) {
+            _fsBarSeekPending = true;
+          }
         },
         onEvent(ev) {
-          // One-shot seek when bar selection is pending
+          // One-shot seek when bar selection is pending (after start/restart)
           if (_fsBarSeekPending && _fsBarSel.start !== null) {
             _fsBarSeekPending = false;
             const barIdx = _fsBarSel.start;
@@ -2694,7 +2728,6 @@ function openAbcFullscreen(abc, title, opts = {}) {
 
           // Highlight current note
           if (tuneRanges && tuneColors) {
-            // Per-tune colour mode (set fullscreen): use inline fill, not class
             _fsLastHighlighted.forEach(el => { el.style.fill = ''; });
             _fsLastHighlighted = [];
             if (ev?.elements) {
@@ -2719,10 +2752,9 @@ function openAbcFullscreen(abc, title, opts = {}) {
             }
           }
 
-          // Bar-range loop: jump back when playback passes the end of the selection
-          if (!_fsLoopSeeking
-              && _fsBarSel.start !== null && _fsBarSel.end !== null
-              && ev && _abcFsSynthCtrl && _abcFsSynthCtrl.isLooping) {
+          // Bar-range loop: controlled by _fsLooping (not ABCJS loop button)
+          if (!_fsLoopSeeking && _fsLooping
+              && _fsBarSel.start !== null && _fsBarSel.end !== null && ev) {
             const endMs = Object.prototype.hasOwnProperty.call(_fsBarFirstMs, _fsBarSel.end + 1)
               ? _fsBarFirstMs[_fsBarSel.end + 1]
               : _fsBarMs(_fsBarSel.end) + (_fsMsPerMeasure || 0);
@@ -2741,12 +2773,17 @@ function openAbcFullscreen(abc, title, opts = {}) {
             document.querySelectorAll("#abc-fullscreen-render .abcjs-highlight")
               .forEach(el => el.classList.remove("abcjs-highlight"));
           }
+          // If looping, restart from selection start
+          if (_fsLooping && _fsBarSel.start !== null && _abcFsSynthCtrl) {
+            _fsBarSeekPending = true;
+            try { _abcFsSynthCtrl.play(); } catch {}
+          }
         },
       };
 
       _abcFsSynthCtrl = new ABCJS.synth.SynthController();
       _abcFsSynthCtrl.load("#abc-fs-audio", cursorControl, {
-        displayLoop: true,
+        displayLoop: false,
         displayRestart: true,
         displayPlay: true,
         displayProgress: true,
@@ -5613,9 +5650,10 @@ newCollectionName.addEventListener("keydown", e => { if (e.key === "Enter") crea
       try {
         const result = await apiFetch("/api/discography/scan", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             artist,
-            collection_name: discogColName.value.trim() || undefined,
+            collection_name: discogColName.value.trim() || null,
           }),
         });
         discogStatus.textContent =

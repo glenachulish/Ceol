@@ -81,16 +81,39 @@ def _abc_header(abc: str, field: str) -> str:
     return m.group(1).strip() if m else ""
 
 
+def _normalise_composer(name: str) -> str:
+    """
+    Clean up a raw ABC C: / Z: value for storage and filtering.
+    Strips page/tune-number annotations like (p.45), (pg. 23), (tune 4),
+    (no. 12), removes leading "arr." / "arr " prefixes from transcription
+    fields, and collapses whitespace.  Returns the cleaned name, or empty
+    string if only noise remained.
+    """
+    if not name:
+        return ""
+    # Strip parenthetical page / tune / number references
+    cleaned = re.sub(
+        r"\s*\(\s*(?:p\.?|pg\.?|page|tune|no\.?|#)\s*\d+[^)]*\)",
+        "", name, flags=re.IGNORECASE,
+    )
+    # Strip trailing numbers / page refs that appear without parens
+    cleaned = re.sub(r"\s+(?:p\.?|pg\.?)\s*\d+\s*$", "", cleaned, flags=re.IGNORECASE)
+    # Strip trailing commas/semicolons left by the above
+    cleaned = re.sub(r"[,;]\s*$", "", cleaned)
+    # Collapse whitespace
+    cleaned = " ".join(cleaned.split())
+    return cleaned
+
+
 def _populate_composer_fields() -> None:
-    """Parse C: and Z: from existing ABC and store in composer / transcribed_by."""
+    """Parse C: and Z: from existing ABC and store in composer / transcribed_by.
+    Also re-normalises any previously stored values (strips page refs, etc.)."""
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT id, abc FROM tunes WHERE (composer = '' OR composer IS NULL)"
-            " OR (transcribed_by = '' OR transcribed_by IS NULL)"
-        ).fetchall()
+        # Re-run on ALL tunes so previously stored page-number variants get cleaned
+        rows = conn.execute("SELECT id, abc FROM tunes").fetchall()
         for row in rows:
-            c = _abc_header(row["abc"], "C")
-            z = _abc_header(row["abc"], "Z")
+            c = _normalise_composer(_abc_header(row["abc"], "C"))
+            z = _normalise_composer(_abc_header(row["abc"], "Z"))
             if c or z:
                 conn.execute(
                     "UPDATE tunes SET composer = ?, transcribed_by = ? WHERE id = ?",
@@ -611,8 +634,8 @@ def update_tune(tune_id: int, body: TuneUpdate):
         raise HTTPException(400, "No fields to update")
     # Auto-extract composer/transcribed_by from updated ABC if not explicitly set
     if "abc" in fields and "composer" not in fields and "transcribed_by" not in fields:
-        c = _abc_header(fields["abc"], "C")
-        z = _abc_header(fields["abc"], "Z")
+        c = _normalise_composer(_abc_header(fields["abc"], "C"))
+        z = _normalise_composer(_abc_header(fields["abc"], "Z"))
         if c:
             fields["composer"] = c
         if z:

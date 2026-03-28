@@ -2941,3 +2941,11 @@ button.set-tune-title:hover { text-decoration: underline; }
 }
 .discog-status.discog-ok  { border-color: #0d9488; color: #0d9488; }
 .discog-status.discog-err { border-color: #ef4444; color: #ef4444; }
+
+/* ── Bar selection loop toggle ───────────────────────────────────────────── */
+.bar-loop-toggle {
+  font-size: .8rem; padding: .2rem .55rem;
+}
+.bar-loop-toggle.loop-active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
