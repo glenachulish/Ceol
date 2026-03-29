@@ -1479,10 +1479,7 @@ function renderModal(tune, onBack = null, siblings = null) {
   modalContent.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const leaving = modalContent.querySelector(".tab-btn.active")?.dataset.tab;
-      if (leaving === "practice" && _pracSynthCtrl) {
-        try { _pracSynthCtrl.stop(); } catch {}
-        _pracSynthCtrl = null;
-      }
+      if (leaving === "practice") _stopPracticeAudio();
       modalContent.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       modalContent.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
       btn.classList.add("active");
@@ -5190,7 +5187,7 @@ function closeModal() {
   if (_synthController) { try { _synthController.pause(); } catch {} }
   if (_previewSynthCtrl) { try { _previewSynthCtrl.stop(); } catch {} _previewSynthCtrl = null; }
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
-  if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
+  _stopPracticeAudio();
   closeMediaOverlay();
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
@@ -7803,6 +7800,13 @@ let _pracCurWarp     = 60;
 let _pracSettings    = {};
 let _pracCurrentAbc  = null;   // last-built practice ABC (for fullscreen)
 
+function _stopPracticeAudio() {
+  if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
+  // Belt-and-suspenders: pause any raw <audio> nodes ABCJS may have created
+  document.querySelectorAll("#prac-player-container audio, #prac-player-container source")
+    .forEach(el => { if (el.tagName === "AUDIO") { try { el.pause(); el.currentTime = 0; } catch {} } });
+}
+
 function _extractBpm(abc) {
   if (!abc) return null;
   // Handles: Q:120  |  Q:1/4=120  |  Q:"Slowly" 1/4=60
@@ -7955,7 +7959,7 @@ function _renderPracticeMusic(pracAbc) {
   if (!container || typeof ABCJS === "undefined") return;
 
   _pracCurrentAbc = pracAbc;
-  if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
+  _stopPracticeAudio();
   _pracLoopCount = 0;
   const phraseIndicator = document.getElementById("prac-phrase-indicator");
   if (phraseIndicator) phraseIndicator.classList.add("hidden");
