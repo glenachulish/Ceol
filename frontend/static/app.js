@@ -1161,9 +1161,8 @@ function renderModal(tune, onBack = null, siblings = null) {
         <div id="sheet-music-render"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
         ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
-        ${(imageUrl || pdfUrl) && (state.capabilities.has_anthropic_key || state.capabilities.has_audiveris) ? `<div class="transcribe-row">
-          ${state.capabilities.has_anthropic_key ? `<button id="transcribe-ai-btn" class="btn-secondary" title="Transcribe using Claude AI (requires API key)">✨ AI Transcribe</button>` : ""}
-          ${state.capabilities.has_audiveris ? `<button id="transcribe-aud-btn" class="btn-secondary" title="Transcribe using Audiveris (local, no API needed)">⚙ Audiveris</button>` : ""}
+        ${(imageUrl || pdfUrl) && state.capabilities.has_audiveris ? `<div class="transcribe-row">
+          <button id="transcribe-aud-btn" class="btn-secondary" title="Transcribe using Audiveris (local, no API needed)">⚙ Audiveris</button>
           <span id="transcribe-status" class="transcribe-status"></span>
         </div>` : ""}
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
@@ -1551,28 +1550,6 @@ function renderModal(tune, onBack = null, siblings = null) {
     document.getElementById("tab-abc")?.classList.remove("hidden");
     status.textContent = "Done — check accuracy then hit Save & Re-render";
     status.className = "transcribe-status transcribe-ok";
-  }
-
-  // AI transcription (Claude Sonnet)
-  const transcribeAiBtn = document.getElementById("transcribe-ai-btn");
-  if (transcribeAiBtn) {
-    transcribeAiBtn.addEventListener("click", async () => {
-      const status = document.getElementById("transcribe-status");
-      transcribeAiBtn.disabled = true;
-      transcribeAiBtn.textContent = "Transcribing…";
-      status.textContent = "";
-      status.className = "transcribe-status";
-      try {
-        const data = await apiFetch(`/api/tunes/${tune.id}/transcribe-image`, { method: "POST" });
-        _handleTranscribeResult(data.abc, status);
-      } catch (e) {
-        status.textContent = `Error: ${e.message}`;
-        status.className = "transcribe-status transcribe-err";
-      } finally {
-        transcribeAiBtn.disabled = false;
-        transcribeAiBtn.textContent = "✨ AI Transcribe";
-      }
-    });
   }
 
   // Audiveris local transcription
