@@ -1137,6 +1137,7 @@ function renderModal(tune, onBack = null, siblings = null) {
       <button class="tab-btn active" data-tab="music">Sheet Music</button>
       <button class="tab-btn" data-tab="abc">ABC Text</button>
       <button class="tab-btn" data-tab="notes">Notes</button>
+      ${tune.abc ? `<button class="tab-btn" data-tab="practice">Practice</button>` : ""}
     </div>
 
     <div id="tab-music" class="tab-panel">
@@ -1235,6 +1236,50 @@ function renderModal(tune, onBack = null, siblings = null) {
         <span id="notes-status" class="notes-status"></span>
       </div>
     </div>
+
+    ${tune.abc ? `
+    <div id="tab-practice" class="tab-panel hidden">
+      <div class="practice-section">
+        <h4 class="practice-heading">Phrase Builder</h4>
+        <div class="practice-row">
+          <label class="practice-label">Phrase length (bars)</label>
+          <input id="prac-phrase-len" type="number" min="1" max="16" value="2" class="practice-num-input">
+        </div>
+        <div class="practice-row">
+          <label class="practice-label">Rest bars after phrase</label>
+          <input id="prac-rest-bars" type="number" min="0" max="16" value="2" class="practice-num-input">
+        </div>
+      </div>
+      <div class="practice-section">
+        <h4 class="practice-heading">Tempo Progression</h4>
+        <div class="practice-row">
+          <label class="practice-label">Starting tempo %</label>
+          <input id="prac-tempo-start" type="number" min="10" max="200" value="60" class="practice-num-input">
+          <span id="prac-bpm-start" class="practice-bpm-hint"></span>
+        </div>
+        <div class="practice-row">
+          <label class="practice-label">Final tempo %</label>
+          <input id="prac-tempo-final" type="number" min="10" max="200" value="100" class="practice-num-input">
+          <span id="prac-bpm-final" class="practice-bpm-hint"></span>
+        </div>
+        <div class="practice-row">
+          <label class="practice-label">Increment (%)</label>
+          <input id="prac-tempo-inc" type="number" min="1" max="50" value="5" class="practice-num-input">
+        </div>
+        <div class="practice-row">
+          <label class="practice-label">Increment after (loops)</label>
+          <input id="prac-tempo-loops" type="number" min="1" max="20" value="2" class="practice-num-input">
+        </div>
+      </div>
+      <div class="practice-actions">
+        <button id="prac-build-btn" class="btn-primary">▶ Build &amp; Practice</button>
+        <span id="prac-status" class="notes-status"></span>
+      </div>
+      <div id="prac-tempo-display" class="practice-tempo-display hidden"></div>
+      <div id="prac-sheet-render" class="practice-sheet-render"></div>
+      <div id="prac-player-container" class="audio-player-wrap"></div>
+    </div>
+    ` : ""}
 
     <div class="modal-footer">
       ${setsFooter}
@@ -1425,6 +1470,8 @@ function renderModal(tune, onBack = null, siblings = null) {
       document.getElementById(`tab-${btn.dataset.tab}`).classList.remove("hidden");
     });
   });
+
+  _initPracticeTab(tune);
 
   // Notes save
   document.getElementById("save-notes-btn").addEventListener("click", async () => {
@@ -5113,6 +5160,7 @@ function closeModal() {
   if (_synthController) { try { _synthController.pause(); } catch {} }
   if (_previewSynthCtrl) { try { _previewSynthCtrl.stop(); } catch {} _previewSynthCtrl = null; }
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
+  if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }
@@ -7707,6 +7755,183 @@ helpBtn.addEventListener("click", _openHelp);
 helpClose.addEventListener("click", _closeHelp);
 helpOverlay.addEventListener("click", e => { if (e.target === helpOverlay) _closeHelp(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !helpOverlay.classList.contains("hidden")) _closeHelp(); });
+
+// ── Practice tab (Phrase Builder + Tempo Progression) ────────────────────────
+let _pracSynthCtrl  = null;
+let _pracVisualObj  = null;
+let _pracLoopCount  = 0;
+let _pracCurWarp    = 60;
+let _pracSettings   = {};
+
+function _extractBpm(abc) {
+  if (!abc) return null;
+  // Handles: Q:120  |  Q:1/4=120  |  Q:"Slowly" 1/4=60
+  const m = abc.match(/^Q:\s*(?:[^=\n]+=\s*)?(\d+)/m);
+  return m ? parseInt(m[1]) : null;
+}
+
+function _computeBarRestAbc(meterStr, lenStr) {
+  const mp = (meterStr || "4/4").split("/");
+  const lp = (lenStr   || "1/8").split("/");
+  const mNum = parseInt(mp[0]) || 4,  mDen = parseInt(mp[1]) || 4;
+  const lNum = parseInt(lp[0]) || 1,  lDen = parseInt(lp[1]) || 8;
+  const units = Math.round((mNum * lDen) / (mDen * lNum));
+  return units === 1 ? "z" : `z${units}`;
+}
+
+function _buildPracticeAbc(abc, phraseLen, restBars) {
+  if (!abc) return null;
+  if (/^V:/m.test(abc)) return null;   // multi-voice tunes not supported
+
+  const getField = f => {
+    const m = abc.match(new RegExp(`^${f}:\\s*(.+)$`, "m"));
+    return m ? m[1].trim() : null;
+  };
+
+  const rawBars = extractBars(abc);
+  if (!rawBars.length) return null;
+
+  // Strip quoted chord annotations ("Am", "D7", etc.)
+  const cleanBars = rawBars
+    .map(b => b.replace(/"[^"]*"/g, "").trim())
+    .filter(b => b.length > 0);
+
+  const T = getField("T") || "Practice";
+  const M = getField("M") || "4/4";
+  const L = getField("L") || "1/8";
+  const Q = getField("Q");
+  const K = getField("K") || "C";
+  const restToken = _computeBarRestAbc(M, L);
+
+  const bodyLines = [];
+  for (let i = 0; i < cleanBars.length; i += phraseLen) {
+    const phrase = cleanBars.slice(i, i + phraseLen);
+    let line = "|" + phrase.join("|") + "|";
+    if (restBars > 0) line += Array(restBars).fill(restToken).join("|") + "|";
+    bodyLines.push(line);
+  }
+
+  let out = `X:1\nT:${T} – Practice\nM:${M}\nL:${L}\n`;
+  if (Q) out += `Q:${Q}\n`;
+  out += `K:${K}\n` + bodyLines.join("\n");
+  return out;
+}
+
+function _updatePracTempoDisplay() {
+  const el = document.getElementById("prac-tempo-display");
+  if (!el) return;
+  el.classList.remove("hidden");
+  const bpm = _pracSettings.baseBpm
+    ? Math.round(_pracSettings.baseBpm * _pracCurWarp / 100)
+    : null;
+  const atFinal = _pracCurWarp >= _pracSettings.final;
+  const loopStr = `Loop ${_pracLoopCount + 1}`;
+  el.textContent = bpm
+    ? `${loopStr} — ${_pracCurWarp}% = ${bpm} BPM${atFinal ? " ✓ full speed" : ""}`
+    : `${loopStr} — ${_pracCurWarp}%${atFinal ? " ✓ full speed" : ""}`;
+}
+
+function _renderPracticeMusic(pracAbc) {
+  const container = document.getElementById("prac-sheet-render");
+  if (!container || typeof ABCJS === "undefined") return;
+
+  if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
+  _pracLoopCount = 0;
+
+  try {
+    const processed = expandAbcRepeats(pracAbc);
+    const visualObjs = ABCJS.renderAbc("prac-sheet-render", processed, {
+      responsive: "resize",
+      wrap: { preferredMeasuresPerLine: 4 },
+      add_classes: true,
+      paddingbottom: 10, paddingleft: 15, paddingright: 15, paddingtop: 10,
+      foregroundColor: "#000000",
+    });
+    _patchSvgViewBox("prac-sheet-render");
+    _pracVisualObj = visualObjs[0];
+
+    if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+
+    const cursorControl = {
+      onStart() {},
+      onEvent(ev) {
+        document.querySelectorAll("#prac-sheet-render .abcjs-highlight")
+          .forEach(el => el.classList.remove("abcjs-highlight"));
+        if (ev?.elements) ev.elements.forEach(g => g?.forEach(el => el.classList.add("abcjs-highlight")));
+      },
+      onFinished() {
+        document.querySelectorAll("#prac-sheet-render .abcjs-highlight")
+          .forEach(el => el.classList.remove("abcjs-highlight"));
+        _pracLoopCount++;
+        // Tempo step: increment warp after N loops, up to final %
+        const { final: finalWarp, inc, loopsPerStep } = _pracSettings;
+        if (_pracCurWarp < finalWarp && _pracLoopCount % loopsPerStep === 0) {
+          _pracCurWarp = Math.min(finalWarp, _pracCurWarp + inc);
+          if (_pracSynthCtrl) _pracSynthCtrl.setWarp(_pracCurWarp);
+        }
+        _updatePracTempoDisplay();
+        // Loop: restart from top
+        if (_pracSynthCtrl) { try { _pracSynthCtrl.play(); } catch {} }
+      },
+    };
+
+    _pracSynthCtrl = new ABCJS.synth.SynthController();
+    _pracSynthCtrl.load("#prac-player-container", cursorControl, {
+      displayLoop: false,
+      displayRestart: true,
+      displayPlay: true,
+      displayProgress: true,
+      displayWarp: true,
+    });
+    _pracSynthCtrl.setTune(_pracVisualObj, false, { program: 73 })
+      .then(() => { _pracSynthCtrl.setWarp(_pracCurWarp); })
+      .catch(err => { console.warn("Practice audio init failed:", err); });
+  } catch (err) {
+    console.warn("Practice render failed:", err);
+  }
+}
+
+function _initPracticeTab(tune) {
+  if (!tune.abc) return;
+
+  const baseBpm = _extractBpm(tune.abc);
+
+  const updateBpmHints = () => {
+    const startPct = parseInt(document.getElementById("prac-tempo-start")?.value) || 60;
+    const finalPct = parseInt(document.getElementById("prac-tempo-final")?.value) || 100;
+    const elS = document.getElementById("prac-bpm-start");
+    const elF = document.getElementById("prac-bpm-final");
+    if (elS) elS.textContent = baseBpm ? `= ${Math.round(baseBpm * startPct / 100)} BPM` : "";
+    if (elF) elF.textContent = baseBpm ? `= ${Math.round(baseBpm * finalPct / 100)} BPM` : "";
+  };
+  document.getElementById("prac-tempo-start")?.addEventListener("input", updateBpmHints);
+  document.getElementById("prac-tempo-final")?.addEventListener("input", updateBpmHints);
+  updateBpmHints();
+
+  document.getElementById("prac-build-btn")?.addEventListener("click", () => {
+    const phraseLen    = Math.max(1, parseInt(document.getElementById("prac-phrase-len")?.value)   || 2);
+    const restBars     = Math.max(0, parseInt(document.getElementById("prac-rest-bars")?.value)    || 2);
+    const startPct     = Math.max(10, parseInt(document.getElementById("prac-tempo-start")?.value) || 60);
+    const finalPct     = Math.max(10, parseInt(document.getElementById("prac-tempo-final")?.value) || 100);
+    const incPct       = Math.max(1, parseInt(document.getElementById("prac-tempo-inc")?.value)    || 5);
+    const loopsPerStep = Math.max(1, parseInt(document.getElementById("prac-tempo-loops")?.value)  || 2);
+    const status       = document.getElementById("prac-status");
+
+    const pracAbc = _buildPracticeAbc(tune.abc, phraseLen, restBars);
+    if (!pracAbc) {
+      if (status) { status.textContent = "Cannot build — multi-voice tunes are not supported."; status.className = "notes-status notes-error"; }
+      return;
+    }
+    if (status) status.textContent = "";
+
+    _pracCurWarp  = startPct;
+    _pracLoopCount = 0;
+    _pracSettings = { start: startPct, final: finalPct, inc: incPct, loopsPerStep, baseBpm };
+
+    _renderPracticeMusic(pracAbc);
+    _updatePracTempoDisplay();
+  });
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 _applyNavColour("collections");  // set Collections button solid on first paint
