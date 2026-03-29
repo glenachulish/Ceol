@@ -4468,20 +4468,36 @@ def _find_java(audiveris_jar: Optional[str] = None) -> Optional[str]:
 
 
 def _audiveris_info() -> dict:
-    """Return Audiveris availability status."""
+    """Return Audiveris availability status, including the base command to invoke it."""
     jar = _find_audiveris()
     if not jar:
-        return {"available": False, "jar": None, "reason": "Audiveris.jar not found"}
+        return {"available": False, "jar": None, "cmd": None, "reason": "Audiveris.jar not found"}
+
+    # Prefer the native launcher inside a .app bundle (jpackage layout).
+    # Running via "java -jar" on a jpackaged JAR fails because the JAR depends
+    # on the bundled JRE being discovered by the launcher, not by java itself.
+    jar_path = Path(jar)
+    probe = jar_path.parent
+    while probe != probe.parent:
+        if probe.suffix == ".app":
+            launcher = probe / "Contents" / "MacOS" / "Audiveris"
+            if launcher.exists():
+                return {"available": True, "jar": jar, "cmd": [str(launcher)], "reason": None}
+            break
+        probe = probe.parent
+
+    # Fall back to java -jar for non-bundled installs
     java = _find_java(jar)
     if not java:
-        return {"available": False, "jar": jar, "reason": "java not found (install JDK or Homebrew openjdk)"}
+        return {"available": False, "jar": jar, "cmd": None,
+                "reason": "java not found (install JDK or Homebrew openjdk)"}
     try:
         r = subprocess.run([java, "-version"], capture_output=True, timeout=10)
         if r.returncode != 0:
-            return {"available": False, "jar": jar, "reason": "java not working"}
+            return {"available": False, "jar": jar, "cmd": None, "reason": "java not working"}
     except subprocess.TimeoutExpired:
-        return {"available": False, "jar": jar, "reason": "java not responding"}
-    return {"available": True, "jar": jar, "reason": None}
+        return {"available": False, "jar": jar, "cmd": None, "reason": "java not responding"}
+    return {"available": True, "jar": jar, "cmd": [java, "-Xmx768m", "-jar", jar], "reason": None}
 
 
 def _has_music21() -> bool:
@@ -4575,10 +4591,7 @@ async def transcribe_audiveris(tune_id: int):
         out_dir = Path(tmpdir) / "out"
         out_dir.mkdir()
 
-        java_bin = _find_java() or "java"
-        cmd = [
-            java_bin, "-Xmx768m",
-            "-jar", aud["jar"],
+        cmd = aud["cmd"] + [
             "-batch", "-export",
             "-output", str(out_dir),
             "--", str(source),
