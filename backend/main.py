@@ -4299,17 +4299,28 @@ async def transcribe_image(tune_id: int):
     if not tune:
         raise HTTPException(404, "Tune not found")
 
-    notes = tune["notes"] or ""
-    m = re.search(r"sheet music \(image\):\s*(\S+)", notes)
-    if not m:
-        raise HTTPException(400, "No sheet-music image attached to this tune")
+    source = _source_file_for_tune(tune["notes"] or "")
+    if not source:
+        raise HTTPException(400, "No sheet-music PDF or image attached to this tune")
 
-    filename = m.group(1).rstrip("/").split("/")[-1]
-    image_file = UPLOADS_DIR / filename
-    if not image_file.exists():
-        raise HTTPException(404, "Image file not found on disk")
+    # PDFs must be rendered to an image before sending to Claude Vision
+    if source.suffix.lower() == ".pdf":
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(str(source))
+            page = doc[0]
+            pix = page.get_pixmap(dpi=200)
+            image_bytes = pix.tobytes("jpeg")
+            doc.close()
+        except ImportError:
+            raise HTTPException(500, "PyMuPDF not installed. Run: pip install pymupdf")
+        media_type = "image/jpeg"
+    else:
+        image_bytes = source.read_bytes()
+        ext = source.suffix.lower()
+        media_type = "image/png" if ext == ".png" else "image/jpeg"
 
-    image_b64 = base64.standard_b64encode(image_file.read_bytes()).decode()
+    image_b64 = base64.standard_b64encode(image_bytes).decode()
 
     prompt = f"""Transcribe this sheet music image to ABC notation.
 
@@ -4341,7 +4352,7 @@ Rules:
                         "type": "image",
                         "source": {
                             "type": "base64",
-                            "media_type": "image/jpeg",
+                            "media_type": media_type,
                             "data": image_b64,
                         },
                     },
