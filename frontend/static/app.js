@@ -955,15 +955,16 @@ function renderPagination(current, total) {
   pagination.innerHTML = html;
 }
 
-// Render a notes string: URLs become playable embeds or clickable links
+/// Render a notes string: URLs become playable embeds or clickable links
 function renderNotesHtml(text) {
   if (!text) return "";
-  const urlRe = /https?:\/\/[^\s<>"]+/g;
+  const urlRe = /(?:https?:\/\/|\/api\/uploads\/)[^\s<>"]+/g;
   const parts = [];
   let last = 0;
   let m;
 
   function shortUrl(u) {
+    if (u.startsWith("/api/uploads/")) return u.split("/").pop();
     try {
       const { hostname, pathname } = new URL(u);
       const path = pathname.length > 40 ? pathname.slice(0, 38) + "…" : pathname;

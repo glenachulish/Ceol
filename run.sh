@@ -17,11 +17,18 @@ fi
 if [ ! -f .env ]; then
   cat > .env <<'ENVEOF'
 # Ceol environment variables
-# Paste your Anthropic API key below to enable the "Transcribe to ABC" feature.
+
+# Claude AI transcription (optional — enables "AI Transcribe" button)
 # Get a key at https://console.anthropic.com
 ANTHROPIC_API_KEY=
+
+# Audiveris local OMR (optional — enables "Audiveris" transcription button)
+# Download from https://github.com/Audiveris/audiveris/releases
+# Example (Apple Silicon Mac):
+# AUDIVERIS_JAR=/Applications/Audiveris.app/Contents/app/Audiveris.jar
+AUDIVERIS_JAR=
 ENVEOF
-  echo "Created .env — add your ANTHROPIC_API_KEY there to enable ABC transcription."
+  echo "Created .env — edit it to add your ANTHROPIC_API_KEY and/or AUDIVERIS_JAR path."
 fi
 
 # Install / update Python dependencies silently
