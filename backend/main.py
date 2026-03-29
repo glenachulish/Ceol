@@ -4424,17 +4424,45 @@ def _find_audiveris() -> Optional[str]:
     return None
 
 
+def _find_java() -> Optional[str]:
+    """Return path to java executable, checking PATH and common macOS locations."""
+    j = shutil.which("java")
+    if j:
+        return j
+    # Common macOS JDK installer location
+    jvm_root = Path("/Library/Java/JavaVirtualMachines")
+    if jvm_root.exists():
+        for jdk in sorted(jvm_root.iterdir(), reverse=True):
+            candidate = jdk / "Contents" / "Home" / "bin" / "java"
+            if candidate.exists():
+                return str(candidate)
+    # Homebrew locations (Apple Silicon and Intel)
+    for candidate in [
+        Path("/opt/homebrew/bin/java"),
+        Path("/opt/homebrew/opt/openjdk/bin/java"),
+        Path("/usr/local/bin/java"),
+        Path("/usr/local/opt/openjdk/bin/java"),
+        Path("/usr/bin/java"),
+    ]:
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
 def _audiveris_info() -> dict:
-    """Return Audiveris availability status (cached for 60 s)."""
+    """Return Audiveris availability status."""
     jar = _find_audiveris()
     if not jar:
         return {"available": False, "jar": None, "reason": "Audiveris.jar not found"}
+    java = _find_java()
+    if not java:
+        return {"available": False, "jar": jar, "reason": "java not found (install JDK or Homebrew openjdk)"}
     try:
-        r = subprocess.run(["java", "-version"], capture_output=True, timeout=10)
+        r = subprocess.run([java, "-version"], capture_output=True, timeout=10)
         if r.returncode != 0:
             return {"available": False, "jar": jar, "reason": "java not working"}
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return {"available": False, "jar": jar, "reason": "java not in PATH"}
+    except subprocess.TimeoutExpired:
+        return {"available": False, "jar": jar, "reason": "java not responding"}
     return {"available": True, "jar": jar, "reason": None}
 
 
@@ -4529,8 +4557,9 @@ async def transcribe_audiveris(tune_id: int):
         out_dir = Path(tmpdir) / "out"
         out_dir.mkdir()
 
+        java_bin = _find_java() or "java"
         cmd = [
-            "java", "-Xmx768m",
+            java_bin, "-Xmx768m",
             "-jar", aud["jar"],
             "-batch", "-export",
             "-output", str(out_dir),

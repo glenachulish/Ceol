@@ -976,7 +976,7 @@ function renderNotesHtml(text) {
     if (m.index > last) parts.push(`<span>${escHtml(text.slice(last, m.index))}</span>`);
     const url = m[0];
     const urlEsc = escHtml(url);
-    if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url) || /\/api\/(uploads|dropbox\/file)\b/.test(url)) {
+    if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url)) {
       parts.push(`<div class="notes-media-link">
         <button class="btn-secondary btn-sm media-play-btn" data-url="${urlEsc}" data-media-type="audio">▶ Play audio</button>
         <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${escHtml(shortUrl(url))}</a>
@@ -1087,12 +1087,12 @@ function renderModal(tune, onBack = null, siblings = null) {
   })();
   const notesAudioUrls = (() => {
     if (!tune.notes) return [];
-    const urlRe = /https?:\/\/[^\s<>"]+/g;
+    const urlRe = /(?:https?:\/\/|\/api\/uploads\/)[^\s<>"]+/g;
     const urls = [];
     let m;
     while ((m = urlRe.exec(tune.notes)) !== null) {
       const url = m[0];
-      if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url) || /\/api\/(uploads|dropbox\/file)\b/.test(url)) {
+      if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url)) {
         urls.push(url);
       }
     }
