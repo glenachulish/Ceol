@@ -7802,9 +7802,13 @@ let _pracCurrentAbc  = null;   // last-built practice ABC (for fullscreen)
 
 function _stopPracticeAudio() {
   if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
-  // Belt-and-suspenders: pause any raw <audio> nodes ABCJS may have created
-  document.querySelectorAll("#prac-player-container audio, #prac-player-container source")
-    .forEach(el => { if (el.tagName === "AUDIO") { try { el.pause(); el.currentTime = 0; } catch {} } });
+  // Suspend the shared ABCJS AudioContext — this force-stops any scheduled Web Audio nodes.
+  // ABCJS automatically calls audioContext.resume() the next time something plays.
+  try {
+    if (window.abcjsAudioContext && window.abcjsAudioContext.state === "running") {
+      window.abcjsAudioContext.suspend();
+    }
+  } catch {}
 }
 
 function _extractBpm(abc) {
