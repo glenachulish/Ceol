@@ -3,7 +3,7 @@
 const PAGE_SIZE = 48;
 
 const state = {
-  view: "collections",
+  view: "library",
   page: 1,
   q: "",
   type: "",
@@ -8111,9 +8111,8 @@ function _initPracticeTab(tune) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-_applyNavColour("collections");  // set Collections button solid on first paint
+_applyNavColour("library");  // set Library button solid on first paint
 (async () => {
   await Promise.allSettled([loadFilters(), loadStats(), fetchSets(), fetchCollections(), loadCapabilities()]);
-  switchView("collections");
-  loadTunes();  // preload library in background for instant switching
+  switchView("library");
 })();

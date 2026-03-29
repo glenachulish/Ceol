@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/static/style.css?v=79" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
-<body data-view="collections">
+<body data-view="library">
   <header>
     <div class="header-inner">
       <div class="header-top-row">
@@ -20,9 +20,9 @@
         <button id="theme-toggle-btn" class="help-btn" aria-label="Toggle theme" data-tooltip="Toggle light/dark/auto theme">🌙</button>
       </div>
       <nav class="header-nav">
-        <button id="nav-library" class="nav-btn" data-tooltip="Browse &amp; search your tune collection">Library</button>
+        <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
         <button id="nav-sets" class="nav-btn" data-tooltip="Group tunes into practice sets">Sets</button>
-        <button id="nav-collections" class="nav-btn active" data-tooltip="Organise tunes into themed collections">Collections</button>
+        <button id="nav-collections" class="nav-btn" data-tooltip="Organise tunes into themed collections">Collections</button>
       </nav>
       <div class="header-actions">
         <div class="library-menu-wrap">
@@ -785,6 +785,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=150"></script>
+  <script src="/static/app.js?v=151"></script>
 </body>
 </html>
