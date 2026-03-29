@@ -15,7 +15,7 @@ const state = {
   min_rating: 0,
   sets: [],
   collections: [],
-  capabilities: { has_anthropic_key: true, has_audiveris: false, has_music21: false },
+  capabilities: { has_anthropic_key: true },
 };
 
 async function loadCapabilities() {
@@ -1161,10 +1161,6 @@ function renderModal(tune, onBack = null, siblings = null) {
         <div id="sheet-music-render"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
         ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
-        ${(imageUrl || pdfUrl) && state.capabilities.has_audiveris ? `<div class="transcribe-row">
-          <button id="transcribe-aud-btn" class="btn-secondary" title="Transcribe using Audiveris (local, no API needed)">⚙ Audiveris</button>
-          <span id="transcribe-status" class="transcribe-status"></span>
-        </div>` : ""}
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
@@ -1550,28 +1546,6 @@ function renderModal(tune, onBack = null, siblings = null) {
     document.getElementById("tab-abc")?.classList.remove("hidden");
     status.textContent = "Done — check accuracy then hit Save & Re-render";
     status.className = "transcribe-status transcribe-ok";
-  }
-
-  // Audiveris local transcription
-  const transcribeAudBtn = document.getElementById("transcribe-aud-btn");
-  if (transcribeAudBtn) {
-    transcribeAudBtn.addEventListener("click", async () => {
-      const status = document.getElementById("transcribe-status");
-      transcribeAudBtn.disabled = true;
-      transcribeAudBtn.textContent = "Running Audiveris…";
-      status.textContent = "This may take 30–60 seconds…";
-      status.className = "transcribe-status";
-      try {
-        const data = await apiFetch(`/api/tunes/${tune.id}/transcribe-audiveris`, { method: "POST" });
-        _handleTranscribeResult(data.abc, status);
-      } catch (e) {
-        status.textContent = `Error: ${e.message}`;
-        status.className = "transcribe-status transcribe-err";
-      } finally {
-        transcribeAudBtn.disabled = false;
-        transcribeAudBtn.textContent = "⚙ Audiveris";
-      }
-    });
   }
 
   // Add to set — opens set picker panel
@@ -7742,11 +7716,7 @@ infoBtn.addEventListener("click", async () => {
       <td><a href="${escHtml(info.desktop_url)}" target="_blank" rel="noopener" class="info-mobile-link">${escHtml(info.desktop_url)}</a></td>
     </tr>` : "";
   const cap = state.capabilities;
-  const aiStatus  = cap.has_anthropic_key ? "✅ Active" : "⚠️ No API key — set ANTHROPIC_API_KEY";
-  const audStatus = cap.has_audiveris
-    ? `✅ Found — <code>${escHtml(cap.audiveris_jar || "")}</code>`
-    : `⚠️ Not found — ${escHtml(cap.audiveris_reason || "install Audiveris")}`;
-  const m21Status = cap.has_music21 ? "✅ Installed" : "⚠️ Not installed (pip install music21)";
+  const aiStatus = cap.has_anthropic_key ? "✅ Active" : "⚠️ No API key — set ANTHROPIC_API_KEY";
 
   modalContent.innerHTML = `
     <h2 class="modal-title">App Info</h2>
@@ -7762,11 +7732,8 @@ infoBtn.addEventListener("click", async () => {
     <hr class="modal-divider">
     <h3 class="modal-section-title">Transcription capabilities</h3>
     <table class="info-table">
-      <tr><th>AI (Claude Sonnet)</th><td>${aiStatus}</td></tr>
-      <tr><th>Audiveris (local OMR)</th><td>${audStatus}</td></tr>
-      <tr><th>music21 (MusicXML→ABC)</th><td>${m21Status}</td></tr>
+      <tr><th>AI (Claude Opus)</th><td>${aiStatus}</td></tr>
     </table>
-    <p class="modal-hint">To use Audiveris locally: download from <a href="https://github.com/Audiveris/audiveris/releases" target="_blank" rel="noopener">github.com/Audiveris/audiveris/releases</a>, extract, then set <code>AUDIVERIS_JAR=/path/to/lib/Audiveris.jar</code> in your environment before starting the server.</p>
     <p class="modal-hint">Backups are created automatically each time the server starts.</p>
     <hr class="modal-divider">
     <h3 class="modal-section-title">Library tools</h3>
