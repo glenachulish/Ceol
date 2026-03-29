@@ -1478,6 +1478,11 @@ function renderModal(tune, onBack = null, siblings = null) {
   // Tab switching
   modalContent.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
+      const leaving = modalContent.querySelector(".tab-btn.active")?.dataset.tab;
+      if (leaving === "practice" && _pracSynthCtrl) {
+        try { _pracSynthCtrl.stop(); } catch {}
+        _pracSynthCtrl = null;
+      }
       modalContent.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       modalContent.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
       btn.classList.add("active");
