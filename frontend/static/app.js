@@ -4601,17 +4601,25 @@ function renderCollections(collections) {
     _debounce = setTimeout(() => loadRecent(days), 400);
   });
 
-  // Hide / Show button
+  // Show / Hide button — lazy-loads on first Show click
+  let _loaded = false;
   const hideBtn = document.getElementById("recent-imports-hide-btn");
   if (hideBtn) {
     hideBtn.addEventListener("click", () => {
-      const hidden = listEl.classList.toggle("hidden");
-      hideBtn.textContent = hidden ? "Show" : "Hide";
+      if (listEl.classList.contains("hidden")) {
+        // Expanding
+        listEl.classList.remove("hidden");
+        hideBtn.textContent = "Hide";
+        if (!_loaded) { _loaded = true; loadRecent(_recentDays); }
+      } else {
+        listEl.classList.add("hidden");
+        hideBtn.textContent = "Show";
+      }
     });
   }
 
-  // Expose so loadCollections can trigger a refresh
-  window._loadRecentImports = () => loadRecent(_recentDays);
+  // Expose so other code can trigger a refresh (only if already expanded)
+  window._loadRecentImports = () => { if (_loaded) loadRecent(_recentDays); };
 })();
 
 async function loadCollections() {
@@ -4622,7 +4630,6 @@ async function loadCollections() {
   } catch {
     collectionsList.innerHTML = '<p class="empty">Failed to load collections.</p>';
   }
-  if (window._loadRecentImports) window._loadRecentImports();
 }
 
 // ── Loaders ───────────────────────────────────────────────────────────────────
