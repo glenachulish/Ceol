@@ -8115,4 +8115,5 @@ _applyNavColour("library");  // set Library button solid on first paint
 (async () => {
   await Promise.allSettled([loadFilters(), loadStats(), fetchSets(), fetchCollections(), loadCapabilities()]);
   switchView("library");
+  loadTunes();
 })();
