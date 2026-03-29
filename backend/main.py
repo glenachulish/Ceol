@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import socket
+import subprocess
 import tempfile
 import uuid
 import zipfile
@@ -4376,6 +4377,179 @@ Rules:
     abc = re.sub(r"\n?```$", "", abc).strip()
 
     return {"abc": abc}
+
+
+# ---------------------------------------------------------------------------
+# Audiveris (local OMR) + capabilities
+# ---------------------------------------------------------------------------
+
+def _find_audiveris() -> Optional[str]:
+    """Return path to Audiveris.jar, or None if not found."""
+    # 1. Explicit env var pointing at the JAR
+    jar = os.environ.get("AUDIVERIS_JAR", "").strip()
+    if jar and Path(jar).exists():
+        return jar
+
+    # 2. AUDIVERIS_HOME env var — look for lib/Audiveris.jar inside it
+    home_env = os.environ.get("AUDIVERIS_HOME", "").strip()
+    if home_env:
+        candidate = Path(home_env) / "lib" / "Audiveris.jar"
+        if candidate.exists():
+            return str(candidate)
+
+    # 3. Common macOS install locations
+    user_home = Path.home()
+    candidates = [
+        user_home / "bin"          / "Audiveris" / "lib" / "Audiveris.jar",
+        user_home / "Applications" / "Audiveris" / "lib" / "Audiveris.jar",
+        user_home / "Audiveris"    /               "lib" / "Audiveris.jar",
+        Path("/Applications/Audiveris/lib/Audiveris.jar"),
+        Path("/opt/Audiveris/lib/Audiveris.jar"),
+    ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+
+    return None
+
+
+def _audiveris_info() -> dict:
+    """Return Audiveris availability status (cached for 60 s)."""
+    jar = _find_audiveris()
+    if not jar:
+        return {"available": False, "jar": None, "reason": "Audiveris.jar not found"}
+    try:
+        r = subprocess.run(["java", "-version"], capture_output=True, timeout=10)
+        if r.returncode != 0:
+            return {"available": False, "jar": jar, "reason": "java not working"}
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return {"available": False, "jar": jar, "reason": "java not in PATH"}
+    return {"available": True, "jar": jar, "reason": None}
+
+
+def _has_music21() -> bool:
+    try:
+        import music21  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+@app.get("/api/capabilities")
+def capabilities():
+    """Return which optional features are available on this server."""
+    aud = _audiveris_info()
+    return {
+        "has_anthropic_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
+        "has_audiveris":     aud["available"],
+        "audiveris_jar":     aud.get("jar"),
+        "audiveris_reason":  aud.get("reason"),
+        "has_music21":       _has_music21(),
+    }
+
+
+def _music21_to_abc(xml_path: str, title: str) -> str:
+    """Convert a MusicXML/.mxl file to an ABC string using music21."""
+    from music21 import converter as m21
+
+    score = m21.parse(xml_path)
+    score.metadata.title = title
+
+    # Write to a temp ABC file and read it back
+    tmp = Path(tempfile.mktemp(suffix=".abc"))
+    try:
+        out = score.write("abc", fp=str(tmp))
+        text = Path(out).read_text(encoding="utf-8", errors="replace")
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+
+    # Strip any blank lines that music21 adds between tunes (we only want one)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    # Ensure title header matches what the user stored
+    text = re.sub(r"(?m)^T:.*$", f"T:{title}", text, count=1)
+    # Strip markdown fences if present
+    text = re.sub(r"^```[a-z]*\n?", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\n?```$", "", text).strip()
+    return text
+
+
+def _source_file_for_tune(notes: str) -> Optional[Path]:
+    """Find the best local source file (PDF preferred, then image) for a tune."""
+    # PDFs are better input for Audiveris (cleaner lines, no perspective distortion)
+    for pattern in (r"sheet music \(PDF\):\s*(\S+)", r"sheet music \(image\):\s*(\S+)"):
+        m = re.search(pattern, notes or "", re.IGNORECASE)
+        if m:
+            fname = m.group(1).rstrip("/").split("/")[-1]
+            f = UPLOADS_DIR / fname
+            if f.exists():
+                return f
+    return None
+
+
+@app.post("/api/tunes/{tune_id}/transcribe-audiveris")
+async def transcribe_audiveris(tune_id: int):
+    """
+    Run Audiveris (local Java OMR) on the tune's attached PDF/image and
+    convert the resulting MusicXML to ABC via music21.
+    Requires Audiveris to be installed (set AUDIVERIS_JAR env var or install
+    to ~/bin/Audiveris/) and music21 (pip install music21).
+    """
+    aud = _audiveris_info()
+    if not aud["available"]:
+        raise HTTPException(500, f"Audiveris not available: {aud['reason']}. "
+                                  "Install Audiveris and set AUDIVERIS_JAR=/path/to/Audiveris.jar")
+
+    if not _has_music21():
+        raise HTTPException(500, "music21 not installed. Run: pip install music21")
+
+    with _db() as conn:
+        tune = conn.execute(
+            "SELECT id, title, notes FROM tunes WHERE id = ?", (tune_id,)
+        ).fetchone()
+    if not tune:
+        raise HTTPException(404, "Tune not found")
+
+    source = _source_file_for_tune(tune["notes"] or "")
+    if not source:
+        raise HTTPException(400, "No sheet-music PDF or image attached to this tune")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_dir = Path(tmpdir) / "out"
+        out_dir.mkdir()
+
+        cmd = [
+            "java", "-Xmx768m",
+            "-jar", aud["jar"],
+            "-batch", "-export",
+            "-output", str(out_dir),
+            "--", str(source),
+        ]
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=180
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(504, "Audiveris timed out (>3 min) — try a simpler image")
+        except FileNotFoundError:
+            raise HTTPException(500, "java not found in PATH")
+
+        # Find MusicXML output (prefer .mxl compressed, fall back to .xml)
+        mxl_files = sorted(out_dir.glob("**/*.mxl")) + sorted(out_dir.glob("**/*.xml"))
+        if not mxl_files:
+            stderr_snippet = result.stderr[-600:] if result.stderr else "(no stderr)"
+            raise HTTPException(
+                500,
+                f"Audiveris produced no MusicXML output. "
+                f"It may not recognise this image quality. stderr: {stderr_snippet}"
+            )
+
+        try:
+            abc = _music21_to_abc(str(mxl_files[0]), tune["title"])
+        except Exception as e:
+            raise HTTPException(500, f"MusicXML→ABC conversion failed: {e}")
+
+    return {"abc": abc, "source": source.name}
 
 
 # ---------------------------------------------------------------------------

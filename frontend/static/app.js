@@ -15,7 +15,15 @@ const state = {
   min_rating: 0,
   sets: [],
   collections: [],
+  capabilities: { has_anthropic_key: true, has_audiveris: false, has_music21: false },
 };
+
+async function loadCapabilities() {
+  try {
+    const c = await apiFetch("/api/capabilities");
+    Object.assign(state.capabilities, c);
+  } catch { /* non-fatal — fall back to defaults */ }
+}
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 const searchEl         = document.getElementById("search");
@@ -1152,8 +1160,9 @@ function renderModal(tune, onBack = null, siblings = null) {
         <div id="sheet-music-render"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
         ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
-        ${imageUrl ? `<div class="transcribe-row">
-          <button id="transcribe-abc-btn" class="btn-secondary">✨ Transcribe to ABC</button>
+        ${(imageUrl || pdfUrl) && (state.capabilities.has_anthropic_key || state.capabilities.has_audiveris) ? `<div class="transcribe-row">
+          ${state.capabilities.has_anthropic_key ? `<button id="transcribe-ai-btn" class="btn-secondary" title="Transcribe using Claude AI (requires API key)">✨ AI Transcribe</button>` : ""}
+          ${state.capabilities.has_audiveris ? `<button id="transcribe-aud-btn" class="btn-secondary" title="Transcribe using Audiveris (local, no API needed)">⚙ Audiveris</button>` : ""}
           <span id="transcribe-status" class="transcribe-status"></span>
         </div>` : ""}
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
@@ -1531,32 +1540,58 @@ function renderModal(tune, onBack = null, siblings = null) {
     }
   });
 
-  // Transcribe image to ABC via Claude vision
-  const transcribeBtn = document.getElementById("transcribe-abc-btn");
-  if (transcribeBtn) {
-    transcribeBtn.addEventListener("click", async () => {
-      const status  = document.getElementById("transcribe-status");
-      const textarea = document.getElementById("abc-edit-textarea");
-      transcribeBtn.disabled = true;
-      transcribeBtn.textContent = "Transcribing…";
+  // Shared helper: receive ABC from transcription, switch to ABC tab
+  function _handleTranscribeResult(abc, status) {
+    const textarea = document.getElementById("abc-edit-textarea");
+    if (textarea) textarea.value = abc;
+    modalContent.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    modalContent.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+    modalContent.querySelector('[data-tab="abc"]')?.classList.add("active");
+    document.getElementById("tab-abc")?.classList.remove("hidden");
+    status.textContent = "Done — check accuracy then hit Save & Re-render";
+    status.className = "transcribe-status transcribe-ok";
+  }
+
+  // AI transcription (Claude Sonnet)
+  const transcribeAiBtn = document.getElementById("transcribe-ai-btn");
+  if (transcribeAiBtn) {
+    transcribeAiBtn.addEventListener("click", async () => {
+      const status = document.getElementById("transcribe-status");
+      transcribeAiBtn.disabled = true;
+      transcribeAiBtn.textContent = "Transcribing…";
       status.textContent = "";
       status.className = "transcribe-status";
       try {
         const data = await apiFetch(`/api/tunes/${tune.id}/transcribe-image`, { method: "POST" });
-        textarea.value = data.abc;
-        // Switch to ABC tab so the user can review and save
-        modalContent.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-        modalContent.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
-        modalContent.querySelector('[data-tab="abc"]').classList.add("active");
-        document.getElementById("tab-abc").classList.remove("hidden");
-        status.textContent = "Done — check accuracy then hit Save & Re-render";
-        status.className = "transcribe-status transcribe-ok";
+        _handleTranscribeResult(data.abc, status);
       } catch (e) {
         status.textContent = `Error: ${e.message}`;
         status.className = "transcribe-status transcribe-err";
       } finally {
-        transcribeBtn.disabled = false;
-        transcribeBtn.textContent = "✨ Transcribe to ABC";
+        transcribeAiBtn.disabled = false;
+        transcribeAiBtn.textContent = "✨ AI Transcribe";
+      }
+    });
+  }
+
+  // Audiveris local transcription
+  const transcribeAudBtn = document.getElementById("transcribe-aud-btn");
+  if (transcribeAudBtn) {
+    transcribeAudBtn.addEventListener("click", async () => {
+      const status = document.getElementById("transcribe-status");
+      transcribeAudBtn.disabled = true;
+      transcribeAudBtn.textContent = "Running Audiveris…";
+      status.textContent = "This may take 30–60 seconds…";
+      status.className = "transcribe-status";
+      try {
+        const data = await apiFetch(`/api/tunes/${tune.id}/transcribe-audiveris`, { method: "POST" });
+        _handleTranscribeResult(data.abc, status);
+      } catch (e) {
+        status.textContent = `Error: ${e.message}`;
+        status.className = "transcribe-status transcribe-err";
+      } finally {
+        transcribeAudBtn.disabled = false;
+        transcribeAudBtn.textContent = "⚙ Audiveris";
       }
     });
   }
@@ -7697,6 +7732,13 @@ infoBtn.addEventListener("click", async () => {
       <th>Desktop URL (on network)</th>
       <td><a href="${escHtml(info.desktop_url)}" target="_blank" rel="noopener" class="info-mobile-link">${escHtml(info.desktop_url)}</a></td>
     </tr>` : "";
+  const cap = state.capabilities;
+  const aiStatus  = cap.has_anthropic_key ? "✅ Active" : "⚠️ No API key — set ANTHROPIC_API_KEY";
+  const audStatus = cap.has_audiveris
+    ? `✅ Found — <code>${escHtml(cap.audiveris_jar || "")}</code>`
+    : `⚠️ Not found — ${escHtml(cap.audiveris_reason || "install Audiveris")}`;
+  const m21Status = cap.has_music21 ? "✅ Installed" : "⚠️ Not installed (pip install music21)";
+
   modalContent.innerHTML = `
     <h2 class="modal-title">App Info</h2>
     <table class="info-table">
@@ -7708,6 +7750,14 @@ infoBtn.addEventListener("click", async () => {
       <tr><th>Uploads</th><td><code>${info.uploads}</code></td></tr>
       <tr><th>Info file</th><td><code>${info.info_file}</code></td></tr>
     </table>
+    <hr class="modal-divider">
+    <h3 class="modal-section-title">Transcription capabilities</h3>
+    <table class="info-table">
+      <tr><th>AI (Claude Sonnet)</th><td>${aiStatus}</td></tr>
+      <tr><th>Audiveris (local OMR)</th><td>${audStatus}</td></tr>
+      <tr><th>music21 (MusicXML→ABC)</th><td>${m21Status}</td></tr>
+    </table>
+    <p class="modal-hint">To use Audiveris locally: download from <a href="https://github.com/Audiveris/audiveris/releases" target="_blank" rel="noopener">github.com/Audiveris/audiveris/releases</a>, extract, then set <code>AUDIVERIS_JAR=/path/to/lib/Audiveris.jar</code> in your environment before starting the server.</p>
     <p class="modal-hint">Backups are created automatically each time the server starts.</p>
     <hr class="modal-divider">
     <h3 class="modal-section-title">Library tools</h3>
@@ -8056,7 +8106,7 @@ function _initPracticeTab(tune) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 _applyNavColour("collections");  // set Collections button solid on first paint
 (async () => {
-  await Promise.allSettled([loadFilters(), loadStats(), fetchSets(), fetchCollections()]);
+  await Promise.allSettled([loadFilters(), loadStats(), fetchSets(), fetchCollections(), loadCapabilities()]);
   switchView("collections");
   loadTunes();  // preload library in background for instant switching
 })();
