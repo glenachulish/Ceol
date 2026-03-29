@@ -1280,9 +1280,11 @@ function renderModal(tune, onBack = null, siblings = null) {
       </div>
       <div class="practice-actions">
         <button id="prac-build-btn" class="btn-primary">▶ Build &amp; Practice</button>
+        <button id="prac-fs-btn" class="btn-secondary practice-fs-btn hidden" title="Full screen sheet music">⛶ Full screen</button>
         <span id="prac-status" class="notes-status"></span>
       </div>
       <div id="prac-tempo-display" class="practice-tempo-display hidden"></div>
+      <div id="prac-phrase-indicator" class="practice-phrase-indicator hidden"></div>
       <div id="prac-sheet-render" class="practice-sheet-render"></div>
       <div id="prac-player-container" class="audio-player-wrap"></div>
     </div>
@@ -7764,11 +7766,12 @@ helpOverlay.addEventListener("click", e => { if (e.target === helpOverlay) _clos
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !helpOverlay.classList.contains("hidden")) _closeHelp(); });
 
 // ── Practice tab (Phrase Builder + Tempo Progression) ────────────────────────
-let _pracSynthCtrl  = null;
-let _pracVisualObj  = null;
-let _pracLoopCount  = 0;
-let _pracCurWarp    = 60;
-let _pracSettings   = {};
+let _pracSynthCtrl   = null;
+let _pracVisualObj   = null;
+let _pracLoopCount   = 0;
+let _pracCurWarp     = 60;
+let _pracSettings    = {};
+let _pracCurrentAbc  = null;   // last-built practice ABC (for fullscreen)
 
 function _extractBpm(abc) {
   if (!abc) return null;
@@ -7833,6 +7836,76 @@ function _buildPracticeAbc(abc, phraseLen, restBars, fromBar, toBar) {
   return out;
 }
 
+// Colors for successive phrases; rest bars get a muted grey
+const _PRAC_PHRASE_COLORS = ["#2563eb", "#059669", "#9333ea", "#b45309", "#0891b2"];
+const _PRAC_REST_COLOR    = "#94a3b8";
+
+function _pracColorPhraseBars(phraseLen, restBars) {
+  const container = document.getElementById("prac-sheet-render");
+  if (!container) return;
+  const cycleLen = phraseLen + (restBars || 0);
+  container.querySelectorAll(".abcjs-note, .abcjs-rest").forEach(noteEl => {
+    let measureIdx = null;
+    let el = noteEl;
+    while (el && el !== container) {
+      for (const cls of el.classList) {
+        const hit = cls.match(/^abcjs-m(\d+)$/);
+        if (hit) { measureIdx = parseInt(hit[1]); break; }
+      }
+      if (measureIdx !== null) break;
+      el = el.parentElement;
+    }
+    if (measureIdx === null) return;
+    const cyclePos  = measureIdx % cycleLen;
+    const phraseIdx = Math.floor(measureIdx / cycleLen);
+    const isRest    = cyclePos >= phraseLen;
+    const color     = isRest
+      ? _PRAC_REST_COLOR
+      : _PRAC_PHRASE_COLORS[phraseIdx % _PRAC_PHRASE_COLORS.length];
+    noteEl.querySelectorAll("path, polygon, ellipse, rect").forEach(svg => {
+      svg.style.fill   = color;
+      svg.style.stroke = color;
+    });
+  });
+}
+
+function _pracUpdatePhraseIndicator(measureIdx) {
+  const el = document.getElementById("prac-phrase-indicator");
+  if (!el || measureIdx === null) return;
+  const { phraseLen = 2, restBars = 2 } = _pracSettings;
+  const cycleLen  = phraseLen + restBars;
+  const cyclePos  = measureIdx % cycleLen;
+  const phraseIdx = Math.floor(measureIdx / cycleLen);
+  const isRest    = cyclePos >= phraseLen;
+  const color     = isRest
+    ? _PRAC_REST_COLOR
+    : _PRAC_PHRASE_COLORS[phraseIdx % _PRAC_PHRASE_COLORS.length];
+  el.classList.remove("hidden");
+  el.style.borderColor = color;
+  el.style.color       = color;
+  el.textContent = isRest
+    ? `Phrase ${phraseIdx + 1} — rest (play it back!)`
+    : `Phrase ${phraseIdx + 1}`;
+}
+
+function _pracMeasureFromEvent(ev) {
+  if (!ev?.elements) return null;
+  for (const grp of ev.elements) {
+    if (!grp) continue;
+    for (const el of grp) {
+      let target = el;
+      while (target) {
+        for (const cls of target.classList ?? []) {
+          const hit = cls.match(/^abcjs-m(\d+)$/);
+          if (hit) return parseInt(hit[1]);
+        }
+        target = target.parentElement;
+      }
+    }
+  }
+  return null;
+}
+
 function _updatePracTempoDisplay() {
   const el = document.getElementById("prac-tempo-display");
   if (!el) return;
@@ -7851,8 +7924,15 @@ function _renderPracticeMusic(pracAbc) {
   const container = document.getElementById("prac-sheet-render");
   if (!container || typeof ABCJS === "undefined") return;
 
+  _pracCurrentAbc = pracAbc;
   if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
   _pracLoopCount = 0;
+  const phraseIndicator = document.getElementById("prac-phrase-indicator");
+  if (phraseIndicator) phraseIndicator.classList.add("hidden");
+
+  // Show fullscreen button now that we have built ABC
+  const fsBtnEl = document.getElementById("prac-fs-btn");
+  if (fsBtnEl) fsBtnEl.classList.remove("hidden");
 
   try {
     const processed = expandAbcRepeats(pracAbc);
@@ -7866,6 +7946,10 @@ function _renderPracticeMusic(pracAbc) {
     _patchSvgViewBox("prac-sheet-render");
     _pracVisualObj = visualObjs[0];
 
+    // Color notes by phrase group after render
+    const { phraseLen = 2, restBars = 2 } = _pracSettings;
+    requestAnimationFrame(() => _pracColorPhraseBars(phraseLen, restBars));
+
     if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
     const cursorControl = {
@@ -7874,6 +7958,7 @@ function _renderPracticeMusic(pracAbc) {
         document.querySelectorAll("#prac-sheet-render .abcjs-highlight")
           .forEach(el => el.classList.remove("abcjs-highlight"));
         if (ev?.elements) ev.elements.forEach(g => g?.forEach(el => el.classList.add("abcjs-highlight")));
+        _pracUpdatePhraseIndicator(_pracMeasureFromEvent(ev));
       },
       onFinished() {
         document.querySelectorAll("#prac-sheet-render .abcjs-highlight")
@@ -7952,12 +8037,19 @@ function _initPracticeTab(tune) {
     }
     if (status) status.textContent = "";
 
-    _pracCurWarp  = startPct;
+    _pracCurWarp   = startPct;
     _pracLoopCount = 0;
-    _pracSettings = { start: startPct, final: finalPct, inc: incPct, loopsPerStep, baseBpm };
+    _pracSettings  = { start: startPct, final: finalPct, inc: incPct, loopsPerStep, baseBpm, phraseLen, restBars };
 
     _renderPracticeMusic(pracAbc);
     _updatePracTempoDisplay();
+  });
+
+  // Fullscreen button (hidden until ABC is built)
+  document.getElementById("prac-fs-btn")?.addEventListener("click", () => {
+    if (!_pracCurrentAbc) return;
+    if (_pracSynthCtrl) { try { _pracSynthCtrl.pause(); } catch {} }
+    openAbcFullscreen(_pracCurrentAbc, (tune.title || "Practice") + " – Practice");
   });
 }
 
