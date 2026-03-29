@@ -7533,30 +7533,11 @@ function _closeBackup() {
 backupClose.addEventListener("click", _closeBackup);
 backupCancelBtn.addEventListener("click", _closeBackup);
 
-backupSaveBtn.addEventListener("click", async () => {
+backupSaveBtn.addEventListener("click", () => {
   const name = backupFilename.value.trim() || `ceol-backup-${_todayISO()}.zip`;
   const safe = name.endsWith(".zip") ? name : name + ".zip";
   const url = `/api/library/export?filename=${encodeURIComponent(safe)}`;
   _closeBackup();
-
-  // Use the native Save As picker where available (Chrome/Edge/Firefox).
-  // Safari falls back to a standard browser download.
-  if (window.showSaveFilePicker) {
-    try {
-      const fileHandle = await window.showSaveFilePicker({
-        suggestedName: safe,
-        types: [{ description: "ZIP archive", accept: { "application/zip": [".zip"] } }],
-      });
-      const blob = await fetch(url).then(r => r.blob());
-      const writable = await fileHandle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
-    } catch (e) {
-      if (e.name === "AbortError") return; // user cancelled picker
-      // Fall through to standard download on any other error
-    }
-  }
   const a = document.createElement("a");
   a.href = url;
   a.download = safe;
