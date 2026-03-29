@@ -4489,7 +4489,6 @@ function renderCollections(collections) {
     _recentDays = days;
     countEl.textContent = "";
     listEl.innerHTML = '<p class="loading" style="padding:.5rem 0">Loading…</p>';
-    listEl.classList.remove("hidden");
     try {
       const res = await fetch(`/api/tunes/recent?days=${days}`);
       const tunes = await res.json();
