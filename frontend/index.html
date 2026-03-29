@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=79" />
+  <link rel="stylesheet" href="/static/style.css?v=80" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body data-view="library">
@@ -261,6 +261,7 @@
   <!-- ── Tune detail modal ── -->
   <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal modal-wide">
+      <button class="modal-fullscreen" id="modal-fullscreen" aria-label="Full screen">⛶</button>
       <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
       <div id="modal-content"></div>
     </div>
@@ -785,6 +786,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=154"></script>
+  <script src="/static/app.js?v=155"></script>
 </body>
 </html>

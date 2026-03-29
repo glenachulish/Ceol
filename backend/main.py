@@ -4342,7 +4342,7 @@ Rules:
 - Use sharps/flats as accidentals (^C _E etc.) only where not already in the key signature."""
 
     payload = json.dumps({
-        "model": "claude-sonnet-4-6",
+        "model": "claude-opus-4-6",
         "max_tokens": 2048,
         "messages": [
             {
@@ -4424,19 +4424,36 @@ def _find_audiveris() -> Optional[str]:
     return None
 
 
-def _find_java() -> Optional[str]:
-    """Return path to java executable, checking PATH and common macOS locations."""
+def _find_java(audiveris_jar: Optional[str] = None) -> Optional[str]:
+    """Return path to java executable, checking bundled JRE, PATH, and common macOS locations."""
+    # 1. JRE bundled inside the Audiveris .app (jpackage layout)
+    if audiveris_jar:
+        app_root = Path(audiveris_jar).parent
+        while app_root.name and app_root.name != "/":
+            bundled = app_root / "runtime" / "Contents" / "Home" / "bin" / "java"
+            if bundled.exists():
+                return str(bundled)
+            bundled = app_root / "runtime" / "bin" / "java"
+            if bundled.exists():
+                return str(bundled)
+            if app_root.suffix == ".app":
+                break
+            app_root = app_root.parent
+
+    # 2. PATH
     j = shutil.which("java")
     if j:
         return j
-    # Common macOS JDK installer location
+
+    # 3. macOS JDK installer location
     jvm_root = Path("/Library/Java/JavaVirtualMachines")
     if jvm_root.exists():
         for jdk in sorted(jvm_root.iterdir(), reverse=True):
             candidate = jdk / "Contents" / "Home" / "bin" / "java"
             if candidate.exists():
                 return str(candidate)
-    # Homebrew locations (Apple Silicon and Intel)
+
+    # 4. Homebrew (Apple Silicon and Intel)
     for candidate in [
         Path("/opt/homebrew/bin/java"),
         Path("/opt/homebrew/opt/openjdk/bin/java"),
@@ -4446,6 +4463,7 @@ def _find_java() -> Optional[str]:
     ]:
         if candidate.exists():
             return str(candidate)
+
     return None
 
 
@@ -4454,7 +4472,7 @@ def _audiveris_info() -> dict:
     jar = _find_audiveris()
     if not jar:
         return {"available": False, "jar": None, "reason": "Audiveris.jar not found"}
-    java = _find_java()
+    java = _find_java(jar)
     if not java:
         return {"available": False, "jar": jar, "reason": "java not found (install JDK or Homebrew openjdk)"}
     try:

@@ -5200,6 +5200,29 @@ modalClose.addEventListener("click", () => {
   const bldrBack = document.getElementById("bldr-back");
   if (bldrBack) bldrBack.click(); else closeModal();
 });
+
+// ── Global fullscreen toggle ──────────────────────────────────────────────────
+const _modalFsBtn = document.getElementById("modal-fullscreen");
+function _isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+function _toggleFullscreen() {
+  if (_isFullscreen()) {
+    (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document);
+  } else {
+    const el = document.documentElement;
+    (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+  }
+}
+_modalFsBtn.addEventListener("click", _toggleFullscreen);
+document.addEventListener("fullscreenchange", () => {
+  _modalFsBtn.title = _isFullscreen() ? "Exit full screen" : "Full screen";
+  _modalFsBtn.textContent = _isFullscreen() ? "⛶✕" : "⛶";
+});
+document.addEventListener("webkitfullscreenchange", () => {
+  _modalFsBtn.title = _isFullscreen() ? "Exit full screen" : "Full screen";
+  _modalFsBtn.textContent = _isFullscreen() ? "⛶✕" : "⛶";
+});
 modalOverlay.addEventListener("click", e => { if (e.target === modalOverlay) closeModal(); });
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
@@ -5213,6 +5236,7 @@ function closeModal() {
   if (_previewSynthCtrl) { try { _previewSynthCtrl.stop(); } catch {} _previewSynthCtrl = null; }
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
+  closeMediaOverlay();
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }

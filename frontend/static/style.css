@@ -969,6 +969,20 @@ button.set-tune-title:hover { text-decoration: underline; }
   transition: color .15s;
 }
 .modal-close:hover { color: var(--text); }
+.modal-fullscreen {
+  position: absolute;
+  top: .8rem; right: 2.6rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: .2rem .4rem;
+  border-radius: 4px;
+  transition: color .15s;
+}
+.modal-fullscreen:hover { color: var(--text); }
 
 .modal-title {
   font-size: 1.25rem;
