@@ -4299,26 +4299,45 @@ async def transcribe_image(tune_id: int):
     if not tune:
         raise HTTPException(404, "Tune not found")
 
-    source = _source_file_for_tune(tune["notes"] or "")
-    if not source:
+    notes = tune["notes"] or ""
+    source = _source_file_for_tune(notes)
+    ext_url = None if source else _external_sheet_url(notes)
+
+    if not source and not ext_url:
         raise HTTPException(400, "No sheet-music PDF or image attached to this tune")
 
-    # PDFs must be rendered to an image before sending to Claude Vision
-    if source.suffix.lower() == ".pdf":
+    def _pdf_bytes_to_image(raw: bytes) -> bytes:
         try:
             import fitz  # PyMuPDF
-            doc = fitz.open(str(source))
-            page = doc[0]
-            pix = page.get_pixmap(dpi=200)
-            image_bytes = pix.tobytes("jpeg")
-            doc.close()
         except ImportError:
             raise HTTPException(500, "PyMuPDF not installed. Run: pip install pymupdf")
+        doc = fitz.open(stream=raw, filetype="pdf")
+        pix = doc[0].get_pixmap(dpi=200)
+        result = pix.tobytes("jpeg")
+        doc.close()
+        return result
+
+    if source:
+        raw = source.read_bytes()
+        suffix = source.suffix.lower()
+    else:
+        # Download external URL (FlutefFling etc.)
+        try:
+            resp = httpx.get(ext_url, timeout=30, follow_redirects=True)
+            resp.raise_for_status()
+            raw = resp.content
+        except Exception as exc:
+            raise HTTPException(502, f"Could not download sheet music: {exc}")
+        ct = resp.headers.get("content-type", "")
+        suffix = ".pdf" if "pdf" in ct or ext_url.lower().endswith(".pdf") else ".jpg"
+
+    # PDFs must be rendered to an image before sending to Claude Vision
+    if suffix == ".pdf":
+        image_bytes = _pdf_bytes_to_image(raw)
         media_type = "image/jpeg"
     else:
-        image_bytes = source.read_bytes()
-        ext = source.suffix.lower()
-        media_type = "image/png" if ext == ".png" else "image/jpeg"
+        image_bytes = raw
+        media_type = "image/png" if suffix == ".png" else "image/jpeg"
 
     image_b64 = base64.standard_b64encode(image_bytes).decode()
 
@@ -4549,7 +4568,6 @@ def _music21_to_abc(xml_path: str, title: str) -> str:
 
 def _source_file_for_tune(notes: str) -> Optional[Path]:
     """Find the best local source file (PDF preferred, then image) for a tune."""
-    # PDFs are better input for Audiveris (cleaner lines, no perspective distortion)
     for pattern in (r"sheet music \(PDF\):\s*(\S+)", r"sheet music \(image\):\s*(\S+)"):
         m = re.search(pattern, notes or "", re.IGNORECASE)
         if m:
@@ -4557,6 +4575,15 @@ def _source_file_for_tune(notes: str) -> Optional[Path]:
             f = UPLOADS_DIR / fname
             if f.exists():
                 return f
+    return None
+
+
+def _external_sheet_url(notes: str) -> Optional[str]:
+    """Return an external (http/https) sheet-music URL from notes, or None."""
+    for pattern in (r"sheet music \(PDF\):\s*(https?://\S+)", r"sheet music \(image\):\s*(https?://\S+)"):
+        m = re.search(pattern, notes or "", re.IGNORECASE)
+        if m:
+            return m.group(1)
     return None
 
 
@@ -4583,13 +4610,29 @@ async def transcribe_audiveris(tune_id: int):
     if not tune:
         raise HTTPException(404, "Tune not found")
 
-    source = _source_file_for_tune(tune["notes"] or "")
-    if not source:
+    notes = tune["notes"] or ""
+    source = _source_file_for_tune(notes)
+    ext_url = None if source else _external_sheet_url(notes)
+
+    if not source and not ext_url:
         raise HTTPException(400, "No sheet-music PDF or image attached to this tune")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         out_dir = Path(tmpdir) / "out"
         out_dir.mkdir()
+
+        # If source is an external URL, download it into the temp dir
+        if not source:
+            try:
+                resp = httpx.get(ext_url, timeout=30, follow_redirects=True)
+                resp.raise_for_status()
+            except Exception as exc:
+                raise HTTPException(502, f"Could not download sheet music: {exc}")
+            ct = resp.headers.get("content-type", "")
+            ext = ".pdf" if "pdf" in ct or ext_url.lower().endswith(".pdf") else ".jpg"
+            dl_path = Path(tmpdir) / f"source{ext}"
+            dl_path.write_bytes(resp.content)
+            source = dl_path
 
         cmd = aud["cmd"] + [
             "-batch", "-export",
