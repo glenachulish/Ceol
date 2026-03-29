@@ -4330,7 +4330,7 @@ Rules:
 - Use sharps/flats as accidentals (^C _E etc.) only where not already in the key signature."""
 
     payload = json.dumps({
-        "model": "claude-haiku-4-5-20251001",
+        "model": "claude-sonnet-4-6",
         "max_tokens": 2048,
         "messages": [
             {

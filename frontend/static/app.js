@@ -1242,6 +1242,13 @@ function renderModal(tune, onBack = null, siblings = null) {
       <div class="practice-section">
         <h4 class="practice-heading">Phrase Builder</h4>
         <div class="practice-row">
+          <label class="practice-label">From bar</label>
+          <input id="prac-from-bar" type="number" min="1" value="1" class="practice-num-input">
+          <label class="practice-label" style="min-width:4rem">To bar</label>
+          <input id="prac-to-bar" type="number" min="1" placeholder="all" class="practice-num-input">
+          <span class="prac-bar-count-hint practice-bpm-hint"></span>
+        </div>
+        <div class="practice-row">
           <label class="practice-label">Phrase length (bars)</label>
           <input id="prac-phrase-len" type="number" min="1" max="16" value="2" class="practice-num-input">
         </div>
@@ -7779,7 +7786,7 @@ function _computeBarRestAbc(meterStr, lenStr) {
   return units === 1 ? "z" : `z${units}`;
 }
 
-function _buildPracticeAbc(abc, phraseLen, restBars) {
+function _buildPracticeAbc(abc, phraseLen, restBars, fromBar, toBar) {
   if (!abc) return null;
   if (/^V:/m.test(abc)) return null;   // multi-voice tunes not supported
 
@@ -7792,9 +7799,15 @@ function _buildPracticeAbc(abc, phraseLen, restBars) {
   if (!rawBars.length) return null;
 
   // Strip quoted chord annotations ("Am", "D7", etc.)
-  const cleanBars = rawBars
+  let cleanBars = rawBars
     .map(b => b.replace(/"[^"]*"/g, "").trim())
     .filter(b => b.length > 0);
+
+  // Apply bar-range selection (1-based, inclusive)
+  const lo = Math.max(1, fromBar || 1) - 1;
+  const hi = toBar ? Math.min(cleanBars.length, toBar) : cleanBars.length;
+  cleanBars = cleanBars.slice(lo, hi);
+  if (!cleanBars.length) return null;
 
   const T = getField("T") || "Practice";
   const M = getField("M") || "4/4";
@@ -7811,7 +7824,10 @@ function _buildPracticeAbc(abc, phraseLen, restBars) {
     bodyLines.push(line);
   }
 
-  let out = `X:1\nT:${T} – Practice\nM:${M}\nL:${L}\n`;
+  const rangeLabel = (fromBar || toBar)
+    ? ` (bars ${lo + 1}–${lo + cleanBars.length})`
+    : "";
+  let out = `X:1\nT:${T} – Practice${rangeLabel}\nM:${M}\nL:${L}\n`;
   if (Q) out += `Q:${Q}\n`;
   out += `K:${K}\n` + bodyLines.join("\n");
   return out;
@@ -7908,7 +7924,19 @@ function _initPracticeTab(tune) {
   document.getElementById("prac-tempo-final")?.addEventListener("input", updateBpmHints);
   updateBpmHints();
 
+  // Show total bar count as a hint on the To-bar input
+  const totalBars = extractBars(tune.abc).filter(b => b.replace(/"[^"]*"/g, "").trim()).length;
+  const toBarEl = document.getElementById("prac-to-bar");
+  if (toBarEl) toBarEl.max = totalBars;
+  const fromBarEl = document.getElementById("prac-from-bar");
+  if (fromBarEl) fromBarEl.max = totalBars;
+  const toBarHint = document.querySelector(".prac-bar-count-hint");
+  if (toBarHint) toBarHint.textContent = `(tune has ${totalBars} bars)`;
+
   document.getElementById("prac-build-btn")?.addEventListener("click", () => {
+    const fromBar      = parseInt(document.getElementById("prac-from-bar")?.value)         || 1;
+    const toBarVal     = document.getElementById("prac-to-bar")?.value;
+    const toBar        = toBarVal ? parseInt(toBarVal) : null;
     const phraseLen    = Math.max(1, parseInt(document.getElementById("prac-phrase-len")?.value)   || 2);
     const restBars     = Math.max(0, parseInt(document.getElementById("prac-rest-bars")?.value)    || 2);
     const startPct     = Math.max(10, parseInt(document.getElementById("prac-tempo-start")?.value) || 60);
@@ -7917,7 +7945,7 @@ function _initPracticeTab(tune) {
     const loopsPerStep = Math.max(1, parseInt(document.getElementById("prac-tempo-loops")?.value)  || 2);
     const status       = document.getElementById("prac-status");
 
-    const pracAbc = _buildPracticeAbc(tune.abc, phraseLen, restBars);
+    const pracAbc = _buildPracticeAbc(tune.abc, phraseLen, restBars, fromBar, toBar);
     if (!pracAbc) {
       if (status) { status.textContent = "Cannot build — multi-voice tunes are not supported."; status.className = "notes-status notes-error"; }
       return;
