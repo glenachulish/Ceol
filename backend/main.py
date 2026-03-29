@@ -3670,7 +3670,7 @@ async def dropbox_proxy_file(path: str = Query(...)):
 
 _LIBRARY_TABLES = [
     "tunes", "tune_aliases", "tags", "tune_tags", "sets", "set_tunes",
-    "collections", "collection_tunes",
+    "collections", "collection_tunes", "collection_sets",
     "achievements", "note_documents", "note_attachments", "app_settings",
     "theory_notes",
 ]
@@ -3766,6 +3766,357 @@ async def import_library(file: UploadFile = File(...)):
                     dest.write_bytes(z.read(name))
 
     return {"status": "ok", "counts": counts, "errors": errors}
+
+
+# ---------------------------------------------------------------------------
+# Library merge — import without replacing existing data
+# ---------------------------------------------------------------------------
+
+@app.post("/api/library/merge")
+async def merge_library(file: UploadFile = File(...)):
+    """
+    Merge a backup ZIP into the current library.
+
+    Rules:
+    - Tunes with same title + same ABC: merge metadata (max rating, OR hitlist), no version
+    - Tunes with same title + different ABC: group as versions, max rating, OR hitlist
+    - New tunes: inserted as-is
+    - Sets: if identical name+tunes-in-order → skip; otherwise import as new set
+    - Collections: same name → merge tune/set members (ignore duplicates); new name → create
+    - Tags, aliases: add new ones, skip existing
+    - Achievements, note_documents, note_attachments: import as new entries
+    - Uploads: copy files that don't already exist on disk
+    """
+    content = await file.read()
+    buf = io.BytesIO(content)
+    if not zipfile.is_zipfile(buf):
+        raise HTTPException(400, "File is not a valid ZIP archive")
+    buf.seek(0)
+
+    with zipfile.ZipFile(buf, "r") as z:
+        if "library.json" not in z.namelist():
+            raise HTTPException(400, "ZIP does not contain library.json")
+        incoming = json.loads(z.read("library.json"))
+        # Copy new uploads
+        for name in z.namelist():
+            if name.startswith("uploads/") and not name.endswith("/"):
+                fname = name.split("/", 1)[1]
+                dest = UPLOADS_DIR / fname
+                if not dest.exists():
+                    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(z.read(name))
+
+    with get_connection() as conn:
+        result = _do_merge(conn, incoming)
+
+    return result
+
+
+def _do_merge(conn, inc: dict) -> dict:  # noqa: C901
+    stats = {"tunes_added": 0, "tunes_merged": 0, "tunes_versioned": 0,
+             "sets_added": 0, "sets_skipped": 0,
+             "collections_added": 0, "collections_merged": 0}
+
+    # ── 1. Tags ────────────────────────────────────────────────────────────────
+    # Map incoming tag_id → local tag_id (by tag name)
+    tag_id_map: dict[int, int] = {}
+    local_tags = {row["name"]: row["id"]
+                  for row in conn.execute("SELECT id, name FROM tags").fetchall()}
+    for t in inc.get("tags", []):
+        name = t.get("name", "")
+        if not name:
+            continue
+        if name in local_tags:
+            tag_id_map[t["id"]] = local_tags[name]
+        else:
+            new_id = conn.execute("INSERT INTO tags (name) VALUES (?)", (name,)).lastrowid
+            tag_id_map[t["id"]] = new_id
+            local_tags[name] = new_id
+
+    # ── 2. Tunes ───────────────────────────────────────────────────────────────
+    # Map incoming tune_id → local tune_id
+    tune_id_map: dict[int, int] = {}
+
+    # Build title → list of existing tunes (there may already be multiple versions)
+    existing_by_title: dict[str, list[dict]] = {}
+    for row in conn.execute("SELECT * FROM tunes").fetchall():
+        key = (row["title"] or "").strip().lower()
+        existing_by_title.setdefault(key, []).append(dict(row))
+
+    def _abc_norm(abc: str | None) -> str:
+        """Strip comments/whitespace for comparison."""
+        if not abc:
+            return ""
+        lines = [l.strip() for l in abc.splitlines()
+                 if l.strip() and not l.strip().startswith("%")]
+        return "\n".join(lines)
+
+    def _ensure_parent(conn, tune_id: int, title: str) -> int:
+        """Return existing parent_id for tune, or create one and re-parent all siblings."""
+        row = conn.execute("SELECT parent_id FROM tunes WHERE id=?", (tune_id,)).fetchone()
+        if row and row["parent_id"]:
+            return row["parent_id"]
+        # Create a new parent stub
+        parent_id = conn.execute(
+            "INSERT INTO tunes (title, abc, type, key, mode, rating, on_hitlist, "
+            "imported_at, created_at, updated_at) "
+            "VALUES (?,'',(SELECT type FROM tunes WHERE id=?),(SELECT key FROM tunes WHERE id=?),"
+            "(SELECT mode FROM tunes WHERE id=?),0,0,datetime('now'),datetime('now'),datetime('now'))",
+            (title, tune_id, tune_id, tune_id),
+        ).lastrowid
+        # Re-parent all existing tunes with same title that share no parent yet
+        siblings = conn.execute(
+            "SELECT id FROM tunes WHERE LOWER(TRIM(title))=? AND parent_id IS NULL AND id!=?",
+            (title.strip().lower(), parent_id),
+        ).fetchall()
+        for i, sib in enumerate(siblings):
+            conn.execute(
+                "UPDATE tunes SET parent_id=?, version_label=? WHERE id=?",
+                (parent_id, f"Version {i+1}", sib["id"]),
+            )
+        return parent_id
+
+    for t in inc.get("tunes", []):
+        old_id = t.get("id")
+        title = (t.get("title") or "").strip()
+        title_key = title.lower()
+        incoming_abc = _abc_norm(t.get("abc"))
+
+        match = None
+        for ex in existing_by_title.get(title_key, []):
+            if _abc_norm(ex.get("abc")) == incoming_abc:
+                match = ex
+                break
+
+        if match:
+            # Same title + same ABC → merge metadata only
+            new_rating = max(match.get("rating") or 0, t.get("rating") or 0)
+            new_hitlist = 1 if ((match.get("on_hitlist") or 0) or (t.get("on_hitlist") or 0)) else 0
+            conn.execute(
+                "UPDATE tunes SET rating=?, on_hitlist=? WHERE id=?",
+                (new_rating, new_hitlist, match["id"]),
+            )
+            tune_id_map[old_id] = match["id"]
+            stats["tunes_merged"] += 1
+
+        elif existing_by_title.get(title_key):
+            # Same title, different ABC → insert and group as versions
+            new_id = conn.execute(
+                "INSERT INTO tunes (title, type, key, mode, abc, notes, source_url, "
+                "composer, transcribed_by, rating, on_hitlist, setting_id, "
+                "imported_at, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'),datetime('now'))",
+                (title, t.get("type"), t.get("key"), t.get("mode"),
+                 t.get("abc") or "", t.get("notes"), t.get("source_url"),
+                 t.get("composer") or "", t.get("transcribed_by") or "",
+                 t.get("rating") or 0, t.get("on_hitlist") or 0,
+                 t.get("setting_id")),
+            ).lastrowid
+            tune_id_map[old_id] = new_id
+            # Ensure a parent exists and group under it
+            existing_rep = existing_by_title[title_key][0]
+            parent_id = _ensure_parent(conn, existing_rep["id"], title)
+            # Count existing versions to pick next label
+            version_count = conn.execute(
+                "SELECT COUNT(*) FROM tunes WHERE parent_id=?", (parent_id,)
+            ).fetchone()[0]
+            conn.execute(
+                "UPDATE tunes SET parent_id=?, version_label=? WHERE id=?",
+                (parent_id, f"Version {version_count + 1}", new_id),
+            )
+            # Also merge rating/hitlist onto the parent (keep max)
+            conn.execute(
+                "UPDATE tunes SET rating=MAX(rating,?), on_hitlist=MAX(on_hitlist,?) WHERE id=?",
+                (t.get("rating") or 0, t.get("on_hitlist") or 0, parent_id),
+            )
+            existing_by_title[title_key].append({"id": new_id, **t})
+            stats["tunes_versioned"] += 1
+            stats["tunes_added"] += 1
+
+        else:
+            # Completely new tune
+            new_id = conn.execute(
+                "INSERT INTO tunes (title, type, key, mode, abc, notes, source_url, "
+                "composer, transcribed_by, rating, on_hitlist, setting_id, "
+                "imported_at, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'),datetime('now'))",
+                (title, t.get("type"), t.get("key"), t.get("mode"),
+                 t.get("abc") or "", t.get("notes"), t.get("source_url"),
+                 t.get("composer") or "", t.get("transcribed_by") or "",
+                 t.get("rating") or 0, t.get("on_hitlist") or 0,
+                 t.get("setting_id")),
+            ).lastrowid
+            tune_id_map[old_id] = new_id
+            existing_by_title[title_key] = [{"id": new_id, **t}]
+            stats["tunes_added"] += 1
+
+    # ── 3. Tune aliases ────────────────────────────────────────────────────────
+    existing_aliases = {
+        (row["tune_id"], row["alias"])
+        for row in conn.execute("SELECT tune_id, alias FROM tune_aliases").fetchall()
+    }
+    for a in inc.get("tune_aliases", []):
+        local_tid = tune_id_map.get(a.get("tune_id"))
+        alias = a.get("alias", "")
+        if local_tid and alias and (local_tid, alias) not in existing_aliases:
+            conn.execute("INSERT INTO tune_aliases (tune_id, alias) VALUES (?,?)",
+                         (local_tid, alias))
+            existing_aliases.add((local_tid, alias))
+
+    # ── 4. Tune tags ───────────────────────────────────────────────────────────
+    existing_tune_tags = {
+        (row["tune_id"], row["tag_id"])
+        for row in conn.execute("SELECT tune_id, tag_id FROM tune_tags").fetchall()
+    }
+    for tt in inc.get("tune_tags", []):
+        local_tid = tune_id_map.get(tt.get("tune_id"))
+        local_tag = tag_id_map.get(tt.get("tag_id"))
+        if local_tid and local_tag and (local_tid, local_tag) not in existing_tune_tags:
+            conn.execute("INSERT INTO tune_tags (tune_id, tag_id) VALUES (?,?)",
+                         (local_tid, local_tag))
+            existing_tune_tags.add((local_tid, local_tag))
+
+    # ── 5. Sets ────────────────────────────────────────────────────────────────
+    set_id_map: dict[int, int] = {}
+
+    # Build incoming set→tunes mapping (sorted by position)
+    inc_set_tunes: dict[int, list[int]] = {}
+    for st in inc.get("set_tunes", []):
+        inc_set_tunes.setdefault(st["set_id"], []).append(st)
+    for sid in inc_set_tunes:
+        inc_set_tunes[sid].sort(key=lambda x: x.get("position", 0))
+
+    # Build existing sets: name → {id, tune_ids_in_order}
+    existing_sets: dict[str, dict] = {}
+    for row in conn.execute("SELECT id, name FROM sets").fetchall():
+        tids = [r["tune_id"] for r in conn.execute(
+            "SELECT tune_id FROM set_tunes WHERE set_id=? ORDER BY position",
+            (row["id"],)).fetchall()]
+        existing_sets[row["name"].lower()] = {"id": row["id"], "tune_ids": tids}
+
+    for s in inc.get("sets", []):
+        old_sid = s["id"]
+        name = s.get("name", "")
+        translated_tids = [
+            tune_id_map[st["tune_id"]]
+            for st in inc_set_tunes.get(old_sid, [])
+            if st["tune_id"] in tune_id_map
+        ]
+
+        name_key = name.lower()
+        if name_key in existing_sets:
+            ex = existing_sets[name_key]
+            if ex["tune_ids"] == translated_tids:
+                set_id_map[old_sid] = ex["id"]
+                stats["sets_skipped"] += 1
+                continue
+
+        # Insert new set
+        new_sid = conn.execute(
+            "INSERT INTO sets (name, notes, created_at) VALUES (?,?,datetime('now'))",
+            (name, s.get("notes")),
+        ).lastrowid
+        set_id_map[old_sid] = new_sid
+        for pos, tid in enumerate(translated_tids):
+            conn.execute(
+                "INSERT INTO set_tunes (set_id, tune_id, position) VALUES (?,?,?)",
+                (new_sid, tid, pos),
+            )
+        existing_sets[name_key] = {"id": new_sid, "tune_ids": translated_tids}
+        stats["sets_added"] += 1
+
+    # ── 6. Collections ─────────────────────────────────────────────────────────
+    existing_cols: dict[str, int] = {
+        row["name"].lower(): row["id"]
+        for row in conn.execute("SELECT id, name FROM collections").fetchall()
+    }
+    existing_col_tunes: dict[int, set] = {}
+    for row in conn.execute("SELECT collection_id, tune_id FROM collection_tunes").fetchall():
+        existing_col_tunes.setdefault(row["collection_id"], set()).add(row["tune_id"])
+    existing_col_sets: dict[int, set] = {}
+    for row in conn.execute("SELECT collection_id, set_id FROM collection_sets").fetchall():
+        existing_col_sets.setdefault(row["collection_id"], set()).add(row["set_id"])
+
+    for c in inc.get("collections", []):
+        old_cid = c["id"]
+        name = c.get("name", "")
+        name_key = name.lower()
+
+        if name_key in existing_cols:
+            local_cid = existing_cols[name_key]
+            stats["collections_merged"] += 1
+        else:
+            local_cid = conn.execute(
+                "INSERT INTO collections (name, description, created_at) "
+                "VALUES (?,?,datetime('now'))",
+                (name, c.get("description")),
+            ).lastrowid
+            existing_cols[name_key] = local_cid
+            existing_col_tunes[local_cid] = set()
+            existing_col_sets[local_cid] = set()
+            stats["collections_added"] += 1
+
+        col_tunes_here = existing_col_tunes.setdefault(local_cid, set())
+        col_sets_here  = existing_col_sets.setdefault(local_cid, set())
+
+        for ct in inc.get("collection_tunes", []):
+            if ct.get("collection_id") != old_cid:
+                continue
+            local_tid = tune_id_map.get(ct["tune_id"])
+            if local_tid and local_tid not in col_tunes_here:
+                conn.execute(
+                    "INSERT INTO collection_tunes (collection_id, tune_id) VALUES (?,?)",
+                    (local_cid, local_tid),
+                )
+                col_tunes_here.add(local_tid)
+
+        for cs in inc.get("collection_sets", []):
+            if cs.get("collection_id") != old_cid:
+                continue
+            local_sid = set_id_map.get(cs["set_id"])
+            if local_sid and local_sid not in col_sets_here:
+                conn.execute(
+                    "INSERT INTO collection_sets (collection_id, set_id) VALUES (?,?)",
+                    (local_cid, local_sid),
+                )
+                col_sets_here.add(local_sid)
+
+    # ── 7. Achievements ────────────────────────────────────────────────────────
+    for a in inc.get("achievements", []):
+        local_tid = tune_id_map.get(a.get("tune_id")) if a.get("tune_id") else None
+        conn.execute(
+            "INSERT INTO achievements (type, tune_id, tune_name, note, created_at) "
+            "VALUES (?,?,?,?,?)",
+            (a.get("type", "manual"), local_tid,
+             a.get("tune_name"), a.get("note"),
+             a.get("created_at") or datetime.now().isoformat()),
+        )
+
+    # ── 8. Note documents + attachments ───────────────────────────────────────
+    doc_id_map: dict[int, int] = {}
+    for d in inc.get("note_documents", []):
+        new_did = conn.execute(
+            "INSERT INTO note_documents (title, content, created_at, updated_at) "
+            "VALUES (?,?,?,?)",
+            (d.get("title", "Untitled"), d.get("content", ""),
+             d.get("created_at") or datetime.now().isoformat(),
+             d.get("updated_at") or datetime.now().isoformat()),
+        ).lastrowid
+        doc_id_map[d["id"]] = new_did
+
+    for a in inc.get("note_attachments", []):
+        local_did = doc_id_map.get(a.get("document_id"))
+        if not local_did:
+            continue
+        conn.execute(
+            "INSERT INTO note_attachments (document_id, type, filename, original_name, "
+            "url, title, created_at) VALUES (?,?,?,?,?,?,?)",
+            (local_did, a.get("type"), a.get("filename"), a.get("original_name"),
+             a.get("url"), a.get("title"),
+             a.get("created_at") or datetime.now().isoformat()),
+        )
+
+    return {"status": "ok", "stats": stats}
 
 
 @app.delete("/api/library")

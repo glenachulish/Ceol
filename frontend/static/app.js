@@ -7610,6 +7610,72 @@ libImportSubmit.addEventListener("click", async () => {
   }
 });
 
+// ── Merge Library dialog ──────────────────────────────────────────────────────
+const libMergeOverlay  = document.getElementById("lib-merge-overlay");
+const libMergeClose    = document.getElementById("lib-merge-close");
+const libMergeFile     = document.getElementById("lib-merge-file");
+const libMergeFilename = document.getElementById("lib-merge-filename");
+const libMergeSubmit   = document.getElementById("lib-merge-submit");
+const libMergeCancel   = document.getElementById("lib-merge-cancel");
+const libMergeResult   = document.getElementById("lib-merge-result");
+const libraryMergeBtn  = document.getElementById("library-merge-btn");
+
+function _closeLibMerge() {
+  libMergeOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+libraryMergeBtn.addEventListener("click", () => {
+  libraryMenu.classList.add("hidden");
+  libMergeFile.value = "";
+  libMergeFilename.textContent = "";
+  libMergeSubmit.disabled = true;
+  libMergeResult.classList.add("hidden");
+  libMergeOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+});
+libMergeClose.addEventListener("click", _closeLibMerge);
+libMergeCancel.addEventListener("click", _closeLibMerge);
+
+libMergeFile.addEventListener("change", () => {
+  const f = libMergeFile.files[0];
+  libMergeFilename.textContent = f ? f.name : "";
+  libMergeSubmit.disabled = !f;
+});
+
+libMergeSubmit.addEventListener("click", async () => {
+  const f = libMergeFile.files[0];
+  if (!f) return;
+  libMergeSubmit.disabled = true;
+  libMergeSubmit.textContent = "Merging…";
+  libMergeResult.classList.add("hidden");
+  const form = new FormData();
+  form.append("file", f);
+  try {
+    const res = await fetch("/api/library/merge", { method: "POST", body: form });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.detail || "Merge failed"); }
+    const data = await res.json();
+    const s = data.stats;
+    libMergeResult.innerHTML =
+      `✓ Merge complete — ` +
+      `${s.tunes_added} tune${s.tunes_added !== 1 ? "s" : ""} added, ` +
+      `${s.tunes_versioned} versioned, ` +
+      `${s.tunes_merged} merged (same ABC), ` +
+      `${s.sets_added} set${s.sets_added !== 1 ? "s" : ""} added, ` +
+      `${s.sets_skipped} identical set${s.sets_skipped !== 1 ? "s" : ""} skipped, ` +
+      `${s.collections_added} collection${s.collections_added !== 1 ? "s" : ""} created, ` +
+      `${s.collections_merged} merged. Reloading…`;
+    libMergeResult.className = "import-result import-ok";
+    libMergeResult.classList.remove("hidden");
+    setTimeout(() => { _closeLibMerge(); location.reload(); }, 3500);
+  } catch (err) {
+    libMergeResult.textContent = `Error: ${err.message}`;
+    libMergeResult.className = "import-result import-error";
+    libMergeResult.classList.remove("hidden");
+    libMergeSubmit.disabled = false;
+    libMergeSubmit.textContent = "Merge";
+  }
+});
+
 // ── Delete Library dialog ─────────────────────────────────────────────────────
 const libDeleteOverlay  = document.getElementById("lib-delete-overlay");
 const libDeleteClose    = document.getElementById("lib-delete-close");

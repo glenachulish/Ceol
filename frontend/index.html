@@ -54,6 +54,7 @@
           <div id="library-menu" class="library-menu hidden">
             <button id="library-backup-btn" class="library-menu-item">📤 Export Library</button>
             <button id="library-import-btn" class="library-menu-item">📂 Import Library</button>
+            <button id="library-merge-btn" class="library-menu-item">🔀 Merge Library</button>
             <button id="thecraic-export-btn" class="library-menu-item">📱 Export for TheCraic</button>
             <hr class="library-menu-divider" />
             <button id="auto-group-btn" class="library-menu-item">🔗 Auto-group by name</button>
@@ -706,6 +707,26 @@
     </div>
   </div>
 
+  <!-- ── Library Merge dialog ── -->
+  <div id="lib-merge-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-narrow">
+      <button class="modal-close" id="lib-merge-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">🔀 Merge Library</h2>
+      <p class="library-dialog-desc">Merge a backup into your existing library. Your current data is kept — new tunes are added, duplicates are combined as versions, collections are merged.</p>
+      <label class="import-drop" style="margin-top:1rem">
+        <input type="file" id="lib-merge-file" accept=".zip" />
+        <span class="import-icon">📁</span>
+        <span class="import-label">Click to choose a .zip backup file</span>
+        <span id="lib-merge-filename" class="import-filename"></span>
+      </label>
+      <div id="lib-merge-result" class="import-result hidden"></div>
+      <div class="library-actions">
+        <button id="lib-merge-submit" class="btn-primary" disabled>Merge</button>
+        <button id="lib-merge-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Library Delete dialog ── -->
   <div id="lib-delete-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal modal-narrow">
@@ -786,6 +807,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=162"></script>
+  <script src="/static/app.js?v=163"></script>
 </body>
 </html>
