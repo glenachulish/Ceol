@@ -14,11 +14,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: |
-          pip install fastapi uvicorn sqlalchemy aiofiles python-multipart requests pyinstaller
+        run: pip install fastapi uvicorn sqlalchemy aiofiles python-multipart requests pyinstaller
       - name: Build app
         run: |
-          cd v3
           pyinstaller --onefile --windowed --name Ceol ceol_app.py \
             --add-data "frontend:frontend" \
             --add-data "backend:backend"
@@ -29,7 +27,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Ceol-arm64
-          path: v3/dist/Ceol-arm64.dmg
+          path: dist/Ceol-arm64.dmg
 
   release:
     needs: build-mac-arm
