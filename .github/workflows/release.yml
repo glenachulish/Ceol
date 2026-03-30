@@ -3,7 +3,7 @@ name: Build Mac App
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
 
 jobs:
   build-mac-arm:
@@ -12,85 +12,34 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
       - name: Install dependencies
-        run: pip install -r requirements.txt pyinstaller
+        run: |
+          pip install fastapi uvicorn sqlalchemy aiofiles python-multipart requests pyinstaller
       - name: Build app
         run: |
-          pyinstaller \
-            --name "Ceol" \
-            --onedir \
-            --windowed \
+          cd v3
+          pyinstaller --onefile --windowed --name Ceol ceol_app.py \
             --add-data "frontend:frontend" \
-            --add-data "backend:backend" \
-            --hidden-import uvicorn.logging \
-            --hidden-import uvicorn.loops.auto \
-            --hidden-import uvicorn.protocols.http.auto \
-            --hidden-import uvicorn.lifespan.on \
-            ceol_app.py
-      - name: Create DMG
-        run: |
-          hdiutil create \
-            -volname "Ceol" \
-            -srcfolder dist/Ceol.app \
-            -ov -format UDZO \
-            dist/Ceol-mac-AppleSilicon.dmg
-      - uses: actions/upload-artifact@v4
+            --add-data "backend:backend"
+          mkdir -p dist/dmg
+          cp -r dist/Ceol.app dist/dmg/
+          hdiutil create -volname Ceol -srcfolder dist/dmg -ov -format UDZO dist/Ceol-arm64.dmg
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: mac-arm
-          path: dist/Ceol-mac-AppleSilicon.dmg
-
-  build-mac-intel:
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: pip install -r requirements.txt pyinstaller
-      - name: Build app
-        run: |
-          pyinstaller \
-            --name "Ceol" \
-            --onedir \
-            --windowed \
-            --add-data "frontend:frontend" \
-            --add-data "backend:backend" \
-            --hidden-import uvicorn.logging \
-            --hidden-import uvicorn.loops.auto \
-            --hidden-import uvicorn.protocols.http.auto \
-            --hidden-import uvicorn.lifespan.on \
-            ceol_app.py
-      - name: Create DMG
-        run: |
-          hdiutil create \
-            -volname "Ceol" \
-            -srcfolder dist/Ceol.app \
-            -ov -format UDZO \
-            dist/Ceol-mac-Intel.dmg
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-intel
-          path: dist/Ceol-mac-Intel.dmg
+          name: Ceol-arm64
+          path: v3/dist/Ceol-arm64.dmg
 
   release:
-    needs: [build-mac-arm, build-mac-intel]
+    needs: build-mac-arm
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/download-artifact@v4
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
         with:
-          name: "Ceol ${{ github.ref_name }}"
-          body: |
-            ## Installing on Mac
-            - **Apple Silicon** (M1/M2/M3/M4): download 
-            - **Intel Mac**: download 
-
-            Not sure which? Click Apple menu -> About This Mac.
-          files: |
-            mac-arm/Ceol-mac-AppleSilicon.dmg
-            mac-intel/Ceol-mac-Intel.dmg
+          name: Ceol-arm64
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: Ceol-arm64.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
