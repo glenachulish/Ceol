@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install fastapi uvicorn sqlalchemy aiofiles python-multipart requests pyinstaller
+        run: pip install fastapi uvicorn sqlalchemy aiofiles python-multipart requests httpx pyinstaller
       - name: Build app
         run: |
           pyinstaller --onefile --windowed --name Ceol ceol_app.py \
