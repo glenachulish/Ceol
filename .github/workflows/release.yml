@@ -1,0 +1,73 @@
+name: Build Mac App
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac-arm:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install fastapi uvicorn sqlalchemy aiofiles python-multipart requests httpx PyPDF2 pydantic pywebview pyinstaller
+      - name: Create icns icon
+        run: |
+          mkdir -p Ceol.iconset
+          sips -z 16 16   frontend/static/icons/icon-512.png --out Ceol.iconset/icon_16x16.png
+          sips -z 32 32   frontend/static/icons/icon-512.png --out Ceol.iconset/icon_16x16@2x.png
+          sips -z 32 32   frontend/static/icons/icon-512.png --out Ceol.iconset/icon_32x32.png
+          sips -z 64 64   frontend/static/icons/icon-512.png --out Ceol.iconset/icon_32x32@2x.png
+          sips -z 128 128 frontend/static/icons/icon-512.png --out Ceol.iconset/icon_128x128.png
+          sips -z 256 256 frontend/static/icons/icon-512.png --out Ceol.iconset/icon_128x128@2x.png
+          sips -z 256 256 frontend/static/icons/icon-512.png --out Ceol.iconset/icon_256x256.png
+          sips -z 512 512 frontend/static/icons/icon-512.png --out Ceol.iconset/icon_256x256@2x.png
+          cp frontend/static/icons/icon-512.png Ceol.iconset/icon_512x512.png
+          iconutil -c icns Ceol.iconset
+      - name: Build app
+        run: |
+          pyinstaller --onefile --windowed --name Ceol ceol_app.py \
+            --icon Ceol.icns \
+            --add-data "frontend:frontend" \
+            --add-data "backend:backend" \
+            --hidden-import uvicorn.logging \
+            --hidden-import uvicorn.loops \
+            --hidden-import uvicorn.loops.auto \
+            --hidden-import uvicorn.protocols \
+            --hidden-import uvicorn.protocols.http \
+            --hidden-import uvicorn.protocols.http.auto \
+            --hidden-import uvicorn.protocols.websockets \
+            --hidden-import uvicorn.protocols.websockets.auto \
+            --hidden-import uvicorn.lifespan \
+            --hidden-import uvicorn.lifespan.on \
+            --hidden-import sqlalchemy.dialects.sqlite \
+            --collect-all fastapi \
+            --collect-all webview
+          mkdir -p dist/dmg
+          cp -r dist/Ceol.app dist/dmg/
+          hdiutil create -volname Ceol -srcfolder dist/dmg -ov -format UDZO dist/Ceol-arm64.dmg
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ceol-arm64
+          path: dist/Ceol-arm64.dmg
+
+  release:
+    needs: build-mac-arm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Ceol-arm64
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: Ceol-arm64.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
