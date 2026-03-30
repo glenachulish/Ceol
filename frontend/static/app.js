@@ -7849,11 +7849,12 @@ let _pracCurrentAbc  = null;   // last-built practice ABC (for fullscreen)
 
 function _stopPracticeAudio() {
   if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
-  // Suspend the shared ABCJS AudioContext — this force-stops any scheduled Web Audio nodes.
-  // ABCJS automatically calls audioContext.resume() the next time something plays.
+  // Close and null the shared ABCJS AudioContext so all scheduled nodes are destroyed.
+  // ABCJS will create a fresh context next time audio is needed.
   try {
-    if (window.abcjsAudioContext && window.abcjsAudioContext.state === "running") {
-      window.abcjsAudioContext.suspend();
+    if (window.abcjsAudioContext) {
+      window.abcjsAudioContext.close();
+      window.abcjsAudioContext = null;
     }
   } catch {}
 }
@@ -8070,7 +8071,10 @@ function _renderPracticeMusic(pracAbc) {
       displayWarp: true,
     });
     _pracSynthCtrl.setTune(_pracVisualObj, false, { program: 73 })
-      .then(() => { _pracSynthCtrl.setWarp(_pracCurWarp); })
+      .then(() => {
+        _pracSynthCtrl.setWarp(_pracCurWarp);
+        try { _pracSynthCtrl.pause(); } catch {}  // prevent auto-start
+      })
       .catch(err => { console.warn("Practice audio init failed:", err); });
   } catch (err) {
     console.warn("Practice render failed:", err);
