@@ -7652,7 +7652,7 @@ libMergeSubmit.addEventListener("click", async () => {
   form.append("file", f);
   try {
     const res = await fetch("/api/library/merge", { method: "POST", body: form });
-    if (!res.ok) { const e = await res.json(); throw new Error(e.detail || "Merge failed"); }
+    if (!res.ok) { let d="Merge failed"; try { const e=await res.json(); d=e.detail||d; } catch { d=await res.text()||d; } throw new Error(d); }
     const data = await res.json();
     const s = data.stats;
     libMergeResult.innerHTML =

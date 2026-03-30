@@ -3806,8 +3806,11 @@ async def merge_library(file: UploadFile = File(...)):
                     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
                     dest.write_bytes(z.read(name))
 
-    with get_connection() as conn:
-        result = _do_merge(conn, incoming)
+    try:
+        with get_connection() as conn:
+            result = _do_merge(conn, incoming)
+    except Exception as exc:
+        raise HTTPException(500, f"Merge error: {exc}") from exc
 
     return result
 
