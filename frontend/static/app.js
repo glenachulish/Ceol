@@ -1185,6 +1185,10 @@ function renderModal(tune, onBack = null, siblings = null) {
       }).join("")}
       <div id="audio-player-container" class="audio-player-wrap"></div>
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
+      <div class="highlight-toolbar" id="highlight-toolbar" style="display:flex;gap:6px;align-items:center;margin:4px 0 2px;">
+        <button id="highlight-mode-btn" class="btn-secondary highlight-mode-btn" title="Toggle highlight mode — click bars to mark difficult sections">🖊 Highlight</button>
+        <button id="highlight-clear-btn" class="btn-secondary highlight-clear-btn hidden" title="Remove all highlights">✕ Clear</button>
+      </div>
       <p id="audio-unavailable" class="audio-unavailable hidden">
         Audio playback is not supported in this browser.
       </p>
@@ -1488,6 +1492,37 @@ function renderModal(tune, onBack = null, siblings = null) {
   });
 
   _initPracticeTab(tune);
+
+  // ── Persistent highlights ────────────────────────────────────────────────
+  _highlightMode = false;
+  _highlightTuneId = tune.id;
+  try { _tuneHighlights = new Set(JSON.parse(tune.highlights || "[]")); }
+  catch { _tuneHighlights = new Set(); }
+
+  const hlModeBtn = document.getElementById("highlight-mode-btn");
+  const hlClearBtn = document.getElementById("highlight-clear-btn");
+
+  if (hlModeBtn) {
+    hlModeBtn.classList.remove("active");
+    hlModeBtn.addEventListener("click", () => {
+      _highlightMode = !_highlightMode;
+      hlModeBtn.classList.toggle("active", _highlightMode);
+    });
+  }
+  if (hlClearBtn) {
+    if (_tuneHighlights.size > 0) hlClearBtn.classList.remove("hidden");
+    hlClearBtn.addEventListener("click", () => {
+      _tuneHighlights.clear();
+      _applyHighlights();
+      _saveHighlights();
+    });
+  }
+
+  // Apply highlights once sheet music has rendered
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (_barMap.length === 0) _barMap = _buildBarMap();
+    _applyHighlights();
+  }));
 
   // Notes save
   document.getElementById("save-notes-btn").addEventListener("click", async () => {
@@ -2136,6 +2171,11 @@ let _barSel = { start: null, end: null };
 let _barLooping = false;    // user's loop toggle (independent of ABCJS loop button)
 let _loopSeeking = false;   // guard against rapid re-fires of the loop seek
 
+// ── Persistent bar highlights ────────────────────────────────────────────────
+let _highlightMode = false;       // true = clicks toggle highlights, not playback selection
+let _tuneHighlights = new Set();  // set of bar indices (into _barMap) that are highlighted
+let _highlightTuneId = null;      // which tune the highlights belong to
+
 // ── TheSession preview state ──────────────────────────────────────────────────
 let _previewVisualObj = null;
 let _previewSynthCtrl = null;
@@ -2224,7 +2264,13 @@ function _sheetMusicClickHandler(e) {
   // are distinguished correctly.
   const idx = _barMap.findIndex(b => b.wrapper === wrapperEl && b.measure === measure);
   if (idx === -1) return;
-  _onMeasureClicked(idx);
+  if (_highlightMode) {
+    _tuneHighlights.has(idx) ? _tuneHighlights.delete(idx) : _tuneHighlights.add(idx);
+    _applyHighlights();
+    _saveHighlights();
+  } else {
+    _onMeasureClicked(idx);
+  }
 }
 
 function _onMeasureClicked(m) {
@@ -2263,6 +2309,34 @@ function _updateBarHighlight() {
     wrapper.querySelectorAll(`.abcjs-m${measure}`)
       .forEach(el => el.classList.add(cls));
   }
+}
+
+function _applyHighlights() {
+  document.querySelectorAll("#sheet-music-render .bar-pinned")
+    .forEach(el => el.classList.remove("bar-pinned"));
+  if (_tuneHighlights.size === 0) return;
+  if (_barMap.length === 0) _barMap = _buildBarMap();
+  _tuneHighlights.forEach(idx => {
+    if (idx >= _barMap.length) return;
+    const { wrapper, measure } = _barMap[idx];
+    wrapper.querySelectorAll(`.abcjs-m${measure}`)
+      .forEach(el => el.classList.add("bar-pinned"));
+  });
+  const clearBtn = document.getElementById("highlight-clear-btn");
+  if (clearBtn) clearBtn.classList.remove("hidden");
+}
+
+async function _saveHighlights() {
+  if (!_highlightTuneId) return;
+  const clearBtn = document.getElementById("highlight-clear-btn");
+  if (clearBtn) {
+    _tuneHighlights.size > 0 ? clearBtn.classList.remove("hidden") : clearBtn.classList.add("hidden");
+  }
+  await fetch(`/api/tunes/${_highlightTuneId}/highlights`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ highlights: [..._tuneHighlights] }),
+  }).catch(() => {});
 }
 
 function _updateSelectionInfo() {
@@ -2424,6 +2498,11 @@ function renderSheetMusic(abc) {
       foregroundColor: "#000000",
     });
     _patchSvgViewBox("sheet-music-render");
+    // Re-apply persistent highlights after render
+    requestAnimationFrame(() => {
+      _barMap = _buildBarMap();
+      _applyHighlights();
+    });
 
     _visualObj = visualObjs[0];
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"

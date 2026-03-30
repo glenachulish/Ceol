@@ -1591,6 +1591,24 @@ button.set-tune-title:hover { text-decoration: underline; }
 #sheet-music-render rect,
 #sheet-music-render ellipse { fill: #000000 !important; stroke: #000000 !important; }
 
+/* Persistent bar highlights (user-marked difficult sections) */
+#sheet-music-render .bar-pinned path,
+#sheet-music-render .bar-pinned rect,
+#sheet-music-render .bar-pinned ellipse,
+#sheet-music-render path.bar-pinned,
+#sheet-music-render rect.bar-pinned,
+#sheet-music-render ellipse.bar-pinned {
+  fill: #d4a017 !important;
+  opacity: 0.85;
+}
+.highlight-mode-btn { font-size: 0.82rem; padding: 3px 9px; }
+.highlight-mode-btn.active {
+  background: color-mix(in srgb, #d4a017 25%, var(--surface)) !important;
+  border-color: #d4a017 !important;
+  color: #d4a017 !important;
+}
+.highlight-clear-btn { font-size: 0.82rem; padding: 3px 9px; }
+
 /* Bar selection highlight for practice loop */
 #sheet-music-render { cursor: pointer; color: #000000; }
 #abc-fullscreen-render { cursor: pointer; color: #000000; }

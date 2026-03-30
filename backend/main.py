@@ -557,6 +557,20 @@ def get_tune(tune_id: int):
     return result
 
 
+class HighlightsUpdate(BaseModel):
+    highlights: list = []
+
+
+@app.put("/api/tunes/{tune_id}/highlights")
+def update_highlights(tune_id: int, body: HighlightsUpdate):
+    with _db() as conn:
+        conn.execute(
+            "UPDATE tunes SET highlights=? WHERE id=?",
+            (json.dumps(body.highlights), tune_id),
+        )
+    return {"ok": True}
+
+
 class NotesUpdate(BaseModel):
     notes: str = ""
 
