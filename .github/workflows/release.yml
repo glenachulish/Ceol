@@ -17,7 +17,10 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install fastapi uvicorn sqlalchemy aiofiles python-multipart requests httpx PyPDF2 pydantic pywebview pillow pyinstaller
+        run: |
+          pip install fastapi uvicorn sqlalchemy aiofiles python-multipart \
+            requests httpx PyPDF2 pydantic pillow pyinstaller \
+            pywebview pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-WebKit pyobjc-framework-Quartz
       - name: Create icns icon
         run: |
           python3 -c "
@@ -37,11 +40,12 @@ jobs:
             for n in names:
               r.save(f'Ceol.iconset/{n}')
           subprocess.run(['iconutil', '-c', 'icns', 'Ceol.iconset'], check=True)
-          print('icns created OK')
+          assert os.path.getsize('Ceol.icns') > 0, 'icns is empty!'
+          print(f'icns created OK ({os.path.getsize(\"Ceol.icns\")} bytes)')
           "
       - name: Build app
         run: |
-          pyinstaller --onefile --windowed --name Ceol ceol_app.py \
+          pyinstaller --onedir --windowed --name Ceol ceol_app.py \
             --icon Ceol.icns \
             --add-data "frontend:frontend" \
             --add-data "backend:backend" \
@@ -57,7 +61,10 @@ jobs:
             --hidden-import uvicorn.lifespan.on \
             --hidden-import sqlalchemy.dialects.sqlite \
             --collect-all fastapi \
-            --collect-all webview
+            --collect-all webview \
+            --collect-all pyobjc
+      - name: Patch bundle name and create DMG
+        run: |
           python3 -c "
           import plistlib
           p = 'dist/Ceol.app/Contents/Info.plist'
@@ -68,7 +75,7 @@ jobs:
           print('plist patched OK')
           "
           mkdir -p dist/dmg
-          cp -r dist/Ceol.app dist/dmg/
+          cp -r "dist/Ceol.app" "dist/dmg/Ceòl.app"
           hdiutil create -volname "Ceòl" -srcfolder dist/dmg -ov -format UDZO "dist/Ceol-${{ github.ref_name }}-arm64.dmg"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
