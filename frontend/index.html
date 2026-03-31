@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=80" />
+  <link rel="stylesheet" href="/static/style.css?v=81" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body data-view="library">
@@ -330,6 +330,12 @@
         <div id="folder-collection-row" class="book-meta-row hidden">
           <label class="book-meta-label" for="folder-collection-name">Auto-create collection</label>
           <input id="folder-collection-name" class="book-meta-input" type="text" placeholder="Collection name (optional)" />
+        </div>
+        <div id="folder-progress-wrap" class="import-progress-wrap hidden">
+          <div class="import-progress-label" id="folder-progress-label">Processing…</div>
+          <div class="import-progress-bar-outer">
+            <div class="import-progress-bar-inner" id="folder-progress-bar"></div>
+          </div>
         </div>
         <div id="folder-result" class="import-result hidden"></div>
         <div class="import-actions">
@@ -685,11 +691,17 @@
 
       <!-- Music Scanner (.msca) tab -->
       <div id="import-tab-msca" class="tab-panel hidden">
-        <p class="import-desc">Import a <strong>.msca</strong> file from the Music Scanner app. Tunes are added to your library — duplicates are skipped. Multi-tune files (scanned books) are grouped as a collection.</p>
+        <p class="import-desc">Import one or more <strong>.msca</strong> files from the Music Scanner app. Files are processed one at a time. Multi-tune files (scanned books) are grouped as a collection.</p>
         <label class="import-drop" id="msca-drop-zone">
-          <input id="msca-file-input" type="file" accept=".msca,.json" style="display:none">
-          <span class="import-drop-label">Drop a <code>.msca</code> file here, or click to choose</span>
+          <input id="msca-file-input" type="file" accept="*/*" multiple style="display:none">
+          <span class="import-drop-label">Drop <code>.msca</code> files here, or click to choose (multiple OK)</span>
         </label>
+        <div id="msca-progress-wrap" class="import-progress-wrap hidden">
+          <div class="import-progress-label" id="msca-progress-label">Processing…</div>
+          <div class="import-progress-bar-outer">
+            <div class="import-progress-bar-inner" id="msca-progress-bar"></div>
+          </div>
+        </div>
         <div id="msca-import-result" class="import-result hidden"></div>
         <div class="import-actions" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem">
@@ -882,6 +894,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=164"></script>
+  <script src="/static/app.js?v=165"></script>
 </body>
 </html>

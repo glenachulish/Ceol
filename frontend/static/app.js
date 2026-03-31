@@ -6984,42 +6984,96 @@ theCraicSubmit.addEventListener("click", async () => {
   folderImportBtn.addEventListener("click", async () => {
     const allFiles = Array.from(folderInput.files).filter(f => ALL_RE.test(f.name));
     if (!allFiles.length) return;
+
+    const mscaFiles  = allFiles.filter(f => MSCA_RE.test(f.name));
+    const otherFiles = allFiles.filter(f => !MSCA_RE.test(f.name));
+
     folderImportBtn.disabled = true;
     folderImportBtn.textContent = "Importing…";
-    folderResult.classList.remove("hidden");
-    folderResult.className = "import-result";
-    folderResult.textContent = `Processing ${allFiles.length} file${allFiles.length === 1 ? "" : "s"}…`;
+    folderResult.classList.add("hidden");
 
-    try {
-      const colName = folderCollectionName ? folderCollectionName.value.trim() : "";
-      const url = colName ? `/api/import/folder?collection_name=${encodeURIComponent(colName)}` : "/api/import/folder";
-      const fd = new FormData();
-      allFiles.forEach(f => fd.append("files", f));
-      const res = await fetch(url, { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Import failed");
+    const progressWrap  = document.getElementById("folder-progress-wrap");
+    const progressBar   = document.getElementById("folder-progress-bar");
+    const progressLabel = document.getElementById("folder-progress-label");
+    progressWrap.classList.remove("hidden");
+    progressBar.style.width = "0%";
 
-      const lines = [];
-      if (data.abc_imported)    lines.push(`🎵 ${data.abc_imported} tune${data.abc_imported === 1 ? "" : "s"} imported from ABC`);
-      if (data.abc_skipped)     lines.push(`⏭ ${data.abc_skipped} ABC tune${data.abc_skipped === 1 ? "" : "s"} skipped (no title)`);
-      if (data.audio_attached)  lines.push(`🎶 ${data.audio_attached} audio file${data.audio_attached === 1 ? "" : "s"} attached`);
-      if (data.pdf_attached)    lines.push(`📄 ${data.pdf_attached} PDF${data.pdf_attached === 1 ? "" : "s"} attached`);
-      if (data.image_attached)  lines.push(`📷 ${data.image_attached} photo${data.image_attached === 1 ? "" : "s"} attached`);
-      if (data.msca_imported)   lines.push(`📋 ${data.msca_imported} tune${data.msca_imported === 1 ? "" : "s"} from Music Scanner`);
-      if (data.new_from_media)  lines.push(`➕ ${data.new_from_media} new tune${data.new_from_media === 1 ? "" : "s"} created from unmatched media`);
-      if (data.collection_id)   lines.push(`📁 Added to collection "${escHtml(colName)}"`);
+    const colName = folderCollectionName ? folderCollectionName.value.trim() : "";
+    const lines = [];
+    let hasError = false;
 
-      folderResult.className = "import-result import-success";
-      folderResult.innerHTML = lines.length ? lines.join("<br>") : "No files to import.";
-      await Promise.all([loadStats(), loadFilters()]);
-      if (state.view === "library") loadTunes();
-    } catch (err) {
-      folderResult.className = "import-result import-error";
-      folderResult.textContent = `Error: ${err.message}`;
-    } finally {
-      folderImportBtn.textContent = "Import All";
-      folderImportBtn.disabled = false;
+    // ── Step 1: non-msca files in one batch ──────────────────────────────────
+    if (otherFiles.length) {
+      progressLabel.textContent = `Uploading ${otherFiles.length} file${otherFiles.length === 1 ? "" : "s"}…`;
+      progressBar.style.width = "10%";
+      try {
+        const url = colName
+          ? `/api/import/folder?collection_name=${encodeURIComponent(colName)}`
+          : "/api/import/folder";
+        const fd = new FormData();
+        otherFiles.forEach(f => fd.append("files", f));
+        const res = await fetch(url, { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Import failed");
+        if (data.abc_imported)   lines.push(`🎵 ${data.abc_imported} tune${data.abc_imported === 1 ? "" : "s"} imported from ABC`);
+        if (data.abc_skipped)    lines.push(`⏭ ${data.abc_skipped} ABC tune${data.abc_skipped === 1 ? "" : "s"} skipped (no title)`);
+        if (data.audio_attached) lines.push(`🎶 ${data.audio_attached} audio file${data.audio_attached === 1 ? "" : "s"} attached`);
+        if (data.pdf_attached)   lines.push(`📄 ${data.pdf_attached} PDF${data.pdf_attached === 1 ? "" : "s"} attached`);
+        if (data.image_attached) lines.push(`📷 ${data.image_attached} photo${data.image_attached === 1 ? "" : "s"} attached`);
+        if (data.new_from_media) lines.push(`➕ ${data.new_from_media} new tune${data.new_from_media === 1 ? "" : "s"} created from unmatched media`);
+        if (data.collection_id)  lines.push(`📁 Added to collection "${escHtml(colName)}"`);
+      } catch (err) {
+        lines.push(`⚠ Folder batch failed: ${err.message}`);
+        hasError = true;
+      }
     }
+
+    // ── Step 2: .msca files one at a time ────────────────────────────────────
+    if (mscaFiles.length) {
+      let mscaImported = 0, mscaSkipped = 0;
+      const mscaErrors = [];
+      const baseProgress = otherFiles.length ? 20 : 10;
+
+      for (let i = 0; i < mscaFiles.length; i++) {
+        const f = mscaFiles[i];
+        const pct = baseProgress + Math.round(((i + 1) / mscaFiles.length) * (90 - baseProgress));
+        progressBar.style.width = `${pct}%`;
+        progressLabel.textContent = `Music Scanner file ${i + 1} of ${mscaFiles.length}: ${f.name}`;
+        const fd = new FormData();
+        fd.append("file", f);
+        try {
+          const res = await fetch("/api/import/msca?as_collection=true", { method: "POST", body: fd });
+          const data = await res.json();
+          if (!res.ok) {
+            mscaErrors.push(`${f.name}: ${data.detail || res.statusText}`);
+          } else {
+            mscaImported += data.imported || 0;
+            mscaSkipped  += data.skipped  || 0;
+          }
+        } catch (err) {
+          mscaErrors.push(`${f.name}: ${err.message}`);
+        }
+      }
+      if (mscaImported) lines.push(`📋 ${mscaImported} tune${mscaImported === 1 ? "" : "s"} from Music Scanner`);
+      if (mscaSkipped)  lines.push(`⏭ ${mscaSkipped} Music Scanner tune${mscaSkipped === 1 ? "" : "s"} already in library`);
+      if (mscaErrors.length) {
+        lines.push(`⚠ ${mscaErrors.length} .msca file${mscaErrors.length === 1 ? "" : "s"} failed`);
+        hasError = true;
+      }
+    }
+
+    progressBar.style.width = "100%";
+    progressLabel.textContent = "Done ✓";
+    setTimeout(() => progressWrap.classList.add("hidden"), 2000);
+
+    folderResult.className = `import-result ${hasError ? "import-error" : "import-success"}`;
+    folderResult.innerHTML = lines.length ? lines.join("<br>") : "Nothing new to import.";
+    folderResult.classList.remove("hidden");
+
+    folderImportBtn.textContent = "Import All";
+    folderImportBtn.disabled = false;
+    await Promise.all([loadStats(), loadFilters()]);
+    if (state.view === "library") loadTunes();
   });
 })();
 
@@ -7138,60 +7192,102 @@ theCraicSubmit.addEventListener("click", async () => {
 
 // ── Music Scanner (.msca) import ──────────────────────────────────────────────
 {
-  const mscaFileInput = document.getElementById("msca-file-input");
-  const mscaDropZone  = document.getElementById("msca-drop-zone");
-  const mscaImportBtn = document.getElementById("msca-import-btn");
-  const mscaResult    = document.getElementById("msca-import-result");
-  let mscaPendingFile = null;
+  const mscaFileInput   = document.getElementById("msca-file-input");
+  const mscaDropZone    = document.getElementById("msca-drop-zone");
+  const mscaImportBtn   = document.getElementById("msca-import-btn");
+  const mscaResult      = document.getElementById("msca-import-result");
+  const mscaProgressWrap = document.getElementById("msca-progress-wrap");
+  const mscaProgressBar  = document.getElementById("msca-progress-bar");
+  const mscaProgressLabel = document.getElementById("msca-progress-label");
+  let mscaPendingFiles  = [];
 
-  function _setMscaFile(file) {
-    mscaPendingFile = file;
-    mscaImportBtn.disabled = !file;
-    mscaDropZone.querySelector(".import-drop-label").textContent =
-      file ? `Ready: ${file.name}` : "Drop a .msca file here, or click to choose";
+  function _setMscaFiles(files) {
+    // Accept any file — .msca is a custom extension Mac may not recognise
+    mscaPendingFiles = Array.from(files || []);
+    mscaImportBtn.disabled = mscaPendingFiles.length === 0;
+    const label = mscaDropZone.querySelector(".import-drop-label");
+    if (mscaPendingFiles.length === 0) {
+      label.textContent = "Drop .msca files here, or click to choose (multiple OK)";
+    } else if (mscaPendingFiles.length === 1) {
+      label.textContent = `Ready: ${mscaPendingFiles[0].name}`;
+    } else {
+      label.textContent = `Ready: ${mscaPendingFiles.length} files selected`;
+    }
     mscaResult.classList.add("hidden");
+    mscaProgressWrap.classList.add("hidden");
   }
 
   mscaDropZone.addEventListener("click", () => mscaFileInput.click());
-  mscaFileInput.addEventListener("change", () => _setMscaFile(mscaFileInput.files[0] || null));
+  mscaFileInput.addEventListener("change", () => _setMscaFiles(mscaFileInput.files));
   mscaDropZone.addEventListener("dragover", e => { e.preventDefault(); mscaDropZone.classList.add("drag-over"); });
   mscaDropZone.addEventListener("dragleave", () => mscaDropZone.classList.remove("drag-over"));
   mscaDropZone.addEventListener("drop", e => {
     e.preventDefault();
     mscaDropZone.classList.remove("drag-over");
-    _setMscaFile(e.dataTransfer.files[0] || null);
+    _setMscaFiles(e.dataTransfer.files);
   });
 
   mscaImportBtn.addEventListener("click", async () => {
-    if (!mscaPendingFile) return;
+    if (!mscaPendingFiles.length) return;
     mscaImportBtn.disabled = true;
-    mscaImportBtn.textContent = "Importing…";
     mscaResult.classList.add("hidden");
+    mscaProgressWrap.classList.remove("hidden");
+
     const asCol = document.getElementById("msca-as-collection").checked;
-    const formData = new FormData();
-    formData.append("file", mscaPendingFile);
-    try {
-      const res = await fetch(`/api/import/msca?as_collection=${asCol}`, { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || res.statusText);
-      const parts = [];
-      if (data.imported) parts.push(`${data.imported} tune${data.imported !== 1 ? "s" : ""} added`);
-      if (data.skipped)  parts.push(`${data.skipped} already in library`);
-      if (data.collection_name) parts.push(`collection "${data.collection_name}" created`);
-      mscaResult.textContent = parts.join(" · ") || "Nothing new to import.";
-      mscaResult.className = "import-result import-success";
-      mscaResult.classList.remove("hidden");
-      _setMscaFile(null);
-      mscaFileInput.value = "";
-      await Promise.all([loadTunes(), loadStats()]);
-    } catch (err) {
-      mscaResult.textContent = `Error: ${err.message}`;
-      mscaResult.className = "import-result import-error";
-      mscaResult.classList.remove("hidden");
-    } finally {
-      mscaImportBtn.disabled = false;
-      mscaImportBtn.textContent = "Import tunes";
+    const total = mscaPendingFiles.length;
+    let totalImported = 0, totalSkipped = 0;
+    const errors = [];
+    const collections = [];
+
+    for (let i = 0; i < total; i++) {
+      const file = mscaPendingFiles[i];
+      const pct = Math.round((i / total) * 100);
+      mscaProgressBar.style.width = `${pct}%`;
+      mscaProgressLabel.textContent = `Processing ${i + 1} of ${total}: ${file.name}`;
+
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const res = await fetch(`/api/import/msca?as_collection=${asCol}`, { method: "POST", body: formData });
+        const data = await res.json();
+        if (!res.ok) {
+          errors.push(`${file.name}: ${data.detail || res.statusText}`);
+        } else {
+          totalImported += data.imported || 0;
+          totalSkipped  += data.skipped  || 0;
+          if (data.collection_name) collections.push(data.collection_name);
+        }
+      } catch (err) {
+        errors.push(`${file.name}: ${err.message}`);
+      }
     }
+
+    mscaProgressBar.style.width = "100%";
+    mscaProgressLabel.textContent = "Done";
+
+    // Build result message
+    const parts = [];
+    if (totalImported) parts.push(`✅ ${totalImported} tune${totalImported !== 1 ? "s" : ""} added`);
+    if (totalSkipped)  parts.push(`⏭ ${totalSkipped} already in library`);
+    if (collections.length) parts.push(`📁 ${collections.length} collection${collections.length !== 1 ? "s" : ""} created`);
+
+    let html = parts.length ? parts.join("  ·  ") : "Nothing new to import.";
+    if (errors.length) {
+      html += `<br><span style="color:var(--danger)">⚠ ${errors.length} file${errors.length !== 1 ? "s" : ""} failed:</span><ul style="margin:.3rem 0 0 1rem;font-size:.8rem">` +
+        errors.map(e => `<li>${escHtml(e)}</li>`).join("") + "</ul>";
+    }
+
+    mscaResult.className = errors.length && !totalImported ? "import-result import-error" : "import-result import-success";
+    mscaResult.innerHTML = html;
+    mscaResult.classList.remove("hidden");
+
+    setTimeout(() => mscaProgressWrap.classList.add("hidden"), 1500);
+
+    _setMscaFiles([]);
+    mscaFileInput.value = "";
+    mscaImportBtn.disabled = false;
+    mscaImportBtn.textContent = "Import tunes";
+    await Promise.all([loadTunes(), loadStats()]);
   });
 }
 
