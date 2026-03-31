@@ -7205,7 +7205,7 @@ theCraicSubmit.addEventListener("click", async () => {
   const mscaProgressLabel = document.getElementById("msca-progress-label");
   let mscaPendingFiles  = [];
 
-  function _setMscaFiles(files) {
+  function _setMscaFiles(files, { clearResult = true } = {}) {
     mscaPendingFiles = Array.from(files || []);
     const n = mscaPendingFiles.length;
     mscaImportBtn.disabled  = n === 0;
@@ -7214,8 +7214,10 @@ theCraicSubmit.addEventListener("click", async () => {
     mscaFileLabel.textContent = n === 0 ? "No files selected"
       : n === 1 ? mscaPendingFiles[0].name
       : `${n} files selected`;
-    mscaResult.classList.add("hidden");
-    mscaProgressWrap.classList.add("hidden");
+    if (clearResult) {
+      mscaResult.classList.add("hidden");
+      mscaProgressWrap.classList.add("hidden");
+    }
   }
 
   // "Choose files…" button opens the hidden file input
@@ -7337,9 +7339,10 @@ theCraicSubmit.addEventListener("click", async () => {
     mscaResult.innerHTML = html;
     mscaResult.classList.remove("hidden");
 
-    setTimeout(() => mscaProgressWrap.classList.add("hidden"), 1500);
+    setTimeout(() => mscaProgressWrap.classList.add("hidden"), 2000);
 
-    _setMscaFiles([]);
+    // Reset file selection without hiding the result box
+    _setMscaFiles([], { clearResult: false });
     mscaFileInput.value = "";
     mscaImportBtn.disabled = false;
     mscaImportBtn.textContent = "Import tunes";
