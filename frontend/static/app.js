@@ -7163,15 +7163,17 @@ theCraicSubmit.addEventListener("click", async () => {
     mscaImportBtn.disabled = true;
     mscaImportBtn.textContent = "Importing…";
     mscaResult.classList.add("hidden");
+    const asCol = document.getElementById("msca-as-collection").checked;
     const formData = new FormData();
     formData.append("file", mscaPendingFile);
     try {
-      const res = await fetch("/api/import/msca", { method: "POST", body: formData });
+      const res = await fetch(`/api/import/msca?as_collection=${asCol}`, { method: "POST", body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || res.statusText);
       const parts = [];
       if (data.imported) parts.push(`${data.imported} tune${data.imported !== 1 ? "s" : ""} added`);
       if (data.skipped)  parts.push(`${data.skipped} already in library`);
+      if (data.collection_name) parts.push(`collection "${data.collection_name}" created`);
       mscaResult.textContent = parts.join(" · ") || "Nothing new to import.";
       mscaResult.className = "import-result import-success";
       mscaResult.classList.remove("hidden");

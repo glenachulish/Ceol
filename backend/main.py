@@ -1624,22 +1624,25 @@ async def import_folder(
     files: List[UploadFile] = File(...),
     collection_name: Optional[str] = Query(None),
 ):
-    """Smart folder import: handles ABC, MP3, PDF, and image files.
+    """Smart folder import: handles ABC, MP3, PDF, image, and .msca files.
 
     ABC files are imported as tunes first.  Non-ABC files are matched to
     tunes by filename (case-insensitive), checking both newly-imported and
     existing tunes.  Unmatched media files create a new tune entry with
-    the media attached.
+    the media attached.  .msca files are parsed and each tune inside is
+    imported; multi-tune .msca files become a collection named after the file.
     """
-    ABC_EXTS = {".abc", ".txt"}
+    ABC_EXTS  = {".abc", ".txt"}
     AUDIO_EXTS = {".mp3", ".m4a", ".ogg", ".wav"}
-    PDF_EXTS = {".pdf"}
+    PDF_EXTS  = {".pdf"}
     IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
-    ALL_KNOWN = ABC_EXTS | AUDIO_EXTS | PDF_EXTS | IMAGE_EXTS
+    MSCA_EXTS = {".msca"}
+    ALL_KNOWN = ABC_EXTS | AUDIO_EXTS | PDF_EXTS | IMAGE_EXTS | MSCA_EXTS
 
     # Categorise uploads
-    abc_files: list[tuple[str, bytes]] = []        # (fname, content)
-    media_files: list[tuple[str, str, bytes]] = []  # (fname, category, content)
+    abc_files: list[tuple[str, bytes]] = []
+    media_files: list[tuple[str, str, bytes]] = []
+    msca_files: list[tuple[str, bytes]] = []
 
     for upload in files:
         fname = upload.filename or ""
@@ -1655,6 +1658,8 @@ async def import_folder(
             media_files.append((fname, "pdf", content))
         elif ext in IMAGE_EXTS:
             media_files.append((fname, "image", content))
+        elif ext in MSCA_EXTS:
+            msca_files.append((fname, content))
 
     import_date = date.today().isoformat()
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -1773,6 +1778,33 @@ async def import_folder(
             _append_note(tune_id, f"sheet music (image): {url}")
             image_attached += 1
 
+    # ── Phase 3: import .msca files ───────────────────────────────
+    msca_imported = 0
+    msca_skipped = 0
+    for msca_fname, msca_content in msca_files:
+        try:
+            msca_tunes, msca_col_name = _parse_msca_content(msca_content, msca_fname)
+        except HTTPException:
+            continue
+        with _db() as conn:
+            r = _import_msca_tune_list(
+                conn, msca_tunes, msca_col_name,
+                as_collection=(len(msca_tunes) > 1),
+            )
+        msca_imported += r["imported"]
+        msca_skipped  += r["skipped"]
+        # Register new tune ids so media matching below can find them
+        for td in msca_tunes:
+            title = (td.get("title") or td.get("name") or "").strip()
+            if title:
+                with _db() as conn:
+                    row = conn.execute(
+                        "SELECT id FROM tunes WHERE LOWER(TRIM(title)) = ? LIMIT 1",
+                        (title.lower(),),
+                    ).fetchone()
+                    if row:
+                        imported_title_map[title.lower()] = row["id"]
+
     # Optionally create a collection for all imported tunes
     col_id = None
     all_tune_ids = list(imported_title_map.values())
@@ -1794,6 +1826,8 @@ async def import_folder(
         "pdf_attached": pdf_attached,
         "image_attached": image_attached,
         "new_from_media": new_from_media,
+        "msca_imported": msca_imported,
+        "msca_skipped": msca_skipped,
         "collection_id": col_id,
     }
 
@@ -2336,100 +2370,307 @@ async def import_ceol_json(file: UploadFile = File(...)):
 # Music Scanner (.msca) import
 # ---------------------------------------------------------------------------
 
-@app.post("/api/import/msca", status_code=201)
-async def import_msca(file: UploadFile = File(...)):
-    """
-    Import a .msca file from the Music Scanner app.
+# ---------------------------------------------------------------------------
+# Music Scanner (.msca) import
+# ---------------------------------------------------------------------------
 
-    .msca files are JSON documents containing scanned/recognised tune data.
-    Supported structures:
-      - {"tunes": [...]}  where each tune has at minimum a "title" field
-      - {"title": ..., "abc": ...}  single-tune export
-    Common tune fields recognised: title, abc, key, type/genre, notes, bpm,
-    composer, time_signature, source_url.
+def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict], str]:
     """
-    content = await file.read()
+    Try to parse a .msca file using multiple strategies.
+    Returns (tune_list, collection_name).
+    Raises HTTPException(400) if none succeed.
+    """
+    import plistlib
+    import xml.etree.ElementTree as ET
+
+    collection_name = Path(filename).stem if filename else "Music Scanner Import"
+
+    # ── Strategy 1: JSON ────────────────────────────────────────────────────
     try:
         data = json.loads(content)
+        if isinstance(data, list):
+            return data, collection_name
+        if isinstance(data, dict):
+            for key in ("tunes", "items", "songs", "tracks"):
+                if key in data and isinstance(data[key], list):
+                    return data[key], data.get("name", collection_name)
+            if "title" in data or "abc" in data or "name" in data:
+                return [data], collection_name
     except Exception:
-        raise HTTPException(400, "Could not parse .msca file — expected JSON format")
+        pass
 
-    # Normalise to a list of tune dicts
-    if isinstance(data, list):
-        tune_list = data
-    elif isinstance(data, dict):
-        if "tunes" in data:
-            tune_list = data["tunes"]
-        elif "title" in data or "abc" in data:
-            tune_list = [data]
-        elif "items" in data:
-            tune_list = data["items"]
-        elif "songs" in data:
-            tune_list = data["songs"]
-        else:
-            raise HTTPException(400, "Unrecognised .msca structure — no tunes found")
-    else:
-        raise HTTPException(400, "Unrecognised .msca format")
+    # ── Strategy 2: Apple plist (binary or XML) ─────────────────────────────
+    try:
+        data = plistlib.loads(content)
+        if isinstance(data, list):
+            return data, collection_name
+        if isinstance(data, dict):
+            for key in ("tunes", "items", "songs", "tracks", "Tunes", "Items"):
+                if key in data and isinstance(data[key], list):
+                    return data[key], data.get("name", data.get("Name", collection_name))
+            if any(k in data for k in ("title", "Title", "abc", "ABC", "name", "Name")):
+                return [data], collection_name
+    except Exception:
+        pass
 
-    if not isinstance(tune_list, list):
-        raise HTTPException(400, "Tunes field must be a list")
+    # ── Strategy 3: ZIP archive (look for JSON/ABC/XML inside) ──────────────
+    try:
+        import zipfile as _zf
+        if _zf.is_zipfile(io.BytesIO(content)):
+            with _zf.ZipFile(io.BytesIO(content)) as zf:
+                names = zf.namelist()
+                # Try JSON files inside
+                for name in names:
+                    if name.lower().endswith((".json", ".msca")):
+                        inner = zf.read(name)
+                        try:
+                            data = json.loads(inner)
+                            tunes, _ = _parse_msca_content(inner, name)
+                            return tunes, collection_name
+                        except Exception:
+                            pass
+                # Try XML files inside
+                for name in names:
+                    if name.lower().endswith((".xml", ".musicxml", ".mxl")):
+                        inner = zf.read(name)
+                        tunes = _parse_msca_xml(inner)
+                        if tunes:
+                            return tunes, collection_name
+                # Try ABC files inside
+                abc_tunes = []
+                for name in names:
+                    if name.lower().endswith((".abc", ".txt")):
+                        inner = zf.read(name)
+                        try:
+                            text = inner.decode("utf-8", errors="replace")
+                        except Exception:
+                            continue
+                        for t in parse_abc_string(text):
+                            if t.title:
+                                abc_tunes.append({"title": t.title, "abc": t.abc,
+                                                  "key": t.key, "type": t.type})
+                if abc_tunes:
+                    return abc_tunes, collection_name
+    except Exception:
+        pass
 
-    def _msca_field(td: dict, *keys: str, default: str = "") -> str:
-        """Try multiple possible key names, return first non-empty value."""
-        for k in keys:
-            v = td.get(k) or td.get(k.lower()) or td.get(k.upper()) or ""
-            if v:
+    # ── Strategy 4: XML / MusicXML ──────────────────────────────────────────
+    try:
+        tunes = _parse_msca_xml(content)
+        if tunes:
+            return tunes, collection_name
+    except Exception:
+        pass
+
+    # ── Strategy 5: ABC text ─────────────────────────────────────────────────
+    try:
+        text = content.decode("utf-8", errors="strict")
+        if "X:" in text and "T:" in text:
+            abc_tunes = []
+            for t in parse_abc_string(text):
+                if t.title:
+                    abc_tunes.append({"title": t.title, "abc": t.abc,
+                                      "key": t.key, "type": t.type})
+            if abc_tunes:
+                return abc_tunes, collection_name
+    except Exception:
+        pass
+
+    # Nothing worked — give a diagnostic hint
+    preview = content[:120]
+    try:
+        hint = preview.decode("utf-8", errors="replace")
+    except Exception:
+        hint = preview.hex()
+    raise HTTPException(
+        400,
+        f"Could not parse .msca file. File starts with: {hint!r}  "
+        "Please report this so the format can be added."
+    )
+
+
+def _parse_msca_xml(content: bytes) -> list[dict]:
+    """Try to extract tunes from XML or MusicXML content."""
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(content)
+    tag = root.tag.lower().split("}")[-1]  # strip namespace
+
+    tunes = []
+    # MusicXML score-partwise / score-timewise
+    if tag in ("score-partwise", "score-timewise", "score"):
+        ns = {"m": "http://www.musicxml.org/dtds/partwise.dtd"}
+        title_el = root.find(".//{*}movement-title") or root.find(".//{*}work-title")
+        title = title_el.text.strip() if title_el is not None and title_el.text else ""
+        composer_el = root.find(".//{*}creator[@type='composer']") or root.find(".//{*}creator")
+        composer = composer_el.text.strip() if composer_el is not None and composer_el.text else ""
+        if title:
+            tunes.append({"title": title, "composer": composer, "abc": ""})
+    # Generic XML: look for tune/song/item elements
+    elif tag in ("library", "tunes", "songs", "items", "collection", "document"):
+        for child in root:
+            t = {}
+            for field, xml_tag in (
+                ("title", "title"), ("title", "name"), ("title", "Title"),
+                ("abc", "abc"), ("key", "key"), ("type", "type"), ("type", "genre"),
+                ("composer", "composer"),
+            ):
+                el = child.find(xml_tag)
+                if el is not None and el.text:
+                    t.setdefault(field, el.text.strip())
+            # Also try attributes
+            for attr in ("title", "name", "Title"):
+                if attr in child.attrib and "title" not in t:
+                    t["title"] = child.attrib[attr].strip()
+            if t.get("title"):
+                tunes.append(t)
+
+    return tunes
+
+
+def _msca_field(td: dict, *keys: str, default: str = "") -> str:
+    """Try multiple possible key names, return first non-empty value."""
+    for k in keys:
+        for variant in (k, k.lower(), k.upper(), k[0].upper() + k[1:]):
+            v = td.get(variant)
+            if v and str(v).strip():
                 return str(v).strip()
-        return default
+    return default
 
+
+def _import_msca_tune_list(
+    conn,
+    tune_list: list[dict],
+    collection_name: str,
+    as_collection: bool = True,
+) -> dict:
+    """Insert tunes from a parsed list; optionally group into a collection."""
     import_date = date.today().isoformat()
     imported = skipped = 0
+    tune_ids = []
 
+    for td in tune_list:
+        if not isinstance(td, dict):
+            continue
+        title = _msca_field(td, "title", "name", "tune_name", "tuneName",
+                            "Title", "Name")
+        if not title:
+            skipped += 1
+            continue
+
+        existing = conn.execute(
+            "SELECT id FROM tunes WHERE LOWER(TRIM(title)) = ? LIMIT 1",
+            (title.lower(),),
+        ).fetchone()
+        if existing:
+            tune_ids.append(existing["id"])
+            skipped += 1
+            continue
+
+        abc = _msca_field(td, "abc", "abc_notation", "abcNotation", "score",
+                          "ABC", "Score")
+        key = _msca_field(td, "key", "key_signature", "keySignature", "Key")
+        tune_type = _msca_field(td, "type", "genre", "rhythm", "form",
+                                "Type", "Genre", "Rhythm")
+        composer = _msca_field(td, "composer", "author", "by",
+                               "Composer", "Author")
+        source_url = _msca_field(td, "source_url", "sourceUrl", "url",
+                                 "source", "Source", "URL")
+        bpm = _msca_field(td, "bpm", "tempo", "BPM", "Tempo")
+        time_sig = _msca_field(td, "time_signature", "timeSignature",
+                               "meter", "Meter")
+
+        notes_parts = [f"Imported from Music Scanner: {import_date}"]
+        if bpm:
+            notes_parts.append(f"Tempo: {bpm} BPM")
+        if time_sig:
+            notes_parts.append(f"Time: {time_sig}")
+        extra_notes = _msca_field(td, "notes", "description", "comments",
+                                  "Notes", "Description")
+        if extra_notes:
+            notes_parts.append(extra_notes)
+        notes = "\n".join(notes_parts)
+
+        cur = conn.execute(
+            "INSERT INTO tunes (title, type, key, mode, abc, notes, composer,"
+            " source_url, imported_at)"
+            " VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
+            (title, tune_type, key, "", abc, notes, composer, source_url),
+        )
+        tune_ids.append(cur.lastrowid)
+        imported += 1
+
+    col_id = None
+    if as_collection and tune_ids and collection_name:
+        cur = conn.execute(
+            "INSERT INTO collections (name, description) VALUES (?, ?)",
+            (collection_name,
+             f"Imported from Music Scanner on {import_date}"),
+        )
+        col_id = cur.lastrowid
+        conn.executemany(
+            "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id)"
+            " VALUES (?,?)",
+            [(col_id, tid) for tid in tune_ids],
+        )
+
+    return {"imported": imported, "skipped": skipped,
+            "collection_id": col_id, "collection_name": collection_name if col_id else None}
+
+
+@app.post("/api/import/msca", status_code=201)
+async def import_msca(
+    file: UploadFile = File(...),
+    as_collection: bool = Query(True),
+):
+    """
+    Import a .msca file from the Music Scanner app.
+    Tries JSON, Apple plist, ZIP, XML, and ABC formats in order.
+    If the file contains multiple tunes (e.g. a scanned book), they are
+    grouped into a collection named after the file.
+    """
+    content = await file.read()
+    fname = file.filename or "import.msca"
+    tune_list, collection_name = _parse_msca_content(content, fname)
     with _db() as conn:
-        for td in tune_list:
-            if not isinstance(td, dict):
-                continue
-            title = _msca_field(td, "title", "name", "tune_name", "tuneName")
-            if not title:
-                skipped += 1
-                continue
+        result = _import_msca_tune_list(
+            conn, tune_list, collection_name,
+            as_collection=(as_collection and len(tune_list) > 1),
+        )
+    result["ok"] = True
+    return result
 
-            # Skip if tune already exists by title
-            existing = conn.execute(
-                "SELECT id FROM tunes WHERE LOWER(TRIM(title)) = ? LIMIT 1",
-                (title.lower(),),
-            ).fetchone()
-            if existing:
-                skipped += 1
-                continue
 
-            abc = _msca_field(td, "abc", "abc_notation", "abcNotation", "score")
-            key = _msca_field(td, "key", "key_signature", "keySignature")
-            tune_type = _msca_field(td, "type", "genre", "rhythm", "form")
-            composer = _msca_field(td, "composer", "author", "by")
-            source_url = _msca_field(td, "source_url", "sourceUrl", "url", "source")
-            bpm = _msca_field(td, "bpm", "tempo")
-            time_sig = _msca_field(td, "time_signature", "timeSignature", "meter")
-
-            notes_parts = [f"Imported from Music Scanner: {import_date}"]
-            if bpm:
-                notes_parts.append(f"Tempo: {bpm} BPM")
-            if time_sig:
-                notes_parts.append(f"Time: {time_sig}")
-            extra_notes = _msca_field(td, "notes", "description", "comments")
-            if extra_notes:
-                notes_parts.append(extra_notes)
-            notes = "\n".join(notes_parts)
-
-            conn.execute(
-                "INSERT INTO tunes (title, type, key, mode, abc, notes, composer,"
-                " source_url, imported_at)"
-                " VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
-                (title, tune_type, key, "", abc, notes, composer, source_url),
-            )
-            imported += 1
-
-    return {"ok": True, "imported": imported, "skipped": skipped}
+@app.post("/api/import/msca/diagnose")
+async def diagnose_msca(file: UploadFile = File(...)):
+    """Return diagnostic info about an .msca file to help identify its format."""
+    content = await file.read()
+    size = len(content)
+    start_hex = content[:64].hex()
+    try:
+        start_text = content[:256].decode("utf-8", errors="replace")
+    except Exception:
+        start_text = "(binary)"
+    is_zip = content[:2] == b"PK"
+    is_xml = content.lstrip()[:5] in (b"<?xml", b"<tune", b"<scor", b"<libr")
+    is_json = content.lstrip()[:1] in (b"{", b"[")
+    try:
+        import plistlib
+        plistlib.loads(content)
+        is_plist = True
+    except Exception:
+        is_plist = False
+    return {
+        "filename": file.filename,
+        "size_bytes": size,
+        "start_hex": start_hex,
+        "start_text": start_text,
+        "detected": {
+            "is_zip": is_zip,
+            "is_xml": bool(is_xml),
+            "is_json": bool(is_json),
+            "is_plist": is_plist,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

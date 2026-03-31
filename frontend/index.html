@@ -685,13 +685,16 @@
 
       <!-- Music Scanner (.msca) tab -->
       <div id="import-tab-msca" class="tab-panel hidden">
-        <p class="import-desc">Import a <strong>.msca</strong> file from the Music Scanner app. Tunes are added to your library — duplicates are skipped.</p>
+        <p class="import-desc">Import a <strong>.msca</strong> file from the Music Scanner app. Tunes are added to your library — duplicates are skipped. Multi-tune files (scanned books) are grouped as a collection.</p>
         <label class="import-drop" id="msca-drop-zone">
           <input id="msca-file-input" type="file" accept=".msca,.json" style="display:none">
           <span class="import-drop-label">Drop a <code>.msca</code> file here, or click to choose</span>
         </label>
         <div id="msca-import-result" class="import-result hidden"></div>
-        <div class="import-actions">
+        <div class="import-actions" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem">
+            <input type="checkbox" id="msca-as-collection" checked> Group multi-tune files as a collection
+          </label>
           <button id="msca-import-btn" class="btn-import" disabled>Import tunes</button>
         </div>
       </div>
