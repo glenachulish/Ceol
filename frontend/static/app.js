@@ -171,6 +171,7 @@ bulkDeleteBtn.addEventListener("click", async () => {
     });
     _exitSelectMode();
     await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+    window._loadRecentImports?.();
   } catch {
     alert("Failed to delete tunes. Please try again.");
     bulkDeleteBtn.disabled = false;
@@ -1931,9 +1932,11 @@ function renderModal(tune, onBack = null, siblings = null) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ abc: "" }),
         });
-        // Reload the modal with fresh data
-        const fresh = await apiFetch(`/api/tunes/${tune.id}`);
-        _openTuneModal(fresh);
+        // Reload library cards then re-render the modal
+        await loadTunes();
+        const fresh = await fetchTune(tune.id);
+        renderModal(fresh, onBack, siblings);
+        requestAnimationFrame(() => { /* no ABC to render */ });
       } catch (err) {
         clearAbcBtn.textContent = "🗑 Clear ABC";
         clearAbcBtn.disabled = false;
@@ -2124,6 +2127,7 @@ function renderModal(tune, onBack = null, siblings = null) {
       try {
         await apiDeleteTune(tune.id);
         await Promise.all([loadTunes(), loadStats()]);
+        window._loadRecentImports?.();
         if (onBack) onBack();
         else renderVersionsPanel(tune.parent_id);
       } catch {
@@ -2136,6 +2140,7 @@ function renderModal(tune, onBack = null, siblings = null) {
       try {
         await apiDeleteTune(tune.id);
         await Promise.all([loadTunes(), loadStats()]);
+        window._loadRecentImports?.();
         closeModal();
       } catch {
         alert("Failed to delete. Please try again.");
