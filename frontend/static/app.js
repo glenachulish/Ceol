@@ -4204,7 +4204,7 @@ function renderSets(sets) {
     let _debounce = null;
 
     async function _runSearch(q) {
-      const tunes = await apiFetch(`/api/tunes?search=${encodeURIComponent(q)}&page_size=10`);
+      const tunes = await apiFetch(`/api/tunes?q=${encodeURIComponent(q)}&page_size=10`);
         const list = tunes.tunes || tunes;
         if (!list.length) { results.innerHTML = '<p class="set-add-tune-none">No tunes found</p>'; return; }
         results.innerHTML = list.map(t =>
