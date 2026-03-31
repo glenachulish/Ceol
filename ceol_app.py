@@ -7,8 +7,11 @@ from pathlib import Path
 
 def main():
     if getattr(sys, "frozen", False):
+        # sys._MEIPASS is the correct path to bundled data files.
+        # PyInstaller 6.x puts them in _internal/, so we must always use
+        # sys._MEIPASS directly rather than relying on the Swift-passed value.
         base_dir = Path(sys._MEIPASS)
-        os.environ.setdefault("CEOL_BASE_DIR", str(base_dir))
+        os.environ["CEOL_BASE_DIR"] = str(base_dir)
 
     data_dir = os.environ.get("CEOL_DATA_DIR")
     if data_dir:

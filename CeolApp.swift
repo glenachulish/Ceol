@@ -24,7 +24,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         serverProcess!.environment = ProcessInfo.processInfo.environment.merging([
             "CEOL_PORT": String(port),
             "CEOL_DATA_DIR": dataDir,
-            "CEOL_BASE_DIR": bundle.resourcePath! + "/server",
+            // CEOL_BASE_DIR is intentionally not set here — the Python server
+            // sets it from sys._MEIPASS which correctly handles PyInstaller 6.x
+            // _internal/ layout.
         ]) { _, new in new }
 
         // Suppress server stdout/stderr from appearing
@@ -123,7 +125,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         serverProcess?.terminate()
-        serverProcess?.waitUntilExit()
+        // Do NOT call waitUntilExit() here — it can block indefinitely and
+        // force the user to Force Quit. The OS will clean up the child process.
     }
 
     func findFreePort() -> Int {
