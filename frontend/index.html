@@ -16,7 +16,7 @@
           <h1>Ceòl <span class="version-tag">v3</span></h1>
           <span class="subtitle">Your trad music library</span>
         </div>
-        <button id="info-btn" class="help-btn" aria-label="App info" data-tooltip="App &amp; database location">ℹ</button>
+        <button id="info-btn" class="help-btn" aria-label="Help" data-tooltip="User guide &amp; help">?</button>
         <button id="theme-toggle-btn" class="help-btn" aria-label="Toggle theme" data-tooltip="Toggle light/dark/auto theme">🌙</button>
       </div>
       <nav class="header-nav">
@@ -764,47 +764,62 @@
   <div id="help-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="modal help-modal">
       <button class="modal-close" id="help-close" aria-label="Close">✕</button>
-      <h2 class="modal-title" id="help-title">Ceol – User Guide</h2>
-      <p class="help-intro">Ceol is your personal trad music library. Here's a quick overview of everything it can do.</p>
+      <h2 class="modal-title" id="help-title">Ceòl – User Guide</h2>
+      <p class="help-intro">Click a section to expand it.</p>
 
-      <div class="help-section">
-        <h3>Navigation</h3>
-        <div class="help-row"><span class="help-label">Library</span><span class="help-desc">Browse, search and filter all your tunes. Click any tune to open it.</span></div>
-        <div class="help-row"><span class="help-label">Sets</span><span class="help-desc">Group tunes into named sets for a session or practice run. Play them in sequence.</span></div>
-        <div class="help-row"><span class="help-label">Notes</span><span class="help-desc">Freeform documents — ideas, practice notes, links, attachments.</span></div>
-        <div class="help-row"><span class="help-label">Achievements</span><span class="help-desc">Auto-logged progress events (rating changes, hitlist adds) plus your own notes.</span></div>
-      </div>
+      <details class="help-section" open>
+        <summary><h3>Getting around</h3></summary>
+        <div class="help-row"><span class="help-label">Library</span><span class="help-desc">Browse all your tunes. Search by title, filter by type, key, mode, rating, hitlist, or collection. Click any tune card to open it.</span></div>
+        <div class="help-row"><span class="help-label">Sets</span><span class="help-desc">Group tunes into named practice sets. Reorder with ↑↓, play a <strong>Transition</strong> between tunes, or click <strong>Music</strong> to open a tune's sheet music.</span></div>
+        <div class="help-row"><span class="help-label">Collections</span><span class="help-desc">Themed groups of tunes and sets (e.g. "Scottish Session"). Export as a .ceol.json to share with other Ceòl users.</span></div>
+        <div class="help-row"><span class="help-label">More menu</span><span class="help-desc">Notes documents, Achievements timeline, and a mobile link to open Ceòl on your phone over Wi-Fi.</span></div>
+        <div class="help-row"><span class="help-label">🎙 FolkFriend</span><span class="help-desc">Opens FolkFriend.app — hum or play a tune into your mic to identify it, like TunePal.</span></div>
+        <div class="help-row"><span class="help-label">Links menu</span><span class="help-desc">Quick links to TheSession.org, FlutefFling.scot, Nigel Gatherer, Hands Up for Trad, Flute Geezers, and Michael Eskin's ABC Tools.</span></div>
+      </details>
 
-      <div class="help-section">
-        <h3>Adding tunes</h3>
+      <details class="help-section">
+        <summary><h3>Adding tunes</h3></summary>
+        <div class="help-row"><span class="help-label">TheSession.org</span><span class="help-desc">Search the world's largest trad database, preview the sheet music, choose a setting, and save to your library.</span></div>
+        <div class="help-row"><span class="help-label">FlutefFling.scot</span><span class="help-desc">Browse the FlutefFling catalogue and import tunes with one click — PDF and MP3 links included.</span></div>
         <div class="help-row"><span class="help-label">ABC File</span><span class="help-desc">Upload a <code>.abc</code> file to bulk-import many tunes at once.</span></div>
         <div class="help-row"><span class="help-label">Paste ABC</span><span class="help-desc">Paste raw ABC notation directly. Each tune must start with <code>X:</code>.</span></div>
-        <div class="help-row"><span class="help-label">TheSession.org</span><span class="help-desc">Search the world's largest trad tune database, preview sheet music, then save.</span></div>
-        <div class="help-row"><span class="help-label">FlutefFling.scot</span><span class="help-desc">Browse the FlutefFling session catalogue and import tunes with one click.</span></div>
-        <div class="help-row"><span class="help-label">Dropbox</span><span class="help-desc">Connect a Dropbox folder and import <code>.abc</code> files or link audio files.</span></div>
-      </div>
+        <div class="help-row"><span class="help-label">Folder</span><span class="help-desc">Drop a folder of <code>.abc</code>, MP3, and PDF files — Ceòl matches and imports everything together.</span></div>
+        <div class="help-row"><span class="help-label">YouTube</span><span class="help-desc">Paste a YouTube URL to create a tune entry with the video in notes. Title fetched automatically.</span></div>
+        <div class="help-row"><span class="help-label">PDF / Photos</span><span class="help-desc">Attach PDF sheet music to existing tunes, or import photos of handwritten music (auto-enhanced).</span></div>
+        <div class="help-row"><span class="help-label">Ceol file</span><span class="help-desc">Import a <code>.ceol.json</code> from another Ceòl library — tunes are merged, duplicates skipped, collection recreated.</span></div>
+      </details>
 
-      <div class="help-section">
-        <h3>Library features</h3>
-        <div class="help-row"><span class="help-label">Search &amp; filters</span><span class="help-desc">Filter by title, type (reel, jig…), key, mode, or star rating.</span></div>
-        <div class="help-row"><span class="help-label">⭐ Star rating</span><span class="help-desc">Rate tunes 1–5 stars to track how well you know them. Achievements are logged when your rating improves.</span></div>
-        <div class="help-row"><span class="help-label">📌 Hitlist</span><span class="help-desc">Flag tunes you want to learn. Use the Hitlist button to filter to just those tunes.</span></div>
-        <div class="help-row"><span class="help-label">Select mode</span><span class="help-desc">Select 2+ tunes to group them as versions of the same tune, or delete in bulk.</span></div>
-      </div>
+      <details class="help-section">
+        <summary><h3>Inside a tune</h3></summary>
+        <div class="help-row"><span class="help-label">Sheet Music tab</span><span class="help-desc">Renders ABC notation. For FlutefFling tunes without ABC, shows the original PDF instead.</span></div>
+        <div class="help-row"><span class="help-label">Audio playback</span><span class="help-desc">Play as MIDI (flute sound). Set a start and end bar to loop just that section.</span></div>
+        <div class="help-row"><span class="help-label">🖊 Highlight</span><span class="help-desc">Toggle Highlight mode then click any bar to mark it amber for difficult passages. Saved permanently. Click ✕ Clear to remove all.</span></div>
+        <div class="help-row"><span class="help-label">ABC Text tab</span><span class="help-desc">Edit the raw ABC notation and Save &amp; Re-render to update the sheet music.</span></div>
+        <div class="help-row"><span class="help-label">Notes tab</span><span class="help-desc">Free-text notes with auto-linked URLs — MP3s and YouTube play inline. Use 🎧 Attach audio or 📹 Attach video to upload media files.</span></div>
+        <div class="help-row"><span class="help-label">Practice tab</span><span class="help-desc">Phrase Builder: choose a bar range, rest bars, and tempo ramp (e.g. 60%→100% in 5% steps). Builds a looping practice sequence.</span></div>
+        <div class="help-row"><span class="help-label">⭐ Rating</span><span class="help-desc">Rate 1–5 stars on the card or in the modal. Improvements are auto-logged in Achievements.</span></div>
+        <div class="help-row"><span class="help-label">📌 Hitlist</span><span class="help-desc">Flag tunes you're working on. Filter to Hitlist-only from the Library toolbar.</span></div>
+        <div class="help-row"><span class="help-label">Versions</span><span class="help-desc">Group different settings of the same tune. Click a parent to see all versions.</span></div>
+      </details>
 
-      <div class="help-section">
-        <h3>Inside a tune</h3>
-        <div class="help-row"><span class="help-label">Sheet Music tab</span><span class="help-desc">Renders ABC notation with abcjs. For FlutefFling tunes, shows the PDF instead.</span></div>
-        <div class="help-row"><span class="help-label">Audio playback</span><span class="help-desc">Play the tune as MIDI. Set a bar range to loop a section for practice.</span></div>
-        <div class="help-row"><span class="help-label">Notes tab</span><span class="help-desc">Add free text notes. URLs are auto-linked — paste an MP3 or YouTube link to get an inline player.</span></div>
-        <div class="help-row"><span class="help-label">Versions</span><span class="help-desc">Group different settings of the same tune. Click a parent tune to see all its versions.</span></div>
-      </div>
+      <details class="help-section">
+        <summary><h3>Library &amp; Collections</h3></summary>
+        <div class="help-row"><span class="help-label">Search</span><span class="help-desc">Accent- and case-insensitive — searching "ceol" finds "Ceòl". Also searches alternate tune names.</span></div>
+        <div class="help-row"><span class="help-label">Filters</span><span class="help-desc">Filter by type, key, mode, rating, hitlist, favourites, composer, or collection.</span></div>
+        <div class="help-row"><span class="help-label">Select mode</span><span class="help-desc">Click Select then tick 2+ tunes to group as versions or delete in bulk.</span></div>
+        <div class="help-row"><span class="help-label">Export collection</span><span class="help-desc">Collections → ⬇ Export saves a <code>.ceol.json</code> with all tunes (ABC, notes, ratings) and sets.</span></div>
+        <div class="help-row"><span class="help-label">Import collection</span><span class="help-desc">Import Tunes → <strong>Ceol file</strong> tab → drop in the <code>.ceol.json</code> → Merge into library.</span></div>
+      </details>
 
-      <div class="help-section">
-        <h3>Library management</h3>
-        <div class="help-row"><span class="help-label">💾 Backup</span><span class="help-desc">Export your entire library — tunes, sets, notes, and attachments — as a <code>.zip</code> file.</span></div>
-        <div class="help-row"><span class="help-label">📂 Import Library</span><span class="help-desc">Restore from a backup file. <strong>Replaces</strong> your current library, so backup first.</span></div>
-      </div>
+      <details class="help-section">
+        <summary><h3>Backup &amp; management</h3></summary>
+        <div class="help-row"><span class="help-label">💾 Export Library</span><span class="help-desc">Downloads a ZIP of everything — tunes, sets, collections, notes, uploads. Do this before any major change.</span></div>
+        <div class="help-row"><span class="help-label">📂 Import Library</span><span class="help-desc">Restores from a ZIP backup. <strong>Replaces</strong> everything — backup first!</span></div>
+        <div class="help-row"><span class="help-label">🔀 Merge Library</span><span class="help-desc">Merges another library's tunes in without replacing existing data.</span></div>
+        <div class="help-row"><span class="help-label">iCloud / network</span><span class="help-desc">The database can live on iCloud Drive or a network folder — set <code>CEOL_DATA_DIR</code> when starting the server.</span></div>
+        <div class="help-row"><span class="help-label">File paths &amp; tools</span><span class="help-desc">See database location, backups, and auto-classify tools:</span></div>
+        <div style="margin-top:.3rem"><button id="help-open-info-btn" class="btn-secondary btn-sm">ℹ Open App Info</button></div>
+      </details>
     </div>
   </div>
 

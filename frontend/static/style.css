@@ -1096,6 +1096,7 @@ button.set-tune-title:hover { text-decoration: underline; }
 /* ── Modal tabs ───────────────────────────────────────────── */
 .modal-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0;
   margin: .75rem 0 0;
   border-bottom: 1px solid var(--border);
@@ -1114,6 +1115,32 @@ button.set-tune-title:hover { text-decoration: underline; }
 .tab-btn:hover { color: var(--text); }
 .tab-btn.active { border-bottom-color: var(--accent); color: var(--accent); }
 .tab-panel { padding-top: .9rem; }
+
+/* ── Help guide collapsible sections ─────────────────────── */
+.help-section { border-bottom: 1px solid var(--border); padding: .4rem 0; }
+.help-section summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem 0;
+  user-select: none;
+}
+.help-section summary::-webkit-details-marker { display: none; }
+.help-section summary h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text);
+}
+.help-section summary::before {
+  content: "▶";
+  font-size: .7rem;
+  color: var(--text-muted);
+  transition: transform .15s;
+  flex-shrink: 0;
+}
+.help-section[open] > summary::before { transform: rotate(90deg); }
 
 /* ── Sheet music ──────────────────────────────────────────── */
 .sheet-music-wrap {

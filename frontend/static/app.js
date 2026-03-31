@@ -8050,9 +8050,36 @@ libDeleteConfirm.addEventListener("click", async () => {
 })();
 
 // ── Help modal ────────────────────────────────────────────────────────────────
+const helpBtn     = document.getElementById("help-btn");
+const helpOverlay = document.getElementById("help-overlay");
+const helpClose   = document.getElementById("help-close");
+
+function _openHelp() {
+  helpOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+function _closeHelp() {
+  helpOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+helpBtn.addEventListener("click", _openHelp);
+helpClose.addEventListener("click", _closeHelp);
+helpOverlay.addEventListener("click", e => { if (e.target === helpOverlay) _closeHelp(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !helpOverlay.classList.contains("hidden")) _closeHelp(); });
+
+// ? button in header also opens help
+document.getElementById("info-btn").addEventListener("click", _openHelp);
+
+// "Open App Info" button inside the help modal opens the info modal
+helpOverlay.addEventListener("click", e => {
+  if (e.target.id === "help-open-info-btn") {
+    _closeHelp();
+    _openInfoModal();
+  }
+});
+
 // ── Info modal ───────────────────────────────────────────────────────────────
-const infoBtn = document.getElementById("info-btn");
-infoBtn.addEventListener("click", async () => {
+async function _openInfoModal() {
   const info = await fetch("/api/info").then(r => r.json());
   const bak1 = info.backup1 ? `<code>${info.backup1}</code>` : "<em>none yet</em>";
   const bak2 = info.backup2 ? `<code>${info.backup2}</code>` : "<em>none yet</em>";
@@ -8126,23 +8153,6 @@ infoBtn.addEventListener("click", async () => {
   document.getElementById("classify-new-btn").addEventListener("click", () => runClassify(false));
   document.getElementById("classify-all-btn").addEventListener("click", () => runClassify(true));
 });
-
-const helpBtn     = document.getElementById("help-btn");
-const helpOverlay = document.getElementById("help-overlay");
-const helpClose   = document.getElementById("help-close");
-
-function _openHelp() {
-  helpOverlay.classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-}
-function _closeHelp() {
-  helpOverlay.classList.add("hidden");
-  document.body.style.overflow = "";
-}
-helpBtn.addEventListener("click", _openHelp);
-helpClose.addEventListener("click", _closeHelp);
-helpOverlay.addEventListener("click", e => { if (e.target === helpOverlay) _closeHelp(); });
-document.addEventListener("keydown", e => { if (e.key === "Escape" && !helpOverlay.classList.contains("hidden")) _closeHelp(); });
 
 // ── Practice tab (Phrase Builder + Tempo Progression) ────────────────────────
 let _pracSynthCtrl   = null;
