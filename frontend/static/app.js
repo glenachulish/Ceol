@@ -1069,17 +1069,14 @@ function renderModal(tune, onBack = null, siblings = null) {
     : "";
   const _sessionUrlMatch = tune.source_url && tune.source_url.match(/thesession\.org\/tunes\/(\d+)/);
   const _sessionId = tune.session_id || (_sessionUrlMatch && _sessionUrlMatch[1]);
-  // For tunes with a known session ID: direct link. Otherwise: search link.
-  const sessionLink = _sessionId
-    ? `<a class="modal-session-link" href="https://thesession.org/tunes/${_sessionId}" target="_blank" rel="noopener">View on TheSession.org ↗</a>`
-    : `<a class="modal-session-link" href="https://thesession.org/tunes?q=${encodeURIComponent(tune.title)}" target="_blank" rel="noopener">Search TheSession.org ↗</a>`;
   const importedLine = tune.imported_at
-    ? `<p class="modal-imported">Imported: ${new Date(tune.imported_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} · ${sessionLink}</p>`
-    : `<p class="modal-imported">${sessionLink}</p>`;
-  // Only show the dedicated "view" link in the sheet music tab when we have a real session ID
-  const sessionViewLink = _sessionId
-    ? `<a class="modal-session-link" href="https://thesession.org/tunes/${_sessionId}" target="_blank" rel="noopener">View on TheSession.org ↗</a>`
+    ? `<p class="modal-imported">Imported: ${new Date(tune.imported_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</p>`
     : "";
+  // TheSession.org button — direct link if we have a session ID, search otherwise
+  const sessionHref = _sessionId
+    ? `https://thesession.org/tunes/${_sessionId}`
+    : `https://thesession.org/tunes?q=${encodeURIComponent(tune.title)}`;
+  const sessionBtnLabel = _sessionId ? "🌐 Open on TheSession.org ↗" : "🔍 Search TheSession.org ↗";
   const tagLine = tune.tags && tune.tags.length
     ? `<div class="modal-meta">${tune.tags.map(g => `<span class="badge badge-other">${escHtml(g)}</span>`).join("")}</div>`
     : "";
@@ -1178,12 +1175,13 @@ function renderModal(tune, onBack = null, siblings = null) {
         <div class="fetch-abc-row">
           ${tune.abc ? `<button id="fetch-abc-toggle" class="btn-secondary btn-sm">🔍 Find on TheSession.org…</button>` : ""}
           <button id="fetch-session-abc" class="btn-import${tune.abc ? " hidden" : ""}">🔍 Find ABC on TheSession.org</button>
+          <a id="open-session-btn" href="${sessionHref}" target="_blank" rel="noopener" class="btn-secondary btn-sm">${sessionBtnLabel}</a>
           <span id="fetch-abc-status" class="notes-status"></span>
           ${tune.abc ? `<button id="strip-chords-btn" class="btn-secondary btn-sm" title="Remove guitar chord symbols from ABC">✂ Strip chords</button>` : ""}
+          ${tune.abc ? `<button id="clear-abc-btn" class="btn-danger btn-sm" title="Remove the ABC notation for this tune">🗑 Clear ABC</button>` : ""}
         </div>
         <div id="session-abc-results" class="session-abc-results hidden"></div>
       </div>
-      ${sessionViewLink ? `<p class="session-link-below">${sessionViewLink}</p>` : ""}
       ${pdfUrl ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
       </div>` : ""}
@@ -1916,6 +1914,29 @@ function renderModal(tune, onBack = null, siblings = null) {
       } catch (err) {
         stripChordsBtn.textContent = "✂ Strip chords";
         stripChordsBtn.disabled = false;
+      }
+    });
+  }
+
+  // Clear ABC button
+  const clearAbcBtn = document.getElementById("clear-abc-btn");
+  if (clearAbcBtn) {
+    clearAbcBtn.addEventListener("click", async () => {
+      if (!confirm("Remove the ABC notation for this tune? The sheet music will be cleared. This cannot be undone easily.")) return;
+      clearAbcBtn.disabled = true;
+      clearAbcBtn.textContent = "Clearing…";
+      try {
+        await apiFetch(`/api/tunes/${tune.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ abc: "" }),
+        });
+        // Reload the modal with fresh data
+        const fresh = await apiFetch(`/api/tunes/${tune.id}`);
+        _openTuneModal(fresh);
+      } catch (err) {
+        clearAbcBtn.textContent = "🗑 Clear ABC";
+        clearAbcBtn.disabled = false;
       }
     });
   }
