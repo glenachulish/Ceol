@@ -41,6 +41,9 @@
             <a href="https://www.lafferty.ca/music/irish/flute-geezers/" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 Flute Geezers</a>
             <hr class="library-menu-divider" />
             <a href="https://thesession.org/" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 TheSession.org</a>
+            <div id="user-links-section"></div>
+            <hr class="library-menu-divider" />
+            <button id="add-link-btn" class="library-menu-item" style="font-size:.85rem;color:var(--accent)">+ Add link…</button>
           </div>
         </div>
         <div class="library-menu-wrap">
@@ -293,6 +296,7 @@
         <button class="tab-btn" data-import-tab="photos">Photos</button>
         <button class="tab-btn" data-import-tab="youtube">YouTube</button>
         <button class="tab-btn" data-import-tab="ceol">Ceol file</button>
+        <button class="tab-btn" data-import-tab="msca">Music Scanner</button>
       </div>
 
       <!-- ABC file tab -->
@@ -678,6 +682,19 @@
           <button id="ceol-import-btn" class="btn-import" disabled>Merge into library</button>
         </div>
       </div>
+
+      <!-- Music Scanner (.msca) tab -->
+      <div id="import-tab-msca" class="tab-panel hidden">
+        <p class="import-desc">Import a <strong>.msca</strong> file from the Music Scanner app. Tunes are added to your library — duplicates are skipped.</p>
+        <label class="import-drop" id="msca-drop-zone">
+          <input id="msca-file-input" type="file" accept=".msca,.json" style="display:none">
+          <span class="import-drop-label">Drop a <code>.msca</code> file here, or click to choose</span>
+        </label>
+        <div id="msca-import-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="msca-import-btn" class="btn-import" disabled>Import tunes</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -787,6 +804,7 @@
         <div class="help-row"><span class="help-label">YouTube</span><span class="help-desc">Paste a YouTube URL to create a tune entry with the video in notes. Title fetched automatically.</span></div>
         <div class="help-row"><span class="help-label">PDF / Photos</span><span class="help-desc">Attach PDF sheet music to existing tunes, or import photos of handwritten music (auto-enhanced).</span></div>
         <div class="help-row"><span class="help-label">Ceol file</span><span class="help-desc">Import a <code>.ceol.json</code> from another Ceòl library — tunes are merged, duplicates skipped, collection recreated.</span></div>
+        <div class="help-row"><span class="help-label">Music Scanner</span><span class="help-desc">Import a <code>.msca</code> file from the Music Scanner app — tune titles and ABC are extracted and added to your library.</span></div>
       </details>
 
       <details class="help-section">
@@ -820,6 +838,26 @@
         <div class="help-row"><span class="help-label">File paths &amp; tools</span><span class="help-desc">See database location, backups, and auto-classify tools:</span></div>
         <div style="margin-top:.3rem"><button id="help-open-info-btn" class="btn-secondary btn-sm">ℹ Open App Info</button></div>
       </details>
+    </div>
+  </div>
+
+  <!-- ── Add link modal ── -->
+  <div id="add-link-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="add-link-title">
+    <div class="modal" style="max-width:420px">
+      <button class="modal-close" id="add-link-close" aria-label="Close">✕</button>
+      <h2 id="add-link-title" style="margin-bottom:1rem">Add a link</h2>
+      <div style="display:flex;flex-direction:column;gap:.6rem">
+        <label style="font-size:.85rem;font-weight:600">Label</label>
+        <input id="add-link-label" type="text" class="search-input" placeholder="e.g. My YouTube Channel" style="width:100%;box-sizing:border-box"/>
+        <label style="font-size:.85rem;font-weight:600">URL</label>
+        <input id="add-link-url" type="url" class="search-input" placeholder="https://..." style="width:100%;box-sizing:border-box"/>
+        <label style="font-size:.85rem;font-weight:600">Emoji (optional)</label>
+        <input id="add-link-emoji" type="text" class="search-input" placeholder="🔗" maxlength="4" style="width:5rem"/>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:.5rem;justify-content:flex-end">
+        <button id="add-link-cancel" class="btn-secondary">Cancel</button>
+        <button id="add-link-save" class="btn-primary">Save</button>
+      </div>
     </div>
   </div>
 

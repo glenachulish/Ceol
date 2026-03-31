@@ -167,8 +167,13 @@ def _normalize_title_for_grouping(title: str) -> str:
     to the end with a comma, e.g.:
         "The Road to Banff"  →  "road to banff"
         "Road to Banff, The" →  "road to banff"
+
+    Also strips leading track numbers so that "01 - My Tune" and "My Tune"
+    match, which is common in MP3 collections.
     """
     t = title.strip().lower()
+    # Strip leading track numbers like "01 ", "01 - ", "1. ", "01_"
+    t = re.sub(r"^\d+[\s\-_\.]+", "", t).strip()
     for suffix, prefix in ((", the", "the "), (", a", "a "), (", an", "an ")):
         if t.endswith(suffix):
             t = prefix + t[: -len(suffix)].strip()
@@ -1048,6 +1053,42 @@ def api_classify_types(force: bool = False):
     }
 
 
+@app.get("/api/links")
+def list_user_links():
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, label, url, emoji FROM user_links ORDER BY id"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+class UserLinkBody(BaseModel):
+    label: str
+    url: str
+    emoji: str = "🔗"
+
+
+@app.post("/api/links", status_code=201)
+def create_user_link(body: UserLinkBody):
+    with _db() as conn:
+        cur = conn.execute(
+            "INSERT INTO user_links (label, url, emoji) VALUES (?, ?, ?)",
+            (body.label.strip(), body.url.strip(), body.emoji.strip() or "🔗"),
+        )
+        row = conn.execute(
+            "SELECT id, label, url, emoji FROM user_links WHERE id = ?",
+            (cur.lastrowid,),
+        ).fetchone()
+    return dict(row)
+
+
+@app.delete("/api/links/{link_id}")
+def delete_user_link(link_id: int):
+    with _db() as conn:
+        conn.execute("DELETE FROM user_links WHERE id = ?", (link_id,))
+    return {"ok": True}
+
+
 @app.get("/api/info")
 def get_info():
     bak1 = DB_PATH.parent / "ceol.db.bak1"
@@ -1667,15 +1708,24 @@ async def import_folder(
     new_from_media = 0
 
     def _find_tune_by_title(title_lower: str) -> Optional[int]:
-        """Check newly-imported tunes first, then search the whole library."""
-        if title_lower in imported_title_map:
-            return imported_title_map[title_lower]
-        with _db() as conn:
-            row = conn.execute(
-                "SELECT id FROM tunes WHERE LOWER(TRIM(title)) = ? LIMIT 1",
-                (title_lower,),
-            ).fetchone()
-            return row["id"] if row else None
+        """Check newly-imported tunes first, then search the whole library.
+
+        Strips leading track numbers (e.g. "01 - ") before matching so that
+        MP3 files named "01 - My Tune.mp3" still match a tune titled "My Tune".
+        """
+        # Strip leading track numbers: "01 - ", "01 ", "1. ", etc.
+        stripped = re.sub(r"^\d+[\s\-_\.]+", "", title_lower).strip()
+        for candidate in ([title_lower] if title_lower == stripped else [title_lower, stripped]):
+            if candidate in imported_title_map:
+                return imported_title_map[candidate]
+            with _db() as conn:
+                row = conn.execute(
+                    "SELECT id FROM tunes WHERE LOWER(TRIM(title)) = ? LIMIT 1",
+                    (candidate,),
+                ).fetchone()
+                if row:
+                    return row["id"]
+        return None
 
     def _store_file(content: bytes, ext: str) -> str:
         stored_name = f"{uuid.uuid4().hex}{ext}"
@@ -2280,6 +2330,106 @@ async def import_ceol_json(file: UploadFile = File(...)):
         result["collection_name"] = data.get("name", "")
         result["sets_created"] = sets_created
     return result
+
+
+# ---------------------------------------------------------------------------
+# Music Scanner (.msca) import
+# ---------------------------------------------------------------------------
+
+@app.post("/api/import/msca", status_code=201)
+async def import_msca(file: UploadFile = File(...)):
+    """
+    Import a .msca file from the Music Scanner app.
+
+    .msca files are JSON documents containing scanned/recognised tune data.
+    Supported structures:
+      - {"tunes": [...]}  where each tune has at minimum a "title" field
+      - {"title": ..., "abc": ...}  single-tune export
+    Common tune fields recognised: title, abc, key, type/genre, notes, bpm,
+    composer, time_signature, source_url.
+    """
+    content = await file.read()
+    try:
+        data = json.loads(content)
+    except Exception:
+        raise HTTPException(400, "Could not parse .msca file — expected JSON format")
+
+    # Normalise to a list of tune dicts
+    if isinstance(data, list):
+        tune_list = data
+    elif isinstance(data, dict):
+        if "tunes" in data:
+            tune_list = data["tunes"]
+        elif "title" in data or "abc" in data:
+            tune_list = [data]
+        elif "items" in data:
+            tune_list = data["items"]
+        elif "songs" in data:
+            tune_list = data["songs"]
+        else:
+            raise HTTPException(400, "Unrecognised .msca structure — no tunes found")
+    else:
+        raise HTTPException(400, "Unrecognised .msca format")
+
+    if not isinstance(tune_list, list):
+        raise HTTPException(400, "Tunes field must be a list")
+
+    def _msca_field(td: dict, *keys: str, default: str = "") -> str:
+        """Try multiple possible key names, return first non-empty value."""
+        for k in keys:
+            v = td.get(k) or td.get(k.lower()) or td.get(k.upper()) or ""
+            if v:
+                return str(v).strip()
+        return default
+
+    import_date = date.today().isoformat()
+    imported = skipped = 0
+
+    with _db() as conn:
+        for td in tune_list:
+            if not isinstance(td, dict):
+                continue
+            title = _msca_field(td, "title", "name", "tune_name", "tuneName")
+            if not title:
+                skipped += 1
+                continue
+
+            # Skip if tune already exists by title
+            existing = conn.execute(
+                "SELECT id FROM tunes WHERE LOWER(TRIM(title)) = ? LIMIT 1",
+                (title.lower(),),
+            ).fetchone()
+            if existing:
+                skipped += 1
+                continue
+
+            abc = _msca_field(td, "abc", "abc_notation", "abcNotation", "score")
+            key = _msca_field(td, "key", "key_signature", "keySignature")
+            tune_type = _msca_field(td, "type", "genre", "rhythm", "form")
+            composer = _msca_field(td, "composer", "author", "by")
+            source_url = _msca_field(td, "source_url", "sourceUrl", "url", "source")
+            bpm = _msca_field(td, "bpm", "tempo")
+            time_sig = _msca_field(td, "time_signature", "timeSignature", "meter")
+
+            notes_parts = [f"Imported from Music Scanner: {import_date}"]
+            if bpm:
+                notes_parts.append(f"Tempo: {bpm} BPM")
+            if time_sig:
+                notes_parts.append(f"Time: {time_sig}")
+            extra_notes = _msca_field(td, "notes", "description", "comments")
+            if extra_notes:
+                notes_parts.append(extra_notes)
+            notes = "\n".join(notes_parts)
+
+            conn.execute(
+                "INSERT INTO tunes (title, type, key, mode, abc, notes, composer,"
+                " source_url, imported_at)"
+                " VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
+                (title, tune_type, key, "", abc, notes, composer, source_url),
+            )
+            imported += 1
+
+    return {"ok": True, "imported": imported, "skipped": skipped}
 
 
 # ---------------------------------------------------------------------------

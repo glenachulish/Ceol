@@ -152,6 +152,14 @@ CREATE TABLE IF NOT EXISTS dismissed_groupings (
     tune_id_b     INTEGER NOT NULL,
     PRIMARY KEY (tune_id_a, tune_id_b)
 );
+
+CREATE TABLE IF NOT EXISTS user_links (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    label      TEXT NOT NULL,
+    url        TEXT NOT NULL,
+    emoji      TEXT NOT NULL DEFAULT '🔗',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -239,6 +247,16 @@ def _migrate(conn: sqlite3.Connection) -> None:
                 tune_id_a INTEGER NOT NULL,
                 tune_id_b INTEGER NOT NULL,
                 PRIMARY KEY (tune_id_a, tune_id_b)
+            )
+        """)
+    if "user_links" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE user_links (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                label      TEXT NOT NULL,
+                url        TEXT NOT NULL,
+                emoji      TEXT NOT NULL DEFAULT '🔗',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 

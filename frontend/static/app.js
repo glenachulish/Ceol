@@ -7132,6 +7132,136 @@ theCraicSubmit.addEventListener("click", async () => {
   });
 }
 
+// ── Music Scanner (.msca) import ──────────────────────────────────────────────
+{
+  const mscaFileInput = document.getElementById("msca-file-input");
+  const mscaDropZone  = document.getElementById("msca-drop-zone");
+  const mscaImportBtn = document.getElementById("msca-import-btn");
+  const mscaResult    = document.getElementById("msca-import-result");
+  let mscaPendingFile = null;
+
+  function _setMscaFile(file) {
+    mscaPendingFile = file;
+    mscaImportBtn.disabled = !file;
+    mscaDropZone.querySelector(".import-drop-label").textContent =
+      file ? `Ready: ${file.name}` : "Drop a .msca file here, or click to choose";
+    mscaResult.classList.add("hidden");
+  }
+
+  mscaDropZone.addEventListener("click", () => mscaFileInput.click());
+  mscaFileInput.addEventListener("change", () => _setMscaFile(mscaFileInput.files[0] || null));
+  mscaDropZone.addEventListener("dragover", e => { e.preventDefault(); mscaDropZone.classList.add("drag-over"); });
+  mscaDropZone.addEventListener("dragleave", () => mscaDropZone.classList.remove("drag-over"));
+  mscaDropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    mscaDropZone.classList.remove("drag-over");
+    _setMscaFile(e.dataTransfer.files[0] || null);
+  });
+
+  mscaImportBtn.addEventListener("click", async () => {
+    if (!mscaPendingFile) return;
+    mscaImportBtn.disabled = true;
+    mscaImportBtn.textContent = "Importing…";
+    mscaResult.classList.add("hidden");
+    const formData = new FormData();
+    formData.append("file", mscaPendingFile);
+    try {
+      const res = await fetch("/api/import/msca", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      const parts = [];
+      if (data.imported) parts.push(`${data.imported} tune${data.imported !== 1 ? "s" : ""} added`);
+      if (data.skipped)  parts.push(`${data.skipped} already in library`);
+      mscaResult.textContent = parts.join(" · ") || "Nothing new to import.";
+      mscaResult.className = "import-result import-success";
+      mscaResult.classList.remove("hidden");
+      _setMscaFile(null);
+      mscaFileInput.value = "";
+      await Promise.all([loadTunes(), loadStats()]);
+    } catch (err) {
+      mscaResult.textContent = `Error: ${err.message}`;
+      mscaResult.className = "import-result import-error";
+      mscaResult.classList.remove("hidden");
+    } finally {
+      mscaImportBtn.disabled = false;
+      mscaImportBtn.textContent = "Import tunes";
+    }
+  });
+}
+
+// ── User-managed links ─────────────────────────────────────────────────────────
+{
+  const userLinksSection = document.getElementById("user-links-section");
+  const addLinkBtn       = document.getElementById("add-link-btn");
+  const addLinkOverlay   = document.getElementById("add-link-overlay");
+  const addLinkClose     = document.getElementById("add-link-close");
+  const addLinkCancel    = document.getElementById("add-link-cancel");
+  const addLinkSave      = document.getElementById("add-link-save");
+  const addLinkLabel     = document.getElementById("add-link-label");
+  const addLinkUrl       = document.getElementById("add-link-url");
+  const addLinkEmoji     = document.getElementById("add-link-emoji");
+
+  async function _loadUserLinks() {
+    const links = await apiFetch("/api/links");
+    if (!links || !links.length) {
+      userLinksSection.innerHTML = "";
+      return;
+    }
+    userLinksSection.innerHTML = "<hr class=\"library-menu-divider\">" +
+      links.map(l =>
+        `<span class="library-menu-item user-link-row" style="display:flex;align-items:center;gap:.3rem">` +
+        `<a href="${escHtml(l.url)}" target="_blank" rel="noopener" class="library-menu-link" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(l.emoji)} ${escHtml(l.label)}</a>` +
+        `<button class="user-link-delete" data-id="${l.id}" title="Remove link" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0 .2rem;font-size:.9rem">✕</button>` +
+        `</span>`
+      ).join("");
+
+    userLinksSection.querySelectorAll(".user-link-delete").forEach(btn => {
+      btn.addEventListener("click", async e => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!confirm("Remove this link?")) return;
+        await apiFetch(`/api/links/${btn.dataset.id}`, { method: "DELETE" });
+        await _loadUserLinks();
+      });
+    });
+  }
+
+  function _openAddLink() {
+    addLinkLabel.value = "";
+    addLinkUrl.value = "";
+    addLinkEmoji.value = "🔗";
+    addLinkOverlay.classList.remove("hidden");
+    addLinkLabel.focus();
+    document.getElementById("nav-links-menu").classList.add("hidden");
+  }
+  function _closeAddLink() { addLinkOverlay.classList.add("hidden"); }
+
+  addLinkBtn.addEventListener("click", _openAddLink);
+  addLinkClose.addEventListener("click", _closeAddLink);
+  addLinkCancel.addEventListener("click", _closeAddLink);
+  addLinkOverlay.addEventListener("click", e => { if (e.target === addLinkOverlay) _closeAddLink(); });
+
+  addLinkSave.addEventListener("click", async () => {
+    const label = addLinkLabel.value.trim();
+    const url   = addLinkUrl.value.trim();
+    const emoji = addLinkEmoji.value.trim() || "🔗";
+    if (!label || !url) { alert("Please fill in both a label and a URL."); return; }
+    addLinkSave.disabled = true;
+    try {
+      await apiFetch("/api/links", { method: "POST", body: JSON.stringify({ label, url, emoji }), headers: { "Content-Type": "application/json" } });
+      _closeAddLink();
+      await _loadUserLinks();
+    } catch (err) {
+      alert(`Error saving link: ${err.message}`);
+    } finally {
+      addLinkSave.disabled = false;
+    }
+  });
+
+  // Load on startup
+  _loadUserLinks();
+}
+
 // ── TheCraic export ───────────────────────────────────────────────────────────
 document.getElementById("thecraic-export-btn").addEventListener("click", () => {
   const today = new Date().toISOString().slice(0, 10);
@@ -8152,7 +8282,7 @@ async function _openInfoModal() {
   }
   document.getElementById("classify-new-btn").addEventListener("click", () => runClassify(false));
   document.getElementById("classify-all-btn").addEventListener("click", () => runClassify(true));
-});
+}
 
 // ── Practice tab (Phrase Builder + Tempo Progression) ────────────────────────
 let _pracSynthCtrl   = null;
