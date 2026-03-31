@@ -18,12 +18,14 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: |
-          pip install fastapi uvicorn sqlalchemy aiofiles python-multipart \
-            requests httpx PyPDF2 pydantic pillow pyinstaller \
-            pywebview pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-WebKit pyobjc-framework-Quartz
+          pip install py2app pillow \
+            fastapi uvicorn sqlalchemy aiofiles python-multipart \
+            requests httpx PyPDF2 pydantic \
+            pywebview pyobjc-core pyobjc-framework-Cocoa \
+            pyobjc-framework-WebKit pyobjc-framework-Quartz
       - name: Create icns icon
         run: |
-          python3 -c "
+          python3 << 'PYEOF'
           import os, subprocess
           from PIL import Image
           os.makedirs('Ceol.iconset', exist_ok=True)
@@ -40,50 +42,19 @@ jobs:
             for n in names:
               r.save(f'Ceol.iconset/{n}')
           subprocess.run(['iconutil', '-c', 'icns', 'Ceol.iconset'], check=True)
-          assert os.path.getsize('Ceol.icns') > 0, 'icns is empty!'
-          print(f'icns created OK ({os.path.getsize(\"Ceol.icns\")} bytes)')
-          "
-      - name: Build app
+          sz = os.path.getsize('Ceol.icns')
+          assert sz > 1000, f'icns too small ({sz} bytes)'
+          print(f'icns created OK ({sz} bytes)')
+          PYEOF
+      - name: Build app with py2app
         run: |
-          pyinstaller --onedir --windowed --name Ceol ceol_app.py \
-            --icon Ceol.icns \
-            --add-data "frontend:frontend" \
-            --add-data "backend:backend" \
-            --hidden-import uvicorn.logging \
-            --hidden-import uvicorn.loops \
-            --hidden-import uvicorn.loops.auto \
-            --hidden-import uvicorn.protocols \
-            --hidden-import uvicorn.protocols.http \
-            --hidden-import uvicorn.protocols.http.auto \
-            --hidden-import uvicorn.protocols.websockets \
-            --hidden-import uvicorn.protocols.websockets.auto \
-            --hidden-import uvicorn.lifespan \
-            --hidden-import uvicorn.lifespan.on \
-            --hidden-import sqlalchemy.dialects.sqlite \
-            --collect-all fastapi \
-            --collect-all webview \
-            --collect-all pyobjc
-      - name: Patch bundle icon, name, and create DMG
+          python setup_mac.py py2app
+          # Verify the bundle was created
+          ls -la "dist/Ce\u00f2l.app/Contents/Info.plist"
+          ls -la "dist/Ce\u00f2l.app/Contents/Resources/"
+      - name: Create DMG
         run: |
-          # Force-copy icon into the bundle Resources
-          cp Ceol.icns dist/Ceol.app/Contents/Resources/
-          ls -la dist/Ceol.app/Contents/Resources/Ceol.icns
-
-          # Patch plist: set accent name + ensure icon file reference
-          python3 -c "
-          import plistlib
-          p = 'dist/Ceol.app/Contents/Info.plist'
-          with open(p,'rb') as f: d = plistlib.load(f)
-          d['CFBundleName'] = 'Ce\u00f2l'
-          d['CFBundleDisplayName'] = 'Ce\u00f2l'
-          d['CFBundleIconFile'] = 'Ceol.icns'
-          with open(p,'wb') as f: plistlib.dump(d, f)
-          print('plist patched OK:', {k: d[k] for k in ['CFBundleName','CFBundleDisplayName','CFBundleIconFile']})
-          "
-
-          mkdir -p dist/dmg
-          mv "dist/Ceol.app" "dist/dmg/Ce\u00f2l.app"
-          hdiutil create -volname "Ce\u00f2l" -srcfolder dist/dmg -ov -format UDZO "dist/Ceol-${{ github.ref_name }}-arm64.dmg"
+          hdiutil create -volname "Ce\u00f2l" -srcfolder dist -ov -format UDZO "dist/Ceol-${{ github.ref_name }}-arm64.dmg"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

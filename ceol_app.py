@@ -2,7 +2,6 @@ import sys
 import threading
 import socket
 import os
-import signal
 from pathlib import Path
 
 
@@ -13,8 +12,17 @@ def _find_port():
 
 
 def main():
-    if getattr(sys, "frozen", False):
-        base_dir = Path(sys._MEIPASS)
+    frozen = getattr(sys, "frozen", False)
+
+    if frozen:
+        # py2app puts resources in Contents/Resources/
+        # PyInstaller uses sys._MEIPASS
+        if hasattr(sys, "_MEIPASS"):
+            base_dir = Path(sys._MEIPASS)
+        else:
+            base_dir = Path(os.environ.get("RESOURCEPATH",
+                            os.path.dirname(os.path.abspath(__file__))))
+
         data_dir = Path.home() / "Library" / "Application Support" / "Ceol"
         data_dir.mkdir(parents=True, exist_ok=True)
         os.environ["CEOL_DATA_DIR"] = str(data_dir)
