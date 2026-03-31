@@ -50,14 +50,16 @@ jobs:
             --hidden-import sqlalchemy.dialects.sqlite \
             --collect-all fastapi \
             --collect-all webview
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName Ceòl" dist/Ceol.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Ceòl" dist/Ceol.app/Contents/Info.plist
           mkdir -p dist/dmg
           cp -r dist/Ceol.app dist/dmg/
-          hdiutil create -volname Ceol -srcfolder dist/dmg -ov -format UDZO dist/Ceol-arm64.dmg
+          hdiutil create -volname "Ceòl" -srcfolder dist/dmg -ov -format UDZO "dist/Ceol-${{ github.ref_name }}-arm64.dmg"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Ceol-arm64
-          path: dist/Ceol-arm64.dmg
+          path: dist/Ceol-${{ github.ref_name }}-arm64.dmg
 
   release:
     needs: build-mac-arm
@@ -68,6 +70,6 @@ jobs:
           name: Ceol-arm64
       - uses: softprops/action-gh-release@v2
         with:
-          files: Ceol-arm64.dmg
+          files: Ceol-*-arm64.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
