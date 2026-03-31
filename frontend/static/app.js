@@ -4100,12 +4100,18 @@ function renderSets(sets) {
         tr.className = "set-transition-row";
         tr.innerHTML = `
           <span class="set-transition-label">${escHtml(a.title)} <em>TRANSITION</em> ${escHtml(b.title)}</span>
-          <button class="btn-secondary btn-sm set-transition-play-btn">Play</button>
-          <button class="btn-secondary btn-sm set-transition-music-btn">Music</button>`;
+          <button class="btn-secondary btn-sm set-transition-play-btn">Transition</button>
+          <button class="btn-secondary btn-sm set-transition-music-btn" data-tune-id="${b.id}">Music</button>`;
         if (footer) footer.before(tr); else tunesDiv.appendChild(tr);
         const open = () => openSetMusicModal(`${a.title} → ${b.title}`, transAbc, { isTransition: true });
         tr.querySelector(".set-transition-play-btn").addEventListener("click", open);
-        tr.querySelector(".set-transition-music-btn").addEventListener("click", open);
+        tr.querySelector(".set-transition-music-btn").addEventListener("click", async () => {
+          await Promise.all([fetchSets(), fetchCollections()]);
+          const tune = await fetchTune(String(b.id));
+          renderModal(tune);
+          modalOverlay.classList.remove("hidden");
+          document.body.style.overflow = "hidden";
+        });
       }
     }
 
