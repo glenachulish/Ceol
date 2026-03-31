@@ -7192,10 +7192,12 @@ theCraicSubmit.addEventListener("click", async () => {
 
 // ── Music Scanner (.msca) import ──────────────────────────────────────────────
 {
-  const mscaFileInput   = document.getElementById("msca-file-input");
-  const mscaDropZone    = document.getElementById("msca-drop-zone");
-  const mscaImportBtn   = document.getElementById("msca-import-btn");
-  const mscaResult      = document.getElementById("msca-import-result");
+  const mscaFileInput    = document.getElementById("msca-file-input");
+  const mscaDropZone     = document.getElementById("msca-drop-zone");
+  const mscaImportBtn    = document.getElementById("msca-import-btn");
+  const mscaDiagnoseBtn  = document.getElementById("msca-diagnose-btn");
+  const mscaDiagnoseOut  = document.getElementById("msca-diagnose-result");
+  const mscaResult       = document.getElementById("msca-import-result");
   const mscaProgressWrap = document.getElementById("msca-progress-wrap");
   const mscaProgressBar  = document.getElementById("msca-progress-bar");
   const mscaProgressLabel = document.getElementById("msca-progress-label");
@@ -7205,6 +7207,8 @@ theCraicSubmit.addEventListener("click", async () => {
     // Accept any file — .msca is a custom extension Mac may not recognise
     mscaPendingFiles = Array.from(files || []);
     mscaImportBtn.disabled = mscaPendingFiles.length === 0;
+    mscaDiagnoseBtn.disabled = mscaPendingFiles.length === 0;
+    mscaDiagnoseOut.style.display = "none";
     const label = mscaDropZone.querySelector(".import-drop-label");
     if (mscaPendingFiles.length === 0) {
       label.textContent = "Drop .msca files here, or click to choose (multiple OK)";
@@ -7225,6 +7229,46 @@ theCraicSubmit.addEventListener("click", async () => {
     e.preventDefault();
     mscaDropZone.classList.remove("drag-over");
     _setMscaFiles(e.dataTransfer.files);
+  });
+
+  mscaDiagnoseBtn.addEventListener("click", async () => {
+    if (!mscaPendingFiles.length) return;
+    mscaDiagnoseBtn.disabled = true;
+    mscaDiagnoseBtn.textContent = "Diagnosing…";
+    mscaDiagnoseOut.style.display = "none";
+    const file = mscaPendingFiles[0];
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const res = await fetch("/api/import/msca/diagnose", { method: "POST", body: fd });
+      const data = await res.json();
+      let out = `File: ${data.filename}  (${data.size_bytes} bytes)\n`;
+      out += `Format: `;
+      const d = data.detected;
+      if (d.is_sqlite) out += "SQLite database";
+      else if (d.is_zip) out += "ZIP archive";
+      else if (d.is_xml) out += "XML";
+      else if (d.is_json) out += "JSON";
+      else if (d.is_plist) out += "Apple plist";
+      else out += "unknown binary";
+      out += `\nFirst bytes (hex): ${data.start_hex}`;
+      out += `\nFirst text: ${data.start_text}`;
+      if (data.sqlite_tables && data.sqlite_tables.length) {
+        out += `\nSQLite tables: ${data.sqlite_tables.join(", ")}`;
+        for (const [t, info] of Object.entries(data.sqlite_sample || {})) {
+          if (info.cols) out += `\n  ${t}: cols = [${info.cols.join(", ")}]`;
+          if (info.rows && info.rows[0]) out += `\n    row[0] = ${JSON.stringify(info.rows[0])}`;
+        }
+      }
+      mscaDiagnoseOut.textContent = out;
+      mscaDiagnoseOut.style.display = "block";
+    } catch (err) {
+      mscaDiagnoseOut.textContent = `Diagnose error: ${err.message}`;
+      mscaDiagnoseOut.style.display = "block";
+    } finally {
+      mscaDiagnoseBtn.disabled = false;
+      mscaDiagnoseBtn.textContent = "Diagnose format";
+    }
   });
 
   mscaImportBtn.addEventListener("click", async () => {

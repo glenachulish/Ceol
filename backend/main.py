@@ -2385,6 +2385,47 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
 
     collection_name = Path(filename).stem if filename else "Music Scanner Import"
 
+    # ── Strategy 0: SQLite / Core Data ──────────────────────────────────────
+    # Many Mac/iOS apps store data as SQLite (Core Data). SQLite magic = b"SQLite format 3\x00"
+    if content[:6] == b"SQLite":
+        try:
+            import sqlite3 as _sqlite3
+            tmp = Path(tempfile.mktemp(suffix=".msca.db"))
+            tmp.write_bytes(content)
+            try:
+                sc = _sqlite3.connect(str(tmp))
+                sc.row_factory = _sqlite3.Row
+                # List all tables to find the right one
+                tables = [r[0] for r in sc.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()]
+                tunes = []
+                # Common Core Data table naming: ZTUNE, ZSONG, ZPIECE, ZTRACK, etc.
+                for table in tables:
+                    cols = [r[1].upper() for r in sc.execute(f"PRAGMA table_info({table})").fetchall()]
+                    title_col = next((c for c in cols if "TITLE" in c or "NAME" in c), None)
+                    if not title_col:
+                        continue
+                    abc_col   = next((c for c in cols if c in ("ZABC","ZNOTATION","ZSCORE","ABC")), None)
+                    key_col   = next((c for c in cols if "KEY" in c), None)
+                    type_col  = next((c for c in cols if c in ("ZTYPE","ZRHYTHM","ZGENRE","TYPE","GENRE")), None)
+                    comp_col  = next((c for c in cols if "COMPOSER" in c or "AUTHOR" in c), None)
+                    note_col  = next((c for c in cols if "NOTE" in c or "DESC" in c or "COMMENT" in c), None)
+                    sel = ", ".join(c for c in [title_col, abc_col, key_col, type_col, comp_col, note_col] if c)
+                    rows = sc.execute(f"SELECT {sel} FROM {table}").fetchall()
+                    for row in rows:
+                        d = dict(row)
+                        td = {k.lstrip("Z").lower(): v for k, v in d.items() if v}
+                        if td.get("title") or td.get("name"):
+                            tunes.append(td)
+                sc.close()
+            finally:
+                tmp.unlink(missing_ok=True)
+            if tunes:
+                return tunes, collection_name
+        except Exception:
+            pass
+
     # ── Strategy 1: JSON ────────────────────────────────────────────────────
     try:
         data = json.loads(content)
@@ -2643,6 +2684,7 @@ async def import_msca(
 @app.post("/api/import/msca/diagnose")
 async def diagnose_msca(file: UploadFile = File(...)):
     """Return diagnostic info about an .msca file to help identify its format."""
+    import sqlite3 as _sqlite3
     content = await file.read()
     size = len(content)
     start_hex = content[:64].hex()
@@ -2650,26 +2692,56 @@ async def diagnose_msca(file: UploadFile = File(...)):
         start_text = content[:256].decode("utf-8", errors="replace")
     except Exception:
         start_text = "(binary)"
-    is_zip = content[:2] == b"PK"
-    is_xml = content.lstrip()[:5] in (b"<?xml", b"<tune", b"<scor", b"<libr")
-    is_json = content.lstrip()[:1] in (b"{", b"[")
+    is_sqlite = content[:6] == b"SQLite"
+    is_zip    = content[:2] == b"PK"
+    is_xml    = content.lstrip()[:5] in (b"<?xml", b"<tune", b"<scor", b"<libr")
+    is_json   = content.lstrip()[:1] in (b"{", b"[")
     try:
         import plistlib
         plistlib.loads(content)
         is_plist = True
     except Exception:
         is_plist = False
+
+    sqlite_tables = []
+    sqlite_sample = {}
+    if is_sqlite:
+        try:
+            tmp = Path(tempfile.mktemp(suffix=".diag.db"))
+            tmp.write_bytes(content)
+            try:
+                sc = _sqlite3.connect(str(tmp))
+                tables = [r[0] for r in sc.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()]
+                sqlite_tables = tables
+                for t in tables[:4]:
+                    try:
+                        cols = [r[1] for r in sc.execute(f"PRAGMA table_info({t})").fetchall()]
+                        rows = sc.execute(f"SELECT * FROM {t} LIMIT 2").fetchall()
+                        sqlite_sample[t] = {"cols": cols, "rows": [list(r) for r in rows]}
+                    except Exception:
+                        pass
+                sc.close()
+            finally:
+                tmp.unlink(missing_ok=True)
+        except Exception as e:
+            sqlite_sample["error"] = str(e)
+
     return {
         "filename": file.filename,
         "size_bytes": size,
         "start_hex": start_hex,
         "start_text": start_text,
         "detected": {
+            "is_sqlite": is_sqlite,
             "is_zip": is_zip,
             "is_xml": bool(is_xml),
             "is_json": bool(is_json),
             "is_plist": is_plist,
         },
+        "sqlite_tables": sqlite_tables,
+        "sqlite_sample": sqlite_sample,
     }
 
 
