@@ -7193,6 +7193,8 @@ theCraicSubmit.addEventListener("click", async () => {
 // ── Music Scanner (.msca) import ──────────────────────────────────────────────
 {
   const mscaFileInput    = document.getElementById("msca-file-input");
+  const mscaBrowseBtn    = document.getElementById("msca-browse-btn");
+  const mscaFileLabel    = document.getElementById("msca-file-label");
   const mscaDropZone     = document.getElementById("msca-drop-zone");
   const mscaImportBtn    = document.getElementById("msca-import-btn");
   const mscaDiagnoseBtn  = document.getElementById("msca-diagnose-btn");
@@ -7204,30 +7206,31 @@ theCraicSubmit.addEventListener("click", async () => {
   let mscaPendingFiles  = [];
 
   function _setMscaFiles(files) {
-    // Accept any file — .msca is a custom extension Mac may not recognise
     mscaPendingFiles = Array.from(files || []);
-    mscaImportBtn.disabled = mscaPendingFiles.length === 0;
-    mscaDiagnoseBtn.disabled = mscaPendingFiles.length === 0;
+    const n = mscaPendingFiles.length;
+    mscaImportBtn.disabled  = n === 0;
+    mscaDiagnoseBtn.disabled = n === 0;
     mscaDiagnoseOut.style.display = "none";
-    const label = mscaDropZone.querySelector(".import-drop-label");
-    if (mscaPendingFiles.length === 0) {
-      label.textContent = "Drop .msca files here, or click to choose (multiple OK)";
-    } else if (mscaPendingFiles.length === 1) {
-      label.textContent = `Ready: ${mscaPendingFiles[0].name}`;
-    } else {
-      label.textContent = `Ready: ${mscaPendingFiles.length} files selected`;
-    }
+    mscaFileLabel.textContent = n === 0 ? "No files selected"
+      : n === 1 ? mscaPendingFiles[0].name
+      : `${n} files selected`;
     mscaResult.classList.add("hidden");
     mscaProgressWrap.classList.add("hidden");
   }
 
-  mscaDropZone.addEventListener("click", () => mscaFileInput.click());
+  // "Choose files…" button opens the hidden file input
+  mscaBrowseBtn.addEventListener("click", () => mscaFileInput.click());
   mscaFileInput.addEventListener("change", () => _setMscaFiles(mscaFileInput.files));
-  mscaDropZone.addEventListener("dragover", e => { e.preventDefault(); mscaDropZone.classList.add("drag-over"); });
-  mscaDropZone.addEventListener("dragleave", () => mscaDropZone.classList.remove("drag-over"));
+
+  // Drag and drop on the dashed box
+  mscaDropZone.addEventListener("dragenter", e => { e.preventDefault(); e.stopPropagation(); mscaDropZone.style.borderColor = "var(--accent)"; mscaDropZone.style.background = "color-mix(in srgb, var(--accent) 8%, var(--surface))"; });
+  mscaDropZone.addEventListener("dragover",  e => { e.preventDefault(); e.stopPropagation(); });
+  mscaDropZone.addEventListener("dragleave", e => { mscaDropZone.style.borderColor = ""; mscaDropZone.style.background = ""; });
   mscaDropZone.addEventListener("drop", e => {
     e.preventDefault();
-    mscaDropZone.classList.remove("drag-over");
+    e.stopPropagation();
+    mscaDropZone.style.borderColor = "";
+    mscaDropZone.style.background = "";
     _setMscaFiles(e.dataTransfer.files);
   });
 

@@ -692,10 +692,15 @@
       <!-- Music Scanner (.msca) tab -->
       <div id="import-tab-msca" class="tab-panel hidden">
         <p class="import-desc">Import one or more <strong>.msca</strong> files from the Music Scanner app. Files are processed one at a time. Multi-tune files (scanned books) are grouped as a collection.</p>
-        <label class="import-drop" id="msca-drop-zone">
-          <input id="msca-file-input" type="file" accept="*/*" multiple style="display:none">
-          <span class="import-drop-label">Drop <code>.msca</code> files here, or click to choose (multiple OK)</span>
-        </label>
+        <!-- Hidden file input — no accept filter so Mac shows all files -->
+        <input id="msca-file-input" type="file" multiple style="position:absolute;left:-9999px;opacity:0">
+        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.75rem;flex-wrap:wrap">
+          <button id="msca-browse-btn" class="btn-secondary">📂 Choose files…</button>
+          <span id="msca-file-label" style="font-size:.85rem;color:var(--text-muted)">No files selected</span>
+        </div>
+        <div id="msca-drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius);padding:1rem;text-align:center;font-size:.85rem;color:var(--text-muted);margin-bottom:.75rem;cursor:default">
+          Or drag &amp; drop <code>.msca</code> files here
+        </div>
         <div id="msca-progress-wrap" class="import-progress-wrap hidden">
           <div class="import-progress-label" id="msca-progress-label">Processing…</div>
           <div class="import-progress-bar-outer">
@@ -896,6 +901,6 @@
   <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=166"></script>
+  <script src="/static/app.js?v=167"></script>
 </body>
 </html>
