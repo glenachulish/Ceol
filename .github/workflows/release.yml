@@ -16,13 +16,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install dependencies
+
+      - name: Install Python dependencies
         run: |
-          pip install py2app pillow \
+          pip install pyinstaller pillow \
             fastapi uvicorn sqlalchemy aiofiles python-multipart \
-            requests httpx PyPDF2 pydantic \
-            pywebview pyobjc-core pyobjc-framework-Cocoa \
-            pyobjc-framework-WebKit pyobjc-framework-Quartz
+            requests httpx PyPDF2 pydantic
+
       - name: Create icns icon
         run: |
           python3 << 'PYEOF'
@@ -46,15 +46,101 @@ jobs:
           assert sz > 1000, f'icns too small ({sz} bytes)'
           print(f'icns created OK ({sz} bytes)')
           PYEOF
-      - name: Build app with py2app
+
+      - name: Build Python server with PyInstaller
         run: |
-          python setup_mac.py py2app
-          # Verify the bundle was created
-          ls -la "dist/Ce\u00f2l.app/Contents/Info.plist"
-          ls -la "dist/Ce\u00f2l.app/Contents/Resources/"
+          pyinstaller --onedir --name ceol_server --console ceol_app.py \
+            --add-data "frontend:frontend" \
+            --add-data "backend:backend" \
+            --hidden-import uvicorn.logging \
+            --hidden-import uvicorn.loops \
+            --hidden-import uvicorn.loops.auto \
+            --hidden-import uvicorn.protocols \
+            --hidden-import uvicorn.protocols.http \
+            --hidden-import uvicorn.protocols.http.auto \
+            --hidden-import uvicorn.protocols.websockets \
+            --hidden-import uvicorn.protocols.websockets.auto \
+            --hidden-import uvicorn.lifespan \
+            --hidden-import uvicorn.lifespan.on \
+            --hidden-import sqlalchemy.dialects.sqlite \
+            --collect-all fastapi
+          echo "Server built OK"
+          ls dist/ceol_server/
+
+      - name: Compile Swift native launcher
+        run: |
+          swiftc -O -o CeolApp CeolApp.swift \
+            -framework Cocoa -framework WebKit \
+            -target arm64-apple-macosx12.0
+          echo "Swift launcher compiled OK"
+
+      - name: Assemble .app bundle
+        run: |
+          APP="dist/Ce\u00f2l.app"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources/server"
+
+          # Main executable: Swift launcher
+          cp CeolApp "$APP/Contents/MacOS/CeolApp"
+          chmod +x "$APP/Contents/MacOS/CeolApp"
+
+          # Server: entire PyInstaller output
+          cp -R dist/ceol_server/* "$APP/Contents/Resources/server/"
+          chmod +x "$APP/Contents/Resources/server/ceol_server"
+
+          # Icon
+          cp Ceol.icns "$APP/Contents/Resources/Ceol.icns"
+
+          # Info.plist
+          cat > "$APP/Contents/Info.plist" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>CeolApp</string>
+            <key>CFBundleName</key>
+            <string>Ceòl</string>
+            <key>CFBundleDisplayName</key>
+            <string>Ceòl</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.glenachulish.ceol</string>
+            <key>CFBundleVersion</key>
+            <string>1.0</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundleIconFile</key>
+            <string>Ceol.icns</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleSignature</key>
+            <string>????</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>LSMinimumSystemVersion</key>
+            <string>12.0</string>
+            <key>NSAppTransportSecurity</key>
+            <dict>
+              <key>NSAllowsLocalNetworking</key>
+              <true/>
+            </dict>
+          </dict>
+          </plist>
+          PLIST
+
+          echo "App bundle assembled OK"
+          ls -la "$APP/Contents/MacOS/"
+          ls -la "$APP/Contents/Resources/"
+
       - name: Create DMG
         run: |
-          hdiutil create -volname "Ce\u00f2l" -srcfolder dist -ov -format UDZO "dist/Ceol-${{ github.ref_name }}-arm64.dmg"
+          mkdir -p dist/dmg
+          cp -R "dist/Ce\u00f2l.app" dist/dmg/
+          hdiutil create -volname "Ce\u00f2l" -srcfolder dist/dmg \
+            -ov -format UDZO "dist/Ceol-${{ github.ref_name }}-arm64.dmg"
+          echo "DMG created OK"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
