@@ -1069,12 +1069,17 @@ function renderModal(tune, onBack = null, siblings = null) {
     : "";
   const _sessionUrlMatch = tune.source_url && tune.source_url.match(/thesession\.org\/tunes\/(\d+)/);
   const _sessionId = tune.session_id || (_sessionUrlMatch && _sessionUrlMatch[1]);
+  // For tunes with a known session ID: direct link. Otherwise: search link.
   const sessionLink = _sessionId
     ? `<a class="modal-session-link" href="https://thesession.org/tunes/${_sessionId}" target="_blank" rel="noopener">View on TheSession.org ↗</a>`
-    : "";
+    : `<a class="modal-session-link" href="https://thesession.org/tunes?q=${encodeURIComponent(tune.title)}" target="_blank" rel="noopener">Search TheSession.org ↗</a>`;
   const importedLine = tune.imported_at
-    ? `<p class="modal-imported">Imported: ${new Date(tune.imported_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}${sessionLink ? ` · ${sessionLink}` : ""}</p>`
-    : sessionLink ? `<p class="modal-imported">${sessionLink}</p>` : "";
+    ? `<p class="modal-imported">Imported: ${new Date(tune.imported_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} · ${sessionLink}</p>`
+    : `<p class="modal-imported">${sessionLink}</p>`;
+  // Only show the dedicated "view" link in the sheet music tab when we have a real session ID
+  const sessionViewLink = _sessionId
+    ? `<a class="modal-session-link" href="https://thesession.org/tunes/${_sessionId}" target="_blank" rel="noopener">View on TheSession.org ↗</a>`
+    : "";
   const tagLine = tune.tags && tune.tags.length
     ? `<div class="modal-meta">${tune.tags.map(g => `<span class="badge badge-other">${escHtml(g)}</span>`).join("")}</div>`
     : "";
@@ -1178,7 +1183,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         </div>
         <div id="session-abc-results" class="session-abc-results hidden"></div>
       </div>
-      ${sessionLink ? `<p class="session-link-below">${sessionLink}</p>` : ""}
+      ${sessionViewLink ? `<p class="session-link-below">${sessionViewLink}</p>` : ""}
       ${pdfUrl ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
       </div>` : ""}
