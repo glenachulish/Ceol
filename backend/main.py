@@ -2454,46 +2454,93 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
     except Exception:
         pass
 
-    # ── Strategy 3: ZIP archive (look for JSON/ABC/XML inside) ──────────────
-    try:
-        import zipfile as _zf
-        if _zf.is_zipfile(io.BytesIO(content)):
-            with _zf.ZipFile(io.BytesIO(content)) as zf:
+    # ── Strategy 3a: Music Scanner ZIP (session.csv + background_*.jpeg) ──────
+    # The Music Scanner app stores each tune as a ZIP containing:
+    #   session.csv  — title (displayName), bpm, instrument
+    #   session.dat  — key signature, clef, bar structure (custom text format)
+    #   background_NNN.jpeg — scanned sheet music page(s)
+    #   overlay_NNN.png     — recognition overlay
+    if zipfile.is_zipfile(io.BytesIO(content)):
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                names_lower = {n.lower(): n for n in zf.namelist()}
+
+                if "session.csv" in names_lower:
+                    import csv as _csv
+                    csv_bytes = zf.read(names_lower["session.csv"])
+                    csv_text  = csv_bytes.decode("utf-8", errors="replace")
+                    reader = list(_csv.DictReader(csv_text.splitlines()))
+                    if reader:
+                        row = reader[0]
+                        title = row.get("displayName", "").strip() or collection_name
+                        bpm   = row.get("bpm", "").strip()
+
+                        # Parse key signature from session.dat
+                        _KS_MAP = {
+                            0: "C", 1: "G", 2: "D", 3: "A", 4: "E",
+                            5: "B", 6: "F#", 7: "C#",
+                            -1: "F", -2: "Bb", -3: "Eb", -4: "Ab",
+                            -5: "Db", -6: "Gb", -7: "Cb",
+                        }
+                        key = ""
+                        if "session.dat" in names_lower:
+                            dat = zf.read(names_lower["session.dat"]).decode("utf-8", errors="replace")
+                            m = re.search(r"keySignature:\s*KS\*\s*(-?\d+)", dat)
+                            if m:
+                                ks = int(m.group(1))
+                                key = _KS_MAP.get(ks, "")
+                            # Time signature
+                            ts_m = re.search(r"timeSignature:\s*TS\*\s*(\d+)/(\d+)", dat)
+                            time_sig = f"{ts_m.group(1)}/{ts_m.group(2)}" if ts_m else ""
+                        else:
+                            time_sig = ""
+
+                        # Collect image pages sorted by name
+                        image_names = sorted(
+                            n for n in zf.namelist()
+                            if re.match(r"background_\d+\.(jpeg|jpg|png)", n.lower())
+                        )
+                        image_bytes = [(n, zf.read(n)) for n in image_names]
+
+                        tune_dict = {
+                            "title": title, "key": key, "type": "",
+                            "bpm": bpm, "time_signature": time_sig,
+                            "_image_attachments": image_bytes,
+                        }
+                        return [tune_dict], collection_name
+        except Exception:
+            pass
+
+    # ── Strategy 3b: generic ZIP (look for JSON/ABC/XML inside) ─────────────
+    if zipfile.is_zipfile(io.BytesIO(content)):
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as zf:
                 names = zf.namelist()
-                # Try JSON files inside
                 for name in names:
-                    if name.lower().endswith((".json", ".msca")):
+                    if name.lower().endswith((".json",)):
                         inner = zf.read(name)
                         try:
-                            data = json.loads(inner)
                             tunes, _ = _parse_msca_content(inner, name)
                             return tunes, collection_name
                         except Exception:
                             pass
-                # Try XML files inside
                 for name in names:
-                    if name.lower().endswith((".xml", ".musicxml", ".mxl")):
-                        inner = zf.read(name)
-                        tunes = _parse_msca_xml(inner)
+                    if name.lower().endswith((".xml", ".musicxml")):
+                        tunes = _parse_msca_xml(zf.read(name))
                         if tunes:
                             return tunes, collection_name
-                # Try ABC files inside
                 abc_tunes = []
                 for name in names:
                     if name.lower().endswith((".abc", ".txt")):
-                        inner = zf.read(name)
-                        try:
-                            text = inner.decode("utf-8", errors="replace")
-                        except Exception:
-                            continue
+                        text = zf.read(name).decode("utf-8", errors="replace")
                         for t in parse_abc_string(text):
                             if t.title:
                                 abc_tunes.append({"title": t.title, "abc": t.abc,
                                                   "key": t.key, "type": t.type})
                 if abc_tunes:
                     return abc_tunes, collection_name
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     # ── Strategy 4: XML / MusicXML ──────────────────────────────────────────
     try:
@@ -2629,6 +2676,16 @@ def _import_msca_tune_list(
                                   "Notes", "Description")
         if extra_notes:
             notes_parts.append(extra_notes)
+
+        # Save scanned page images and link them in notes
+        image_attachments = td.get("_image_attachments", [])
+        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        for img_name, img_bytes in image_attachments:
+            ext = Path(img_name).suffix or ".jpeg"
+            stored = f"{uuid.uuid4().hex}{ext}"
+            (UPLOADS_DIR / stored).write_bytes(img_bytes)
+            notes_parts.append(f"sheet music (image): /api/uploads/{stored}")
+
         notes = "\n".join(notes_parts)
 
         cur = conn.execute(
