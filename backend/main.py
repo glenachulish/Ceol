@@ -2471,43 +2471,62 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                     csv_text  = csv_bytes.decode("utf-8", errors="replace")
                     reader = list(_csv.DictReader(csv_text.splitlines()))
                     if reader:
-                        row = reader[0]
-                        title = row.get("displayName", "").strip() or collection_name
-                        bpm   = row.get("bpm", "").strip()
-
-                        # Parse key signature from session.dat
                         _KS_MAP = {
                             0: "C", 1: "G", 2: "D", 3: "A", 4: "E",
                             5: "B", 6: "F#", 7: "C#",
                             -1: "F", -2: "Bb", -3: "Eb", -4: "Ab",
                             -5: "Db", -6: "Gb", -7: "Cb",
                         }
-                        key = ""
+
+                        # Parse all key/time signatures from session.dat (one per tune block)
+                        keys_list: list[str] = []
+                        time_sigs_list: list[str] = []
                         if "session.dat" in names_lower:
                             dat = zf.read(names_lower["session.dat"]).decode("utf-8", errors="replace")
-                            m = re.search(r"keySignature:\s*KS\*\s*(-?\d+)", dat)
-                            if m:
-                                ks = int(m.group(1))
-                                key = _KS_MAP.get(ks, "")
-                            # Time signature
-                            ts_m = re.search(r"timeSignature:\s*TS\*\s*(\d+)/(\d+)", dat)
-                            time_sig = f"{ts_m.group(1)}/{ts_m.group(2)}" if ts_m else ""
-                        else:
-                            time_sig = ""
+                            for m in re.finditer(r"keySignature:\s*KS\*\s*(-?\d+)", dat):
+                                keys_list.append(_KS_MAP.get(int(m.group(1)), ""))
+                            for m in re.finditer(r"timeSignature:\s*TS\*\s*(\d+)/(\d+)", dat):
+                                time_sigs_list.append(f"{m.group(1)}/{m.group(2)}")
 
-                        # Collect image pages sorted by name
-                        image_names = sorted(
+                        # All background images sorted by their index number
+                        all_images = sorted(
                             n for n in zf.namelist()
                             if re.match(r"background_\d+\.(jpeg|jpg|png)", n.lower())
                         )
-                        image_bytes = [(n, zf.read(n)) for n in image_names]
 
-                        tune_dict = {
-                            "title": title, "key": key, "type": "",
-                            "bpm": bpm, "time_signature": time_sig,
-                            "_image_attachments": image_bytes,
-                        }
-                        return [tune_dict], collection_name
+                        if len(reader) == 1:
+                            # Single tune — attach all images to it
+                            row = reader[0]
+                            title = row.get("displayName", "").strip() or collection_name
+                            bpm   = row.get("bpm", "").strip()
+                            key   = keys_list[0] if keys_list else ""
+                            time_sig = time_sigs_list[0] if time_sigs_list else ""
+                            image_bytes = [(n, zf.read(n)) for n in all_images]
+                            return [{
+                                "title": title, "key": key, "type": "",
+                                "bpm": bpm, "time_signature": time_sig,
+                                "_image_attachments": image_bytes,
+                            }], collection_name
+
+                        # Multi-tune book — one tune per CSV row, one image per row
+                        tune_list_out = []
+                        for i, row in enumerate(reader):
+                            title = row.get("displayName", "").strip()
+                            if not title:
+                                title = f"{collection_name} (tune {i + 1})"
+                            bpm      = row.get("bpm", "").strip()
+                            key      = keys_list[i] if i < len(keys_list) else (keys_list[0] if keys_list else "")
+                            time_sig = time_sigs_list[i] if i < len(time_sigs_list) else (time_sigs_list[0] if time_sigs_list else "")
+                            # Match images: prefer background_{i:03d}.* then background_{i}.*
+                            img_candidates = [n for n in all_images
+                                              if re.match(rf"background_0*{i}\.(jpeg|jpg|png)", n.lower())]
+                            image_bytes = [(n, zf.read(n)) for n in img_candidates]
+                            tune_list_out.append({
+                                "title": title, "key": key, "type": "",
+                                "bpm": bpm, "time_signature": time_sig,
+                                "_image_attachments": image_bytes,
+                            })
+                        return tune_list_out, collection_name
         except Exception:
             pass
 
