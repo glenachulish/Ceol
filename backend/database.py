@@ -6,15 +6,18 @@ Creates all tables from the project schema.
 import os
 import re
 import sqlite3
+import unicodedata
 from pathlib import Path
 
 
 def _search_norm(s: str | None) -> str:
-    """Normalise a string for search: lowercase, strip punctuation/apostrophes."""
+    """Normalise a string for search: lowercase, strip accents and punctuation."""
     if not s:
         return ""
-    # Remove all characters that are not letters, digits, or whitespace
-    return re.sub(r"[^\w\s]", "", s, flags=re.UNICODE).lower()
+    # Strip combining accent characters (NFD decomposition)
+    nfd = unicodedata.normalize("NFD", s)
+    no_accents = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^\w\s]", "", no_accents, flags=re.UNICODE).lower()
 
 _data_dir = os.environ.get("CEOL_DATA_DIR")
 DB_PATH = Path(_data_dir) / "ceol.db" if _data_dir else Path(__file__).parent.parent / "data" / "ceol.db"

@@ -717,6 +717,20 @@ async def upload_tune_audio(tune_id: int, file: UploadFile = File(...)):
     return {"url": f"/api/uploads/{stored_name}"}
 
 
+@app.post("/api/tunes/{tune_id}/upload-video", status_code=201)
+async def upload_tune_video(tune_id: int, file: UploadFile = File(...)):
+    """Upload a video file; returns the URL for the caller to add to notes."""
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM tunes WHERE id = ?", (tune_id,)).fetchone():
+            raise HTTPException(404, "Tune not found")
+    content = await file.read()
+    ext = Path(file.filename).suffix if file.filename else ".mp4"
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    (UPLOADS_DIR / stored_name).write_bytes(content)
+    return {"url": f"/api/uploads/{stored_name}"}
+
+
 @app.patch("/api/tunes/{tune_id}/notes")
 def update_tune_notes(tune_id: int, body: NotesUpdate):
     with _db() as conn:

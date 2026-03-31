@@ -981,6 +981,11 @@ function renderNotesHtml(text) {
         <button class="btn-secondary btn-sm media-play-btn" data-url="${urlEsc}" data-media-type="audio">▶ Play audio</button>
         <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${escHtml(shortUrl(url))}</a>
       </div>`);
+    } else if (/\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(url)) {
+      parts.push(`<div class="notes-media-link">
+        <video controls src="${urlEsc}" style="max-width:100%;border-radius:6px;margin:4px 0;display:block"></video>
+        <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">📹 ${escHtml(shortUrl(url))}</a>
+      </div>`);
     } else if (/(?:youtube\.com\/watch\?.*v=|youtu\.be\/)/.test(url)) {
       parts.push(`<div class="notes-media-link">
         <button class="btn-secondary btn-sm media-play-btn" data-url="${urlEsc}" data-media-type="video">▶ Watch video</button>
@@ -1192,8 +1197,29 @@ function renderModal(tune, onBack = null, siblings = null) {
       <p id="audio-unavailable" class="audio-unavailable hidden">
         Audio playback is not supported in this browser.
       </p>
-      <div class="attach-audio-row">
+      <div class="attach-audio-row" style="display:flex;gap:8px;flex-wrap:wrap">
         <button id="attach-audio-btn" class="btn-secondary">🎧 Add audio link</button>
+        <button id="attach-video-btn" class="btn-secondary">📹 Add video</button>
+      </div>
+      <div id="attach-video-panel" class="attach-audio-panel hidden">
+        <div class="attach-audio-tabs">
+          <button class="attach-vtab-btn active" data-tab="upload">Upload file</button>
+          <button class="attach-vtab-btn" data-tab="url">Paste URL</button>
+        </div>
+        <div id="attach-vtab-upload" class="attach-tab-panel">
+          <label class="attach-file-label">
+            <input id="attach-video-file" type="file" accept="video/*" class="attach-file-input">
+            <span class="attach-file-hint">Choose a video file from your computer</span>
+          </label>
+          <p id="attach-video-upload-status" class="ff-cat-hint"></p>
+        </div>
+        <div id="attach-vtab-url" class="attach-tab-panel hidden">
+          <div class="attach-audio-browse-row">
+            <input id="attach-video-url-input" class="attach-audio-path" type="url" placeholder="https://…">
+            <button id="attach-video-url-btn" class="btn-secondary">Use URL</button>
+          </div>
+          <p id="attach-video-url-status" class="ff-cat-hint"></p>
+        </div>
       </div>
       <div id="attach-audio-panel" class="attach-audio-panel hidden">
         <div class="attach-audio-tabs">
@@ -1804,12 +1830,59 @@ function renderModal(tune, onBack = null, siblings = null) {
     });
   }
 
+  // Attach video panel
+  const attachVideoBtn   = document.getElementById("attach-video-btn");
+  const attachVideoPanel = document.getElementById("attach-video-panel");
+
+  attachVideoBtn.addEventListener("click", () => {
+    attachVideoPanel.classList.toggle("hidden");
+    attachAudioPanel.classList.add("hidden");
+  });
+
+  attachVideoPanel.querySelectorAll(".attach-vtab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      attachVideoPanel.querySelectorAll(".attach-vtab-btn").forEach(b => b.classList.remove("active"));
+      attachVideoPanel.querySelectorAll(".attach-tab-panel").forEach(p => p.classList.add("hidden"));
+      btn.classList.add("active");
+      document.getElementById(`attach-vtab-${btn.dataset.tab}`).classList.remove("hidden");
+    });
+  });
+
+  document.getElementById("attach-video-file").addEventListener("change", async (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById("attach-video-upload-status");
+    statusEl.textContent = "Uploading…";
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch(`/api/tunes/${tune.id}/upload-video`, { method: "POST", body: formData });
+      if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+      const { url } = await res.json();
+      await _appendUrlToNotes(`${window.location.origin}${url}`, statusEl);
+      attachVideoPanel.classList.add("hidden");
+    } catch (err) {
+      statusEl.textContent = `Error: ${err.message}`;
+    }
+  });
+
+  document.getElementById("attach-video-url-btn").addEventListener("click", async () => {
+    const urlInput = document.getElementById("attach-video-url-input");
+    const statusEl = document.getElementById("attach-video-url-status");
+    const url = urlInput.value.trim();
+    if (!url) { statusEl.textContent = "Please enter a URL."; return; }
+    urlInput.value = "";
+    await _appendUrlToNotes(url, statusEl);
+    attachVideoPanel.classList.add("hidden");
+  });
+
   // Attach audio panel
   const attachAudioBtn    = document.getElementById("attach-audio-btn");
   const attachAudioPanel  = document.getElementById("attach-audio-panel");
 
   attachAudioBtn.addEventListener("click", () => {
     attachAudioPanel.classList.toggle("hidden");
+    attachVideoPanel.classList.add("hidden");
   });
 
   // Tab switching
@@ -1843,6 +1916,7 @@ function renderModal(tune, onBack = null, siblings = null) {
       }
       if (statusEl) statusEl.textContent = "";
       attachAudioPanel.classList.add("hidden");
+      attachVideoPanel.classList.add("hidden");
     } catch (err) {
       if (statusEl) statusEl.textContent = `Error: ${err.message}`;
     }
@@ -4044,12 +4118,11 @@ function renderSets(sets) {
     const results = footer.querySelector(".set-add-tune-results");
     let _debounce = null;
 
-    input.addEventListener("input", () => {
-      clearTimeout(_debounce);
-      const q = input.value.trim();
-      if (!q) { results.innerHTML = ""; return; }
-      _debounce = setTimeout(async () => {
-        const tunes = await apiFetch(`/api/tunes?search=${encodeURIComponent(q)}&page_size=8`);
+    async function _runSearch(q) {
+      const url = q
+        ? `/api/tunes?search=${encodeURIComponent(q)}&page_size=10`
+        : `/api/tunes?page_size=12`;
+      const tunes = await apiFetch(url);
         const list = tunes.tunes || tunes;
         if (!list.length) { results.innerHTML = '<p class="set-add-tune-none">No tunes found</p>'; return; }
         results.innerHTML = list.map(t =>
@@ -4123,7 +4196,16 @@ function renderSets(sets) {
             }
           });
         });
-      }, 250);
+    }
+
+    input.addEventListener("focus", () => {
+      if (!input.value.trim()) _runSearch("");
+    });
+
+    input.addEventListener("input", () => {
+      clearTimeout(_debounce);
+      const q = input.value.trim();
+      _debounce = setTimeout(() => _runSearch(q), 250);
     });
   }
 
