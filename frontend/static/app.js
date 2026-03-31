@@ -7255,12 +7255,21 @@ theCraicSubmit.addEventListener("click", async () => {
       else if (d.is_plist) out += "Apple plist";
       else out += "unknown binary";
       out += `\nFirst bytes (hex): ${data.start_hex}`;
-      out += `\nFirst text: ${data.start_text}`;
       if (data.sqlite_tables && data.sqlite_tables.length) {
         out += `\nSQLite tables: ${data.sqlite_tables.join(", ")}`;
         for (const [t, info] of Object.entries(data.sqlite_sample || {})) {
           if (info.cols) out += `\n  ${t}: cols = [${info.cols.join(", ")}]`;
           if (info.rows && info.rows[0]) out += `\n    row[0] = ${JSON.stringify(info.rows[0])}`;
+        }
+      }
+      if (data.zip_contents && data.zip_contents.length) {
+        out += `\nZIP contains ${data.zip_contents.length} files:`;
+        data.zip_contents.forEach(f => out += `\n  ${f.name}  (${f.size} bytes)`);
+        if (data.zip_text_samples && Object.keys(data.zip_text_samples).length) {
+          out += `\nNon-image file contents:`;
+          for (const [name, text] of Object.entries(data.zip_text_samples)) {
+            out += `\n--- ${name} ---\n${text}`;
+          }
         }
       }
       mscaDiagnoseOut.textContent = out;

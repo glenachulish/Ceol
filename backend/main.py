@@ -2728,11 +2728,34 @@ async def diagnose_msca(file: UploadFile = File(...)):
         except Exception as e:
             sqlite_sample["error"] = str(e)
 
+    # List ZIP contents so we can see all files inside
+    zip_contents = []
+    zip_text_samples = {}
+    if is_zip:
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                zip_contents = [
+                    {"name": info.filename, "size": info.file_size}
+                    for info in zf.infolist()
+                ]
+                # Read first 400 bytes of any non-image files
+                for info in zf.infolist():
+                    if not info.filename.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
+                        try:
+                            inner = zf.read(info.filename)[:400]
+                            try:
+                                zip_text_samples[info.filename] = inner.decode("utf-8", errors="replace")
+                            except Exception:
+                                zip_text_samples[info.filename] = inner.hex()
+                        except Exception:
+                            pass
+        except Exception as e:
+            zip_contents = [{"error": str(e)}]
+
     return {
         "filename": file.filename,
         "size_bytes": size,
         "start_hex": start_hex,
-        "start_text": start_text,
         "detected": {
             "is_sqlite": is_sqlite,
             "is_zip": is_zip,
@@ -2742,6 +2765,8 @@ async def diagnose_msca(file: UploadFile = File(...)):
         },
         "sqlite_tables": sqlite_tables,
         "sqlite_sample": sqlite_sample,
+        "zip_contents": zip_contents,
+        "zip_text_samples": zip_text_samples,
     }
 
 
