@@ -17,20 +17,28 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install fastapi uvicorn sqlalchemy aiofiles python-multipart requests httpx PyPDF2 pydantic pywebview pyinstaller
+        run: pip install fastapi uvicorn sqlalchemy aiofiles python-multipart requests httpx PyPDF2 pydantic pywebview pillow pyinstaller
       - name: Create icns icon
         run: |
-          mkdir -p Ceol.iconset
-          sips -z 16 16   frontend/static/icons/icon-512.png --out Ceol.iconset/icon_16x16.png
-          sips -z 32 32   frontend/static/icons/icon-512.png --out Ceol.iconset/icon_16x16@2x.png
-          sips -z 32 32   frontend/static/icons/icon-512.png --out Ceol.iconset/icon_32x32.png
-          sips -z 64 64   frontend/static/icons/icon-512.png --out Ceol.iconset/icon_32x32@2x.png
-          sips -z 128 128 frontend/static/icons/icon-512.png --out Ceol.iconset/icon_128x128.png
-          sips -z 256 256 frontend/static/icons/icon-512.png --out Ceol.iconset/icon_128x128@2x.png
-          sips -z 256 256 frontend/static/icons/icon-512.png --out Ceol.iconset/icon_256x256.png
-          sips -z 512 512 frontend/static/icons/icon-512.png --out Ceol.iconset/icon_256x256@2x.png
-          cp frontend/static/icons/icon-512.png Ceol.iconset/icon_512x512.png
-          iconutil -c icns Ceol.iconset
+          python3 -c "
+          import os, subprocess
+          from PIL import Image
+          os.makedirs('Ceol.iconset', exist_ok=True)
+          img = Image.open('frontend/static/icons/icon-512.png').convert('RGBA')
+          for size, names in [
+            (16,  ['icon_16x16.png']),
+            (32,  ['icon_16x16@2x.png', 'icon_32x32.png']),
+            (64,  ['icon_32x32@2x.png']),
+            (128, ['icon_128x128.png']),
+            (256, ['icon_128x128@2x.png', 'icon_256x256.png']),
+            (512, ['icon_256x256@2x.png', 'icon_512x512.png']),
+          ]:
+            r = img.resize((size, size), Image.LANCZOS)
+            for n in names:
+              r.save(f'Ceol.iconset/{n}')
+          subprocess.run(['iconutil', '-c', 'icns', 'Ceol.iconset'], check=True)
+          print('icns created OK')
+          "
       - name: Build app
         run: |
           pyinstaller --onefile --windowed --name Ceol ceol_app.py \
@@ -50,8 +58,15 @@ jobs:
             --hidden-import sqlalchemy.dialects.sqlite \
             --collect-all fastapi \
             --collect-all webview
-          /usr/libexec/PlistBuddy -c "Set :CFBundleName Ceòl" dist/Ceol.app/Contents/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Ceòl" dist/Ceol.app/Contents/Info.plist
+          python3 -c "
+          import plistlib
+          p = 'dist/Ceol.app/Contents/Info.plist'
+          with open(p,'rb') as f: d = plistlib.load(f)
+          d['CFBundleName'] = 'Ce\u00f2l'
+          d['CFBundleDisplayName'] = 'Ce\u00f2l'
+          with open(p,'wb') as f: plistlib.dump(d, f)
+          print('plist patched OK')
+          "
           mkdir -p dist/dmg
           cp -r dist/Ceol.app dist/dmg/
           hdiutil create -volname "Ceòl" -srcfolder dist/dmg -ov -format UDZO "dist/Ceol-${{ github.ref_name }}-arm64.dmg"
