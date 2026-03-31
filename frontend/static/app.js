@@ -1270,6 +1270,38 @@ function renderModal(tune, onBack = null, siblings = null) {
         <button id="save-notes-btn" class="btn-primary">Save Notes</button>
         <span id="notes-status" class="notes-status"></span>
       </div>
+      <div class="attach-audio-row" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button id="notes-attach-audio-btn" class="btn-secondary">🎧 Attach audio</button>
+        <button id="notes-attach-video-btn" class="btn-secondary">📹 Attach video</button>
+      </div>
+      <div id="notes-attach-panel" class="attach-audio-panel hidden">
+        <div class="attach-audio-tabs">
+          <button class="notes-media-tab active" data-panel="audio">Upload audio</button>
+          <button class="notes-media-tab" data-panel="video">Upload video</button>
+          <button class="notes-media-tab" data-panel="url">Paste URL</button>
+        </div>
+        <div id="notes-panel-audio" class="attach-tab-panel">
+          <label class="attach-file-label">
+            <input id="notes-audio-file" type="file" accept="audio/*" class="attach-file-input">
+            <span class="attach-file-hint">Choose an audio file from your computer</span>
+          </label>
+          <p id="notes-audio-status" class="ff-cat-hint"></p>
+        </div>
+        <div id="notes-panel-video" class="attach-tab-panel hidden">
+          <label class="attach-file-label">
+            <input id="notes-video-file" type="file" accept="video/*" class="attach-file-input">
+            <span class="attach-file-hint">Choose a video file from your computer</span>
+          </label>
+          <p id="notes-video-status" class="ff-cat-hint"></p>
+        </div>
+        <div id="notes-panel-url" class="attach-tab-panel hidden">
+          <div class="attach-audio-browse-row">
+            <input id="notes-media-url-input" class="attach-audio-path" type="url" placeholder="https://…">
+            <button id="notes-media-url-btn" class="btn-secondary">Use URL</button>
+          </div>
+          <p id="notes-media-url-status" class="ff-cat-hint"></p>
+        </div>
+      </div>
     </div>
 
     ${tune.abc ? `
@@ -1568,6 +1600,59 @@ function renderModal(tune, onBack = null, siblings = null) {
       btn.disabled = false;
     }
   });
+
+  // Notes tab — media attachment panel
+  (function () {
+    const notesAttachPanel = document.getElementById("notes-attach-panel");
+
+    function _showNotesPanel(tab) {
+      notesAttachPanel.classList.remove("hidden");
+      notesAttachPanel.querySelectorAll(".notes-media-tab").forEach(b => b.classList.remove("active"));
+      notesAttachPanel.querySelectorAll(".attach-tab-panel").forEach(p => p.classList.add("hidden"));
+      notesAttachPanel.querySelector(`[data-panel="${tab}"]`).classList.add("active");
+      document.getElementById(`notes-panel-${tab}`).classList.remove("hidden");
+    }
+
+    document.getElementById("notes-attach-audio-btn").addEventListener("click", () => _showNotesPanel("audio"));
+    document.getElementById("notes-attach-video-btn").addEventListener("click", () => _showNotesPanel("video"));
+
+    notesAttachPanel.querySelectorAll(".notes-media-tab").forEach(btn => {
+      btn.addEventListener("click", () => _showNotesPanel(btn.dataset.panel));
+    });
+
+    async function _uploadAndAttach(inputId, statusId, endpoint) {
+      const file = document.getElementById(inputId).files[0];
+      if (!file) return;
+      const statusEl = document.getElementById(statusId);
+      statusEl.textContent = "Uploading…";
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const res = await fetch(endpoint, { method: "POST", body: formData });
+        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+        const { url } = await res.json();
+        await _appendUrlToNotes(`${window.location.origin}${url}`, statusEl);
+        notesAttachPanel.classList.add("hidden");
+      } catch (err) {
+        statusEl.textContent = `Error: ${err.message}`;
+      }
+    }
+
+    document.getElementById("notes-audio-file").addEventListener("change", () =>
+      _uploadAndAttach("notes-audio-file", "notes-audio-status", `/api/tunes/${tune.id}/upload-audio`));
+    document.getElementById("notes-video-file").addEventListener("change", () =>
+      _uploadAndAttach("notes-video-file", "notes-video-status", `/api/tunes/${tune.id}/upload-video`));
+
+    document.getElementById("notes-media-url-btn").addEventListener("click", async () => {
+      const urlInput = document.getElementById("notes-media-url-input");
+      const statusEl = document.getElementById("notes-media-url-status");
+      const url = urlInput.value.trim();
+      if (!url) { statusEl.textContent = "Please enter a URL."; return; }
+      urlInput.value = "";
+      await _appendUrlToNotes(url, statusEl);
+      notesAttachPanel.classList.add("hidden");
+    });
+  })();
 
   // ABC edit + save
   document.getElementById("save-abc-btn").addEventListener("click", async () => {
@@ -4119,10 +4204,7 @@ function renderSets(sets) {
     let _debounce = null;
 
     async function _runSearch(q) {
-      const url = q
-        ? `/api/tunes?search=${encodeURIComponent(q)}&page_size=10`
-        : `/api/tunes?page_size=12`;
-      const tunes = await apiFetch(url);
+      const tunes = await apiFetch(`/api/tunes?search=${encodeURIComponent(q)}&page_size=10`);
         const list = tunes.tunes || tunes;
         if (!list.length) { results.innerHTML = '<p class="set-add-tune-none">No tunes found</p>'; return; }
         results.innerHTML = list.map(t =>
@@ -4198,13 +4280,10 @@ function renderSets(sets) {
         });
     }
 
-    input.addEventListener("focus", () => {
-      if (!input.value.trim()) _runSearch("");
-    });
-
     input.addEventListener("input", () => {
       clearTimeout(_debounce);
       const q = input.value.trim();
+      if (!q) { results.innerHTML = ""; return; }
       _debounce = setTimeout(() => _runSearch(q), 250);
     });
   }
