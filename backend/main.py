@@ -2146,6 +2146,142 @@ def export_collection(col_id: int):
     return _json_response(payload, _safe_filename(c["name"], ".ceol.json"))
 
 
+@app.post("/api/import/ceol", status_code=201)
+async def import_ceol_json(file: UploadFile = File(...)):
+    """
+    Import a .ceol.json file exported from any Ceol library.
+    Merges tunes, recreates the collection/set structure, skips duplicates.
+    """
+    content = await file.read()
+    try:
+        data = json.loads(content)
+    except Exception:
+        raise HTTPException(400, "Could not parse file — is it a valid .ceol.json?")
+    if data.get("ceol") != 1:
+        raise HTTPException(400, "Not a valid Ceol export file")
+
+    ftype = data.get("type", "tunes")
+    tune_list = data.get("tunes", [])
+    imported = skipped = 0
+    title_to_id: dict[str, int] = {}
+
+    with _db() as conn:
+        # ── 1. Import / match tunes ──────────────────────────────────────────
+        for td in tune_list:
+            title = (td.get("title") or "").strip()
+            if not title:
+                continue
+
+            existing_id = None
+            sid = td.get("session_id")
+            if sid:
+                row = conn.execute(
+                    "SELECT id FROM tunes WHERE session_id = ?", (sid,)
+                ).fetchone()
+                if row:
+                    existing_id = row["id"]
+            if not existing_id:
+                row = conn.execute(
+                    "SELECT id FROM tunes WHERE LOWER(TRIM(title)) = ? LIMIT 1",
+                    (title.lower(),),
+                ).fetchone()
+                if row:
+                    existing_id = row["id"]
+
+            if existing_id:
+                title_to_id[title.lower()] = existing_id
+                skipped += 1
+            else:
+                cur = conn.execute(
+                    "INSERT INTO tunes (title, type, key, mode, abc, notes, composer,"
+                    " transcribed_by, rating, on_hitlist, is_favourite, session_id, source_url)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        title, td.get("type", ""), td.get("key", ""),
+                        td.get("mode", ""), td.get("abc", ""), td.get("notes", ""),
+                        td.get("composer", ""), td.get("transcribed_by", ""),
+                        td.get("rating", 0), td.get("on_hitlist", 0),
+                        td.get("is_favourite", 0), td.get("session_id"),
+                        td.get("source_url", ""),
+                    ),
+                )
+                new_id = cur.lastrowid
+                title_to_id[title.lower()] = new_id
+                for alias in td.get("aliases", []):
+                    conn.execute(
+                        "INSERT OR IGNORE INTO tune_aliases (tune_id, alias) VALUES (?,?)",
+                        (new_id, alias),
+                    )
+                imported += 1
+
+        # ── 2. Recreate collection ───────────────────────────────────────────
+        col_id = None
+        if ftype == "collection":
+            col_name = (data.get("name") or "Imported Collection").strip()
+            col_desc = data.get("description", "") or ""
+            row = conn.execute(
+                "SELECT id FROM collections WHERE LOWER(TRIM(name)) = ?",
+                (col_name.lower(),),
+            ).fetchone()
+            if row:
+                col_id = row["id"]
+            else:
+                cur = conn.execute(
+                    "INSERT INTO collections (name, description) VALUES (?,?)",
+                    (col_name, col_desc),
+                )
+                col_id = cur.lastrowid
+
+            for td in tune_list:
+                tid = title_to_id.get((td.get("title") or "").strip().lower())
+                if tid:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id)"
+                        " VALUES (?,?)",
+                        (col_id, tid),
+                    )
+
+        # ── 3. Recreate sets ─────────────────────────────────────────────────
+        sets_created = 0
+        for sd in data.get("sets", []):
+            set_name = (sd.get("name") or "").strip()
+            if not set_name:
+                continue
+            row = conn.execute(
+                "SELECT id FROM sets WHERE LOWER(TRIM(name)) = ?",
+                (set_name.lower(),),
+            ).fetchone()
+            if row:
+                set_id = row["id"]
+            else:
+                cur = conn.execute(
+                    "INSERT INTO sets (name, notes) VALUES (?,?)",
+                    (set_name, sd.get("notes", "") or ""),
+                )
+                set_id = cur.lastrowid
+                sets_created += 1
+            for st in sd.get("tunes", []):
+                t_title = (st.get("title") or "").strip()
+                tid = title_to_id.get(t_title.lower())
+                if tid:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO set_tunes (set_id, tune_id, position)"
+                        " VALUES (?,?,?)",
+                        (set_id, tid, st.get("position", 0)),
+                    )
+            if col_id:
+                conn.execute(
+                    "INSERT OR IGNORE INTO collection_sets (collection_id, set_id) VALUES (?,?)",
+                    (col_id, set_id),
+                )
+
+    result = {"ok": True, "type": ftype, "imported": imported, "skipped": skipped}
+    if ftype == "collection":
+        result["collection_name"] = data.get("name", "")
+        result["sets_created"] = sets_created
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Discography scanner — build a collection from TheSession recordings
 # ---------------------------------------------------------------------------

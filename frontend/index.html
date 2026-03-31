@@ -292,6 +292,7 @@
         <button class="tab-btn" data-import-tab="book">PDF Book</button>
         <button class="tab-btn" data-import-tab="photos">Photos</button>
         <button class="tab-btn" data-import-tab="youtube">YouTube</button>
+        <button class="tab-btn" data-import-tab="ceol">Ceol file</button>
       </div>
 
       <!-- ABC file tab -->
@@ -662,6 +663,19 @@
         <div id="yt-import-result" class="import-result hidden"></div>
         <div class="import-actions">
           <button id="yt-import-btn" class="btn-import">Import YouTube video</button>
+        </div>
+      </div>
+
+      <!-- Ceol file (merge) tab -->
+      <div id="import-tab-ceol" class="tab-panel hidden">
+        <p class="import-desc">Import a <strong>.ceol.json</strong> file exported from another Ceol library. Tunes are merged — duplicates are skipped. The collection, its tunes, and any sets are recreated in this library.</p>
+        <label class="import-drop" id="ceol-drop-zone">
+          <input id="ceol-file-input" type="file" accept=".json,.ceol.json" style="display:none">
+          <span class="import-drop-label">Drop a <code>.ceol.json</code> file here, or click to choose</span>
+        </label>
+        <div id="ceol-import-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="ceol-import-btn" class="btn-import" disabled>Merge into library</button>
         </div>
       </div>
     </div>

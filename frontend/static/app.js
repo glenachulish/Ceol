@@ -4508,7 +4508,7 @@ function renderCollections(collections) {
         </div>
         <div class="set-card-actions">
           <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${c.id}">Strip chords</button>
-          <a class="btn-secondary btn-sm" href="/api/export/collection/${c.id}" download title="Export as .ceol.json">⬇ Export</a>
+          <a class="btn-secondary btn-sm" href="/api/export/collection/${c.id}" download title="Export as .ceol.json — can be merged into another Ceol library via Import → Ceol file">⬇ Export</a>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
           <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">🗑</button>
         </div>
@@ -7069,6 +7069,65 @@ theCraicSubmit.addEventListener("click", async () => {
     } finally {
       ytImportBtn.disabled = false;
       ytImportBtn.textContent = "Import YouTube video";
+    }
+  });
+}
+
+// ── Ceol file (merge) import ───────────────────────────────────────────────
+{
+  const ceolFileInput  = document.getElementById("ceol-file-input");
+  const ceolDropZone   = document.getElementById("ceol-drop-zone");
+  const ceolImportBtn  = document.getElementById("ceol-import-btn");
+  const ceolResult     = document.getElementById("ceol-import-result");
+  let ceolPendingFile  = null;
+
+  function _setCeolFile(file) {
+    ceolPendingFile = file;
+    ceolImportBtn.disabled = !file;
+    ceolDropZone.querySelector(".import-drop-label").textContent =
+      file ? `Ready: ${file.name}` : "Drop a .ceol.json file here, or click to choose";
+    ceolResult.classList.add("hidden");
+  }
+
+  ceolDropZone.addEventListener("click", () => ceolFileInput.click());
+  ceolFileInput.addEventListener("change", () => _setCeolFile(ceolFileInput.files[0] || null));
+  ceolDropZone.addEventListener("dragover", e => { e.preventDefault(); ceolDropZone.classList.add("drag-over"); });
+  ceolDropZone.addEventListener("dragleave", () => ceolDropZone.classList.remove("drag-over"));
+  ceolDropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    ceolDropZone.classList.remove("drag-over");
+    _setCeolFile(e.dataTransfer.files[0] || null);
+  });
+
+  ceolImportBtn.addEventListener("click", async () => {
+    if (!ceolPendingFile) return;
+    ceolImportBtn.disabled = true;
+    ceolImportBtn.textContent = "Merging…";
+    ceolResult.classList.add("hidden");
+    const formData = new FormData();
+    formData.append("file", ceolPendingFile);
+    try {
+      const res = await fetch("/api/import/ceol", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      const parts = [];
+      if (data.imported)  parts.push(`${data.imported} tune${data.imported !== 1 ? "s" : ""} added`);
+      if (data.skipped)   parts.push(`${data.skipped} already in library`);
+      if (data.sets_created) parts.push(`${data.sets_created} set${data.sets_created !== 1 ? "s" : ""} created`);
+      if (data.collection_name) parts.push(`collection "${data.collection_name}" ready`);
+      ceolResult.textContent = parts.join(" · ") || "Nothing new to import.";
+      ceolResult.className = "import-result import-success";
+      ceolResult.classList.remove("hidden");
+      _setCeolFile(null);
+      ceolFileInput.value = "";
+      await Promise.all([loadTunes(), loadStats()]);
+    } catch (err) {
+      ceolResult.textContent = `Error: ${err.message}`;
+      ceolResult.className = "import-result import-error";
+      ceolResult.classList.remove("hidden");
+    } finally {
+      ceolImportBtn.disabled = false;
+      ceolImportBtn.textContent = "Merge into library";
     }
   });
 }
