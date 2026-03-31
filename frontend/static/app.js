@@ -6924,7 +6924,8 @@ theCraicSubmit.addEventListener("click", async () => {
   const AUDIO_RE = /\.(mp3|m4a|ogg|wav)$/i;
   const PDF_RE   = /\.pdf$/i;
   const IMAGE_RE = /\.(jpg|jpeg|png)$/i;
-  const ALL_RE   = /\.(abc|txt|mp3|m4a|ogg|wav|pdf|jpg|jpeg|png)$/i;
+  const MSCA_RE  = /\.msca$/i;
+  const ALL_RE   = /\.(abc|txt|mp3|m4a|ogg|wav|pdf|jpg|jpeg|png|msca)$/i;
 
   const folderInput           = document.getElementById("folder-input");
   const folderSummary         = document.getElementById("folder-summary");
@@ -6935,15 +6936,16 @@ theCraicSubmit.addEventListener("click", async () => {
   const folderCollectionName  = document.getElementById("folder-collection-name");
 
   function categorise(files) {
-    const abc = [], audio = [], pdf = [], image = [], skipped = [];
+    const abc = [], audio = [], pdf = [], image = [], msca = [], skipped = [];
     for (const f of files) {
       if (ABC_RE.test(f.name))        abc.push(f);
       else if (AUDIO_RE.test(f.name)) audio.push(f);
       else if (PDF_RE.test(f.name))   pdf.push(f);
       else if (IMAGE_RE.test(f.name)) image.push(f);
+      else if (MSCA_RE.test(f.name))  msca.push(f);
       else                            skipped.push(f);
     }
-    return { abc, audio, pdf, image, skipped };
+    return { abc, audio, pdf, image, msca, skipped };
   }
 
   function renderPreview(cats) {
@@ -6952,10 +6954,11 @@ theCraicSubmit.addEventListener("click", async () => {
     if (cats.audio.length) rows.push(`<li>🎶 <strong>${cats.audio.length}</strong> audio file${cats.audio.length === 1 ? "" : "s"} (MP3/M4A/WAV)</li>`);
     if (cats.pdf.length)   rows.push(`<li>📄 <strong>${cats.pdf.length}</strong> PDF file${cats.pdf.length === 1 ? "" : "s"}</li>`);
     if (cats.image.length) rows.push(`<li>📷 <strong>${cats.image.length}</strong> photo${cats.image.length === 1 ? "" : "s"} (JPG/PNG)</li>`);
+    if (cats.msca.length)  rows.push(`<li>📋 <strong>${cats.msca.length}</strong> Music Scanner file${cats.msca.length === 1 ? "" : "s"} (.msca)</li>`);
     if (cats.skipped.length) rows.push(`<li style="color:var(--text-muted)">⏭ ${cats.skipped.length} unsupported file${cats.skipped.length === 1 ? "" : "s"} (ignored)</li>`);
 
     let html = `<ul class="folder-category-list">${rows.join("")}</ul>`;
-    html += `<p class="folder-match-hint">ABC files create new tunes. Audio, PDF and photo files are matched to tunes by filename — unmatched files create a new tune entry.</p>`;
+    html += `<p class="folder-match-hint">ABC and .msca files create new tunes. Audio, PDF and photo files are matched to tunes by filename — unmatched files create a new tune entry.</p>`;
     return html;
   }
 
@@ -7002,6 +7005,7 @@ theCraicSubmit.addEventListener("click", async () => {
       if (data.audio_attached)  lines.push(`🎶 ${data.audio_attached} audio file${data.audio_attached === 1 ? "" : "s"} attached`);
       if (data.pdf_attached)    lines.push(`📄 ${data.pdf_attached} PDF${data.pdf_attached === 1 ? "" : "s"} attached`);
       if (data.image_attached)  lines.push(`📷 ${data.image_attached} photo${data.image_attached === 1 ? "" : "s"} attached`);
+      if (data.msca_imported)   lines.push(`📋 ${data.msca_imported} tune${data.msca_imported === 1 ? "" : "s"} from Music Scanner`);
       if (data.new_from_media)  lines.push(`➕ ${data.new_from_media} new tune${data.new_from_media === 1 ? "" : "s"} created from unmatched media`);
       if (data.collection_id)   lines.push(`📁 Added to collection "${escHtml(colName)}"`);
 
