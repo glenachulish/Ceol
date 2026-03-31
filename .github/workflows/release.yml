@@ -63,20 +63,27 @@ jobs:
             --collect-all fastapi \
             --collect-all webview \
             --collect-all pyobjc
-      - name: Patch bundle name and create DMG
+      - name: Patch bundle icon, name, and create DMG
         run: |
+          # Force-copy icon into the bundle Resources
+          cp Ceol.icns dist/Ceol.app/Contents/Resources/
+          ls -la dist/Ceol.app/Contents/Resources/Ceol.icns
+
+          # Patch plist: set accent name + ensure icon file reference
           python3 -c "
           import plistlib
           p = 'dist/Ceol.app/Contents/Info.plist'
           with open(p,'rb') as f: d = plistlib.load(f)
           d['CFBundleName'] = 'Ce\u00f2l'
           d['CFBundleDisplayName'] = 'Ce\u00f2l'
+          d['CFBundleIconFile'] = 'Ceol.icns'
           with open(p,'wb') as f: plistlib.dump(d, f)
-          print('plist patched OK')
+          print('plist patched OK:', {k: d[k] for k in ['CFBundleName','CFBundleDisplayName','CFBundleIconFile']})
           "
+
           mkdir -p dist/dmg
-          cp -r "dist/Ceol.app" "dist/dmg/Ceòl.app"
-          hdiutil create -volname "Ceòl" -srcfolder dist/dmg -ov -format UDZO "dist/Ceol-${{ github.ref_name }}-arm64.dmg"
+          mv "dist/Ceol.app" "dist/dmg/Ce\u00f2l.app"
+          hdiutil create -volname "Ce\u00f2l" -srcfolder dist/dmg -ov -format UDZO "dist/Ceol-${{ github.ref_name }}-arm64.dmg"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
