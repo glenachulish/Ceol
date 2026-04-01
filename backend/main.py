@@ -6140,12 +6140,14 @@ def _has_music21() -> bool:
 def capabilities():
     """Return which optional features are available on this server."""
     aud = _audiveris_info()
+    data_dir = str(DB_PATH.parent.resolve())
     return {
         "has_anthropic_key": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()),
         "has_audiveris":     aud["available"],
         "audiveris_jar":     aud.get("jar"),
         "audiveris_reason":  aud.get("reason"),
         "has_music21":       _has_music21(),
+        "data_dir":          data_dir,
     }
 
 

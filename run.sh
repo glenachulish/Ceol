@@ -27,6 +27,23 @@ ANTHROPIC_API_KEY=
 # Example (Apple Silicon Mac):
 # AUDIVERIS_JAR=/Applications/Audiveris.app/Contents/app/Audiveris.jar
 AUDIVERIS_JAR=
+
+# Data directory — where ceol.db and uploaded files are stored.
+# Leave blank to use the default (data/ folder inside this project).
+# Set to an iCloud or Dropbox folder to sync your library across devices:
+#
+#   iCloud Drive:
+#   CEOL_DATA_DIR=/Users/YOUR_NAME/Library/Mobile Documents/com~apple~CloudDocs/Ceol
+#
+#   Dropbox:
+#   CEOL_DATA_DIR=/Users/YOUR_NAME/Dropbox/Ceol
+#
+# Notes:
+#   • The folder will be created automatically on first run.
+#   • To move an existing library: copy data/ceol.db and data/uploads/
+#     to the new folder, then set CEOL_DATA_DIR and restart.
+#   • Don't run two Ceol instances pointing at the same folder simultaneously.
+CEOL_DATA_DIR=
 ENVEOF
   echo "Created .env — edit it to add your ANTHROPIC_API_KEY and/or AUDIVERIS_JAR path."
 fi

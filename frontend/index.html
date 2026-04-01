@@ -866,7 +866,8 @@
         <div class="help-row"><span class="help-label">💾 Export Library</span><span class="help-desc">Downloads a ZIP of everything — tunes, sets, collections, notes, uploads. Do this before any major change.</span></div>
         <div class="help-row"><span class="help-label">📂 Import Library</span><span class="help-desc">Restores from a ZIP backup. <strong>Replaces</strong> everything — backup first!</span></div>
         <div class="help-row"><span class="help-label">🔀 Merge Library</span><span class="help-desc">Merges another library's tunes in without replacing existing data.</span></div>
-        <div class="help-row"><span class="help-label">iCloud / network</span><span class="help-desc">The database can live on iCloud Drive or a network folder — set <code>CEOL_DATA_DIR</code> when starting the server.</span></div>
+        <div class="help-row"><span class="help-label">iCloud / Dropbox</span><span class="help-desc">Store your library in iCloud Drive or Dropbox so it syncs across Macs. Edit <code>.env</code> in the Ceol folder and set <code>CEOL_DATA_DIR</code> to your cloud folder path, then restart. To move an existing library, copy <code>data/ceol.db</code> and <code>data/uploads/</code> to the new folder first. Don't run two instances pointing at the same folder simultaneously.</span></div>
+        <div class="help-row"><span class="help-label">Current data folder</span><span class="help-desc"><code id="help-data-dir">loading…</code></span></div>
         <div class="help-row"><span class="help-label">File paths &amp; tools</span><span class="help-desc">See database location, backups, and auto-classify tools:</span></div>
         <div style="margin-top:.3rem"><button id="help-open-info-btn" class="btn-secondary btn-sm">ℹ Open App Info</button></div>
       </details>

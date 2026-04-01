@@ -22,6 +22,8 @@ async function loadCapabilities() {
   try {
     const c = await apiFetch("/api/capabilities");
     Object.assign(state.capabilities, c);
+    const el = document.getElementById("help-data-dir");
+    if (el && c.data_dir) el.textContent = c.data_dir;
   } catch { /* non-fatal — fall back to defaults */ }
 }
 
@@ -8676,6 +8678,14 @@ async function _openInfoModal() {
       <tr><th>Uploads</th><td><code>${info.uploads}</code></td></tr>
       <tr><th>Info file</th><td><code>${info.info_file}</code></td></tr>
     </table>
+    <hr class="modal-divider">
+    <h3 class="modal-section-title">iCloud / Dropbox sync</h3>
+    <p class="modal-hint">To store your library in iCloud Drive or Dropbox, add <code>CEOL_DATA_DIR</code> to <code>.env</code> in the Ceol folder and restart:</p>
+    <table class="info-table">
+      <tr><th>iCloud Drive</th><td><code>~/Library/Mobile Documents/com~apple~CloudDocs/Ceol</code></td></tr>
+      <tr><th>Dropbox</th><td><code>~/Dropbox/Ceol</code></td></tr>
+    </table>
+    <p class="modal-hint">To move an existing library: copy <code>data/ceol.db</code> and <code>data/uploads/</code> into the new folder first, then set <code>CEOL_DATA_DIR</code>. Don't run two Ceol instances on the same folder at the same time.</p>
     <hr class="modal-divider">
     <h3 class="modal-section-title">Transcription capabilities</h3>
     <table class="info-table">
