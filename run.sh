@@ -34,6 +34,13 @@ fi
 # Install / update Python dependencies silently
 python3 -m pip install -q -r requirements.txt
 
+# Tesseract OCR is needed for Music Scanner book splitting (optional but recommended)
+if ! command -v tesseract &>/dev/null; then
+  echo "Note: tesseract-ocr not found — Music Scanner book pages won't be split into individual tunes."
+  echo "  macOS:  brew install tesseract"
+  echo "  Linux:  sudo apt-get install tesseract-ocr"
+fi
+
 HOST="${HOST:-0.0.0.0}"   # bind to all interfaces so mobile can reach it
 PORT="${PORT:-8001}"
 

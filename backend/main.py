@@ -2374,6 +2374,187 @@ async def import_ceol_json(file: UploadFile = File(...)):
 # Music Scanner (.msca) import
 # ---------------------------------------------------------------------------
 
+def _img_to_bytes(img, fmt: str = "JPEG") -> bytes:
+    """Serialise a PIL Image to bytes."""
+    from PIL import Image
+    import io as _io
+    buf = _io.BytesIO()
+    img.save(buf, format=fmt, quality=85)
+    return buf.getvalue()
+
+
+def _ink_profile(img) -> "np.ndarray":
+    """Return per-row ink fraction (fraction of pixels darker than 200)."""
+    import numpy as np
+    arr = np.array(img.convert("L"), dtype=np.float32)
+    return (arr < 200).mean(axis=1)   # shape (H,)
+
+
+def _find_title_positions(img) -> list[tuple[int, str]]:
+    """
+    OCR the full page and return (y_top, title_text) for each title-like line found.
+    A title is a short (1-8 words), mostly-alphabetic line that appears
+    above a run of ink (the music staff that follows).
+    Returns empty list if tesseract is not available.
+    """
+    try:
+        import pytesseract
+        import numpy as np
+    except ImportError:
+        return []
+
+    gray = img.convert("L")
+    data = pytesseract.image_to_data(gray, output_type=pytesseract.Output.DICT,
+                                     config="--psm 1 --oem 3")
+    n = len(data["text"])
+
+    # Group words into lines
+    lines: dict = {}
+    for i in range(n):
+        text = (data["text"][i] or "").strip()
+        if not text or data["conf"][i] < 15:
+            continue
+        key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+        e = lines.setdefault(key, {"words": [], "top": 9999, "bot": 0, "heights": []})
+        e["words"].append(text)
+        top_i = data["top"][i]
+        h_i   = data["height"][i]
+        e["top"] = min(e["top"], top_i)
+        e["bot"] = max(e["bot"], top_i + h_i)
+        e["heights"].append(h_i)
+
+    ink = _ink_profile(gray)   # per-row darkness fraction
+    h_img = img.height
+
+    titles = []
+    for entry in sorted(lines.values(), key=lambda e: e["top"]):
+        text = " ".join(entry["words"]).strip()
+        words = text.split()
+        if not words or len(words) > 9:
+            continue
+        # Must be mostly alphabetic (not a chord symbol or bar marking)
+        alpha_frac = sum(c.isalpha() for c in text) / max(len(text), 1)
+        if alpha_frac < 0.45:
+            continue
+        # Must not be tiny annotation (height below 10px)
+        if entry["heights"] and max(entry["heights"]) < 10:
+            continue
+        # Require ink below the title (music should follow)
+        below_start = min(entry["bot"] + 5, h_img - 1)
+        below_end   = min(entry["bot"] + 80, h_img)
+        if below_end > below_start:
+            ink_below = ink[below_start:below_end].mean()
+            if ink_below < 0.003:      # no music below — skip (e.g. page number)
+                continue
+        titles.append((entry["top"], text))
+
+    # De-duplicate: if two titles are within 20px vertically, keep taller/longer
+    deduped = []
+    for y, t in sorted(titles):
+        if deduped and y - deduped[-1][0] < 20:
+            if len(t) > len(deduped[-1][1]):
+                deduped[-1] = (y, t)
+        else:
+            deduped.append((y, t))
+    return deduped
+
+
+def _split_page_into_sections(img_bytes: bytes, page_name: str,
+                               ) -> list[tuple[str | None, bytes, str]]:
+    """
+    Split a page image into tune sections using OCR-detected title positions.
+    Returns list of (title_or_None, section_bytes, section_name).
+    title_or_None is None when the section is a continuation (no new title found).
+    Falls back to (None, img_bytes, page_name) if OCR is unavailable.
+    """
+    from PIL import Image
+    import io as _io
+
+    try:
+        import numpy as np
+    except ImportError:
+        return [(None, img_bytes, page_name)]
+
+    img = Image.open(_io.BytesIO(img_bytes))
+    w, h = img.size
+
+    title_positions = _find_title_positions(img)
+
+    if not title_positions:
+        # No titles found — whole page is a continuation
+        return [(None, img_bytes, page_name)]
+
+    # Build section boundaries using the white-space just above each title
+    ink = _ink_profile(img)
+
+    def find_gap_above(y_title: int) -> int:
+        """Find the last mostly-white row above y_title (search up to 80px back)."""
+        search_start = max(0, y_title - 5)
+        search_end   = max(0, y_title - 100)
+        for y in range(search_start, search_end, -1):
+            if ink[y] < 0.004:
+                return y
+        return max(0, y_title - 4)
+
+    boundaries = []   # (y_start, y_end, title)
+    splits = [(find_gap_above(y), y, t) for y, t in title_positions]
+
+    for idx, (gap_y, title_y, title) in enumerate(splits):
+        y_end = splits[idx + 1][0] if idx + 1 < len(splits) else h
+        boundaries.append((gap_y, y_end, title))
+
+    sections: list[tuple[str | None, bytes, str]] = []
+
+    # If the first title is not near the very top, there's a continuation section
+    first_gap = splits[0][0]
+    if first_gap > h * 0.06:   # more than 6% down — content before first title
+        cont_img = img.crop((0, 0, w, first_gap))
+        sections.append((None, _img_to_bytes(cont_img), f"{page_name}_cont"))
+
+    for idx, (y0, y1, title) in enumerate(boundaries):
+        if y1 - y0 < 20:
+            continue
+        section_img = img.crop((0, y0, w, y1))
+        sections.append((title, _img_to_bytes(section_img), f"{page_name}_s{idx}"))
+
+    return sections if sections else [(None, img_bytes, page_name)]
+
+
+def _merge_page_sections_into_tunes(
+    all_sections: list[tuple[str | None, bytes, str]],
+    collection_name: str,
+) -> list[dict]:
+    """
+    Given a flat list of (title_or_None, img_bytes, section_name) from all pages,
+    group sections into tunes.  A section with a title starts a new tune.
+    A section with title=None is appended to the current tune as an extra image.
+    """
+    tunes: list[dict] = []
+    for title, img_bytes, sname in all_sections:
+        if title:
+            tunes.append({
+                "title": title,
+                "_image_attachments": [(sname + ".jpeg", img_bytes)],
+            })
+        else:
+            if tunes:
+                tunes[-1]["_image_attachments"].append((sname + ".jpeg", img_bytes))
+            else:
+                # Content before the first titled tune (e.g. front matter) — skip
+                pass
+    # Deduplicate titles that are clearly OCR noise (single chars, all symbols)
+    cleaned = []
+    for t in tunes:
+        title = t["title"]
+        if len(title) <= 1 or all(c in "0123456789=|./+- #@" for c in title.replace(" ", "")):
+            # Looks like OCR noise — treat as continuation
+            if cleaned:
+                cleaned[-1]["_image_attachments"].extend(t["_image_attachments"])
+        else:
+            cleaned.append(t)
+    return cleaned
+
+
 def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict], str]:
     """
     Try to parse a .msca file using multiple strategies.
@@ -2509,20 +2690,41 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                             }], collection_name
 
                         if len(reader) == 1 and len(all_images) > 1:
-                            # Scanned book with one metadata row but many pages —
-                            # split into one tune per page image
+                            # Scanned book — use OCR to detect individual tune sections
+                            # across all pages, handling tunes that span page boundaries.
                             row = reader[0]
-                            book_title = row.get("displayName", "").strip() or collection_name
-                            bpm      = row.get("bpm", "").strip()
                             key      = keys_list[0] if keys_list else ""
                             time_sig = time_sigs_list[0] if time_sigs_list else ""
+                            bpm      = row.get("bpm", "").strip()
+
+                            # Collect page-level sections across all pages
+                            all_sections: list[tuple] = []
+                            for img_name in all_images:
+                                img_bytes = zf.read(img_name)
+                                try:
+                                    sections = _split_page_into_sections(
+                                        img_bytes, img_name)
+                                    all_sections.extend(sections)
+                                except Exception:
+                                    # OCR failed for this page — treat as one unnamed section
+                                    all_sections.append((None, img_bytes, img_name))
+
+                            # Merge sections into tunes
+                            tunes_raw = _merge_page_sections_into_tunes(
+                                all_sections, collection_name)
+
+                            # Annotate with key/time/bpm from session.dat
                             tune_list_out = []
-                            for i, img_name in enumerate(all_images):
+                            for i, td in enumerate(tunes_raw):
                                 tune_list_out.append({
-                                    "title": f"{book_title} - Page {i + 1}",
-                                    "key": key, "type": "",
-                                    "bpm": bpm, "time_signature": time_sig,
-                                    "_image_attachments": [(img_name, zf.read(img_name))],
+                                    "title": td["title"],
+                                    "key": keys_list[i] if i < len(keys_list) else key,
+                                    "type": "",
+                                    "bpm": bpm,
+                                    "time_signature": (time_sigs_list[i]
+                                                       if i < len(time_sigs_list)
+                                                       else time_sig),
+                                    "_image_attachments": td["_image_attachments"],
                                 })
                             return tune_list_out, collection_name
 
