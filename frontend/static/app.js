@@ -4770,6 +4770,46 @@ function renderCollections(collections) {
     return `${diffDays} days ago`;
   }
 
+  const toolbar       = document.getElementById("recent-imports-toolbar");
+  const selectAllCb   = document.getElementById("recent-select-all");
+  const deleteSelBtn  = document.getElementById("recent-delete-selected");
+
+  function _updateRecentToolbar() {
+    const cbs = listEl.querySelectorAll(".recent-row-cb");
+    const checked = listEl.querySelectorAll(".recent-row-cb:checked");
+    selectAllCb.checked       = cbs.length > 0 && checked.length === cbs.length;
+    selectAllCb.indeterminate = checked.length > 0 && checked.length < cbs.length;
+    deleteSelBtn.disabled     = checked.length === 0;
+    deleteSelBtn.textContent  = checked.length
+      ? `🗑 Delete ${checked.length} tune${checked.length === 1 ? "" : "s"}`
+      : "🗑 Delete selected";
+  }
+
+  selectAllCb.addEventListener("change", () => {
+    listEl.querySelectorAll(".recent-row-cb").forEach(cb => { cb.checked = selectAllCb.checked; });
+    _updateRecentToolbar();
+  });
+
+  deleteSelBtn.addEventListener("click", async () => {
+    const ids = [...listEl.querySelectorAll(".recent-row-cb:checked")].map(cb => Number(cb.dataset.tuneId));
+    if (!ids.length) return;
+    if (!confirm(`Permanently delete ${ids.length} tune${ids.length === 1 ? "" : "s"}?`)) return;
+    deleteSelBtn.disabled = true;
+    deleteSelBtn.textContent = "Deleting…";
+    try {
+      await apiFetch("/api/tunes/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      await loadRecent(_recentDays);
+      await Promise.all([loadTunes(), loadStats()]);
+    } catch {
+      alert("Delete failed. Please try again.");
+      deleteSelBtn.disabled = false;
+    }
+  });
+
   async function loadRecent(days) {
     _recentDays = days;
     countEl.textContent = "";
@@ -4780,22 +4820,29 @@ function renderCollections(collections) {
       countEl.textContent = `${tunes.length} tune${tunes.length === 1 ? "" : "s"}`;
       if (!tunes.length) {
         listEl.innerHTML = `<p class="empty" style="padding:.5rem 0">No tunes imported in this period.</p>`;
+        toolbar.classList.add("hidden");
         return;
       }
+      toolbar.classList.remove("hidden");
+      selectAllCb.checked = false;
+      deleteSelBtn.disabled = true;
+      deleteSelBtn.textContent = "🗑 Delete selected";
       listEl.innerHTML = tunes.map(t => `
         <div class="set-tune-row">
+          <input type="checkbox" class="recent-row-cb" data-tune-id="${t.id}" style="flex-shrink:0;cursor:pointer">
           <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
           <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
           <span class="badge badge-key">${escHtml(t.key || "")}</span>
           <span class="recent-import-date">${relativeDate(t.imported_at)}</span>
         </div>`).join("");
+      listEl.querySelectorAll(".recent-row-cb").forEach(cb => {
+        cb.addEventListener("change", _updateRecentToolbar);
+      });
       // wire up tune-open buttons
       listEl.querySelectorAll(".tune-open-btn").forEach(btn => {
         btn.addEventListener("click", async () => {
           const tune = await fetchTune(btn.dataset.tuneId);
           await Promise.all([fetchSets(), fetchCollections()]);
-          // If this tune is a version (has a parent), open the parent's versions panel
-          // so the user sees the full tune page with all versions, not a blank entry.
           if (tune.parent_id) {
             const { versions } = await apiFetch(`/api/tunes/${tune.parent_id}/versions`);
             if (versions && versions.length > 0) {
@@ -4814,6 +4861,7 @@ function renderCollections(collections) {
       });
     } catch {
       listEl.innerHTML = '<p class="empty" style="padding:.5rem 0">Failed to load.</p>';
+      toolbar.classList.add("hidden");
     }
   }
 
