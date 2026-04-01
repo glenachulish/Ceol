@@ -2693,6 +2693,7 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                             # Scanned book — use OCR to detect individual tune sections
                             # across all pages, handling tunes that span page boundaries.
                             row = reader[0]
+                            book_title = row.get("displayName", "").strip() or collection_name
                             key      = keys_list[0] if keys_list else ""
                             time_sig = time_sigs_list[0] if time_sigs_list else ""
                             bpm      = row.get("bpm", "").strip()
@@ -2700,18 +2701,27 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                             # Collect page-level sections across all pages
                             all_sections: list[tuple] = []
                             for img_name in all_images:
-                                img_bytes = zf.read(img_name)
+                                img_bytes_page = zf.read(img_name)
                                 try:
                                     sections = _split_page_into_sections(
-                                        img_bytes, img_name)
+                                        img_bytes_page, img_name)
                                     all_sections.extend(sections)
                                 except Exception:
-                                    # OCR failed for this page — treat as one unnamed section
-                                    all_sections.append((None, img_bytes, img_name))
+                                    all_sections.append((None, img_bytes_page, img_name))
 
                             # Merge sections into tunes
                             tunes_raw = _merge_page_sections_into_tunes(
                                 all_sections, collection_name)
+
+                            # Fallback: OCR produced nothing — number tunes by page
+                            if not tunes_raw:
+                                tunes_raw = [
+                                    {
+                                        "title": f"{book_title} - Page {i + 1}",
+                                        "_image_attachments": [(img_name, zf.read(img_name))],
+                                    }
+                                    for i, img_name in enumerate(all_images)
+                                ]
 
                             # Annotate with key/time/bpm from session.dat
                             tune_list_out = []
@@ -3064,6 +3074,44 @@ async def diagnose_msca(file: UploadFile = File(...)):
         "zip_contents": zip_contents,
         "zip_text_samples": zip_text_samples,
     }
+
+
+@app.post("/api/import/msca/diagnose-ocr")
+async def diagnose_msca_ocr(file: UploadFile = File(...)):
+    """
+    Run OCR on the first few pages of a book .msca and return detected titles
+    and section boundaries — useful for tuning the import.
+    """
+    content = await file.read()
+    if not zipfile.is_zipfile(io.BytesIO(content)):
+        raise HTTPException(400, "Not a ZIP-format .msca file")
+
+    results = []
+    with zipfile.ZipFile(io.BytesIO(content)) as zf:
+        images = sorted(
+            n for n in zf.namelist()
+            if re.match(r"background_\d+\.(jpeg|jpg|png)", n.lower())
+        )
+        for img_name in images[:6]:   # inspect first 6 pages
+            img_bytes = zf.read(img_name)
+            page_info: dict = {"page": img_name, "titles": [], "sections": [], "error": None}
+            try:
+                from PIL import Image as _PILImage
+                import io as _io
+                img = _PILImage.open(_io.BytesIO(img_bytes))
+                page_info["size"] = f"{img.width}x{img.height}"
+                titles = _find_title_positions(img)
+                page_info["titles"] = [{"y": y, "text": t} for y, t in titles]
+                sections = _split_page_into_sections(img_bytes, img_name)
+                page_info["sections"] = [
+                    {"title": title, "name": sname}
+                    for title, _, sname in sections
+                ]
+            except Exception as e:
+                page_info["error"] = str(e)
+            results.append(page_info)
+
+    return {"pages_inspected": len(results), "pages": results}
 
 
 # ---------------------------------------------------------------------------

@@ -7227,8 +7227,9 @@ theCraicSubmit.addEventListener("click", async () => {
   const mscaBrowseBtn    = document.getElementById("msca-browse-btn");
   const mscaFileLabel    = document.getElementById("msca-file-label");
   const mscaDropZone     = document.getElementById("msca-drop-zone");
-  const mscaImportBtn    = document.getElementById("msca-import-btn");
-  const mscaDiagnoseBtn  = document.getElementById("msca-diagnose-btn");
+  const mscaImportBtn       = document.getElementById("msca-import-btn");
+  const mscaDiagnoseBtn     = document.getElementById("msca-diagnose-btn");
+  const mscaDiagnoseOcrBtn  = document.getElementById("msca-diagnose-ocr-btn");
   const mscaDiagnoseOut  = document.getElementById("msca-diagnose-result");
   const mscaResult       = document.getElementById("msca-import-result");
   const mscaProgressWrap = document.getElementById("msca-progress-wrap");
@@ -7239,8 +7240,9 @@ theCraicSubmit.addEventListener("click", async () => {
   function _setMscaFiles(files, { clearResult = true } = {}) {
     mscaPendingFiles = Array.from(files || []);
     const n = mscaPendingFiles.length;
-    mscaImportBtn.disabled  = n === 0;
-    mscaDiagnoseBtn.disabled = n === 0;
+    mscaImportBtn.disabled       = n === 0;
+    mscaDiagnoseBtn.disabled     = n === 0;
+    mscaDiagnoseOcrBtn.disabled  = n === 0;
     mscaDiagnoseOut.style.display = "none";
     mscaFileLabel.textContent = n === 0 ? "No files selected"
       : n === 1 ? mscaPendingFiles[0].name
@@ -7313,6 +7315,42 @@ theCraicSubmit.addEventListener("click", async () => {
     } finally {
       mscaDiagnoseBtn.disabled = false;
       mscaDiagnoseBtn.textContent = "Diagnose format";
+    }
+  });
+
+  mscaDiagnoseOcrBtn.addEventListener("click", async () => {
+    if (!mscaPendingFiles.length) return;
+    mscaDiagnoseOcrBtn.disabled = true;
+    mscaDiagnoseOcrBtn.textContent = "Running OCR…";
+    mscaDiagnoseOut.style.display = "none";
+    const file = mscaPendingFiles[0];
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const res = await fetch("/api/import/msca/diagnose-ocr", { method: "POST", body: fd });
+      const data = await res.json();
+      let out = `OCR results for: ${file.name} (inspecting first ${data.pages_inspected} pages)\n\n`;
+      for (const pg of data.pages) {
+        out += `── ${pg.page} (${pg.size || "?"})──\n`;
+        if (pg.error) { out += `  ERROR: ${pg.error}\n`; continue; }
+        if (!pg.titles.length) {
+          out += `  No titles detected\n`;
+        } else {
+          out += `  Titles found:\n`;
+          pg.titles.forEach(t => out += `    y=${t.y}: "${t.text}"\n`);
+        }
+        out += `  Sections: ${pg.sections.length}\n`;
+        pg.sections.forEach(s => out += `    [${s.title || "(continuation)"}]\n`);
+        out += "\n";
+      }
+      mscaDiagnoseOut.textContent = out;
+      mscaDiagnoseOut.style.display = "block";
+    } catch (err) {
+      mscaDiagnoseOut.textContent = `OCR diagnose error: ${err.message}`;
+      mscaDiagnoseOut.style.display = "block";
+    } finally {
+      mscaDiagnoseOcrBtn.disabled = false;
+      mscaDiagnoseOcrBtn.textContent = "Diagnose OCR";
     }
   });
 
