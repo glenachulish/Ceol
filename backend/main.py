@@ -5322,30 +5322,25 @@ async def scan_book_pdf_ocr(file: UploadFile = File(...)):
 
     tunes_raw = _merge_page_sections_into_tunes(all_sections, collection_name)
 
-    # Convert to TOC format (title + page range approximated by position in list)
+    # Strip image bytes before returning — the import endpoint re-processes the PDF.
+    # Only return the title list as a TOC so the user can review before importing.
     if tunes_raw:
-        toc = []
-        total = len(tunes_raw)
-        for i, t in enumerate(tunes_raw):
-            toc.append({
-                "title": t["title"],
-                "start_page": i + 1,
-                "end_page": i + 1,
-                "_ocr": True,
-            })
+        toc = [
+            {"title": t["title"], "start_page": i + 1, "end_page": i + 1, "_ocr": True}
+            for i, t in enumerate(tunes_raw)
+        ]
         return {
             "page_count": page_count,
             "collection_name": collection_name,
             "toc": toc,
-            "ocr_tunes": tunes_raw,  # full tune data with image attachments for direct import
+            "ocr": True,
         }
     else:
-        # No titles found — return numbered page entries
         return {
             "page_count": page_count,
             "collection_name": collection_name,
-            "toc": [{"title": f"Page {i + 1}", "start_page": i + 1, "end_page": i + 1} for i in range(page_count)],
-            "ocr_tunes": [],
+            "toc": [],
+            "ocr": True,
         }
 
 

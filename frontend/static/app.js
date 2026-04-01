@@ -6408,7 +6408,6 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   const bookFilename     = document.getElementById("book-filename");
   const bookCollName     = document.getElementById("book-collection-name");
   const bookScanBtn      = document.getElementById("book-scan-btn");
-  const bookOcrBtn       = document.getElementById("book-ocr-btn");
   const bookNextBtn      = document.getElementById("book-next-btn");
   const bookStep1        = document.getElementById("book-step1");
   const bookStep2        = document.getElementById("book-step2");
@@ -6443,7 +6442,6 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   function checkBookReady() {
     const ready = !!(_bookFile && bookCollName.value.trim());
     bookScanBtn.disabled = !ready;
-    bookOcrBtn.disabled  = !ready;
     bookNextBtn.disabled = !ready;
   }
 
@@ -6515,38 +6513,41 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
 
   bookCollName.addEventListener("input", checkBookReady);
 
-  // ── Scan PDF ──
+  // ── Scan (bookmarks/text first, OCR fallback for scanned books) ──
 
   bookScanBtn.addEventListener("click", async () => {
     if (!_bookFile) return;
     bookScanBtn.disabled = true;
+    bookNextBtn.disabled = true;
     bookScanBtn.textContent = "Scanning…";
     bookResult.classList.add("hidden");
 
-    const fd = new FormData();
-    fd.append("file", _bookFile);
+    const fd = () => { const f = new FormData(); f.append("file", _bookFile); return f; };
 
+    const _reset = () => {
+      bookScanBtn.disabled = false;
+      bookNextBtn.disabled = false;
+      bookScanBtn.textContent = "Scan →";
+    };
+
+    // Step 1: try bookmarks / embedded ABC text
     let data;
     try {
-      data = await apiFetch("/api/import/book/scan", { method: "POST", body: fd });
+      data = await apiFetch("/api/import/book/scan", { method: "POST", body: fd() });
     } catch (e) {
+      _reset();
       alert(`Scan failed: ${e.message}`);
-      bookScanBtn.disabled = false;
-      bookScanBtn.textContent = "Scan PDF →";
       return;
     }
 
     _bookPageCount = data.page_count || 9999;
-    // Use backend-derived collection name only if the user hasn't typed one
     if (!bookCollName.value.trim() && data.collection_name) {
       bookCollName.value = data.collection_name;
     }
 
-    bookScanBtn.disabled = false;
-    bookScanBtn.textContent = "Scan PDF →";
-
     if (data.abc_tunes && data.abc_tunes.length > 0) {
-      // Show ABC import preview (Step 3)
+      // Embedded ABC found — show ABC preview (Step 3)
+      _reset();
       _bookAbcTunes = data.abc_tunes;
       bookAbcHeading.textContent = `Tunes detected — ${bookCollName.value.trim()}`;
       bookAbcCount.textContent = `${data.abc_tunes.length} tune${data.abc_tunes.length !== 1 ? "s" : ""} found`;
@@ -6561,9 +6562,12 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
       bookAbcSelectAll.checked = true;
       bookStep1.classList.add("hidden");
       bookStep3.classList.remove("hidden");
+      return;
+    }
 
-    } else if (data.toc && data.toc.length > 0) {
-      // Pre-fill TOC table (Step 2)
+    if (data.toc && data.toc.length > 0) {
+      // Bookmarks found — show TOC table (Step 2)
+      _reset();
       bookTocHeading.textContent = `Table of contents — ${bookCollName.value.trim()}`;
       bookTocBody.innerHTML = "";
       _bookRowCount = 0;
@@ -6572,64 +6576,49 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
       bookScanMsg.style.display = "";
       bookStep1.classList.add("hidden");
       bookStep2.classList.remove("hidden");
+      return;
+    }
 
-    } else {
-      // Nothing detected — open empty manual TOC
+    // Nothing in bookmarks/text — try OCR (for scanned books)
+    bookScanBtn.textContent = "Running OCR…";
+    let ocrData;
+    try {
+      ocrData = await apiFetch("/api/import/book/scan-ocr", { method: "POST", body: fd() });
+    } catch (e) {
+      _reset();
+      // OCR unavailable — fall through to manual entry
       bookTocHeading.textContent = `Table of contents — ${bookCollName.value.trim()}`;
       bookTocBody.innerHTML = "";
       _bookRowCount = 0;
       addTocRow();
-      bookScanMsg.textContent = `No tunes detected automatically (${_bookPageCount}-page PDF). Enter the table of contents below.`;
+      bookScanMsg.textContent = `No tunes detected automatically (${_bookPageCount} pages). Enter the table of contents below.`;
       bookScanMsg.style.display = "";
       bookStep1.classList.add("hidden");
       bookStep2.classList.remove("hidden");
-    }
-  });
-
-  // ── OCR scan ──
-
-  bookOcrBtn.addEventListener("click", async () => {
-    if (!_bookFile) return;
-    bookOcrBtn.disabled = true;
-    bookOcrBtn.textContent = "Scanning pages…";
-    bookResult.classList.add("hidden");
-
-    const fd = new FormData();
-    fd.append("file", _bookFile);
-
-    let data;
-    try {
-      data = await apiFetch("/api/import/book/scan-ocr", { method: "POST", body: fd });
-    } catch (e) {
-      alert(`OCR scan failed: ${e.message}`);
-      bookOcrBtn.disabled = false;
-      bookOcrBtn.textContent = "🔍 Scan with OCR";
       return;
     }
 
-    bookOcrBtn.disabled = false;
-    bookOcrBtn.textContent = "🔍 Scan with OCR";
-
-    _bookPageCount = data.page_count || 9999;
-    if (!bookCollName.value.trim() && data.collection_name) {
-      bookCollName.value = data.collection_name;
-    }
-
-    if (data.toc && data.toc.length > 0) {
-      bookTocHeading.textContent = `OCR results — ${bookCollName.value.trim()}`;
+    _reset();
+    if (ocrData.toc && ocrData.toc.length > 0) {
+      bookTocHeading.textContent = `Tunes detected — ${bookCollName.value.trim()}`;
       bookTocBody.innerHTML = "";
       _bookRowCount = 0;
-      data.toc.forEach(e => addTocRow(e.title, e.start_page, e.end_page));
-      bookScanMsg.textContent = `${data.toc.length} tune${data.toc.length !== 1 ? "s" : ""} detected by OCR — review titles and click Import.`;
+      ocrData.toc.forEach(e => addTocRow(e.title, e.start_page, e.end_page));
+      bookScanMsg.textContent = `${ocrData.toc.length} tune${ocrData.toc.length !== 1 ? "s" : ""} detected — review titles and click Import.`;
       bookScanMsg.style.display = "";
-      // If we have full OCR tune data (with images), wire import button to OCR import endpoint
-      if (data.ocr_tunes && data.ocr_tunes.length > 0) {
-        bookImportBtn.dataset.ocrMode = "true";
-      }
+      bookImportBtn.dataset.ocrMode = "true";
       bookStep1.classList.add("hidden");
       bookStep2.classList.remove("hidden");
     } else {
-      alert("No tunes detected by OCR. Try pasting a table of contents manually.");
+      // OCR also found nothing — manual entry
+      bookTocHeading.textContent = `Table of contents — ${bookCollName.value.trim()}`;
+      bookTocBody.innerHTML = "";
+      _bookRowCount = 0;
+      addTocRow();
+      bookScanMsg.textContent = `No tunes detected automatically (${_bookPageCount} pages). Enter the table of contents below.`;
+      bookScanMsg.style.display = "";
+      bookStep1.classList.add("hidden");
+      bookStep2.classList.remove("hidden");
     }
   });
 
@@ -6798,7 +6787,6 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     bookFilename.textContent = "";
     bookCollName.value = "";
     bookScanBtn.disabled = true;
-    bookOcrBtn.disabled  = true;
     bookNextBtn.disabled = true;
     bookImportBtn.disabled = false;
     bookImportBtn.textContent = "Import book";
