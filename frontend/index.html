@@ -243,6 +243,8 @@
           <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;cursor:pointer">
             <input type="checkbox" id="recent-select-all"> Select all
           </label>
+          <button id="recent-add-to-collection-btn" class="btn-secondary btn-sm" disabled>📁 Add to collection</button>
+          <button id="recent-new-collection-btn" class="btn-secondary btn-sm" disabled>➕ New collection</button>
           <button id="recent-delete-selected" class="btn-danger btn-sm" disabled>🗑 Delete selected</button>
         </div>
         <div id="recent-imports-list" class="recent-imports-list hidden"></div>
@@ -567,6 +569,7 @@
           </div>
           <div class="import-actions" style="gap:.5rem">
             <button id="book-scan-btn" class="btn-primary" disabled>Scan PDF →</button>
+            <button id="book-ocr-btn" class="btn-secondary btn-sm" disabled title="Use OCR to detect tunes from scanned pages">🔍 Scan with OCR</button>
             <button id="book-next-btn" class="btn-secondary btn-sm" disabled>Enter manually →</button>
           </div>
         </div>
@@ -652,6 +655,7 @@
             <tbody id="photos-preview-body"></tbody>
           </table>
           <div class="import-actions">
+            <button id="photos-ocr-btn" class="btn-secondary" title="Use OCR to detect tune titles from the photos">🔍 Detect titles</button>
             <button id="photos-import-btn" class="btn-primary">Import &amp; enhance</button>
           </div>
         </div>

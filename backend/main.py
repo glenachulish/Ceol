@@ -5286,6 +5286,170 @@ async def scan_book_pdf(file: UploadFile = File(...)):
     }
 
 
+@app.post("/api/import/book/scan-ocr")
+async def scan_book_pdf_ocr(file: UploadFile = File(...)):
+    """
+    Render each page of a PDF to an image, run OCR title detection on each,
+    and return a TOC with detected titles and page ranges.
+    Falls back to numbered pages if no titles are found.
+    """
+    content = await file.read()
+    collection_name = _clean_collection_name(file.filename or "Book")
+
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(stream=content, filetype="pdf")
+        page_count = len(doc)
+    except Exception as e:
+        raise HTTPException(400, f"Could not open PDF: {e}")
+
+    all_sections: list[tuple] = []   # (title_or_None, img_bytes, page_label)
+
+    for page_idx in range(page_count):
+        page = doc[page_idx]
+        # Render at 150 DPI (good balance of quality vs. speed for OCR)
+        mat = fitz.Matrix(150 / 72, 150 / 72)
+        pix = page.get_pixmap(matrix=mat, colorspace=fitz.csGRAY)
+        img_bytes = pix.tobytes("jpeg")
+        page_label = f"page_{page_idx + 1}"
+        try:
+            sections = _split_page_into_sections(img_bytes, page_label)
+            all_sections.extend(sections)
+        except Exception:
+            all_sections.append((None, img_bytes, page_label))
+
+    doc.close()
+
+    tunes_raw = _merge_page_sections_into_tunes(all_sections, collection_name)
+
+    # Convert to TOC format (title + page range approximated by position in list)
+    if tunes_raw:
+        toc = []
+        total = len(tunes_raw)
+        for i, t in enumerate(tunes_raw):
+            toc.append({
+                "title": t["title"],
+                "start_page": i + 1,
+                "end_page": i + 1,
+                "_ocr": True,
+            })
+        return {
+            "page_count": page_count,
+            "collection_name": collection_name,
+            "toc": toc,
+            "ocr_tunes": tunes_raw,  # full tune data with image attachments for direct import
+        }
+    else:
+        # No titles found — return numbered page entries
+        return {
+            "page_count": page_count,
+            "collection_name": collection_name,
+            "toc": [{"title": f"Page {i + 1}", "start_page": i + 1, "end_page": i + 1} for i in range(page_count)],
+            "ocr_tunes": [],
+        }
+
+
+@app.post("/api/import/book/import-ocr", status_code=201)
+async def import_book_pdf_ocr(
+    file: UploadFile = File(...),
+    collection_name: str = Query(...),
+):
+    """
+    Import a PDF book using OCR-detected tune splits.
+    Each detected tune gets its cropped page image stored as sheet music.
+    """
+    content = await file.read()
+
+    try:
+        import fitz
+        doc = fitz.open(stream=content, filetype="pdf")
+        page_count = len(doc)
+    except Exception as e:
+        raise HTTPException(400, f"Could not open PDF: {e}")
+
+    all_sections: list[tuple] = []
+    for page_idx in range(page_count):
+        page = doc[page_idx]
+        mat = fitz.Matrix(150 / 72, 150 / 72)
+        pix = page.get_pixmap(matrix=mat, colorspace=fitz.csGRAY)
+        img_bytes = pix.tobytes("jpeg")
+        page_label = f"page_{page_idx + 1}"
+        try:
+            sections = _split_page_into_sections(img_bytes, page_label)
+            all_sections.extend(sections)
+        except Exception:
+            all_sections.append((None, img_bytes, page_label))
+    doc.close()
+
+    tunes_raw = _merge_page_sections_into_tunes(all_sections, collection_name)
+    if not tunes_raw:
+        raise HTTPException(422, "No tunes detected by OCR. Try the manual TOC approach instead.")
+
+    import_date = date.today().isoformat()
+    results = []
+
+    with _db() as conn:
+        existing_col = conn.execute(
+            "SELECT id FROM collections WHERE lower(name) = lower(?)", (collection_name.strip(),)
+        ).fetchone()
+        if existing_col:
+            col_id = existing_col["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO collections (name, description) VALUES (?, ?)",
+                (collection_name.strip(), f"Imported from PDF (OCR): {import_date}"),
+            )
+            col_id = cur.lastrowid
+
+        for tune_data in tunes_raw:
+            title = tune_data["title"]
+            image_attachments = tune_data.get("_image_attachments", [])
+            notes_parts = [f"Imported from {collection_name}: {import_date}"]
+
+            for img_name, img_bytes in image_attachments:
+                stored_name = f"{uuid.uuid4().hex}.jpg"
+                (UPLOADS_DIR / stored_name).write_bytes(img_bytes)
+                notes_parts.append(f"sheet music (image): /api/uploads/{stored_name}")
+
+            existing = conn.execute(
+                "SELECT id FROM tunes WHERE lower(title) = lower(?)", (title,)
+            ).fetchone()
+
+            if existing:
+                tune_id = existing["id"]
+                row = conn.execute("SELECT notes FROM tunes WHERE id = ?", (tune_id,)).fetchone()
+                old_notes = (row["notes"] or "").strip()
+                new_notes = (old_notes + "\n" + "\n".join(notes_parts[1:])).strip()
+                conn.execute(
+                    "UPDATE tunes SET notes = ?, updated_at = datetime('now') WHERE id = ?",
+                    (new_notes, tune_id),
+                )
+                action = "attached"
+            else:
+                cur = conn.execute(
+                    "INSERT INTO tunes (title, abc, notes, imported_at) VALUES (?, '', ?, datetime('now'))",
+                    (title, "\n".join(notes_parts)),
+                )
+                tune_id = cur.lastrowid
+                action = "created"
+
+            conn.execute(
+                "INSERT OR IGNORE INTO collection_tunes (collection_id, tune_id) VALUES (?, ?)",
+                (col_id, tune_id),
+            )
+            results.append({"title": title, "action": action, "tune_id": tune_id})
+
+    created  = sum(1 for r in results if r["action"] == "created")
+    attached = sum(1 for r in results if r["action"] == "attached")
+    return {
+        "collection_name": collection_name.strip(),
+        "collection_id": col_id,
+        "results": results,
+        "created": created,
+        "attached": attached,
+    }
+
+
 # ---------------------------------------------------------------------------
 # ABC bulk import: import a list of pre-parsed ABC tunes into a collection
 # ---------------------------------------------------------------------------
@@ -5577,6 +5741,39 @@ def _enhance_scan(content: bytes) -> bytes:
     buf = _io.BytesIO()
     img.save(buf, format="JPEG", quality=90, optimize=True)
     return buf.getvalue()
+
+
+def _ocr_title_from_image(img_bytes: bytes) -> str:
+    """
+    Try to extract a tune title from a sheet-music photo using OCR.
+    Looks for lines with parenthesised attribution (e.g. 'The Reel (traditional)').
+    Returns the best candidate title, or empty string if nothing found.
+    """
+    try:
+        from PIL import Image
+        import io as _io
+        img = Image.open(_io.BytesIO(img_bytes)).convert("L")
+        titles = _find_title_positions(img)
+        if titles:
+            # Return the first title found (usually at top of page)
+            return titles[0][1]
+    except Exception:
+        pass
+    return ""
+
+
+@app.post("/api/import/images/ocr-titles")
+async def ocr_titles_from_images(files: list[UploadFile] = File(...)):
+    """
+    Run OCR title detection on each uploaded image.
+    Returns a list of detected titles (empty string if not found).
+    """
+    results = []
+    for f in files:
+        content = await f.read()
+        title = _ocr_title_from_image(content)
+        results.append({"filename": f.filename, "title": title})
+    return {"titles": results}
 
 
 @app.post("/api/import/images", status_code=201)

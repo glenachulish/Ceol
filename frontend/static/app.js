@@ -4770,17 +4770,22 @@ function renderCollections(collections) {
     return `${diffDays} days ago`;
   }
 
-  const toolbar       = document.getElementById("recent-imports-toolbar");
-  const selectAllCb   = document.getElementById("recent-select-all");
-  const deleteSelBtn  = document.getElementById("recent-delete-selected");
+  const toolbar          = document.getElementById("recent-imports-toolbar");
+  const selectAllCb      = document.getElementById("recent-select-all");
+  const deleteSelBtn     = document.getElementById("recent-delete-selected");
+  const addToColBtn      = document.getElementById("recent-add-to-collection-btn");
+  const newColBtn        = document.getElementById("recent-new-collection-btn");
 
   function _updateRecentToolbar() {
     const cbs = listEl.querySelectorAll(".recent-row-cb");
     const checked = listEl.querySelectorAll(".recent-row-cb:checked");
     selectAllCb.checked       = cbs.length > 0 && checked.length === cbs.length;
     selectAllCb.indeterminate = checked.length > 0 && checked.length < cbs.length;
-    deleteSelBtn.disabled     = checked.length === 0;
-    deleteSelBtn.textContent  = checked.length
+    const hasChecked = checked.length > 0;
+    deleteSelBtn.disabled  = !hasChecked;
+    addToColBtn.disabled   = !hasChecked;
+    newColBtn.disabled     = !hasChecked;
+    deleteSelBtn.textContent = hasChecked
       ? `🗑 Delete ${checked.length} tune${checked.length === 1 ? "" : "s"}`
       : "🗑 Delete selected";
   }
@@ -4807,6 +4812,57 @@ function renderCollections(collections) {
     } catch {
       alert("Delete failed. Please try again.");
       deleteSelBtn.disabled = false;
+    }
+  });
+
+  addToColBtn.addEventListener("click", async () => {
+    const ids = [...listEl.querySelectorAll(".recent-row-cb:checked")].map(cb => Number(cb.dataset.tuneId));
+    if (!ids.length) return;
+    const cols = await apiFetch("/api/collections");
+    if (!cols.length) { alert("No collections yet. Use 'New collection' to create one first."); return; }
+    const opts = cols.map((c, i) => `${i + 1}. ${c.name}`).join("\n");
+    const choice = prompt(`Add ${ids.length} tune${ids.length === 1 ? "" : "s"} to which collection?\n\n${opts}\n\nEnter number:`);
+    if (!choice) return;
+    const idx = parseInt(choice, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= cols.length) { alert("Invalid choice."); return; }
+    const col = cols[idx];
+    addToColBtn.disabled = true;
+    try {
+      for (const id of ids) {
+        await apiFetch(`/api/collections/${col.id}/tunes`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tune_id: id }),
+        }).catch(() => {}); // ignore duplicates
+      }
+      alert(`Added to "${col.name}".`);
+      window._loadRecentImports?.();
+    } catch {
+      alert("Failed to add to collection. Please try again.");
+    } finally {
+      addToColBtn.disabled = false;
+    }
+  });
+
+  newColBtn.addEventListener("click", async () => {
+    const ids = [...listEl.querySelectorAll(".recent-row-cb:checked")].map(cb => Number(cb.dataset.tuneId));
+    if (!ids.length) return;
+    const name = prompt(`Name for new collection (will contain ${ids.length} tune${ids.length === 1 ? "" : "s"}):`);
+    if (!name || !name.trim()) return;
+    newColBtn.disabled = true;
+    try {
+      const col = await apiCreateCollection(name.trim(), "");
+      for (const id of ids) {
+        await apiFetch(`/api/collections/${col.id}/tunes`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tune_id: id }),
+        });
+      }
+      alert(`Created collection "${col.name}" with ${ids.length} tune${ids.length === 1 ? "" : "s"}.`);
+      if (state.view === "collections") loadCollections();
+    } catch (err) {
+      alert(`Failed: ${err.message}`);
+    } finally {
+      newColBtn.disabled = false;
     }
   });
 
@@ -6145,6 +6201,17 @@ function closeImport() {
   document.getElementById("session-search-pane").classList.remove("hidden");
 }
 
+// Called after any successful import: reload data, close the import modal,
+// and navigate the user to the library so they can see the new tunes.
+async function _afterImportSuccess() {
+  await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+  window._loadRecentImports?.();
+  setTimeout(() => {
+    closeImport();
+    switchView("library");
+  }, 800);
+}
+
 // Launch the set builder from a tune that was just imported.
 // Closes the import overlay then opens the builder modal.
 async function _launchBuilderFromTuneId(tuneId) {
@@ -6319,6 +6386,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     _selectedFiles = [];
     _previewData = [];
     fileInput.value = "";
+    _afterImportSuccess();
     importBtn.disabled = false;
     importBtn.textContent = "Import";
     fetchTunes(); // refresh library
@@ -6332,6 +6400,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   const bookFilename     = document.getElementById("book-filename");
   const bookCollName     = document.getElementById("book-collection-name");
   const bookScanBtn      = document.getElementById("book-scan-btn");
+  const bookOcrBtn       = document.getElementById("book-ocr-btn");
   const bookNextBtn      = document.getElementById("book-next-btn");
   const bookStep1        = document.getElementById("book-step1");
   const bookStep2        = document.getElementById("book-step2");
@@ -6366,6 +6435,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   function checkBookReady() {
     const ready = !!(_bookFile && bookCollName.value.trim());
     bookScanBtn.disabled = !ready;
+    bookOcrBtn.disabled  = !ready;
     bookNextBtn.disabled = !ready;
   }
 
@@ -6508,6 +6578,53 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     }
   });
 
+  // ── OCR scan ──
+
+  bookOcrBtn.addEventListener("click", async () => {
+    if (!_bookFile) return;
+    bookOcrBtn.disabled = true;
+    bookOcrBtn.textContent = "Scanning pages…";
+    bookResult.classList.add("hidden");
+
+    const fd = new FormData();
+    fd.append("file", _bookFile);
+
+    let data;
+    try {
+      data = await apiFetch("/api/import/book/scan-ocr", { method: "POST", body: fd });
+    } catch (e) {
+      alert(`OCR scan failed: ${e.message}`);
+      bookOcrBtn.disabled = false;
+      bookOcrBtn.textContent = "🔍 Scan with OCR";
+      return;
+    }
+
+    bookOcrBtn.disabled = false;
+    bookOcrBtn.textContent = "🔍 Scan with OCR";
+
+    _bookPageCount = data.page_count || 9999;
+    if (!bookCollName.value.trim() && data.collection_name) {
+      bookCollName.value = data.collection_name;
+    }
+
+    if (data.toc && data.toc.length > 0) {
+      bookTocHeading.textContent = `OCR results — ${bookCollName.value.trim()}`;
+      bookTocBody.innerHTML = "";
+      _bookRowCount = 0;
+      data.toc.forEach(e => addTocRow(e.title, e.start_page, e.end_page));
+      bookScanMsg.textContent = `${data.toc.length} tune${data.toc.length !== 1 ? "s" : ""} detected by OCR — review titles and click Import.`;
+      bookScanMsg.style.display = "";
+      // If we have full OCR tune data (with images), wire import button to OCR import endpoint
+      if (data.ocr_tunes && data.ocr_tunes.length > 0) {
+        bookImportBtn.dataset.ocrMode = "true";
+      }
+      bookStep1.classList.add("hidden");
+      bookStep2.classList.remove("hidden");
+    } else {
+      alert("No tunes detected by OCR. Try pasting a table of contents manually.");
+    }
+  });
+
   // ── Manual entry ──
 
   bookNextBtn.addEventListener("click", () => {
@@ -6564,24 +6681,35 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   // ── Import PDF-slice book ──
 
   bookImportBtn.addEventListener("click", async () => {
-    const entries = getTocEntries();
-    if (!entries.length) { alert("Add at least one tune to the table of contents."); return; }
-    if (!_bookFile)      { alert("No PDF file selected."); return; }
+    if (!_bookFile) { alert("No PDF file selected."); return; }
 
     bookImportBtn.disabled = true;
     bookImportBtn.textContent = "Importing…";
     bookResult.classList.add("hidden");
 
+    const isOcrMode = bookImportBtn.dataset.ocrMode === "true";
     const fd = new FormData();
     fd.append("file", _bookFile);
-    const params = new URLSearchParams({
-      collection_name: bookCollName.value.trim(),
-      toc: JSON.stringify(entries),
-    });
 
     let data;
     try {
-      data = await apiFetch(`/api/import/book?${params}`, { method: "POST", body: fd });
+      if (isOcrMode) {
+        const params = new URLSearchParams({ collection_name: bookCollName.value.trim() });
+        data = await apiFetch(`/api/import/book/import-ocr?${params}`, { method: "POST", body: fd });
+      } else {
+        const entries = getTocEntries();
+        if (!entries.length) {
+          alert("Add at least one tune to the table of contents.");
+          bookImportBtn.disabled = false;
+          bookImportBtn.textContent = "Import book";
+          return;
+        }
+        const params = new URLSearchParams({
+          collection_name: bookCollName.value.trim(),
+          toc: JSON.stringify(entries),
+        });
+        data = await apiFetch(`/api/import/book?${params}`, { method: "POST", body: fd });
+      }
     } catch (e) {
       bookResult.textContent = `Error: ${e.message}`;
       bookResult.className = "import-result import-error";
@@ -6591,17 +6719,18 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
       return;
     }
 
-    const created  = data.results.filter(r => r.action === "created").length;
-    const attached = data.results.filter(r => r.action === "attached").length;
+    const created  = (data.results || []).filter(r => r.action === "created").length;
+    const attached = (data.results || []).filter(r => r.action === "attached").length;
     const parts = [];
     if (created)  parts.push(`${created} new tune${created  !== 1 ? "s" : ""} created`);
-    if (attached) parts.push(`${attached} updated with PDF`);
+    if (attached) parts.push(`${attached} updated with image`);
     bookResult.textContent = `Done — ${parts.join(", ")}. Added to collection "${data.collection_name}".`;
     bookResult.className = "import-result import-success";
     bookResult.classList.remove("hidden");
 
+    bookImportBtn.dataset.ocrMode = "";
     _resetBookImport();
-    fetchTunes();
+    _afterImportSuccess();
   });
 
   // ── Import ABC tunes directly ──
@@ -6646,7 +6775,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     bookResult.classList.remove("hidden");
 
     _resetBookImport();
-    fetchTunes();
+    _afterImportSuccess();
   });
 
   function _resetBookImport() {
@@ -6661,9 +6790,11 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     bookFilename.textContent = "";
     bookCollName.value = "";
     bookScanBtn.disabled = true;
+    bookOcrBtn.disabled  = true;
     bookNextBtn.disabled = true;
     bookImportBtn.disabled = false;
     bookImportBtn.textContent = "Import book";
+    bookImportBtn.dataset.ocrMode = "";
     bookAbcImportBtn.disabled = false;
     bookAbcImportBtn.textContent = "Import tunes";
   }
@@ -6678,6 +6809,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   const collName    = document.getElementById("photos-collection-name");
   const previewBody = document.getElementById("photos-preview-body");
   const importBtn   = document.getElementById("photos-import-btn");
+  const ocrBtn      = document.getElementById("photos-ocr-btn");
   const resultDiv   = document.getElementById("photos-result");
 
   let _photoFiles = [];
@@ -6718,6 +6850,30 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     dropZone.classList.remove("drop-hover");
     const imgs = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png)$/i.test(f.name));
     if (imgs.length) loadPhotoPreview(imgs);
+  });
+
+  ocrBtn.addEventListener("click", async () => {
+    if (!_photoFiles.length) { alert("Select photos first."); return; }
+    ocrBtn.disabled = true;
+    ocrBtn.textContent = "Detecting…";
+    try {
+      const fd = new FormData();
+      _photoFiles.forEach(f => fd.append("files", f));
+      const data = await apiFetch("/api/import/images/ocr-titles", { method: "POST", body: fd });
+      const inputs = previewBody.querySelectorAll(".photos-title-input");
+      data.titles.forEach((item, i) => {
+        if (item.title && inputs[i]) inputs[i].value = item.title;
+      });
+      const found = data.titles.filter(t => t.title).length;
+      ocrBtn.textContent = found ? `🔍 ${found} title${found === 1 ? "" : "s"} detected` : "🔍 No titles found";
+    } catch (e) {
+      ocrBtn.textContent = "🔍 OCR failed";
+    } finally {
+      setTimeout(() => {
+        ocrBtn.disabled = false;
+        ocrBtn.textContent = "🔍 Detect titles";
+      }, 3000);
+    }
   });
 
   importBtn.addEventListener("click", async () => {
@@ -6767,7 +6923,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     previewArea.classList.add("hidden");
     importBtn.disabled = false;
     importBtn.textContent = "Import & enhance";
-    fetchTunes();
+    _afterImportSuccess();
   });
 }
 
@@ -6896,8 +7052,7 @@ importSubmit.addEventListener("click", async () => {
         (data.skipped ? ` (${data.skipped} skipped due to missing title)` : "") + ".";
       importResult.className = "import-result import-success";
       importResult.classList.remove("hidden");
-      await Promise.all([loadStats(), loadFilters()]);
-      if (state.view === "library") loadTunes();
+      _afterImportSuccess();
     } else {
       importResult.textContent = `Error: ${data.detail || "Import failed."}`;
       importResult.className = "import-result import-error";
@@ -6938,8 +7093,7 @@ pasteAbcSubmit.addEventListener("click", async () => {
       pasteAbcResult.className = "import-result import-success";
       pasteAbcResult.classList.remove("hidden");
       pasteAbcInput.value = "";
-      await Promise.all([loadStats(), loadFilters()]);
-      if (state.view === "library") loadTunes();
+      _afterImportSuccess();
     } else {
       pasteAbcResult.textContent = `Error: ${data.detail || "Import failed."}`;
       pasteAbcResult.className = "import-result import-error";
@@ -6986,8 +7140,7 @@ theCraicSubmit.addEventListener("click", async () => {
       theCraicResult.textContent = parts.length ? parts.join(", ") + "." : "Nothing to import.";
       theCraicResult.className = "import-result import-success";
       theCraicResult.classList.remove("hidden");
-      await Promise.all([loadStats(), loadFilters()]);
-      if (state.view === "library") loadTunes();
+      _afterImportSuccess();
     } else {
       theCraicResult.textContent = `Error: ${data.detail || "Import failed."}`;
       theCraicResult.className = "import-result import-error";
@@ -7157,8 +7310,7 @@ theCraicSubmit.addEventListener("click", async () => {
 
     folderImportBtn.textContent = "Import All";
     folderImportBtn.disabled = false;
-    await Promise.all([loadStats(), loadFilters()]);
-    if (state.view === "library") loadTunes();
+    if (!hasError) { _afterImportSuccess(); } else { await Promise.all([loadStats(), loadFilters()]); loadTunes(); }
   });
 })();
 
@@ -7203,8 +7355,7 @@ theCraicSubmit.addEventListener("click", async () => {
       ytTitleInput.value = "";
       if (ytParentInput) ytParentInput.value = "";
       if (ytVersionLabel) ytVersionLabel.value = "";
-      await Promise.all([loadStats(), loadFilters()]);
-      if (state.view === "library") loadTunes();
+      _afterImportSuccess();
     } catch (err) {
       ytResult.textContent = `Error: ${err.message}`;
       ytResult.className = "import-result import-error";
@@ -7263,7 +7414,7 @@ theCraicSubmit.addEventListener("click", async () => {
       ceolResult.classList.remove("hidden");
       _setCeolFile(null);
       ceolFileInput.value = "";
-      await Promise.all([loadTunes(), loadStats()]);
+      _afterImportSuccess();
     } catch (err) {
       ceolResult.textContent = `Error: ${err.message}`;
       ceolResult.className = "import-result import-error";
@@ -7469,7 +7620,7 @@ theCraicSubmit.addEventListener("click", async () => {
     mscaFileInput.value = "";
     mscaImportBtn.disabled = false;
     mscaImportBtn.textContent = "Import tunes";
-    await Promise.all([loadTunes(), loadStats()]);
+    if (totalImported > 0) { _afterImportSuccess(); } else { await Promise.all([loadTunes(), loadStats()]); }
   });
 }
 
