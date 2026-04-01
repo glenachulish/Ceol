@@ -2678,7 +2678,11 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                         if len(reader) == 1 and len(all_images) <= 1:
                             # Genuine single tune (one page or no image)
                             row = reader[0]
-                            title = row.get("displayName", "").strip() or collection_name
+                            _cn_uuid = bool(re.fullmatch(
+                                r"[0-9a-f\-]{8,}", collection_name, re.IGNORECASE))
+                            title = (row.get("displayName", "").strip()
+                                     or (collection_name if not _cn_uuid else "")
+                                     or "Untitled Tune")
                             bpm   = row.get("bpm", "").strip()
                             key   = keys_list[0] if keys_list else ""
                             time_sig = time_sigs_list[0] if time_sigs_list else ""
@@ -2690,15 +2694,32 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                             }], collection_name
 
                         if len(reader) == 1 and len(all_images) > 1:
-                            # Scanned book — use OCR to detect individual tune sections
-                            # across all pages, handling tunes that span page boundaries.
                             row = reader[0]
-                            book_title = row.get("displayName", "").strip() or collection_name
+                            csv_title = row.get("displayName", "").strip()
                             key      = keys_list[0] if keys_list else ""
                             time_sig = time_sigs_list[0] if time_sigs_list else ""
                             bpm      = row.get("bpm", "").strip()
 
-                            # Collect page-level sections across all pages
+                            # If the CSV already gives us a real title (not a UUID/hash),
+                            # it's a single tune photographed across multiple pages — keep
+                            # it as one entry with all images rather than trying to split.
+                            _looks_like_uuid = bool(re.fullmatch(
+                                r"[0-9a-f\-]{8,}", csv_title, re.IGNORECASE))
+                            if csv_title and not _looks_like_uuid:
+                                # Single tune, multiple page images (e.g. long piece)
+                                image_bytes_all = [(n, zf.read(n)) for n in all_images]
+                                return [{
+                                    "title": csv_title, "key": key, "type": "",
+                                    "bpm": bpm, "time_signature": time_sig,
+                                    "_image_attachments": image_bytes_all,
+                                }], collection_name
+
+                            # No meaningful CSV title → scanned book, use OCR to split
+                            # Use collection_name only if it doesn't look like a UUID
+                            _col_uuid = bool(re.fullmatch(
+                                r"[0-9a-f\-]{8,}", collection_name, re.IGNORECASE))
+                            book_title = ("" if _col_uuid else collection_name)
+
                             all_sections: list[tuple] = []
                             for img_name in all_images:
                                 img_bytes_page = zf.read(img_name)
@@ -2709,21 +2730,20 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                                 except Exception:
                                     all_sections.append((None, img_bytes_page, img_name))
 
-                            # Merge sections into tunes
                             tunes_raw = _merge_page_sections_into_tunes(
                                 all_sections, collection_name)
 
-                            # Fallback: OCR produced nothing — number tunes by page
+                            # Fallback: OCR produced nothing — number by page
                             if not tunes_raw:
+                                prefix = f"{book_title} - " if book_title else ""
                                 tunes_raw = [
                                     {
-                                        "title": f"{book_title} - Page {i + 1}",
+                                        "title": f"{prefix}Page {i + 1}",
                                         "_image_attachments": [(img_name, zf.read(img_name))],
                                     }
                                     for i, img_name in enumerate(all_images)
                                 ]
 
-                            # Annotate with key/time/bpm from session.dat
                             tune_list_out = []
                             for i, td in enumerate(tunes_raw):
                                 tune_list_out.append({
