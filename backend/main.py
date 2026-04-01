@@ -2494,8 +2494,8 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                             if re.match(r"background_\d+\.(jpeg|jpg|png)", n.lower())
                         )
 
-                        if len(reader) == 1:
-                            # Single tune — attach all images to it
+                        if len(reader) == 1 and len(all_images) <= 1:
+                            # Genuine single tune (one page or no image)
                             row = reader[0]
                             title = row.get("displayName", "").strip() or collection_name
                             bpm   = row.get("bpm", "").strip()
@@ -2507,6 +2507,24 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                                 "bpm": bpm, "time_signature": time_sig,
                                 "_image_attachments": image_bytes,
                             }], collection_name
+
+                        if len(reader) == 1 and len(all_images) > 1:
+                            # Scanned book with one metadata row but many pages —
+                            # split into one tune per page image
+                            row = reader[0]
+                            book_title = row.get("displayName", "").strip() or collection_name
+                            bpm      = row.get("bpm", "").strip()
+                            key      = keys_list[0] if keys_list else ""
+                            time_sig = time_sigs_list[0] if time_sigs_list else ""
+                            tune_list_out = []
+                            for i, img_name in enumerate(all_images):
+                                tune_list_out.append({
+                                    "title": f"{book_title} - Page {i + 1}",
+                                    "key": key, "type": "",
+                                    "bpm": bpm, "time_signature": time_sig,
+                                    "_image_attachments": [(img_name, zf.read(img_name))],
+                                })
+                            return tune_list_out, collection_name
 
                         # Multi-tune book — one tune per CSV row, one image per row
                         tune_list_out = []
