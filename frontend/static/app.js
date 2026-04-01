@@ -4777,10 +4777,13 @@ function renderCollections(collections) {
   const newColBtn        = document.getElementById("recent-new-collection-btn");
 
   function _updateRecentToolbar() {
-    const cbs = listEl.querySelectorAll(".recent-row-cb");
+    const cbs    = listEl.querySelectorAll(".recent-row-cb");
     const checked = listEl.querySelectorAll(".recent-row-cb:checked");
-    selectAllCb.checked       = cbs.length > 0 && checked.length === cbs.length;
-    selectAllCb.indeterminate = checked.length > 0 && checked.length < cbs.length;
+    const allChecked = cbs.length > 0 && checked.length === cbs.length;
+    // Only show select-all as checked when it was explicitly used to select all.
+    // Individual row selections show indeterminate, never auto-check select-all.
+    selectAllCb.indeterminate = checked.length > 0 && !allChecked;
+    if (!checked.length) selectAllCb.checked = false;
     const hasChecked = checked.length > 0;
     deleteSelBtn.disabled  = !hasChecked;
     addToColBtn.disabled   = !hasChecked;
@@ -4792,6 +4795,8 @@ function renderCollections(collections) {
 
   selectAllCb.addEventListener("change", () => {
     listEl.querySelectorAll(".recent-row-cb").forEach(cb => { cb.checked = selectAllCb.checked; });
+    // Keep select-all checked/unchecked state as the user left it; clear indeterminate
+    selectAllCb.indeterminate = false;
     _updateRecentToolbar();
   });
 
@@ -4881,7 +4886,10 @@ function renderCollections(collections) {
       }
       toolbar.classList.remove("hidden");
       selectAllCb.checked = false;
+      selectAllCb.indeterminate = false;
       deleteSelBtn.disabled = true;
+      addToColBtn.disabled  = true;
+      newColBtn.disabled    = true;
       deleteSelBtn.textContent = "🗑 Delete selected";
       listEl.innerHTML = tunes.map(t => `
         <div class="set-tune-row">
