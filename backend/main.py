@@ -1408,13 +1408,24 @@ def update_collection(col_id: int, body: CollectionCreate):
 
 
 @app.delete("/api/collections/{col_id}")
-def delete_collection(col_id: int):
+def delete_collection(col_id: int, delete_tunes: bool = Query(False)):
     with _db() as conn:
         if not conn.execute("SELECT 1 FROM collections WHERE id = ?", (col_id,)).fetchone():
             raise HTTPException(404, "Collection not found")
+        deleted_tunes = 0
+        if delete_tunes:
+            tune_ids = [r[0] for r in conn.execute(
+                "SELECT tune_id FROM collection_tunes WHERE collection_id = ?", (col_id,)
+            ).fetchall()]
+            for tid in tune_ids:
+                try:
+                    _delete_tune_in_conn(conn, tid)
+                    deleted_tunes += 1
+                except Exception:
+                    pass
         conn.execute("DELETE FROM collection_tunes WHERE collection_id = ?", (col_id,))
         conn.execute("DELETE FROM collections WHERE id = ?", (col_id,))
-    return {"ok": True}
+    return {"ok": True, "deleted_tunes": deleted_tunes}
 
 
 @app.post("/api/collections/{col_id}/tunes")
@@ -2442,23 +2453,29 @@ def _find_title_positions(img) -> list[tuple[int, str]]:
     for entry in sorted(lines.values(), key=lambda e: e["top"]):
         text = " ".join(entry["words"]).strip()
         words = text.split()
-        if not words or len(words) > 9:
+        if not words:
             continue
-        # Must be mostly alphabetic (not a chord symbol or bar marking)
-        alpha_frac = sum(c.isalpha() for c in text) / max(len(text), 1)
-        if alpha_frac < 0.45:
-            continue
+
         # Must not be tiny annotation (height below 10px)
         if entry["heights"] and max(entry["heights"]) < 10:
             continue
-        # Require ink below the title (music should follow)
-        below_start = min(entry["bot"] + 5, h_img - 1)
-        below_end   = min(entry["bot"] + 80, h_img)
-        if below_end > below_start:
-            ink_below = ink[below_start:below_end].mean()
-            if ink_below < 0.003:      # no music below — skip (e.g. page number)
-                continue
-        titles.append((entry["top"], text))
+
+        # ── Strong positive signals ──────────────────────────────────────────
+        # 1. Line contains a parenthesised attribution: "(traditional)",
+        #    "(Norman Maclean)", "(MacDougall)" etc.
+        #    Strip any trailing chord/key annotations before accepting.
+        m_attr = re.search(r'\(([A-Za-z][^)]{1,})\)', text)
+        if m_attr:
+            attr = m_attr.group(1).strip()
+            # Reject if the attribution looks like a key or bar count: "D | x2", "Am}"
+            if not re.fullmatch(r'[A-G][#b]?[a-z]*[\s|x\d]*', attr):
+                # Clean: keep only the part up to and including the attribution
+                clean = text[:text.index(')') + 1].strip()
+                # Also strip leading set-number prefix "1. " / "2: "
+                clean = re.sub(r'^\d+[.:]\s*', '', clean).strip()
+                if clean:
+                    titles.append((entry["top"], clean))
+                    continue
 
     # De-duplicate: if two titles are within 20px vertically, keep taller/longer
     deduped = []

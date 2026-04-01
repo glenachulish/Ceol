@@ -4729,12 +4729,18 @@ function renderCollections(collections) {
   collectionsList.querySelectorAll(".col-delete-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const name = btn.closest(".set-card").querySelector(".set-name").textContent;
-      if (!confirm(`Delete collection "${name}"?`)) return;
+      const withTunes = confirm(
+        `Delete collection "${name}"?\n\nOK = delete collection AND all its tunes\nCancel = keep tunes, just remove the collection`
+      );
+      // Second confirm only if deleting tunes
+      if (withTunes && !confirm(`This will permanently delete ALL tunes in "${name}". Are you sure?`)) return;
       btn.disabled = true;
       try {
-        await apiDeleteCollection(btn.dataset.colId);
+        const url = `/api/collections/${btn.dataset.colId}${withTunes ? "?delete_tunes=true" : ""}`;
+        await apiFetch(url, { method: "DELETE" });
         btn.closest(".set-card").remove();
         state.collections = state.collections.filter(c => String(c.id) !== String(btn.dataset.colId));
+        if (withTunes) { await loadTunes(); await loadStats(); window._loadRecentImports?.(); }
         if (!collectionsList.querySelector(".set-card")) {
           collectionsList.innerHTML = '<p class="empty">No collections yet. Create one to group tunes by theme!</p>';
         }
