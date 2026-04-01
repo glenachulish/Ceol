@@ -2700,13 +2700,11 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                             time_sig = time_sigs_list[0] if time_sigs_list else ""
                             bpm      = row.get("bpm", "").strip()
 
-                            # If the CSV already gives us a real title (not a UUID/hash),
-                            # it's a single tune photographed across multiple pages — keep
-                            # it as one entry with all images rather than trying to split.
-                            _looks_like_uuid = bool(re.fullmatch(
-                                r"[0-9a-f\-]{8,}", csv_title, re.IGNORECASE))
-                            if csv_title and not _looks_like_uuid:
-                                # Single tune, multiple page images (e.g. long piece)
+                            _is_uuid = lambda s: bool(re.fullmatch(
+                                r"[0-9a-f\-]{8,}", s, re.IGNORECASE))
+
+                            # ≤3 images + real title → single tune spanning multiple pages
+                            if csv_title and not _is_uuid(csv_title) and len(all_images) <= 3:
                                 image_bytes_all = [(n, zf.read(n)) for n in all_images]
                                 return [{
                                     "title": csv_title, "key": key, "type": "",
@@ -2714,11 +2712,11 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                                     "_image_attachments": image_bytes_all,
                                 }], collection_name
 
-                            # No meaningful CSV title → scanned book, use OCR to split
-                            # Use collection_name only if it doesn't look like a UUID
-                            _col_uuid = bool(re.fullmatch(
-                                r"[0-9a-f\-]{8,}", collection_name, re.IGNORECASE))
-                            book_title = ("" if _col_uuid else collection_name)
+                            # 4+ images → scanned book; try OCR to split into tunes.
+                            # book_title is used for fallback page names.
+                            book_title = (csv_title if csv_title and not _is_uuid(csv_title)
+                                          else (collection_name if not _is_uuid(collection_name)
+                                                else ""))
 
                             all_sections: list[tuple] = []
                             for img_name in all_images:
@@ -2733,7 +2731,7 @@ def _parse_msca_content(content: bytes, filename: str = "") -> tuple[list[dict],
                             tunes_raw = _merge_page_sections_into_tunes(
                                 all_sections, collection_name)
 
-                            # Fallback: OCR produced nothing — number by page
+                            # Fallback: OCR unavailable or found nothing — one tune per page
                             if not tunes_raw:
                                 prefix = f"{book_title} - " if book_title else ""
                                 tunes_raw = [
