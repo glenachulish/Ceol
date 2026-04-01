@@ -2403,6 +2403,18 @@ def _find_title_positions(img) -> list[tuple[int, str]]:
     except ImportError:
         return []
 
+    # Help pytesseract find the tesseract binary when installed via Homebrew
+    import shutil
+    if not shutil.which("tesseract"):
+        for candidate in [
+            "/opt/homebrew/bin/tesseract",   # Apple Silicon Mac
+            "/usr/local/bin/tesseract",      # Intel Mac
+            "/usr/bin/tesseract",            # Linux
+        ]:
+            if Path(candidate).exists():
+                pytesseract.pytesseract.tesseract_cmd = candidate
+                break
+
     gray = img.convert("L")
     data = pytesseract.image_to_data(gray, output_type=pytesseract.Output.DICT,
                                      config="--psm 1 --oem 3")
