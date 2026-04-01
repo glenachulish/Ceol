@@ -6691,7 +6691,13 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     let data;
     try {
       if (isOcrMode) {
-        const params = new URLSearchParams({ collection_name: bookCollName.value.trim() });
+        // Send user-edited titles from the TOC table so edits aren't lost
+        const entries = getTocEntries();
+        const editedTitles = entries.map(e => e.title);
+        const params = new URLSearchParams({
+          collection_name: bookCollName.value.trim(),
+          titles: JSON.stringify(editedTitles),
+        });
         data = await apiFetch(`/api/import/book/import-ocr?${params}`, { method: "POST", body: fd });
       } else {
         const entries = getTocEntries();

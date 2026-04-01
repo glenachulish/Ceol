@@ -5323,12 +5323,24 @@ async def scan_book_pdf_ocr(file: UploadFile = File(...)):
     tunes_raw = _merge_page_sections_into_tunes(all_sections, collection_name)
 
     # Strip image bytes before returning — the import endpoint re-processes the PDF.
-    # Only return the title list as a TOC so the user can review before importing.
+    # Extract real PDF page numbers from section filenames (e.g. "page_3_s0.jpeg").
     if tunes_raw:
-        toc = [
-            {"title": t["title"], "start_page": i + 1, "end_page": i + 1, "_ocr": True}
-            for i, t in enumerate(tunes_raw)
-        ]
+        toc = []
+        for t in tunes_raw:
+            attachments = t.get("_image_attachments", [])
+            # Parse page number from first attachment name: "page_3_s0.jpeg" → 3
+            page_num = 1
+            if attachments:
+                m = re.match(r"page_(\d+)", attachments[0][0])
+                if m:
+                    page_num = int(m.group(1))
+            # End page from last attachment
+            end_page = page_num
+            if len(attachments) > 1:
+                m2 = re.match(r"page_(\d+)", attachments[-1][0])
+                if m2:
+                    end_page = int(m2.group(1))
+            toc.append({"title": t["title"], "start_page": page_num, "end_page": end_page, "_ocr": True})
         return {
             "page_count": page_count,
             "collection_name": collection_name,
@@ -5348,10 +5360,12 @@ async def scan_book_pdf_ocr(file: UploadFile = File(...)):
 async def import_book_pdf_ocr(
     file: UploadFile = File(...),
     collection_name: str = Query(...),
+    titles: str = Query(""),  # JSON array of user-edited titles (overrides OCR)
 ):
     """
     Import a PDF book using OCR-detected tune splits.
     Each detected tune gets its cropped page image stored as sheet music.
+    If `titles` is provided (JSON array), those override OCR-detected titles.
     """
     content = await file.read()
 
@@ -5379,6 +5393,12 @@ async def import_book_pdf_ocr(
     tunes_raw = _merge_page_sections_into_tunes(all_sections, collection_name)
     if not tunes_raw:
         raise HTTPException(422, "No tunes detected by OCR. Try the manual TOC approach instead.")
+
+    # Override OCR titles with user-edited titles if provided
+    titles_list: list[str] = json.loads(titles) if titles else []
+    for i, t in enumerate(tunes_raw):
+        if i < len(titles_list) and titles_list[i].strip():
+            t["title"] = titles_list[i].strip()
 
     import_date = date.today().isoformat()
     results = []
