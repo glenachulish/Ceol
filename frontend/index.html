@@ -299,6 +299,7 @@
         <button class="tab-btn" data-import-tab="session">TheSession.org</button>
         <button class="tab-btn" data-import-tab="flutefling">FlutefFling.scot</button>
         <button class="tab-btn" data-import-tab="dropbox">Dropbox</button>
+        <button class="tab-btn" data-import-tab="audio">Audio Files</button>
         <button class="tab-btn" data-import-tab="pdf">PDF Files</button>
         <button class="tab-btn" data-import-tab="book">PDF Book</button>
         <button class="tab-btn" data-import-tab="photos">Photos</button>
@@ -518,6 +519,31 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- Audio Files import tab -->
+      <div id="import-tab-audio" class="tab-panel hidden">
+        <p class="import-desc">Import MP3, M4A, WAV or other audio files. Ceol matches filenames to tunes in your library — review before importing.</p>
+        <label class="import-drop" id="audio-drop-zone">
+          <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple />
+          <span class="import-icon">🎵</span>
+          <span class="import-label">Click or drag audio files here</span>
+          <span id="audio-file-count" class="import-filename"></span>
+        </label>
+        <div id="audio-preview-area" class="hidden">
+          <table class="pdf-preview-table">
+            <thead><tr>
+              <th class="pdf-col-file">File</th>
+              <th class="pdf-col-title">Tune title</th>
+              <th class="pdf-col-action">Action</th>
+            </tr></thead>
+            <tbody id="audio-preview-body"></tbody>
+          </table>
+          <div class="import-actions">
+            <button id="audio-import-btn" class="btn-primary">Import audio files</button>
+          </div>
+        </div>
+        <div id="audio-result" class="import-result hidden"></div>
       </div>
 
       <!-- PDF bulk import tab -->

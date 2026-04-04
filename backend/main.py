@@ -6410,6 +6410,89 @@ async def confirm_pdf_imports(
 
 
 # ---------------------------------------------------------------------------
+# Audio file import — match MP3/M4A/WAV to tunes by filename
+# ---------------------------------------------------------------------------
+
+AUDIO_MIME_EXTS = {".mp3", ".m4a", ".wav", ".ogg", ".aac", ".flac"}
+
+
+@app.post("/api/import/audio/preview")
+async def preview_audio_imports(files: list[UploadFile] = File(...)):
+    """
+    Receive audio files, derive titles from filenames, fuzzy-match against the
+    library, and return a preview list for the user to confirm.
+    """
+    with _db() as conn:
+        results = []
+        for f in files:
+            title = _title_from_filename(f.filename or "Unknown")
+            existing_id = _match_tune_title(title, conn)
+            existing_title = None
+            if existing_id:
+                row = conn.execute("SELECT title FROM tunes WHERE id=?", (existing_id,)).fetchone()
+                existing_title = row["title"] if row else None
+            results.append({
+                "filename": f.filename,
+                "title": title,
+                "action": "attach" if existing_id else "create",
+                "existing_id": existing_id,
+                "existing_title": existing_title,
+            })
+    return {"files": results}
+
+
+@app.post("/api/import/audio/confirm", status_code=201)
+async def confirm_audio_imports(
+    files: list[UploadFile] = File(...),
+    titles: str = Query(...),        # JSON array of titles (one per file)
+    actions: str = Query(...),       # JSON array of "attach"|"create" (one per file)
+    existing_ids: str = Query(...),  # JSON array of int|null (one per file)
+):
+    """
+    Save uploaded audio files and create/attach tune entries.
+    Audio is stored in uploads/ and linked in the tune's notes.
+    """
+    titles_list = json.loads(titles)
+    actions_list = json.loads(actions)
+    existing_ids_list = json.loads(existing_ids)
+    import_date = date.today().isoformat()
+    results = []
+
+    with _db() as conn:
+        for i, f in enumerate(files):
+            title = titles_list[i]
+            action = actions_list[i]
+            existing_id = existing_ids_list[i]
+
+            content = await f.read()
+            ext = Path(f.filename).suffix.lower() if f.filename else ".mp3"
+            stored_name = f"{uuid.uuid4().hex}{ext}"
+            (UPLOADS_DIR / stored_name).write_bytes(content)
+            audio_url = f"/api/uploads/{stored_name}"
+            audio_note = f"audio: {audio_url}"
+
+            if action == "attach" and existing_id:
+                row = conn.execute("SELECT notes FROM tunes WHERE id=?", (existing_id,)).fetchone()
+                existing_notes = (row["notes"] or "").strip() if row else ""
+                new_notes = f"{existing_notes}\n{audio_note}".strip() if existing_notes else audio_note
+                conn.execute(
+                    "UPDATE tunes SET notes=?, updated_at=datetime('now') WHERE id=?",
+                    (new_notes, existing_id),
+                )
+                results.append({"action": "attached", "tune_id": existing_id, "title": title})
+            else:
+                cur = conn.execute(
+                    "INSERT INTO tunes (title, abc, notes, imported_at) VALUES (?, '', ?, datetime('now'))",
+                    (title, f"Imported: {import_date}\n{audio_note}"),
+                )
+                results.append({"action": "created", "tune_id": cur.lastrowid, "title": title})
+
+    attached = sum(1 for r in results if r["action"] == "attached")
+    created  = sum(1 for r in results if r["action"] == "created")
+    return {"results": results, "attached": attached, "created": created}
+
+
+# ---------------------------------------------------------------------------
 # Serve the frontend SPA
 # ---------------------------------------------------------------------------
 

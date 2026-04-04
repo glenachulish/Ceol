@@ -1234,10 +1234,9 @@ function renderModal(tune, onBack = null, siblings = null) {
           <button class="attach-tab-btn" data-tab="dropbox">Dropbox</button>
         </div>
         <div id="attach-tab-upload" class="attach-tab-panel">
-          <label class="attach-file-label">
-            <input id="attach-audio-file" type="file" accept="audio/*" class="attach-file-input">
-            <span class="attach-file-hint">Choose an audio file from your computer</span>
-          </label>
+          <input id="attach-audio-file" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" class="attach-file-input" style="display:none">
+          <button id="attach-audio-choose-btn" class="btn-secondary">📂 Choose audio file…</button>
+          <span id="attach-audio-chosen" class="attach-file-hint" style="margin-left:.5rem"></span>
           <p id="attach-upload-status" class="ff-cat-hint"></p>
         </div>
         <div id="attach-tab-url" class="attach-tab-panel hidden">
@@ -2042,6 +2041,8 @@ function renderModal(tune, onBack = null, siblings = null) {
   document.getElementById("attach-audio-file").addEventListener("change", async (ev) => {
     const file = ev.target.files[0];
     if (!file) return;
+    const chosenEl = document.getElementById("attach-audio-chosen");
+    if (chosenEl) chosenEl.textContent = file.name;
     const statusEl = document.getElementById("attach-upload-status");
     statusEl.textContent = "Uploading…";
     const formData = new FormData();
@@ -2118,6 +2119,15 @@ function renderModal(tune, onBack = null, siblings = null) {
   document.getElementById("attach-audio-browse").addEventListener("click", () => {
     _browseForAudio(attachAudioPathInput.value.trim() || "/");
   });
+
+  // Explicit file picker button (more reliable than label in Safari)
+  const attachAudioChooseBtn = document.getElementById("attach-audio-choose-btn");
+  const attachAudioChosen    = document.getElementById("attach-audio-chosen");
+  if (attachAudioChooseBtn) {
+    attachAudioChooseBtn.addEventListener("click", () => {
+      document.getElementById("attach-audio-file").click();
+    });
+  }
 
   // Delete tune from modal
   document.getElementById("delete-tune-modal-btn").addEventListener("click", async () => {
@@ -6269,6 +6279,120 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     if (btn.dataset.importTab === "dropbox") _dropboxMaybeLoad();
   });
 });
+
+// ── Audio Files Import ────────────────────────────────────────────────────────
+{
+  const fileInput   = document.getElementById("audio-file-input");
+  const dropZone    = document.getElementById("audio-drop-zone");
+  const fileCount   = document.getElementById("audio-file-count");
+  const previewArea = document.getElementById("audio-preview-area");
+  const previewBody = document.getElementById("audio-preview-body");
+  const importBtn   = document.getElementById("audio-import-btn");
+  const resultDiv   = document.getElementById("audio-result");
+
+  let _audioFiles = [];
+  let _audioPreview = [];  // [{filename, title, action, existing_id, existing_title}]
+
+  function _audioStem(name) {
+    return name.replace(/\.(mp3|m4a|wav|ogg|aac|flac)$/i, "")
+               .replace(/[_\-]+/g, " ")
+               .replace(/^\d+[\s.\-_]+/, "")
+               .trim()
+               .replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  async function loadAudioPreview(files) {
+    _audioFiles = files;
+    if (!files.length) return;
+    fileCount.textContent = `${files.length} file${files.length !== 1 ? "s" : ""} selected`;
+    previewBody.innerHTML = `<tr><td colspan="3" style="color:var(--text-muted);padding:.4rem 0">Matching against library…</td></tr>`;
+    previewArea.classList.remove("hidden");
+
+    const fd = new FormData();
+    files.forEach(f => fd.append("files", f));
+    let data;
+    try {
+      data = await apiFetch("/api/import/audio/preview", { method: "POST", body: fd });
+    } catch (e) {
+      previewBody.innerHTML = `<tr><td colspan="3" style="color:var(--danger)">Error: ${escHtml(e.message)}</td></tr>`;
+      return;
+    }
+    _audioPreview = data.files;
+
+    previewBody.innerHTML = data.files.map((item, i) => {
+      const actionSel = item.action === "attach"
+        ? `<select class="audio-action-sel" data-idx="${i}">
+             <option value="attach" selected>📎 Attach to "${escHtml(item.existing_title)}"</option>
+             <option value="create">➕ Create new tune</option>
+           </select>`
+        : `<select class="audio-action-sel" data-idx="${i}">
+             <option value="create" selected>➕ Create new tune</option>
+             <option value="attach" disabled>(no match found)</option>
+           </select>`;
+      return `<tr>
+        <td class="pdf-col-file" title="${escHtml(item.filename)}">${escHtml(item.filename)}</td>
+        <td class="pdf-col-title"><input class="pdf-title-input audio-title-input" data-idx="${i}" value="${escHtml(item.title)}" /></td>
+        <td class="pdf-col-action">${actionSel}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  fileInput.addEventListener("change", () => loadAudioPreview(Array.from(fileInput.files)));
+
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drop-hover"); });
+  dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("drop-hover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drop-hover");
+    const audio = Array.from(e.dataTransfer.files).filter(f => /\.(mp3|m4a|wav|ogg|aac|flac)$/i.test(f.name));
+    if (audio.length) loadAudioPreview(audio);
+  });
+
+  importBtn.addEventListener("click", async () => {
+    if (!_audioFiles.length) return;
+    const titles     = Array.from(previewBody.querySelectorAll(".audio-title-input")).map(el => el.value.trim());
+    const actions    = Array.from(previewBody.querySelectorAll(".audio-action-sel")).map(el => el.value);
+    const existingIds = _audioPreview.map((item, i) => actions[i] === "attach" ? item.existing_id : null);
+
+    importBtn.disabled = true;
+    importBtn.textContent = "Importing…";
+    resultDiv.classList.add("hidden");
+
+    const fd = new FormData();
+    _audioFiles.forEach(f => fd.append("files", f));
+    const params = new URLSearchParams({
+      titles: JSON.stringify(titles),
+      actions: JSON.stringify(actions),
+      existing_ids: JSON.stringify(existingIds),
+    });
+
+    let data;
+    try {
+      data = await apiFetch(`/api/import/audio/confirm?${params}`, { method: "POST", body: fd });
+    } catch (e) {
+      resultDiv.textContent = `Error: ${e.message}`;
+      resultDiv.className = "import-result import-error";
+      resultDiv.classList.remove("hidden");
+      importBtn.disabled = false;
+      importBtn.textContent = "Import audio files";
+      return;
+    }
+
+    const parts = [];
+    if (data.attached) parts.push(`${data.attached} attached to existing tune${data.attached !== 1 ? "s" : ""}`);
+    if (data.created)  parts.push(`${data.created} new tune${data.created !== 1 ? "s" : ""} created`);
+    resultDiv.textContent = `Done — ${parts.join(", ")}.`;
+    resultDiv.className = "import-result import-success";
+    resultDiv.classList.remove("hidden");
+    _audioFiles = [];
+    fileInput.value = "";
+    fileCount.textContent = "";
+    previewArea.classList.add("hidden");
+    importBtn.disabled = false;
+    importBtn.textContent = "Import audio files";
+    _afterImportSuccess();
+  });
+}
 
 // ── PDF Bulk Import ────────────────────────────────────────────────────────────
 {
