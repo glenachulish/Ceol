@@ -6281,25 +6281,32 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
 });
 
 // ── Audio Files Import ────────────────────────────────────────────────────────
+// Prevent the browser from opening dropped files as a new tab anywhere on the page.
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop",     e => e.preventDefault());
+
 {
-  const fileInput   = document.getElementById("audio-file-input");
-  const dropZone    = document.getElementById("audio-drop-zone");
-  const fileCount   = document.getElementById("audio-file-count");
-  const previewArea = document.getElementById("audio-preview-area");
-  const previewBody = document.getElementById("audio-preview-body");
-  const importBtn   = document.getElementById("audio-import-btn");
-  const resultDiv   = document.getElementById("audio-result");
+  const fileInput     = document.getElementById("audio-file-input");
+  const folderInput   = document.getElementById("audio-folder-input");
+  const dropZone      = document.getElementById("audio-drop-zone");
+  const fileCount     = document.getElementById("audio-file-count");
+  const previewArea   = document.getElementById("audio-preview-area");
+  const previewBody   = document.getElementById("audio-preview-body");
+  const importBtn     = document.getElementById("audio-import-btn");
+  const resultDiv     = document.getElementById("audio-result");
+  const pickFilesBtn  = document.getElementById("audio-pick-files-btn");
+  const pickFolderBtn = document.getElementById("audio-pick-folder-btn");
+
+  const AUDIO_RE = /\.(mp3|m4a|wav|ogg|aac|flac)$/i;
 
   let _audioFiles = [];
   let _audioPreview = [];  // [{filename, title, action, existing_id, existing_title}]
 
-  function _audioStem(name) {
-    return name.replace(/\.(mp3|m4a|wav|ogg|aac|flac)$/i, "")
-               .replace(/[_\-]+/g, " ")
-               .replace(/^\d+[\s.\-_]+/, "")
-               .trim()
-               .replace(/\b\w/g, c => c.toUpperCase());
-  }
+  // File / folder picker buttons
+  pickFilesBtn.addEventListener("click",  () => fileInput.click());
+  pickFolderBtn.addEventListener("click", () => folderInput.click());
+  fileInput.addEventListener("change",   () => loadAudioPreview(Array.from(fileInput.files).filter(f => AUDIO_RE.test(f.name))));
+  folderInput.addEventListener("change", () => loadAudioPreview(Array.from(folderInput.files).filter(f => AUDIO_RE.test(f.name))));
 
   async function loadAudioPreview(files) {
     _audioFiles = files;
@@ -6337,15 +6344,16 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     }).join("");
   }
 
-  fileInput.addEventListener("change", () => loadAudioPreview(Array.from(fileInput.files)));
-
-  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drop-hover"); });
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add("drop-hover"); });
   dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("drop-hover"));
   dropZone.addEventListener("drop", e => {
     e.preventDefault();
+    e.stopPropagation();
     dropZone.classList.remove("drop-hover");
-    const audio = Array.from(e.dataTransfer.files).filter(f => /\.(mp3|m4a|wav|ogg|aac|flac)$/i.test(f.name));
+    // dataTransfer.files doesn't expose folder contents — collect all audio files
+    const audio = Array.from(e.dataTransfer.files).filter(f => AUDIO_RE.test(f.name));
     if (audio.length) loadAudioPreview(audio);
+    else fileCount.textContent = "No audio files found — try the folder button instead";
   });
 
   importBtn.addEventListener("click", async () => {

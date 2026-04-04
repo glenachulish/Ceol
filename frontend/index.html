@@ -524,12 +524,18 @@
       <!-- Audio Files import tab -->
       <div id="import-tab-audio" class="tab-panel hidden">
         <p class="import-desc">Import MP3, M4A, WAV or other audio files. Ceol matches filenames to tunes in your library — review before importing.</p>
-        <label class="import-drop" id="audio-drop-zone">
-          <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple />
+        <!-- hidden file inputs -->
+        <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
+        <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
+        <div class="import-drop" id="audio-drop-zone">
           <span class="import-icon">🎵</span>
-          <span class="import-label">Click or drag audio files here</span>
+          <span class="import-label">Drag audio files or a folder here</span>
           <span id="audio-file-count" class="import-filename"></span>
-        </label>
+          <div class="import-drop-btns">
+            <button type="button" id="audio-pick-files-btn" class="btn-secondary">Choose files…</button>
+            <button type="button" id="audio-pick-folder-btn" class="btn-secondary">Choose folder…</button>
+          </div>
+        </div>
         <div id="audio-preview-area" class="hidden">
           <table class="pdf-preview-table">
             <thead><tr>

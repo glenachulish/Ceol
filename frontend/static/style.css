@@ -2069,6 +2069,7 @@ button.set-tune-title:hover { text-decoration: underline; }
 .import-icon { font-size: 2rem; line-height: 1; }
 .import-label { color: var(--text-muted); font-size: .88rem; }
 .import-filename { font-size: .85rem; color: var(--accent2); word-break: break-all; }
+.import-drop-btns { display: flex; gap: .5rem; margin-top: .6rem; }
 .import-actions { display: flex; justify-content: flex-end; margin-top: .5rem; }
 .import-result {
   border-radius: var(--radius);
