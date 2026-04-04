@@ -6358,8 +6358,11 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
 
 // ── Audio Files Import ────────────────────────────────────────────────────────
 // Prevent the browser from opening dropped files as a new tab anywhere on the page.
-document.addEventListener("dragover", e => e.preventDefault());
-document.addEventListener("drop",     e => e.preventDefault());
+// Capture phase fires before element handlers so the browser default is cancelled
+// first; we do NOT stopPropagation so the event still reaches the drop zone.
+["dragenter", "dragover", "drop"].forEach(ev => {
+  window.addEventListener(ev, e => e.preventDefault(), true);
+});
 
 {
   const fileInput   = document.getElementById("audio-file-input");
@@ -6416,16 +6419,14 @@ document.addEventListener("drop",     e => e.preventDefault());
     }).join("");
   }
 
-  dropZone.addEventListener("dragover",  e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add("drop-hover"); });
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drop-hover"); });
   dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("drop-hover"));
   dropZone.addEventListener("drop", e => {
     e.preventDefault();
-    e.stopPropagation();
     dropZone.classList.remove("drop-hover");
-    // dataTransfer.files doesn't expose folder contents — collect all audio files
     const audio = Array.from(e.dataTransfer.files).filter(f => AUDIO_RE.test(f.name));
     if (audio.length) loadAudioPreview(audio);
-    else fileCount.textContent = "No audio files found — try the folder button instead";
+    else fileCount.textContent = "No audio files found in drop — use "Choose folder…" instead";
   });
 
   importBtn.addEventListener("click", async () => {

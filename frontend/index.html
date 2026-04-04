@@ -528,14 +528,8 @@
           <span class="import-icon">🎵</span>
           <span class="import-label">Drag audio files here, or pick files / folder:</span>
           <div class="import-drop-btns">
-            <label class="btn-secondary audio-pick-label">
-              Choose files…
-              <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
-            </label>
-            <label class="btn-secondary audio-pick-label">
-              Choose folder…
-              <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
-            </label>
+            <label class="btn-secondary audio-pick-label" for="audio-file-input">Choose files…</label>
+            <label class="btn-secondary audio-pick-label" for="audio-folder-input">Choose folder…</label>
           </div>
           <span id="audio-file-count" class="import-filename"></span>
         </div>
@@ -948,5 +942,8 @@
   <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
   <script src="/static/abcjs-basic-min.js"></script>
   <script src="/static/app.js?v=176"></script>
+  <!-- Audio file inputs at body level so Safari opens file pickers reliably from modal labels -->
+  <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
+  <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
 </body>
 </html>
