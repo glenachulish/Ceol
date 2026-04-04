@@ -648,6 +648,7 @@ class TuneUpdate(BaseModel):
     is_favourite: Optional[int] = None
     composer: Optional[str] = None
     transcribed_by: Optional[str] = None
+    session_id: Optional[str] = None
 
 
 @app.patch("/api/tunes/{tune_id}")

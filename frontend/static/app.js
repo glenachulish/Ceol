@@ -1858,6 +1858,48 @@ function renderModal(tune, onBack = null, siblings = null) {
 
     async function _applySessionAbc(tuneId, setting, sessionData) {
       try {
+        // If this tune already has PDF/photo sheet music, create the ABC as a
+        // separate version rather than adding it to the same tune entry.
+        const hasPdfOrPhoto = /\/api\/uploads\/[^\s]+(\.pdf|\.jpe?g|\.png)/i.test(tune.notes || "");
+
+        if (hasPdfOrPhoto && !tune.abc) {
+          // Create a new tune entry for the ABC
+          const created = await apiFetch("/api/tunes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: tune.title,
+              abc: setting.abc,
+              key: setting.key || "",
+              mode: setting.mode || "",
+              type: tune.type || "",
+              version_label: "ABC (TheSession.org)",
+            }),
+          });
+          // Group the original tune + new ABC tune as versions
+          await apiFetch("/api/tunes/group", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: tune.title,
+              tune_ids: [tuneId, created.id],
+              labels: ["Sheet Music", "ABC (TheSession.org)"],
+            }),
+          });
+          // Persist session_id on the new ABC tune
+          if (sessionData?.session_id) {
+            await fetch(`/api/tunes/${created.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ session_id: String(sessionData.session_id) }),
+            });
+          }
+          abcResults.innerHTML = `<p style="color:var(--success);padding:.4rem .6rem">✓ ABC added as a new version — grouped with the sheet music.</p>`;
+          await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+          return;
+        }
+
+        // Normal case: patch the ABC onto the existing tune
         await fetch(`/api/tunes/${tuneId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -1865,6 +1907,7 @@ function renderModal(tune, onBack = null, siblings = null) {
             abc: setting.abc,
             key: setting.key || undefined,
             mode: setting.mode || undefined,
+            ...(sessionData?.session_id ? { session_id: String(sessionData.session_id) } : {}),
           }),
         });
         // Update local tune object and re-render sheet music
@@ -6219,17 +6262,50 @@ function closeImport() {
   _checkedSettingIds = new Set();
   document.getElementById("session-preview").classList.add("hidden");
   document.getElementById("session-search-pane").classList.remove("hidden");
+  _resetImportTabs();
+}
+
+function _resetImportTabs() {
+  // Clear file count labels, hide preview areas, clear result messages
+  // so re-opening the import modal shows a clean state.
+  const clearIds = [
+    "audio-file-count", "pdf-file-count", "photo-file-count", "folder-summary",
+  ];
+  clearIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ""; });
+
+  const hideIds = [
+    "audio-preview-area", "audio-result",
+    "pdf-preview-area", "pdf-result",
+    "photo-preview-area", "photo-result",
+    "folder-preview", "folder-result",
+    "session-abc-results",
+  ];
+  hideIds.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
+
+  // Reset file inputs so the same file can be re-selected
+  ["audio-file-input", "audio-folder-input", "pdf-file-input"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = "";
+  });
 }
 
 // Called after any successful import: reload data, close the import modal,
 // and navigate the user to the library so they can see the new tunes.
-async function _afterImportSuccess() {
+// Pass tuneId to open that tune's modal immediately after navigating.
+async function _afterImportSuccess(tuneId = null) {
   await Promise.all([loadStats(), loadFilters(), loadTunes()]);
   window._loadRecentImports?.();
-  setTimeout(() => {
+  setTimeout(async () => {
     closeImport();
     switchView("library");
-  }, 800);
+    if (tuneId) {
+      // Brief pause for the library to paint, then open the tune modal
+      await new Promise(r => setTimeout(r, 350));
+      try {
+        const t = await apiFetch(`/api/tunes/${tuneId}`);
+        openModal(t);
+      } catch {}
+    }
+  }, 600);
 }
 
 // Launch the set builder from a tune that was just imported.
@@ -6286,25 +6362,21 @@ document.addEventListener("dragover", e => e.preventDefault());
 document.addEventListener("drop",     e => e.preventDefault());
 
 {
-  const fileInput     = document.getElementById("audio-file-input");
-  const folderInput   = document.getElementById("audio-folder-input");
-  const dropZone      = document.getElementById("audio-drop-zone");
-  const fileCount     = document.getElementById("audio-file-count");
-  const previewArea   = document.getElementById("audio-preview-area");
-  const previewBody   = document.getElementById("audio-preview-body");
-  const importBtn     = document.getElementById("audio-import-btn");
-  const resultDiv     = document.getElementById("audio-result");
-  const pickFilesBtn  = document.getElementById("audio-pick-files-btn");
-  const pickFolderBtn = document.getElementById("audio-pick-folder-btn");
+  const fileInput   = document.getElementById("audio-file-input");
+  const folderInput = document.getElementById("audio-folder-input");
+  const dropZone    = document.getElementById("audio-drop-zone");
+  const fileCount   = document.getElementById("audio-file-count");
+  const previewArea = document.getElementById("audio-preview-area");
+  const previewBody = document.getElementById("audio-preview-body");
+  const importBtn   = document.getElementById("audio-import-btn");
+  const resultDiv   = document.getElementById("audio-result");
 
   const AUDIO_RE = /\.(mp3|m4a|wav|ogg|aac|flac)$/i;
 
   let _audioFiles = [];
   let _audioPreview = [];  // [{filename, title, action, existing_id, existing_title}]
 
-  // File / folder picker buttons
-  pickFilesBtn.addEventListener("click",  () => fileInput.click());
-  pickFolderBtn.addEventListener("click", () => folderInput.click());
+  // Labels wrap the inputs natively — just listen for change
   fileInput.addEventListener("change",   () => loadAudioPreview(Array.from(fileInput.files).filter(f => AUDIO_RE.test(f.name))));
   folderInput.addEventListener("change", () => loadAudioPreview(Array.from(folderInput.files).filter(f => AUDIO_RE.test(f.name))));
 
@@ -7986,10 +8058,9 @@ document.getElementById("session-save-btn").addEventListener("click", async () =
         btn.style.background = "var(--jig)";
         status.textContent = `"${data.title}" saved to your library!`;
         status.className = "notes-status notes-saved";
-        await Promise.all([loadStats(), loadFilters()]);
-        if (state.view === "library") loadTunes();
         _insertBuildSetBtn(status, data.tune_id);
         _offerTransfer(data.tune_id, data.title);
+        _afterImportSuccess(data.tune_id);
       }
     } else {
       btn.textContent = _checkedSettingIds.size > 1 ? `Save ${_checkedSettingIds.size} settings` : "Save to Library";
