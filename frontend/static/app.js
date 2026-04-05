@@ -1120,6 +1120,20 @@ function renderModal(tune, onBack = null, siblings = null) {
     }
     return urls;
   })();
+  const notesVideoUrls = (() => {
+    if (!tune.notes) return [];
+    const urlRe = /(?:https?:\/\/)[^\s<>"]+/g;
+    const urls = [];
+    let m;
+    while ((m = urlRe.exec(tune.notes)) !== null) {
+      const url = m[0];
+      if (/(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/.test(url) ||
+          /\.(mp4|mov|webm)(\?|$)/i.test(url)) {
+        urls.push(url);
+      }
+    }
+    return urls;
+  })();
   const setsFooter = `<div class="modal-sets-row">
       <button id="add-to-set-btn" class="btn-set btn-sm">+ Add to a set…</button>
       <button id="create-set-from-tune-btn" class="btn-set btn-sm">+ Create new set</button>
@@ -1190,9 +1204,20 @@ function renderModal(tune, onBack = null, siblings = null) {
       </div>` : ""}
       ${notesAudioUrls.map((u, i) => {
         const label = notesAudioUrls.length > 1 ? `▶ Play MP3 ${i + 1}` : "▶ Play MP3";
-        return `<div class="ff-download-row">
+        return `<div class="ff-download-row media-attachment-row" data-url="${escHtml(u)}" data-media-type="audio">
           <button class="btn-secondary media-play-btn" data-url="${escHtml(u)}" data-media-type="audio">${label}</button>
+          <button class="btn-icon media-remove-btn" data-url="${escHtml(u)}" title="Remove this audio attachment">✕</button>
         </div>`;
+      }).join("")}
+      ${notesVideoUrls.map((u, i) => {
+        const isYt = /(?:youtube\.com|youtu\.be)/.test(u);
+        const label = notesVideoUrls.length > 1 ? `▶ Play video ${i + 1}` : "▶ Play video";
+        return `<div class="ff-download-row media-attachment-row" data-url="${escHtml(u)}" data-media-type="video">
+          <button class="btn-secondary media-embed-btn" data-url="${escHtml(u)}">${label}</button>
+          <a class="btn-secondary btn-sm" href="${escHtml(u)}" target="_blank" rel="noopener" title="Open in new tab">↗</a>
+          <button class="btn-icon media-remove-btn" data-url="${escHtml(u)}" title="Remove this video attachment">✕</button>
+        </div>
+        <div class="media-inline-embed hidden" id="embed-${escHtml(u).replace(/[^a-z0-9]/gi,'_').slice(0,30)}"></div>`;
       }).join("")}
       <div id="audio-player-container" class="audio-player-wrap"></div>
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
@@ -1536,10 +1561,86 @@ function renderModal(tune, onBack = null, siblings = null) {
     } catch { /* ignore */ }
   });
 
-  // Media play buttons in notes
+  // Media play buttons in notes (audio → overlay)
   modalContent.addEventListener("click", e => {
     const btn = e.target.closest(".media-play-btn");
     if (btn) openMediaOverlay(btn.dataset.url, btn.dataset.mediaType);
+  });
+
+  // Video embed buttons — inline embed toggle
+  modalContent.addEventListener("click", e => {
+    const btn = e.target.closest(".media-embed-btn");
+    if (!btn) return;
+    const url = btn.dataset.url;
+    const safeId = "embed-" + url.replace(/[^a-z0-9]/gi, "_").slice(0, 30);
+    const embedDiv = document.getElementById(safeId);
+    if (!embedDiv) { window.open(url, "_blank"); return; }
+    if (!embedDiv.classList.contains("hidden")) {
+      embedDiv.classList.add("hidden");
+      embedDiv.innerHTML = "";
+      btn.textContent = btn.dataset.origLabel || "▶ Play video";
+      return;
+    }
+    const vidId = url.match(/(?:v=|youtu\.be\/|shorts\/)([^&?#/]+)/)?.[1];
+    if (vidId) {
+      embedDiv.innerHTML = `
+        <div class="media-embed-wrap">
+          <iframe class="media-video-inline" src="https://www.youtube-nocookie.com/embed/${escHtml(vidId)}?autoplay=1"
+                  allow="autoplay; fullscreen" allowfullscreen></iframe>
+          <button class="media-embed-close btn-icon" title="Close video">✕</button>
+        </div>`;
+      embedDiv.querySelector(".media-embed-close").addEventListener("click", () => {
+        embedDiv.classList.add("hidden");
+        embedDiv.innerHTML = "";
+        btn.textContent = btn.dataset.origLabel || "▶ Play video";
+      });
+    } else {
+      embedDiv.innerHTML = `
+        <div class="media-embed-wrap">
+          <video controls autoplay class="media-video-inline" src="${escHtml(url)}" style="max-width:100%"></video>
+          <button class="media-embed-close btn-icon" title="Close video">✕</button>
+        </div>`;
+      embedDiv.querySelector(".media-embed-close").addEventListener("click", () => {
+        const v = embedDiv.querySelector("video");
+        if (v) v.pause();
+        embedDiv.classList.add("hidden");
+        embedDiv.innerHTML = "";
+        btn.textContent = btn.dataset.origLabel || "▶ Play video";
+      });
+    }
+    if (!btn.dataset.origLabel) btn.dataset.origLabel = btn.textContent;
+    btn.textContent = "▼ Hide video";
+    embedDiv.classList.remove("hidden");
+  });
+
+  // Remove audio/video attachment
+  modalContent.addEventListener("click", async e => {
+    const btn = e.target.closest(".media-remove-btn");
+    if (!btn) return;
+    const urlToRemove = btn.dataset.url;
+    if (!confirm("Remove this media attachment from the tune's notes?")) return;
+    btn.disabled = true;
+    try {
+      // Escape regex special chars in URL
+      const escaped = urlToRemove.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`(?:audio:|video:|\\n?)\\s*${escaped}\\s*\\n?`, "g");
+      let newNotes = (tune.notes || "").replace(re, "");
+      // Fallback: direct string removal
+      newNotes = newNotes.replace(urlToRemove, "").replace(/\n{3,}/g, "\n\n").trim();
+      await apiFetch(`/api/tunes/${tune.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: newNotes }),
+      });
+      tune.notes = newNotes;
+      btn.closest(".media-attachment-row")?.remove();
+      // Also remove the inline embed if it exists
+      const embedEl = document.getElementById("embed-" + urlToRemove.replace(/[^a-z0-9]/gi, "_").slice(0, 30));
+      if (embedEl) embedEl.remove();
+    } catch {
+      btn.disabled = false;
+      alert("Failed to remove attachment.");
+    }
   });
 
   // Tab switching
@@ -1724,13 +1825,18 @@ function renderModal(tune, onBack = null, siblings = null) {
   const colStatus  = document.getElementById("col-status");
 
   colAddBtn.addEventListener("click", async () => {
-    const cols = await fetchCollections();
-    const existingOptions = cols.map(c =>
-      `<label class="bulk-col-option">
-         <input type="checkbox" name="tune-col-pick" value="${c.id}" />
-         ${escHtml(c.name)}
-       </label>`
-    ).join("");
+    const [cols, memberships] = await Promise.all([
+      fetchCollections(),
+      _fetchTuneMemberships(tune.id).then(m => m.collections).catch(() => []),
+    ]);
+    const memberColIds = new Set(memberships.map(c => String(c.id)));
+    const existingOptions = cols.map(c => {
+      const isMember = memberColIds.has(String(c.id));
+      return `<label class="bulk-col-option${isMember ? " picker-row-member" : ""}">
+         <input type="checkbox" name="tune-col-pick" value="${c.id}"${isMember ? " checked" : ""} />
+         ${escHtml(c.name)}${isMember ? ' <span class="picker-member-tick">✓ already in</span>' : ""}
+       </label>`;
+    }).join("");
     modalContent.innerHTML = `
       <button class="modal-back-btn" id="tune-col-modal-back">← Back</button>
       <h2 class="modal-title">Add to Collections</h2>
@@ -2794,10 +2900,11 @@ function renderSheetMusic(abc) {
       onStart() {
         // Build the accurate bar→MIDI-time map from ABCJS's pre-computed noteTimings.
         _buildBarTimingMap();
-        // Seek to selected bar immediately on (re)start — avoids briefly playing
-        // from bar 0 before the seek fires.  Handles warp changes too.
-        if (_barSel.start !== null) {
-          setTimeout(() => { if (_synthController) _seekToBar(_barSel.start); }, 0);
+        // Seek to selected bar synchronously on (re)start — avoids briefly playing
+        // from bar 0 before the seek fires.  Handles warp changes and loop restarts.
+        if (_barSel.start !== null && _synthController) {
+          _seekToBar(_barSel.start);
+          _barSeekPending = false;
         }
       },
       onEvent(ev) {        document.querySelectorAll("#sheet-music-render .abcjs-highlight")
@@ -2824,8 +2931,10 @@ function renderSheetMusic(abc) {
       onFinished() {
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")
           .forEach(el => el.classList.remove("abcjs-highlight"));
-        // If looping, restart from selection start
-        if (_barLooping && _barSel.start !== null && _synthController) {
+        // If looping, restart — but skip if a seek is already in flight (race
+        // condition: loop endpoint detected in onEvent, tune still finished before
+        // seek took effect).  onStart will immediately seek to selection start.
+        if (_barLooping && _barSel.start !== null && _synthController && !_loopSeeking) {
           _barSeekPending = true;
           try { _synthController.play(); } catch {}
         }
@@ -3720,24 +3829,20 @@ function openFullSetModal(setData) {
       <a class="btn-secondary btn-sm modal-export-btn" href="/api/export/set/${setData.id}" download title="Download as .ceol.json">⬇ Export</a>
     </h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
-    ${hasAbc ? `
-      <h3 class="set-music-section-hd">Sheet music <span class="set-music-count">(${tunesWithAbc.length} of ${tunes.length} tunes)</span></h3>
-      <div id="set-music-sheets">${tuneSheetDivs}</div>
-    ` : '<p class="modal-hint" style="margin-top:.75rem">No ABC notation available for tunes in this set.</p>'}
     ${transRows.length ? `
       <h3 class="set-music-section-hd">Transitions</h3>
       <div class="set-music-trans-section">${transRows.join("")}</div>
     ` : ""}
     ${hasAbc ? `
-      <div class="set-full-hd-row" style="margin-top:1.5rem">
-        <h3 class="set-music-section-hd">${tunesWithAbc.length > 1 ? "Full set" : "Playback"}</h3>
+      <div class="set-full-hd-row" style="margin-top:1rem">
+        <h3 class="set-music-section-hd">Sheet music &amp; playback</h3>
         <button class="btn-secondary btn-sm" id="set-full-fs-btn" title="Full screen sheet music">⛶ Full screen</button>
         <button class="btn-secondary btn-sm" id="set-full-print-btn" title="Print full set sheet music">⎙ Print</button>
       </div>
       ${timelineHtml}
       <div id="set-full-render" style="margin-top:.5rem"></div>
       <div id="set-full-audio" style="margin-top:.75rem"></div>
-    ` : ""}`;
+    ` : '<p class="modal-hint" style="margin-top:.75rem">No ABC notation available for tunes in this set.</p>'}`;
 
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -3746,57 +3851,33 @@ function openFullSetModal(setData) {
   {
     const trackList = modalContent.querySelector(".set-track-list");
     function _reorderSetSheetMusic(orderedTunes) {
-      // Rebuild individual sheet music section (preserves existing rendered SVGs where possible)
-      const sheetsEl = document.getElementById("set-music-sheets");
-      if (!sheetsEl) return;
       const tunesWithAbc = orderedTunes.filter(t => t.abc);
-      const TUNE_COLORS = ['#7c6af7', '#0d9488', '#f472b6', '#fb923c'];
-      sheetsEl.innerHTML = tunesWithAbc.map((t, i) => `
-        <div class="set-tune-sheet" id="set-tune-sheet-${i}">
-          <h4 class="set-tune-sheet-title">${i + 1}. ${escHtml(t.title)}</h4>
-          <div id="set-tune-render-${i}"></div>
-        </div>`).join('');
+      const REORDER_COLORS = ['#7c6af7', '#0d9488', '#f472b6', '#fb923c'];
+      // Rebuild combined playback ABC with pre-coloring
+      if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
+      const combined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
+      const renderEl = document.getElementById("set-full-render");
+      const audioEl = document.getElementById("set-full-audio");
+      if (!combined || !renderEl) return;
       requestAnimationFrame(() => {
-        tunesWithAbc.forEach((t, i) => {
-          const id = `set-tune-render-${i}`;
-          try {
-            ABCJS.renderAbc(id, expandAbcRepeats(t.abc), {
-              responsive: "resize", add_classes: true,
-              paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
-              foregroundColor: TUNE_COLORS[i % TUNE_COLORS.length], scale: 1.1,
-            });
-            _patchSvgViewBox(id);
-          } catch {}
-        });
-        // Rebuild combined playback ABC
-        if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
-        const combined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
-        const renderEl = document.getElementById("set-full-render");
-        const audioEl = document.getElementById("set-full-audio");
-        if (!combined || !renderEl) return;
         try {
           const fullVisual = ABCJS.renderAbc("set-full-render", combined.abc, {
             responsive: "resize", add_classes: true,
             paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
-            foregroundColor: "#000000", scale: 1.0,
+            foregroundColor: REORDER_COLORS[0], scale: 1.1,
           });
           _patchSvgViewBox("set-full-render");
           if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+          const _ec = new Map();
           let _lastHighlighted = [];
           const cursorControl = {
             onEvent(ev) {
-              _lastHighlighted.forEach(el => { el.style.fill = ''; });
+              _lastHighlighted.forEach(el => { el.style.fill = _ec.get(el) || ""; });
               _lastHighlighted = [];
               if (!ev?.elements) return;
-              const sc = ev.startChar ?? -1;
-              let tuneIdx = combined.tuneRanges.length - 1;
-              for (let i = 0; i < combined.tuneRanges.length; i++) {
-                if (sc >= combined.tuneRanges[i].start && sc <= combined.tuneRanges[i].end) { tuneIdx = i; break; }
-              }
-              const color = TUNE_COLORS[tuneIdx % TUNE_COLORS.length];
-              ev.elements.forEach(grp => { if (grp) grp.forEach(el => { el.style.fill = color; _lastHighlighted.push(el); }); });
+              ev.elements.forEach(grp => { if (grp) grp.forEach(el => { el.style.fill = "#ffffff"; _lastHighlighted.push(el); }); });
             },
-            onFinished() { _lastHighlighted.forEach(el => { el.style.fill = ''; }); _lastHighlighted = []; },
+            onFinished() { _lastHighlighted.forEach(el => { el.style.fill = _ec.get(el) || ""; }); _lastHighlighted = []; },
           };
           if (audioEl) audioEl.innerHTML = '';
           _setMusicSynth = new ABCJS.synth.SynthController();
@@ -3805,7 +3886,22 @@ function openFullSetModal(setData) {
             displayProgress: true, displayWarp: true,
           });
           _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
-            .then(() => _setMusicSynth.setWarp(100))
+            .then(() => {
+              try {
+                const timings = _setMusicSynth.timer?.noteTimings || [];
+                timings.forEach(t => {
+                  if (!t.elements) return;
+                  const sc = t.startChar ?? -1;
+                  let ti = combined.tuneRanges.length - 1;
+                  for (let i = 0; i < combined.tuneRanges.length; i++) {
+                    if (sc >= combined.tuneRanges[i].start && sc <= combined.tuneRanges[i].end) { ti = i; break; }
+                  }
+                  const color = REORDER_COLORS[ti % REORDER_COLORS.length];
+                  t.elements.forEach(grp => { if (!grp) return; grp.forEach(el => { el.style.fill = color; _ec.set(el, color); }); });
+                });
+              } catch {}
+              return _setMusicSynth.setWarp(100);
+            })
             .catch(() => {});
         } catch {}
         // Rewire fullscreen button for new combined ABC
@@ -3934,42 +4030,29 @@ function openFullSetModal(setData) {
   requestAnimationFrame(() => {
     if (typeof ABCJS === "undefined") return;
 
-    // Render individual reference sheets with each tune's colour
-    tunesWithAbc.forEach((t, i) => {
-      const id = `set-tune-render-${i}`;
-      try {
-        ABCJS.renderAbc(id, expandAbcRepeats(t.abc), {
-          responsive: "resize", add_classes: true,
-          paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
-          foregroundColor: TUNE_COLORS[i % TUNE_COLORS.length], scale: 1.1,
-        });
-        _patchSvgViewBox(id);
-      } catch (err) {
-        console.warn(`Set tune ${i} render failed:`, err);
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = `<p style="color:var(--text-muted);font-size:.8rem">Could not render sheet music.</p>`;
-      }
-    });
-
-    // Render combined ABC into the visible Full Set section
+    // Render combined ABC — pre-colored per tune (no separate individual sheets)
     const combined = _setCombined;
     if (!combined) return;
     const { abc: playbackAbc, tuneRanges } = combined;
+
+    // Map from SVG element → its resting tune colour (so onEvent can restore it)
+    const _elemColor = new Map();
 
     try {
       const fullVisual = ABCJS.renderAbc("set-full-render", playbackAbc, {
         responsive: "resize", add_classes: true,
         paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
-        foregroundColor: "#000000", scale: 1.0,
+        foregroundColor: TUNE_COLORS[0], // initial colour; will be per-tune after synth loads
+        scale: 1.1,
       });
       _patchSvgViewBox("set-full-render");
       if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
-      // Highlight notes in their tune's colour as they play
+      // Highlight notes in a bright accent as they play, restore tune colour after
       let _lastHighlighted = [];
       const cursorControl = {
         onEvent(ev) {
-          _lastHighlighted.forEach(el => { el.style.fill = ''; });
+          _lastHighlighted.forEach(el => { el.style.fill = _elemColor.get(el) || ""; });
           _lastHighlighted = [];
           if (!ev?.elements) return;
           const sc = ev.startChar ?? -1;
@@ -3977,14 +4060,14 @@ function openFullSetModal(setData) {
           for (let i = 0; i < tuneRanges.length; i++) {
             if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
           }
-          const color = TUNE_COLORS[tuneIdx % TUNE_COLORS.length];
+          // Highlight playing notes in white (bright pop against the tune colour background)
           ev.elements.forEach(grp => {
             if (!grp) return;
-            grp.forEach(el => { el.style.fill = color; _lastHighlighted.push(el); });
+            grp.forEach(el => { el.style.fill = "#ffffff"; _lastHighlighted.push(el); });
           });
         },
         onFinished() {
-          _lastHighlighted.forEach(el => { el.style.fill = ''; });
+          _lastHighlighted.forEach(el => { el.style.fill = _elemColor.get(el) || ""; });
           _lastHighlighted = [];
         },
       };
@@ -3995,7 +4078,29 @@ function openFullSetModal(setData) {
         displayProgress: true, displayWarp: true,
       });
       _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
-        .then(() => _setMusicSynth.setWarp(100))
+        .then(() => {
+          // Pre-color all notes by their tune section using the synth timing data
+          try {
+            const timings = _setMusicSynth.timer?.noteTimings || [];
+            timings.forEach(t => {
+              if (!t.elements) return;
+              const sc = t.startChar ?? -1;
+              let tuneIdx = tuneRanges.length - 1;
+              for (let i = 0; i < tuneRanges.length; i++) {
+                if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
+              }
+              const color = TUNE_COLORS[tuneIdx % TUNE_COLORS.length];
+              t.elements.forEach(grp => {
+                if (!grp) return;
+                grp.forEach(el => {
+                  el.style.fill = color;
+                  _elemColor.set(el, color);
+                });
+              });
+            });
+          } catch {}
+          return _setMusicSynth.setWarp(100);
+        })
         .catch(err => console.warn("Full set audio init failed:", err));
     } catch (err) {
       console.warn("Full set combined render failed:", err);
@@ -4006,14 +4111,25 @@ function openFullSetModal(setData) {
 // ── Add-to-set flow panels ────────────────────────────────────────────────────
 
 // Panel 1: list of existing sets to choose from
-function showSetPickerPanel(tune, onBack, siblings) {
+async function showSetPickerPanel(tune, onBack, siblings) {
   const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); }); };
-  const rows = state.sets.map(s => `
-    <button class="set-picker-row" data-set-id="${s.id}">
+
+  // Fetch which sets this tune already belongs to
+  let memberSetIds = new Set();
+  try {
+    const { sets } = await _fetchTuneMemberships(tune.id);
+    sets.forEach(s => memberSetIds.add(String(s.id)));
+  } catch {}
+
+  const rows = state.sets.map(s => {
+    const already = memberSetIds.has(String(s.id));
+    return `
+    <button class="set-picker-row${already ? " picker-row-member" : ""}" data-set-id="${s.id}">
       <span class="set-picker-name">${escHtml(s.name)}</span>
       <span class="set-picker-count">${s.tune_count || 0} tune${s.tune_count !== 1 ? "s" : ""}</span>
-      <span class="set-picker-arrow">›</span>
-    </button>`).join("");
+      ${already ? '<span class="picker-member-tick" title="Tune already in this set">✓</span>' : '<span class="set-picker-arrow">›</span>'}
+    </button>`;
+  }).join("");
 
   modalContent.innerHTML = `
     <button class="modal-back-btn" id="modal-back-btn">← Back</button>
@@ -4242,7 +4358,13 @@ function renderSets(sets) {
     }
 
     // Tune rows
-    tunesDiv.innerHTML = tunes.map((t, i) => `
+    const _masteryTip = ["","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
+    tunesDiv.innerHTML = tunes.map((t, i) => {
+      const r = t.rating || 0;
+      const stars = [1,2,3,4,5].map(n =>
+        `<button class="tune-star-btn${r >= n ? " filled" : ""}" data-n="${n}" data-tune-id="${t.id}" title="${_masteryTip[n]}">★</button>`
+      ).join("");
+      return `
       <div class="set-tune-row" data-tune-id="${t.id}">
         <button class="set-move-up btn-icon" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
         <button class="set-move-down btn-icon" title="Move down" ${i === tunes.length - 1 ? "disabled" : ""}>↓</button>
@@ -4250,10 +4372,11 @@ function renderSets(sets) {
         <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
         <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
         <span class="badge badge-key">${escHtml(t.key || "")}</span>
+        <span class="tune-stars-inline" data-tune-id="${t.id}" title="Your mastery of this tune">${stars}</span>
         <button class="btn-icon remove-from-set"
           data-set-id="${id}" data-tune-id="${t.id}" title="Remove from set">🗑</button>
-      </div>
-    `).join("");
+      </div>`;
+    }).join("");
 
     _rebuildTransitions();
 
@@ -4285,6 +4408,30 @@ function renderSets(sets) {
           alert("Failed to remove tune. Please try again.");
           rb.disabled = false;
         }
+      });
+    });
+
+    // Per-tune mastery stars
+    tunesDiv.querySelectorAll(".tune-star-btn").forEach(sb => {
+      sb.addEventListener("click", async () => {
+        const tuneId = sb.dataset.tuneId;
+        const n = Number(sb.dataset.n);
+        const strip = sb.closest(".tune-stars-inline");
+        const current = [...strip.querySelectorAll(".tune-star-btn.filled")].length;
+        const newRating = (n === current) ? 0 : n; // toggle off if clicking same star
+        try {
+          await apiFetch(`/api/tunes/${tuneId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rating: newRating }),
+          });
+          strip.querySelectorAll(".tune-star-btn").forEach((s, i) =>
+            s.classList.toggle("filled", i < newRating)
+          );
+          // Update in-memory tunes
+          const t = state.tunes?.find(t => String(t.id) === String(tuneId));
+          if (t) t.rating = newRating;
+        } catch { /* ignore */ }
       });
     });
 
@@ -6237,6 +6384,7 @@ async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
         <span class="bldr-current-title">${escHtml(t.title)}</span>
         <span class="badge ${keyBadgeClass(t.key)}">${escHtml(t.key || "")}</span>
         <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+        <button class="bldr-remove-tune btn-icon" data-idx="${i}" title="Remove from set">✕</button>
       </div>`).join("");
 
     const groupsHtml = groups.map((g, gi) => {
@@ -6319,6 +6467,19 @@ async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
         const gi = Number(btn.dataset.group);
         const tune = groups[gi].tunes.find(t => t.id === Number(btn.dataset.tuneId));
         if (tune) _bldrStepMode([...selectedTunes, tune], filters, onFirstBack);
+      });
+    });
+
+    modalContent.querySelectorAll(".bldr-remove-tune").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.dataset.idx);
+        const newTunes = selectedTunes.filter((_, j) => j !== idx);
+        if (!newTunes.length) {
+          if (onFirstBack) onFirstBack();
+          else _bldrPickFirst(filters);
+        } else {
+          _bldrStepMode(newTunes, filters, onFirstBack);
+        }
       });
     });
   }
@@ -8517,14 +8678,118 @@ const mediaOverlayContent = document.getElementById("media-overlay-content");
 
 function openMediaOverlay(url, type) {
   if (type === "video") {
-    const vidId = url.match(/(?:v=|youtu\.be\/)([^&?#]+)/)?.[1];
+    const vidId = url.match(/(?:v=|youtu\.be\/|shorts\/)([^&?#/]+)/)?.[1];
     if (!vidId) { window.open(url, "_blank"); return; }
     mediaOverlayContent.innerHTML =
-      `<iframe class="media-video" src="https://www.youtube-nocookie.com/embed/${escHtml(vidId)}?autoplay=1"
-               allow="autoplay; fullscreen" allowfullscreen></iframe>`;
+      `<div style="display:flex;flex-direction:column;gap:.5rem;align-items:stretch">
+        <iframe class="media-video" src="https://www.youtube-nocookie.com/embed/${escHtml(vidId)}?autoplay=1"
+                allow="autoplay; fullscreen" allowfullscreen></iframe>
+        <div class="media-speed-row">
+          <label class="media-speed-label">Speed</label>
+          <input type="range" class="media-speed-slider" id="media-yt-speed"
+                 min="25" max="200" step="5" value="100" />
+          <span class="media-speed-val" id="media-yt-speed-val">1×</span>
+          <a href="${escHtml(url)}" target="_blank" rel="noopener" class="btn-secondary btn-sm" style="margin-left:auto">↗ Open tab</a>
+        </div>
+        <p class="media-speed-note">Speed slider controls YouTube playback rate via postMessage.</p>
+      </div>`;
+    // YouTube iframe speed via postMessage (works when iframe is same origin — may be blocked)
+    const iframe = mediaOverlayContent.querySelector("iframe");
+    const slider = mediaOverlayContent.querySelector("#media-yt-speed");
+    const valEl  = mediaOverlayContent.querySelector("#media-yt-speed-val");
+    slider.addEventListener("input", () => {
+      const rate = Number(slider.value) / 100;
+      valEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, "")}×`;
+      try {
+        iframe.contentWindow.postMessage(
+          JSON.stringify({ event: "command", func: "setPlaybackRate", args: [rate] }), "*"
+        );
+      } catch {}
+    });
   } else {
-    mediaOverlayContent.innerHTML =
-      `<audio controls autoplay class="media-audio" src="${escHtml(url)}"></audio>`;
+    mediaOverlayContent.innerHTML = `
+      <div class="media-audio-wrap">
+        <audio controls autoplay class="media-audio" id="media-audio-el" src="${escHtml(url)}"></audio>
+        <div class="media-speed-row">
+          <label class="media-speed-label">Speed</label>
+          <input type="range" class="media-speed-slider" id="media-speed-slider"
+                 min="25" max="200" step="5" value="100" />
+          <span class="media-speed-val" id="media-speed-val">1×</span>
+        </div>
+        <div class="media-loop-row">
+          <label class="media-speed-label">Loop section</label>
+          <input type="number" id="media-loop-start" class="media-loop-input" min="0" step="1" placeholder="start s" />
+          <span class="media-speed-label">→</span>
+          <input type="number" id="media-loop-end" class="media-loop-input" min="0" step="1" placeholder="end s" />
+          <button id="media-loop-btn" class="btn-secondary btn-sm">Loop off</button>
+          <button id="media-cue-btn" class="btn-secondary btn-sm">Set from position</button>
+        </div>
+      </div>`;
+    const audio   = document.getElementById("media-audio-el");
+    const slider  = document.getElementById("media-speed-slider");
+    const valEl   = document.getElementById("media-speed-val");
+    const loopBtn = document.getElementById("media-loop-btn");
+    const cueBtn  = document.getElementById("media-cue-btn");
+    const startIn = document.getElementById("media-loop-start");
+    const endIn   = document.getElementById("media-loop-end");
+    let loopActive = false;
+    let loopTimer  = null;
+
+    // Speed control with pitch preservation
+    slider.addEventListener("input", () => {
+      const rate = Number(slider.value) / 100;
+      valEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, "")}×`;
+      audio.playbackRate = rate;
+      if ("preservesPitch" in audio) audio.preservesPitch = true;
+      else if ("mozPreservesPitch" in audio) audio.mozPreservesPitch = true;
+      else if ("webkitPreservesPitch" in audio) audio.webkitPreservesPitch = true;
+    });
+
+    // Section loop
+    function _startLoop() {
+      loopActive = true;
+      loopBtn.textContent = "Loop on";
+      loopBtn.classList.add("active");
+      function _check() {
+        if (!loopActive) return;
+        const end = parseFloat(endIn.value);
+        if (!isNaN(end) && audio.currentTime >= end) {
+          const start = parseFloat(startIn.value) || 0;
+          audio.currentTime = start;
+        }
+        loopTimer = requestAnimationFrame(_check);
+      }
+      const start = parseFloat(startIn.value) || 0;
+      audio.currentTime = start;
+      if (audio.paused) audio.play().catch(() => {});
+      _check();
+    }
+
+    function _stopLoop() {
+      loopActive = false;
+      loopBtn.textContent = "Loop off";
+      loopBtn.classList.remove("active");
+      if (loopTimer) { cancelAnimationFrame(loopTimer); loopTimer = null; }
+    }
+
+    loopBtn.addEventListener("click", () => {
+      if (loopActive) _stopLoop();
+      else if (!isNaN(parseFloat(startIn.value)) && !isNaN(parseFloat(endIn.value))) _startLoop();
+      else loopBtn.textContent = "Set start/end first";
+    });
+
+    cueBtn.addEventListener("click", () => {
+      const t = Math.floor(audio.currentTime);
+      if (!startIn.value || parseFloat(startIn.value) >= t) {
+        startIn.value = t;
+      } else {
+        endIn.value = t;
+      }
+    });
+
+    [startIn, endIn].forEach(inp => inp.addEventListener("change", () => {
+      if (loopActive) _startLoop(); // restart loop with new bounds
+    }));
   }
   mediaOverlay.classList.remove("hidden");
 }

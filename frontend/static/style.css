@@ -1632,6 +1632,49 @@ button.set-tune-title:hover { text-decoration: underline; }
   gap: .35rem;
   margin: .4rem 0;
 }
+/* ── Media speed/loop controls ──────────────────────────── */
+.media-audio-wrap { display: flex; flex-direction: column; gap: .6rem; }
+.media-speed-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.media-loop-row  { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.media-speed-label { font-size: .8rem; color: var(--text-muted); white-space: nowrap; }
+.media-speed-slider { flex: 1; min-width: 80px; max-width: 160px; cursor: pointer; }
+.media-speed-val { font-size: .82rem; font-weight: 600; min-width: 2.5rem; }
+.media-loop-input {
+  width: 5rem; font-size: .82rem; padding: .2rem .4rem;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--text);
+}
+.media-loop-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.media-speed-note { font-size: .75rem; color: var(--text-muted); margin: 0; font-style: italic; }
+/* ── Inline video embed ─────────────────────────────────── */
+.media-attachment-row { display: flex; align-items: center; gap: .4rem; }
+.media-remove-btn { font-size: .8rem; }
+.media-inline-embed { margin: .3rem 0; }
+.media-embed-wrap { position: relative; }
+.media-video-inline { width: 100%; aspect-ratio: 16/9; border-radius: var(--radius); display: block; max-height: 55vh; }
+.media-embed-close {
+  position: absolute; top: .3rem; right: .3rem;
+  background: rgba(0,0,0,.6); color: #fff; border: none; border-radius: 50%;
+  width: 1.6rem; height: 1.6rem; font-size: .8rem; cursor: pointer; line-height: 1;
+}
+/* ── Per-tune mastery stars in set row ──────────────────── */
+.tune-stars-inline { display: flex; gap: 1px; align-items: center; flex-shrink: 0; }
+.tune-star-btn {
+  background: none; border: none; padding: 0; font-size: .85rem; cursor: pointer;
+  color: var(--border); line-height: 1; transition: color .1s, transform .1s;
+}
+.tune-star-btn.filled { color: #f59e0b; }
+.tune-star-btn:hover  { color: #f59e0b; transform: scale(1.15); }
+/* ── Set builder remove tune button ─────────────────────── */
+.bldr-remove-tune {
+  font-size: .72rem; color: var(--text-muted); border-color: var(--border);
+  padding: 0 .3rem; margin-left: auto;
+}
+.bldr-remove-tune:hover { color: var(--danger); border-color: var(--danger); }
+/* ── Set/collection picker member tick ─────────────────── */
+.picker-member-tick { color: var(--accent); font-weight: 700; font-size: .85rem; margin-left: .25rem; }
+.picker-row-member  { opacity: .75; }
+.picker-row-member .set-picker-arrow { display: none; }
 
 /* ── FlutefFling download buttons ────────────────────────── */
 .ff-download-row {
