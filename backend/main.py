@@ -336,6 +336,7 @@ def list_tunes(
     collection_id: Optional[int] = Query(None, description="Filter by collection ID"),
     composer: Optional[str] = Query(None, description="Filter by composer"),
     transcribed_by: Optional[str] = Query(None, description="Filter by ABC transcriber"),
+    has_content: Optional[str] = Query(None, description="Filter by content type: abc, pdf, photo, mp3, video, sheet"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=10000),
 ):
@@ -389,6 +390,31 @@ def list_tunes(
     if transcribed_by:
         conditions.append("t.transcribed_by LIKE ?")
         params.append(f"%{transcribed_by}%")
+
+    if has_content:
+        if has_content == "abc":
+            conditions.append("(t.abc IS NOT NULL AND t.abc != '')")
+        elif has_content == "pdf":
+            conditions.append("t.notes LIKE '%/api/uploads/%.pdf%'")
+        elif has_content == "photo":
+            conditions.append(
+                "(t.notes LIKE '%/api/uploads/%.jpg%' OR t.notes LIKE '%/api/uploads/%.jpeg%'"
+                " OR t.notes LIKE '%/api/uploads/%.png%')"
+            )
+        elif has_content == "mp3":
+            conditions.append("(t.notes LIKE '%audio: %' OR t.notes LIKE '%audio:%/api%')")
+        elif has_content == "video":
+            conditions.append(
+                "(t.notes LIKE '%youtube.com%' OR t.notes LIKE '%youtu.be%'"
+                " OR t.notes LIKE '%/api/uploads/%.mp4%')"
+            )
+        elif has_content == "sheet":
+            conditions.append(
+                "(t.notes LIKE '%/api/uploads/%.pdf%'"
+                " OR t.notes LIKE '%/api/uploads/%.jpg%'"
+                " OR t.notes LIKE '%/api/uploads/%.jpeg%'"
+                " OR t.notes LIKE '%/api/uploads/%.png%')"
+            )
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     offset = (page - 1) * page_size
