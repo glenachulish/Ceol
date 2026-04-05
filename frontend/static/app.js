@@ -3919,7 +3919,9 @@ function buildCombinedPlaybackAbcWithRanges(tunes) {
       if (m && m !== meter) prefix += `[M:${m}]`;
       if (l && l !== len)   prefix += `[L:${l}]`;
       if (k)                prefix += `[K:${k}]`;
-      prefix += '\n';
+      // Only add newline if there are inline changes; an unconditional '\n' would
+      // create a blank line (blank line = tune separator in ABC → ABCJS stops rendering)
+      if (prefix) prefix += '\n';
     }
     // Title label above each tune's section in the score
     const titleLine = `%%text ${t.title || ''}\n`;
