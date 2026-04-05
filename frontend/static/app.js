@@ -4078,8 +4078,25 @@ function openFullSetModal(setData) {
         <button class="btn-secondary btn-sm" id="set-full-print-btn" title="Print full set sheet music">⎙ Print</button>
       </div>
       ${timelineHtml}
+      <div id="set-full-audio" style="margin-top:.5rem"></div>
+      <div id="metronome-row" class="metronome-row" style="margin:.3rem 0">
+        <button id="metro-toggle" class="btn-secondary btn-sm">♩ Metronome</button>
+        <span id="metro-controls" class="metro-controls hidden">
+          <button id="metro-dec" class="btn-icon metro-adj">−</button>
+          <input id="metro-bpm" type="number" min="20" max="400" value="120" class="metro-bpm-input" title="Beats per minute">
+          <button id="metro-inc" class="btn-icon metro-adj">+</button>
+          <span class="metro-label">BPM</span>
+          <button id="metro-tap" class="btn-secondary btn-sm">Tap</button>
+          <span class="metro-label">Vol</span>
+          <input id="metro-vol" type="range" min="0" max="100" value="70" class="metro-vol-slider" title="Metronome volume">
+          <span id="metro-sync-badge" class="metro-sync-badge metro-sync">Synced</span>
+        </span>
+      </div>
       <div id="set-full-render" style="margin-top:.5rem"></div>
-      <div id="set-full-audio" style="margin-top:.75rem"></div>
+      <div class="set-bot-controls">
+        <button class="btn-secondary btn-sm" id="set-bot-play-btn">▶ Play</button>
+        <button class="btn-secondary btn-sm" id="set-bot-restart-btn">⟳ Restart</button>
+      </div>
     ` : '<p class="modal-hint" style="margin-top:.75rem">No ABC notation available for tunes in this set.</p>'}`;
 
   modalOverlay.classList.remove("hidden");
@@ -4113,7 +4130,7 @@ function openFullSetModal(setData) {
               _lastHighlighted.forEach(el => { el.style.fill = _ec.get(el) || ""; });
               _lastHighlighted = [];
               if (!ev?.elements) return;
-              ev.elements.forEach(grp => { if (grp) grp.forEach(el => { el.style.fill = "#ffffff"; _lastHighlighted.push(el); }); });
+              ev.elements.forEach(grp => { if (grp) grp.forEach(el => { el.style.fill = "#FFAA00"; _lastHighlighted.push(el); }); });
             },
             onFinished() { _lastHighlighted.forEach(el => { el.style.fill = _ec.get(el) || ""; }); _lastHighlighted = []; },
           };
@@ -4286,27 +4303,33 @@ function openFullSetModal(setData) {
       _patchSvgViewBox("set-full-render");
       if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
-      // Highlight notes in a bright accent as they play, restore tune colour after
+      // Highlight notes in a bright amber as they play, restore tune colour after
       let _lastHighlighted = [];
+      const _setBotPlayLabel = (playing) => {
+        const btn = document.getElementById("set-bot-play-btn");
+        if (btn) btn.textContent = playing ? "⏸ Pause" : "▶ Play";
+      };
       const cursorControl = {
+        onStart() {
+          _setBotPlayLabel(true);
+          if (_metEnabled && _metSyncToAbc) _startMetronome();
+        },
         onEvent(ev) {
           _lastHighlighted.forEach(el => { el.style.fill = _elemColor.get(el) || ""; });
           _lastHighlighted = [];
           if (!ev?.elements) return;
-          const sc = ev.startChar ?? -1;
-          let tuneIdx = tuneRanges.length - 1;
-          for (let i = 0; i < tuneRanges.length; i++) {
-            if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
-          }
-          // Highlight playing notes in white (bright pop against the tune colour background)
+          // Highlight playing notes in amber — distinct from all tune colours,
+          // visible on both light and dark backgrounds
           ev.elements.forEach(grp => {
             if (!grp) return;
-            grp.forEach(el => { el.style.fill = "#ffffff"; _lastHighlighted.push(el); });
+            grp.forEach(el => { el.style.fill = "#FFAA00"; _lastHighlighted.push(el); });
           });
         },
         onFinished() {
           _lastHighlighted.forEach(el => { el.style.fill = _elemColor.get(el) || ""; });
           _lastHighlighted = [];
+          _setBotPlayLabel(false);
+          if (_metSyncToAbc) { _stopMetronome(); _updateMetronomeBtn(); }
         },
       };
 
@@ -4337,6 +4360,26 @@ function openFullSetModal(setData) {
               });
             });
           } catch {}
+          // Init metronome with BPM from first tune
+          _initMetronomeUI(_extractAbcBpm(tunesWithAbc[0]?.abc));
+          // Wire bottom play/restart controls
+          const botPlayBtn    = document.getElementById("set-bot-play-btn");
+          const botRestartBtn = document.getElementById("set-bot-restart-btn");
+          botPlayBtn?.addEventListener("click", () => {
+            const topStart = document.querySelector("#set-full-audio .abcjs-midi-start");
+            const isPlaying = topStart?.classList.contains("abcjs-pushed");
+            if (isPlaying) {
+              try { _setMusicSynth.pause(); } catch {}
+              _setBotPlayLabel(false);
+            } else {
+              try { _setMusicSynth.play(); } catch {}
+              // label updates via onStart callback
+            }
+          });
+          botRestartBtn?.addEventListener("click", () => {
+            document.querySelector("#set-full-audio .abcjs-midi-reset")?.click();
+            _setBotPlayLabel(false);
+          });
           return _setMusicSynth.setWarp(100);
         })
         .catch(err => console.warn("Full set audio init failed:", err));
@@ -4581,16 +4624,13 @@ function renderSets(sets) {
         tr.innerHTML = `
           <span class="set-transition-label">${escHtml(a.title)} <em>TRANSITION</em> ${escHtml(b.title)}</span>
           <button class="btn-secondary btn-sm set-transition-play-btn">Transition</button>
-          <button class="btn-secondary btn-sm set-transition-music-btn" data-tune-id="${b.id}">Music</button>`;
+          <button class="btn-secondary btn-sm set-transition-music-btn">Full set music</button>`;
         if (footer) footer.before(tr); else tunesDiv.appendChild(tr);
         const open = () => openSetMusicModal(`${a.title} → ${b.title}`, transAbc, { isTransition: true });
         tr.querySelector(".set-transition-play-btn").addEventListener("click", open);
         tr.querySelector(".set-transition-music-btn").addEventListener("click", async () => {
-          await Promise.all([fetchSets(), fetchCollections()]);
-          const tune = await fetchTune(String(b.id));
-          renderModal(tune);
-          modalOverlay.classList.remove("hidden");
-          document.body.style.overflow = "hidden";
+          const fullSetData = await apiGetSet(id);
+          openFullSetModal(fullSetData);
         });
       }
     }

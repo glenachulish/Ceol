@@ -1838,6 +1838,15 @@ button.set-tune-title:hover { text-decoration: underline; }
   fill: #e65c00 !important;
 }
 #set-music-render { background: #fff; border-radius: var(--radius); padding: .5rem; }
+#set-full-render  { background: #fff; border-radius: var(--radius); padding: .5rem; }
+.set-bot-controls {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  margin-top: .5rem;
+  padding: .4rem 0;
+  border-top: 1px solid var(--border);
+}
 #set-music-render .transition-part-a path,
 #set-music-render .transition-part-a rect,
 #set-music-render .transition-part-a ellipse { fill: #1a6fb0 !important; }
