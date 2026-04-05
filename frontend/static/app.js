@@ -3061,19 +3061,24 @@ let _chordProgram  = 24;  // default: nylon guitar
 let _chordsOff     = false;
 let _currentTuneAbc = null;  // raw ABC for the active tune (used when re-rendering on chord change)
 
-/** Inject %%chordprog N into ABC so ABCJS uses the selected chord instrument.
+/** Inject %%instrument and %%chordprog directives into the ABC body (after K:).
  *
- *  Critical notes:
- *  - ABCJS uses %%chordprog (no MIDI prefix) — not %%MIDI chordprog
- *  - expandAbcRepeats() strips %%MIDI directives, so %%MIDI chordprog is useless
- *  - Melody program is set via setTune({ program: N }) option, no ABC injection needed
+ *  Body injection (after K:) is more reliable than header injection because
+ *  ABCJS processes body formatting directives as it parses note data.
+ *
+ *  Notes:
+ *  - %%instrument N  — sets melody MIDI program for all subsequent notes
+ *  - %%chordprog N   — sets chord/accompaniment instrument (no MIDI prefix)
+ *  - expandAbcRepeats() strips %%MIDI directives, so use %% not %%MIDI
  */
-function _injectChordProg(abc) {
-  if (!abc || _chordsOff) return abc;
-  // Strip any existing %%chordprog directives to avoid duplicates
-  let out = abc.replace(/^%%chordprog[^\n]*\n?/gm, '');
-  // Inject before the K: line (ABCJS reads %%chordprog from tune formatting)
-  out = out.replace(/^(K:[^\n]*)$/m, `%%chordprog ${_chordProgram}\n$1`);
+function _injectInstruments(abc) {
+  if (!abc) return abc;
+  // Strip any existing directives to avoid duplicates
+  let out = abc.replace(/^%%instrument[^\n]*\n?/gm, '');
+  out = out.replace(/^%%chordprog[^\n]*\n?/gm, '');
+  // Inject into body — right after the K: line so they apply from the first note
+  const chordsLine = _chordsOff ? '' : `%%chordprog ${_chordProgram}\n`;
+  out = out.replace(/^(K:[^\n]*)(\n|$)/m, `$1\n%%instrument ${_melodyProgram}\n${chordsLine}`);
   return out;
 }
 
@@ -3084,12 +3089,8 @@ function _initMelodyControls() {
   sel.value = String(_melodyProgram);
   sel.addEventListener("change", () => {
     _melodyProgram = parseInt(sel.value) || 73;
-    // Melody comes from setTune program: option — just re-setTune, no re-render
-    if (_visualObj && _synthController) {
-      _synthController.setTune(_visualObj, false, {
-        program: _melodyProgram, chordsOff: _chordsOff,
-      }).catch(() => {});
-    }
+    // Re-render so %%instrument N is baked into the visual object's note data
+    if (_currentTuneAbc) renderSheetMusic(_currentTuneAbc);
   });
 }
 
@@ -3135,9 +3136,9 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    // Inject %%chordprog so ABCJS uses the selected chord instrument.
-    // Melody is set via setTune program: option (no ABC injection needed).
-    const _processedAbc = expandAbcRepeats(_injectChordProg(abc));
+    // Inject %%instrument (melody) and %%chordprog (chords) into the ABC body.
+    // Body-position directives are baked into the visual object's note data.
+    const _processedAbc = expandAbcRepeats(_injectInstruments(abc));
     // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
     // when called from inside a modal (ResizeObserver quirk).
     // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
@@ -3237,7 +3238,7 @@ function renderSheetMusic(abc) {
 
     // Melody: program: option.  Chord instrument: baked into ABC via %%chordprog.
     // chordsOff: passed as option (ABCJS honours it even when %%chordprog is present).
-    const _setTuneOpts = { program: _melodyProgram, chordsOff: _chordsOff };
+    const _setTuneOpts = { chordsOff: _chordsOff };
     _synthController.setTune(_visualObj, false, _setTuneOpts).catch(err => {
       console.warn("Audio init failed:", err);
     });
@@ -6514,6 +6515,7 @@ navNotes.addEventListener("click",        () => switchView("notes"));
 navAchievements.addEventListener("click", () => switchView("achievements"));
 if (navPractice) navPractice.addEventListener("click", () => switchView("practice"));
 navTodo.addEventListener("click",         () => switchView("todo"));
+document.getElementById("todo-back-btn")?.addEventListener("click", () => switchView("library"));
 
 // Links ▾ dropdown
 const navLinksBtn  = document.getElementById("nav-links-btn");

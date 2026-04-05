@@ -340,27 +340,29 @@
         </div>
       </div>
     </div>
+    <!-- ── To Do view ── -->
+    <div id="view-todo" class="hidden">
+      <div class="view-header">
+        <div>
+          <h2 class="section-title">To Do</h2>
+          <p class="todo-hint">Tasks the app has identified that need your attention.</p>
+        </div>
+        <button id="todo-back-btn" class="btn-secondary">← Back to Library</button>
+      </div>
+      <div id="todo-sections">
+        <!-- Version matching section -->
+        <div id="todo-section-matching" class="todo-section hidden">
+          <h3 class="todo-section-title">🔗 Possible duplicate tunes</h3>
+          <p class="todo-section-hint">These tunes have similar names. Group them as versions of the same tune, or mark them as different.</p>
+          <div id="todo-matching-list"></div>
+        </div>
+        <!-- Empty state -->
+        <div id="todo-empty" class="todo-empty hidden">
+          <p>Nothing to do right now — your library is all tidied up.</p>
+        </div>
+      </div>
+    </div>
   </main>
-
-  <!-- ── To Do view ── -->
-  <div id="view-todo" class="hidden">
-    <div class="view-header">
-      <h2 class="section-title">To Do</h2>
-      <p class="todo-hint">Tasks the app has identified that need your attention.</p>
-    </div>
-    <div id="todo-sections">
-      <!-- Version matching section -->
-      <div id="todo-section-matching" class="todo-section hidden">
-        <h3 class="todo-section-title">🔗 Possible duplicate tunes</h3>
-        <p class="todo-section-hint">These tunes have similar names. Group them as versions of the same tune, or mark them as different.</p>
-        <div id="todo-matching-list"></div>
-      </div>
-      <!-- Empty state -->
-      <div id="todo-empty" class="todo-empty hidden">
-        <p>Nothing to do right now — your library is all tidied up.</p>
-      </div>
-    </div>
-  </div>
 
   <!-- ── Tune detail modal ── -->
   <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
@@ -1031,6 +1033,6 @@
   <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
   <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=194"></script>
+  <script src="/static/app.js?v=195"></script>
 </body>
 </html>
