@@ -4044,12 +4044,17 @@ function openFullSetModal(setData) {
   }
 
   const hasAbc = tunesWithAbc.length > 0;
+  const TUNE_COLORS = ['#7c6af7', '#0d9488', '#f472b6', '#fb923c'];
 
-  const tuneSheetDivs = tunesWithAbc.map((t, i) => `
-    <div class="set-tune-sheet" id="set-tune-sheet-${i}">
-      <h4 class="set-tune-sheet-title">${i + 1}. ${escHtml(t.title)}</h4>
-      <div id="set-tune-render-${i}"></div>
-    </div>`).join("");
+  // Per-tune section divs (each gets its own ABCJS render with foregroundColor)
+  const tunesSectionDivs = tunesWithAbc.map((t, i) => {
+    const color = TUNE_COLORS[i % TUNE_COLORS.length];
+    return `
+    <div class="set-tune-section" id="set-tune-section-${i}">
+      <div class="set-tune-section-hd" style="color:${color}">${i + 1}. ${escHtml(t.title)}</div>
+      <div class="set-tune-vis-render" id="set-tune-vis-${i}"></div>
+    </div>`;
+  }).join("");
 
   // Timeline bar: proportional segments showing each tune's share of the set
   let timelineHtml = '';
@@ -4097,7 +4102,8 @@ function openFullSetModal(setData) {
           <span id="metro-sync-badge" class="metro-sync-badge metro-sync">Synced</span>
         </span>
       </div>
-      <div id="set-full-render" style="margin-top:.5rem"></div>
+      <div id="set-full-tunes-wrap" style="margin-top:.5rem">${tunesSectionDivs}</div>
+      <div id="set-full-audio-render" style="display:none"></div>
       <div class="set-bot-controls">
         <button class="btn-secondary btn-sm" id="set-bot-play-btn">▶ Play</button>
         <button class="btn-secondary btn-sm" id="set-bot-restart-btn">⟳ Restart</button>
@@ -4111,49 +4117,66 @@ function openFullSetModal(setData) {
   {
     const trackList = modalContent.querySelector(".set-track-list");
     function _reorderSetSheetMusic(orderedTunes) {
-      const tunesWithAbc = orderedTunes.filter(t => t.abc);
-      const REORDER_COLORS = ['#7c6af7', '#0d9488', '#f472b6', '#fb923c'];
-      // Rebuild combined playback ABC with pre-coloring
+      const twAbc = orderedTunes.filter(t => t.abc);
       if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
-      const combined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
-      const renderEl = document.getElementById("set-full-render");
+
+      // Rebuild the per-tune section divs
+      const wrap = document.getElementById("set-full-tunes-wrap");
+      if (wrap) {
+        wrap.innerHTML = twAbc.map((t, i) => {
+          const color = TUNE_COLORS[i % TUNE_COLORS.length];
+          return `<div class="set-tune-section" id="set-tune-section-${i}">
+            <div class="set-tune-section-hd" style="color:${color}">${i + 1}. ${escHtml(t.title)}</div>
+            <div class="set-tune-vis-render" id="set-tune-vis-${i}"></div>
+          </div>`;
+        }).join('');
+      }
+
+      const combined = buildCombinedPlaybackAbcWithRanges(twAbc);
       const audioEl = document.getElementById("set-full-audio");
-      if (!combined || !renderEl) return;
+      if (!combined) return;
+
       requestAnimationFrame(() => {
         try {
-          const fullVisual = ABCJS.renderAbc("set-full-render", combined.abc, {
-            responsive: "resize", add_classes: true,
-            paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
-            foregroundColor: REORDER_COLORS[0], scale: 1.1,
+          // Re-render each tune in its own section
+          twAbc.forEach((tune, i) => {
+            try {
+              ABCJS.renderAbc(`set-tune-vis-${i}`, expandAbcRepeats(tune.abc), {
+                responsive: "resize", add_classes: true,
+                paddingbottom: 10, paddingleft: 15, paddingright: 15, paddingtop: 10,
+                foregroundColor: TUNE_COLORS[i % TUNE_COLORS.length], scale: 1.1,
+              });
+              _patchSvgViewBox(`set-tune-vis-${i}`);
+            } catch {}
           });
-          _patchSvgViewBox("set-full-render");
+
+          // Hidden combined render for synth
+          const fullVisual = ABCJS.renderAbc("set-full-audio-render", combined.abc, {
+            add_classes: true, scale: 1.0,
+          });
           if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
-          const _ec = new Map();
-          let _lastHighlighted = [];
-          const _applyReorderColors = () => {
-            const timings = _setMusicSynth?.timer?.noteTimings;
-            if (!timings?.length) return;
-            timings.forEach(t => {
-              if (!t.elements) return;
-              const sc = t.startChar ?? -1;
-              let ti = combined.tuneRanges.length - 1;
-              for (let i = 0; i < combined.tuneRanges.length; i++) {
-                if (sc >= combined.tuneRanges[i].start && sc <= combined.tuneRanges[i].end) { ti = i; break; }
-              }
-              const color = REORDER_COLORS[ti % REORDER_COLORS.length];
-              t.elements.forEach(grp => { if (!grp) return; grp.forEach(el => { el.style.fill = color; _ec.set(el, color); }); });
-            });
+
+          const _getActiveTuneIdx = (sc) => {
+            for (let i = 0; i < combined.tuneRanges.length; i++) {
+              if (sc >= combined.tuneRanges[i].start && sc <= combined.tuneRanges[i].end) return i;
+            }
+            return combined.tuneRanges.length - 1;
           };
+          let _activeTuneIdx = -1;
           const cursorControl = {
-            onReady() { _applyReorderColors(); },
-            onStart() { _applyReorderColors(); },
             onEvent(ev) {
-              _lastHighlighted.forEach(el => { el.style.fill = _ec.get(el) || ""; });
-              _lastHighlighted = [];
-              if (!ev?.elements) return;
-              ev.elements.forEach(grp => { if (grp) grp.forEach(el => { el.style.fill = "#FFAA00"; _lastHighlighted.push(el); }); });
+              const sc = ev?.startChar ?? -1;
+              const ti = _getActiveTuneIdx(sc);
+              if (ti !== _activeTuneIdx) {
+                if (_activeTuneIdx >= 0) document.getElementById(`set-tune-section-${_activeTuneIdx}`)?.classList.remove("set-tune-active");
+                document.getElementById(`set-tune-section-${ti}`)?.classList.add("set-tune-active");
+                _activeTuneIdx = ti;
+              }
             },
-            onFinished() { _lastHighlighted.forEach(el => { el.style.fill = _ec.get(el) || ""; }); _lastHighlighted = []; },
+            onFinished() {
+              document.querySelectorAll(".set-tune-section.set-tune-active").forEach(el => el.classList.remove("set-tune-active"));
+              _activeTuneIdx = -1;
+            },
           };
           if (audioEl) audioEl.innerHTML = '';
           _setMusicSynth = new ABCJS.synth.SynthController();
@@ -4165,7 +4188,7 @@ function openFullSetModal(setData) {
             .then(() => _setMusicSynth.setWarp(100))
             .catch(() => {});
         } catch {}
-        // Rewire fullscreen button for new combined ABC
+        // Rewire fullscreen button
         const fsBtn = document.getElementById("set-full-fs-btn");
         if (fsBtn && combined) {
           fsBtn.onclick = () => {
@@ -4247,33 +4270,10 @@ function openFullSetModal(setData) {
     });
   });
 
-  const printBtn = document.getElementById("set-full-print-btn");
-  if (printBtn) {
-    printBtn.addEventListener("click", () => {
-      const render = document.getElementById("set-full-render");
-      if (!render) return;
-      const win = window.open('', '_blank');
-      win.document.write(`<!DOCTYPE html><html><head>
-        <title>${setData.name.replace(/</g, '&lt;')}</title>
-        <style>
-          body { font-family: sans-serif; margin: 1.5cm; color: #000; background: #fff; }
-          h1 { font-size: 16pt; margin: 0 0 .5em; }
-          svg { max-width: 100%; display: block; }
-          @page { margin: 1.5cm; }
-        </style>
-      </head><body>
-        <h1>${setData.name.replace(/</g, '&lt;')}</h1>
-        ${render.innerHTML}
-      </body></html>`);
-      win.document.close();
-      win.focus();
-      setTimeout(() => { win.print(); }, 400);
-    });
-  }
+  // (print button is wired below, after hasAbc guard, so it has access to tunesWithAbc)
 
   if (!hasAbc) return;
 
-  const TUNE_COLORS = ['#7c6af7', '#0d9488', '#f472b6', '#fb923c'];
   const _setCombined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
 
   // Wire fullscreen button (uses combined ABC with per-tune colour highlights)
@@ -4288,107 +4288,95 @@ function openFullSetModal(setData) {
     });
   }
 
+  // Print: collect each per-tune render section
+  const printBtn2 = document.getElementById("set-full-print-btn");
+  if (printBtn2) {
+    printBtn2.addEventListener("click", () => {
+      const sections = document.querySelectorAll(".set-tune-vis-render");
+      const win = window.open('', '_blank');
+      const parts = Array.from(sections).map((el, i) => {
+        const color = TUNE_COLORS[i % TUNE_COLORS.length];
+        const title = tunesWithAbc[i]?.title || '';
+        return `<h2 style="font-size:13pt;margin:1.5em 0 .3em;color:${color}">${title.replace(/</g,'&lt;')}</h2>${el.innerHTML}`;
+      }).join('');
+      win.document.write(`<!DOCTYPE html><html><head>
+        <title>${setData.name.replace(/</g,'&lt;')}</title>
+        <style>body{font-family:sans-serif;margin:1.5cm;color:#000;background:#fff}h1{font-size:16pt;margin:0 0 .5em}svg{max-width:100%;display:block}@page{margin:1.5cm}</style>
+      </head><body>
+        <h1>${setData.name.replace(/</g,'&lt;')}</h1>${parts}
+      </body></html>`);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 400);
+    });
+  }
+
   requestAnimationFrame(() => {
     if (typeof ABCJS === "undefined") return;
 
-    // Render combined ABC — pre-colored per tune (no separate individual sheets)
+    // ── Render each tune in its own section with its own foregroundColor ──────
+    // This ensures ALL SVG elements (stave lines, barlines, clef, note heads)
+    // are coloured consistently for each tune.
+    tunesWithAbc.forEach((tune, i) => {
+      try {
+        const renderId = `set-tune-vis-${i}`;
+        const visObjs = ABCJS.renderAbc(renderId, expandAbcRepeats(tune.abc), {
+          responsive: "resize",
+          add_classes: true,
+          paddingbottom: 10, paddingleft: 15, paddingright: 15, paddingtop: 10,
+          foregroundColor: TUNE_COLORS[i % TUNE_COLORS.length],
+          scale: 1.1,
+        });
+        _patchSvgViewBox(renderId);
+      } catch (err) { console.warn(`Set tune render ${i} failed:`, err); }
+    });
+
+    // ── Hidden combined render for audio synth cursor tracking ───────────────
     const combined = _setCombined;
     if (!combined) return;
     const { abc: playbackAbc, tuneRanges } = combined;
 
-    // Map from SVG element → its resting tune colour (so onEvent can restore it)
-    const _elemColor = new Map();
-
     try {
-      const fullVisual = ABCJS.renderAbc("set-full-render", playbackAbc, {
-        responsive: "resize", add_classes: true,
-        paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
-        foregroundColor: TUNE_COLORS[0], // initial colour; will be per-tune after synth loads
-        scale: 1.1,
+      const fullVisual = ABCJS.renderAbc("set-full-audio-render", playbackAbc, {
+        add_classes: true, scale: 1.0,
       });
-      _patchSvgViewBox("set-full-render");
       if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
-      // Map: SVG element → resting tune colour (restored after amber highlight)
-      let _lastHighlighted = [];
       const _setBotPlayLabel = (playing) => {
         const btn = document.getElementById("set-bot-play-btn");
         if (btn) btn.textContent = playing ? "⏸ Pause" : "▶ Play";
       };
 
-      // Apply per-tune colours + inject SVG title labels.
-      // Must run inside onReady() — setTune(false) never calls go(), so
-      // timer.noteTimings is null in .then().  onReady fires after go() completes
-      // (first play click), when the timer is fully initialised.
-      const _applyTuneColorsAndTitles = () => {
-        const timings = _setMusicSynth?.timer?.noteTimings;
-        if (!timings?.length) return;
-        timings.forEach(t => {
-          if (!t.elements) return;
-          const sc = t.startChar ?? -1;
-          let ti = tuneRanges.length - 1;
-          for (let i = 0; i < tuneRanges.length; i++) {
-            if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { ti = i; break; }
-          }
-          const color = TUNE_COLORS[ti % TUNE_COLORS.length];
-          t.elements.forEach(grp => {
-            if (!grp) return;
-            grp.forEach(el => { el.style.fill = color; _elemColor.set(el, color); });
-          });
-        });
-        // Inject tune title labels directly into the SVG using getBBox() coords
-        const svg = document.querySelector("#set-full-render svg");
-        if (!svg) return;
-        tunesWithAbc.forEach((tune, ti) => {
-          if (ti === 0) return; // tune 1 already has the T: header as its title
-          const firstTiming = timings.find(t => {
-            const sc = t.startChar ?? -1;
-            return t.elements && sc >= tuneRanges[ti].start && sc <= tuneRanges[ti].end;
-          });
-          const firstEl = firstTiming?.elements?.[0]?.[0];
-          if (!firstEl) return;
-          try {
-            // Walk up to the enclosing staff-wrapper so we place the title
-            // above the whole staff line rather than above the individual note head
-            let ref = firstEl;
-            while (ref.parentElement && ref.parentElement !== svg &&
-                   !ref.classList?.contains("abcjs-staff-wrapper")) {
-              ref = ref.parentElement;
-            }
-            const bb = ref.getBBox();
-            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            label.setAttribute("x", bb.x + 5);
-            // Place above the staff wrapper with a small gap; clamp so it stays inside the SVG
-            label.setAttribute("y", Math.max(14, bb.y - 6));
-            label.setAttribute("font-size", "14");
-            label.setAttribute("font-weight", "bold");
-            label.setAttribute("font-family", "serif");
-            label.setAttribute("fill", "#000000");
-            label.textContent = tune.title;
-            svg.appendChild(label);
-          } catch {}
-        });
+      // Determine which tune section is active from startChar + tuneRanges
+      const _getActiveTuneIdx = (sc) => {
+        for (let i = 0; i < tuneRanges.length; i++) {
+          if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) return i;
+        }
+        return tuneRanges.length - 1;
       };
 
+      let _activeTuneIdx = -1;
       const cursorControl = {
-        onReady() { _applyTuneColorsAndTitles(); },
         onStart() {
-          _applyTuneColorsAndTitles(); // fallback if onReady was missed
           _setBotPlayLabel(true);
           if (_metEnabled && _metSyncToAbc) _startMetronome();
         },
         onEvent(ev) {
-          _lastHighlighted.forEach(el => { el.style.fill = _elemColor.get(el) || ""; });
-          _lastHighlighted = [];
-          if (!ev?.elements) return;
-          ev.elements.forEach(grp => {
-            if (!grp) return;
-            grp.forEach(el => { el.style.fill = "#FFAA00"; _lastHighlighted.push(el); });
-          });
+          const sc = ev?.startChar ?? -1;
+          const ti = _getActiveTuneIdx(sc);
+          if (ti !== _activeTuneIdx) {
+            // Highlight the newly-active tune section; de-highlight the old one
+            if (_activeTuneIdx >= 0) {
+              document.getElementById(`set-tune-section-${_activeTuneIdx}`)?.classList.remove("set-tune-active");
+            }
+            document.getElementById(`set-tune-section-${ti}`)?.classList.add("set-tune-active");
+            _activeTuneIdx = ti;
+          }
         },
         onFinished() {
-          _lastHighlighted.forEach(el => { el.style.fill = _elemColor.get(el) || ""; });
-          _lastHighlighted = [];
+          document.querySelectorAll(".set-tune-section.set-tune-active")
+            .forEach(el => el.classList.remove("set-tune-active"));
+          _activeTuneIdx = -1;
           _setBotPlayLabel(false);
           if (_metSyncToAbc) { _stopMetronome(); _updateMetronomeBtn(); }
         },
@@ -4401,8 +4389,6 @@ function openFullSetModal(setData) {
       });
       _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
         .then(() => {
-          // Init metronome and bottom controls (timer not yet available here —
-          // colouring is deferred to onReady)
           _initMetronomeUI(_extractAbcBpm(tunesWithAbc[0]?.abc));
           const botPlayBtn    = document.getElementById("set-bot-play-btn");
           const botRestartBtn = document.getElementById("set-bot-restart-btn");

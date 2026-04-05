@@ -1838,7 +1838,12 @@ button.set-tune-title:hover { text-decoration: underline; }
   fill: #e65c00 !important;
 }
 #set-music-render { background: #fff; border-radius: var(--radius); padding: .5rem; }
-#set-full-render  { background: #fff; border-radius: var(--radius); padding: .5rem; }
+#set-full-tunes-wrap { border-radius: var(--radius); overflow: hidden; }
+.set-tune-section { background: #fff; padding: .75rem .75rem .5rem; border-bottom: 3px solid var(--border); }
+.set-tune-section:last-child { border-bottom: none; }
+.set-tune-section-hd { font-size: .9rem; font-weight: 700; margin-bottom: .3rem; padding-bottom: .25rem; border-bottom: 1px solid #e0e0e0; font-family: serif; letter-spacing: .01em; }
+.set-tune-vis-render svg { max-width: 100%; display: block; }
+.set-tune-section.set-tune-active { background: #fffbf0; outline: 2px solid #FFAA00; outline-offset: -2px; }
 .set-bot-controls {
   display: flex;
   gap: .5rem;
