@@ -275,63 +275,36 @@ bulkAddCollectionBtn.addEventListener("click", async () => {
 
   const cols = await apiFetch("/api/collections");
 
-  const existingOptions = cols.map(c =>
-    `<label class="bulk-col-option">
-       <input type="radio" name="bulk-col" value="${c.id}" />
-       ${escHtml(c.name)}
-     </label>`
+  const colButtons = cols.map(c =>
+    `<button class="col-pick-btn" data-col-id="${c.id}">${escHtml(c.name)}</button>`
   ).join("");
 
   modalContent.innerHTML = `
     <h2 class="modal-title">Add ${ids.length} tune${ids.length !== 1 ? "s" : ""} to Collection</h2>
-    <div class="bulk-col-list">
-      ${existingOptions}
-      <label class="bulk-col-option">
-        <input type="radio" name="bulk-col" value="__new__" />
-        <em>Create new collection…</em>
-      </label>
+    <p class="col-pick-hint">Click a collection to add immediately:</p>
+    <div class="col-pick-list" id="col-pick-list">
+      ${colButtons || '<p class="set-add-tune-none">No collections yet — create one below.</p>'}
     </div>
-    <div id="bulk-col-new-form" class="hidden" style="margin-top:.75rem">
-      <input id="bulk-col-new-name" type="text" class="ff-url-input" placeholder="Collection name" />
+    <div style="margin-top:.75rem">
+      <button id="col-pick-create-btn" class="btn-secondary btn-sm">+ New collection…</button>
+      <div id="col-pick-create-form" class="hidden" style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
+        <input id="col-pick-create-name" type="text" class="ff-url-input" placeholder="Collection name" style="flex:1;min-width:8rem">
+        <button id="col-pick-create-save" class="btn-collection">Create &amp; Add</button>
+      </div>
     </div>
-    <div class="notes-actions" style="margin-top:1.25rem">
-      <button id="bulk-col-confirm" class="btn-primary" disabled>Add to Collection</button>
+    <div style="margin-top:1rem">
       <button id="bulk-col-cancel" class="btn-secondary">Cancel</button>
       <span id="bulk-col-status" class="notes-status"></span>
     </div>`;
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 
-  const confirmBtn = document.getElementById("bulk-col-confirm");
-  const newForm = document.getElementById("bulk-col-new-form");
-  const newNameInput = document.getElementById("bulk-col-new-name");
+  const status = document.getElementById("bulk-col-status");
 
-  modalContent.querySelectorAll("input[name=bulk-col]").forEach(radio => {
-    radio.addEventListener("change", () => {
-      confirmBtn.disabled = false;
-      newForm.classList.toggle("hidden", radio.value !== "__new__");
-      if (radio.value === "__new__") newNameInput.focus();
-    });
-  });
-  document.getElementById("bulk-col-cancel").addEventListener("click", closeModal);
-
-  confirmBtn.addEventListener("click", async () => {
-    const selected = modalContent.querySelector("input[name=bulk-col]:checked");
-    if (!selected) return;
-    const status = document.getElementById("bulk-col-status");
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = "Adding…";
+  const _doAdd = async (colId) => {
+    status.textContent = "Adding…";
+    modalContent.querySelectorAll(".col-pick-btn, #col-pick-create-save").forEach(b => { b.disabled = true; });
     try {
-      let colId;
-      if (selected.value === "__new__") {
-        const name = newNameInput.value.trim();
-        if (!name) { newNameInput.focus(); confirmBtn.disabled = false; confirmBtn.textContent = "Add to Collection"; return; }
-        const created = await apiCreateCollection(name, "");
-        colId = created.id;
-        state.collections.push({ ...created, tune_count: 0 });
-      } else {
-        colId = Number(selected.value);
-      }
       await Promise.all(ids.map(id =>
         apiFetch(`/api/collections/${colId}/tunes`, {
           method: "POST",
@@ -339,13 +312,29 @@ bulkAddCollectionBtn.addEventListener("click", async () => {
           body: JSON.stringify({ tune_id: id }),
         })
       ));
-      status.textContent = `Added ${ids.length} tune${ids.length !== 1 ? "s" : ""}.`;
-      setTimeout(() => { closeModal(); _exitSelectMode(); }, 800);
+      status.textContent = `Added ${ids.length} tune${ids.length !== 1 ? "s" : ""} ✓`;
+      setTimeout(() => { closeModal(); _exitSelectMode(); }, 700);
     } catch {
       status.textContent = "Failed — please try again.";
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = "Add to Collection";
+      modalContent.querySelectorAll(".col-pick-btn, #col-pick-create-save").forEach(b => { b.disabled = false; });
     }
+  };
+
+  modalContent.querySelectorAll(".col-pick-btn").forEach(btn => {
+    btn.addEventListener("click", () => _doAdd(Number(btn.dataset.colId)));
+  });
+
+  document.getElementById("bulk-col-cancel").addEventListener("click", closeModal);
+  document.getElementById("col-pick-create-btn").addEventListener("click", () => {
+    document.getElementById("col-pick-create-form").classList.remove("hidden");
+    document.getElementById("col-pick-create-name").focus();
+  });
+  document.getElementById("col-pick-create-save").addEventListener("click", async () => {
+    const name = document.getElementById("col-pick-create-name").value.trim();
+    if (!name) { document.getElementById("col-pick-create-name").focus(); return; }
+    const created = await apiCreateCollection(name, "");
+    state.collections.push({ ...created, tune_count: 0 });
+    await _doAdd(created.id);
   });
 });
 
@@ -1176,12 +1165,6 @@ function renderModal(tune, onBack = null, siblings = null) {
     <div id="tab-music" class="tab-panel">
       <div class="sheet-music-wrap">
         ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
-        ${notesAudioUrls.length ? notesAudioUrls.map((u, i) => {
-          const label = notesAudioUrls.length > 1 ? `▶ Play MP3 ${i + 1}` : "▶ Play MP3";
-          return `<div class="ff-download-row ff-download-row--top">
-            <button class="btn-secondary media-play-btn" data-url="${escHtml(u)}" data-media-type="audio">${label}</button>
-          </div>`;
-        }).join("") : ""}
         <div id="sheet-music-render"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
         ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
@@ -1220,6 +1203,32 @@ function renderModal(tune, onBack = null, siblings = null) {
         <div class="media-inline-embed hidden" id="embed-${escHtml(u).replace(/[^a-z0-9]/gi,'_').slice(0,30)}"></div>`;
       }).join("")}
       <div id="audio-player-container" class="audio-player-wrap"></div>
+      <audio id="inline-mp3-player" class="inline-mp3-player hidden" controls></audio>
+      <div id="metronome-row" class="metronome-row">
+        <button id="metro-toggle" class="btn-secondary btn-sm">♩ Metronome</button>
+        <span id="metro-controls" class="metro-controls hidden">
+          <button id="metro-dec" class="btn-icon metro-adj">−</button>
+          <input id="metro-bpm" type="number" min="20" max="400" value="120" class="metro-bpm-input" title="Beats per minute">
+          <button id="metro-inc" class="btn-icon metro-adj">+</button>
+          <span class="metro-label">BPM</span>
+          <button id="metro-tap" class="btn-secondary btn-sm">Tap</button>
+        </span>
+      </div>
+      ${tune.abc && /\"[A-G]/.test(tune.abc) ? `<div id="chord-controls" class="chord-controls">
+        <label class="chord-ctrl-label">Chords:</label>
+        <select id="chord-program-select" class="chord-program-select" title="Chord accompaniment instrument">
+          <option value="-1">Off</option>
+          <option value="0">Piano</option>
+          <option value="24">Guitar (nylon)</option>
+          <option value="25">Guitar (steel)</option>
+          <option value="40">Violin/Strings</option>
+          <option value="46">Harp</option>
+          <option value="11">Vibraphone</option>
+          <option value="19">Organ</option>
+          <option value="48">String Ensemble</option>
+          <option value="52">Choir/Aah</option>
+        </select>
+      </div>` : ""}
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
       <div class="highlight-toolbar" id="highlight-toolbar" style="display:flex;gap:6px;align-items:center;margin:4px 0 2px;">
         <button id="highlight-mode-btn" class="btn-secondary highlight-mode-btn" title="Toggle highlight mode — click bars to mark difficult sections">🖊 Highlight</button>
@@ -1561,10 +1570,16 @@ function renderModal(tune, onBack = null, siblings = null) {
     } catch { /* ignore */ }
   });
 
-  // Media play buttons in notes (audio → overlay)
+  // Media play buttons — audio in music tab plays inline, others use overlay
   modalContent.addEventListener("click", e => {
     const btn = e.target.closest(".media-play-btn");
-    if (btn) openMediaOverlay(btn.dataset.url, btn.dataset.mediaType);
+    if (!btn) return;
+    const inMusicTab = !!btn.closest("#tab-music");
+    if (inMusicTab && btn.dataset.mediaType === "audio") {
+      _playInlineMp3(btn.dataset.url);
+    } else {
+      openMediaOverlay(btn.dataset.url, btn.dataset.mediaType);
+    }
   });
 
   // Video embed buttons — inline embed toggle
@@ -2838,6 +2853,160 @@ function _applySelectionToPlayer() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Inline MP3 player (music tab) ─────────────────────────────────────────────
+function _playInlineMp3(url) {
+  const player = document.getElementById("inline-mp3-player");
+  if (!player) { openMediaOverlay(url, "audio"); return; }
+  if (player.src && new URL(player.src).href === new URL(url, location.href).href && !player.paused) {
+    player.pause();
+    return;
+  }
+  player.src = url;
+  player.classList.remove("hidden");
+  player.play().catch(() => {});
+}
+
+// ── Metronome (Web Audio API) ─────────────────────────────────────────────────
+let _metCtx    = null;
+let _metPlaying = false;
+let _metBpm    = 120;
+let _metNextBeat = 0;
+let _metTimer  = null;
+let _metTapTimes = [];
+
+function _metSchedule() {
+  if (!_metPlaying || !_metCtx) return;
+  const interval = 60 / _metBpm;
+  while (_metNextBeat < _metCtx.currentTime + 0.1) {
+    const osc  = _metCtx.createOscillator();
+    const gain = _metCtx.createGain();
+    osc.connect(gain);
+    gain.connect(_metCtx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.4, _metNextBeat);
+    gain.gain.exponentialRampToValueAtTime(0.001, _metNextBeat + 0.04);
+    osc.start(_metNextBeat);
+    osc.stop(_metNextBeat + 0.05);
+    _metNextBeat += interval;
+  }
+  _metTimer = setTimeout(_metSchedule, 25);
+}
+
+function _startMetronome(bpm) {
+  if (bpm) _metBpm = bpm;
+  if (!_metCtx) _metCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_metCtx.state === "suspended") _metCtx.resume();
+  _metPlaying = true;
+  _metNextBeat = _metCtx.currentTime + 0.05;
+  if (_metTimer) clearTimeout(_metTimer);
+  _metSchedule();
+}
+
+function _stopMetronome() {
+  _metPlaying = false;
+  if (_metTimer) { clearTimeout(_metTimer); _metTimer = null; }
+}
+
+function _extractAbcBpm(abc) {
+  const m = abc && abc.match(/Q:[^=\n]*=\s*(\d+)|Q:\s*(\d+)/);
+  return m ? parseInt(m[1] || m[2]) : null;
+}
+
+function _initMetronomeUI(defaultBpm) {
+  const toggleBtn = document.getElementById("metro-toggle");
+  const controls  = document.getElementById("metro-controls");
+  const bpmInput  = document.getElementById("metro-bpm");
+  const decBtn    = document.getElementById("metro-dec");
+  const incBtn    = document.getElementById("metro-inc");
+  const tapBtn    = document.getElementById("metro-tap");
+  if (!toggleBtn) return;
+
+  if (defaultBpm && defaultBpm > 0) {
+    _metBpm = defaultBpm;
+    if (bpmInput) bpmInput.value = defaultBpm;
+  }
+
+  const _updateBtn = () => {
+    toggleBtn.textContent = _metPlaying ? "♩ Metro ON" : "♩ Metronome";
+    toggleBtn.classList.toggle("active", _metPlaying);
+    if (controls) controls.classList.toggle("hidden", !_metPlaying);
+  };
+
+  toggleBtn.addEventListener("click", () => {
+    if (_metPlaying) {
+      _stopMetronome();
+    } else {
+      _startMetronome(parseInt(bpmInput?.value) || _metBpm || 120);
+    }
+    _updateBtn();
+  });
+
+  if (bpmInput) {
+    bpmInput.addEventListener("input", () => {
+      const v = parseInt(bpmInput.value);
+      if (v >= 20 && v <= 400) {
+        _metBpm = v;
+        if (_metPlaying) { _stopMetronome(); _startMetronome(v); }
+      }
+    });
+  }
+
+  decBtn?.addEventListener("click", () => {
+    const v = Math.max(20, _metBpm - 5);
+    if (bpmInput) bpmInput.value = v;
+    _metBpm = v;
+    if (_metPlaying) { _stopMetronome(); _startMetronome(v); }
+  });
+
+  incBtn?.addEventListener("click", () => {
+    const v = Math.min(400, _metBpm + 5);
+    if (bpmInput) bpmInput.value = v;
+    _metBpm = v;
+    if (_metPlaying) { _stopMetronome(); _startMetronome(v); }
+  });
+
+  tapBtn?.addEventListener("click", () => {
+    const now = Date.now();
+    _metTapTimes = _metTapTimes.filter(t => now - t < 3000);
+    _metTapTimes.push(now);
+    if (_metTapTimes.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < _metTapTimes.length; i++) intervals.push(_metTapTimes[i] - _metTapTimes[i - 1]);
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const bpm = Math.min(400, Math.max(20, Math.round(60000 / avg)));
+      if (bpmInput) bpmInput.value = bpm;
+      _metBpm = bpm;
+      if (_metPlaying) { _stopMetronome(); _startMetronome(bpm); }
+    }
+  });
+}
+
+// ── Chord accompaniment controls ──────────────────────────────────────────────
+let _chordProgram = 24;  // default: nylon guitar
+let _chordsOff   = false;
+
+function _initChordControls() {
+  const sel = document.getElementById("chord-program-select");
+  if (!sel) return;
+  // Restore previous selection
+  if (_chordsOff) {
+    sel.value = "-1";
+  } else {
+    sel.value = String(_chordProgram);
+    if (sel.value !== String(_chordProgram)) sel.value = "-1"; // fallback if option missing
+  }
+  sel.addEventListener("change", () => {
+    const prog = parseInt(sel.value);
+    _chordsOff   = prog === -1;
+    _chordProgram = _chordsOff ? _chordProgram : prog;
+    if (!_visualObj || !_synthController) return;
+    const opts = _chordsOff
+      ? { program: 73, chordsOff: true }
+      : { program: 73, chordsOff: false, chordProgram: prog };
+    _synthController.setTune(_visualObj, false, opts).catch(() => {});
+  });
+}
+
 function renderSheetMusic(abc) {
   const container = document.getElementById("sheet-music-render");
   if (!container || typeof ABCJS === "undefined") return;
@@ -2851,6 +3020,7 @@ function renderSheetMusic(abc) {
   _synthController = null;
   _msPerMeasure = null;
   _loopSeeking = false;
+  _stopMetronome();
   _barFirstMs = {};
   const infoEl = document.getElementById("bar-selection-info");
   if (infoEl) infoEl.classList.add("hidden");
@@ -2950,9 +3120,18 @@ function renderSheetMusic(abc) {
       displayWarp: true,
     });
 
-    _synthController.setTune(_visualObj, false, { program: 73 }).catch(err => {
+    const _setTuneOpts = _chordsOff
+      ? { program: 73, chordsOff: true }
+      : { program: 73, chordsOff: false, chordProgram: _chordProgram };
+    _synthController.setTune(_visualObj, false, _setTuneOpts).catch(err => {
       console.warn("Audio init failed:", err);
     });
+
+    // Init metronome UI with BPM from ABC
+    _initMetronomeUI(_extractAbcBpm(abc));
+
+    // Init chord controls
+    _initChordControls();
 
     // Resume AudioContext on click (browsers suspend it until a user gesture).
     // Use capture phase so we fire before ABCJS's own click handler.
@@ -6055,6 +6234,9 @@ function closeModal() {
   if (_previewSynthCtrl) { try { _previewSynthCtrl.stop(); } catch {} _previewSynthCtrl = null; }
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   _stopPracticeAudio();
+  _stopMetronome();
+  const inlineMp3 = document.getElementById("inline-mp3-player");
+  if (inlineMp3) { inlineMp3.pause(); inlineMp3.src = ""; }
   closeMediaOverlay();
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
@@ -9773,6 +9955,21 @@ function _initPracticeTab(tune) {
     openAbcFullscreen(_pracCurrentAbc, (tune.title || "Practice") + " – Practice");
   });
 }
+
+// ── Stop all audio when tab/window closes ─────────────────────────────────────
+function _stopAllAudio() {
+  if (_synthController) { try { _synthController.pause();  } catch {} }
+  if (_setMusicSynth)   { try { _setMusicSynth.pause();    } catch {} }
+  if (_abcFsSynthCtrl)  { try { _abcFsSynthCtrl.pause();   } catch {} }
+  if (_pracSynthCtrl)   { try { _pracSynthCtrl.pause();    } catch {} }
+  _stopMetronome();
+  document.querySelectorAll("audio, video").forEach(el => { try { el.pause(); } catch {} });
+  try { closeMediaOverlay(); } catch {}
+}
+window.addEventListener("beforeunload", _stopAllAudio);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") _stopAllAudio();
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 _applyNavColour("library");  // set Library button solid on first paint

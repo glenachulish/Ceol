@@ -3309,3 +3309,111 @@ a.bandcamp-link:hover { opacity: .85; }
   font-size: .82rem;
   padding: .25rem .55rem;
 }
+
+/* ── Inline MP3 player ──────────────────────────────────────────────────────── */
+.inline-mp3-player {
+  display: block;
+  width: 100%;
+  margin: .5rem 0 .25rem;
+  accent-color: var(--accent);
+}
+.inline-mp3-player.hidden { display: none; }
+
+/* ── Metronome ──────────────────────────────────────────────────────────────── */
+.metronome-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin: .4rem 0;
+}
+.metro-controls {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+.metro-controls.hidden { display: none; }
+.metro-bpm-input {
+  width: 4rem;
+  padding: .2rem .35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .9rem;
+  text-align: center;
+}
+.metro-adj {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+.metro-label {
+  font-size: .82rem;
+  color: var(--text-muted);
+}
+#metro-toggle.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ── Chord accompaniment controls ───────────────────────────────────────────── */
+.chord-controls {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin: .3rem 0 .5rem;
+}
+.chord-ctrl-label {
+  font-size: .85rem;
+  color: var(--text-muted);
+}
+.chord-program-select {
+  padding: .2rem .45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .85rem;
+  cursor: pointer;
+}
+
+/* ── Collection click-to-add ─────────────────────────────────────────────────── */
+.col-pick-hint {
+  font-size: .88rem;
+  color: var(--text-muted);
+  margin: .25rem 0 .6rem;
+}
+.col-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+.col-pick-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: .55rem .85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: .95rem;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.col-pick-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: var(--accent);
+}
+.col-pick-btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
