@@ -4348,14 +4348,22 @@ function openFullSetModal(setData) {
           const firstEl = firstTiming?.elements?.[0]?.[0];
           if (!firstEl) return;
           try {
-            const bb = firstEl.getBBox();
+            // Walk up to the enclosing staff-wrapper so we place the title
+            // above the whole staff line rather than above the individual note head
+            let ref = firstEl;
+            while (ref.parentElement && ref.parentElement !== svg &&
+                   !ref.classList?.contains("abcjs-staff-wrapper")) {
+              ref = ref.parentElement;
+            }
+            const bb = ref.getBBox();
             const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            label.setAttribute("x", bb.x);
-            label.setAttribute("y", bb.y - 18);
-            label.setAttribute("font-size", "20");
+            label.setAttribute("x", bb.x + 5);
+            // Place above the staff wrapper with a small gap; clamp so it stays inside the SVG
+            label.setAttribute("y", Math.max(14, bb.y - 6));
+            label.setAttribute("font-size", "14");
             label.setAttribute("font-weight", "bold");
             label.setAttribute("font-family", "serif");
-            label.setAttribute("fill", TUNE_COLORS[ti % TUNE_COLORS.length]);
+            label.setAttribute("fill", "#000000");
             label.textContent = tune.title;
             svg.appendChild(label);
           } catch {}
