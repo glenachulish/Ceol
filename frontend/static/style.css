@@ -2074,7 +2074,7 @@ button.set-tune-title:hover { text-decoration: underline; }
 .bldr-tmpl-slot { display: flex; align-items: center; gap: .25rem; }
 .bldr-tmpl-count { font-size: .72rem; color: var(--text-muted); }
 .bldr-tmpl-arrow { color: var(--text-muted); font-size: .8rem; }
-.bldr-filter-row { margin: .5rem 0 .75rem; }
+.bldr-filter-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .5rem 0 .75rem; }
 .bldr-slots { display: flex; flex-direction: column; gap: .65rem; margin: .75rem 0; }
 .bldr-slot { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .bldr-slot-header {
@@ -3501,10 +3501,3 @@ a.bandcamp-link:hover { opacity: .85; }
   font-size: .9rem;
 }
 .bldr-search-input:focus { outline: none; border-color: var(--accent); }
-.bldr-filter-row {
-  display: flex;
-  gap: .5rem;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-bottom: .6rem;
-}

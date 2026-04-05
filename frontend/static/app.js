@@ -6086,7 +6086,7 @@ clearBtn.addEventListener("click", () => {
   filterHitlistBtn.classList.remove("active");
   filterFavouriteBtn.classList.remove("active");
   document.querySelectorAll(".content-filter-btn").forEach(b => b.classList.remove("active"));
-  _alphaReset();
+  window._alphaReset?.();
   Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", composer: "", hitlist: false, favourite: false, min_rating: 0, has_content: "", starts_with: "" });
   loadTunes();
 });
