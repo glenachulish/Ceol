@@ -1214,6 +1214,9 @@ function renderModal(tune, onBack = null, siblings = null) {
           <button id="metro-inc" class="btn-icon metro-adj">+</button>
           <span class="metro-label">BPM</span>
           <button id="metro-tap" class="btn-secondary btn-sm">Tap</button>
+          <span class="metro-label">Vol</span>
+          <input id="metro-vol" type="range" min="0" max="100" value="70" class="metro-vol-slider" title="Metronome volume">
+          <span id="metro-sync-badge" class="metro-sync-badge metro-sync">Synced</span>
         </span>
       </div>
       ${tune.abc && /\"[A-G]/.test(tune.abc) ? `<div id="chord-controls" class="chord-controls">
@@ -2869,12 +2872,15 @@ function _playInlineMp3(url) {
 }
 
 // ── Metronome (Web Audio API) ─────────────────────────────────────────────────
-let _metCtx    = null;
-let _metPlaying = false;
-let _metBpm    = 120;
+let _metCtx      = null;
+let _metPlaying  = false;
+let _metBpm      = 120;
 let _metNextBeat = 0;
-let _metTimer  = null;
+let _metTimer    = null;
 let _metTapTimes = [];
+let _metEnabled  = false;   // user has toggled the metronome on
+let _metSyncToAbc = true;   // auto start/stop with ABC playback
+let _metVolume   = 0.7;     // 0.0–1.0
 
 function _metSchedule() {
   if (!_metPlaying || !_metCtx) return;
@@ -2885,13 +2891,33 @@ function _metSchedule() {
     osc.connect(gain);
     gain.connect(_metCtx.destination);
     osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.4, _metNextBeat);
+    gain.gain.setValueAtTime(_metVolume, _metNextBeat);
     gain.gain.exponentialRampToValueAtTime(0.001, _metNextBeat + 0.04);
     osc.start(_metNextBeat);
     osc.stop(_metNextBeat + 0.05);
     _metNextBeat += interval;
   }
   _metTimer = setTimeout(_metSchedule, 25);
+}
+
+function _updateMetronomeBtn() {
+  const toggleBtn = document.getElementById("metro-toggle");
+  const controls  = document.getElementById("metro-controls");
+  const syncBadge = document.getElementById("metro-sync-badge");
+  if (!toggleBtn) return;
+  if (_metEnabled) {
+    toggleBtn.textContent = "♩ Metro ON";
+    toggleBtn.classList.add("active");
+    if (controls) controls.classList.remove("hidden");
+    if (syncBadge) {
+      syncBadge.textContent = _metSyncToAbc ? "Synced" : "Free";
+      syncBadge.className = "metro-sync-badge " + (_metSyncToAbc ? "metro-sync" : "metro-free");
+    }
+  } else {
+    toggleBtn.textContent = "♩ Metronome";
+    toggleBtn.classList.remove("active");
+    if (controls) controls.classList.add("hidden");
+  }
 }
 
 function _startMetronome(bpm) {
@@ -2921,11 +2947,11 @@ function _extractAbcBpm(abc) {
 
 function _initMetronomeUI(defaultBpm) {
   const toggleBtn = document.getElementById("metro-toggle");
-  const controls  = document.getElementById("metro-controls");
   const bpmInput  = document.getElementById("metro-bpm");
   const decBtn    = document.getElementById("metro-dec");
   const incBtn    = document.getElementById("metro-inc");
   const tapBtn    = document.getElementById("metro-tap");
+  const volSlider = document.getElementById("metro-vol");
   if (!toggleBtn) return;
 
   if (defaultBpm && defaultBpm > 0) {
@@ -2933,19 +2959,26 @@ function _initMetronomeUI(defaultBpm) {
     if (bpmInput) bpmInput.value = defaultBpm;
   }
 
-  const _updateBtn = () => {
-    toggleBtn.textContent = _metPlaying ? "♩ Metro ON" : "♩ Metronome";
-    toggleBtn.classList.toggle("active", _metPlaying);
-    if (controls) controls.classList.toggle("hidden", !_metPlaying);
-  };
+  // Sync volume slider to current _metVolume
+  if (volSlider) volSlider.value = Math.round(_metVolume * 100);
 
+  // Sync toggle state (modal may have been re-rendered while metronome was running)
+  _updateMetronomeBtn();
+
+  // ── Toggle button: on→off resets to sync mode; off→on starts immediately ──
   toggleBtn.addEventListener("click", () => {
-    if (_metPlaying) {
+    if (_metEnabled) {
+      // Turn off
+      _metEnabled = false;
+      _metSyncToAbc = true;   // reset to sync for next enable
       _stopMetronome();
     } else {
+      // Turn on — start immediately so user can hear it; music will re-sync on play
+      _metEnabled = true;
+      _metSyncToAbc = true;
       _startMetronome(parseInt(bpmInput?.value) || _metBpm || 120);
     }
-    _updateBtn();
+    _updateMetronomeBtn();
   });
 
   if (bpmInput) {
@@ -2972,6 +3005,7 @@ function _initMetronomeUI(defaultBpm) {
     if (_metPlaying) { _stopMetronome(); _startMetronome(v); }
   });
 
+  // ── Tap: calculates BPM, switches to free (non-sync) mode ──
   tapBtn?.addEventListener("click", () => {
     const now = Date.now();
     _metTapTimes = _metTapTimes.filter(t => now - t < 3000);
@@ -2983,8 +3017,18 @@ function _initMetronomeUI(defaultBpm) {
       const bpm = Math.min(400, Math.max(20, Math.round(60000 / avg)));
       if (bpmInput) bpmInput.value = bpm;
       _metBpm = bpm;
-      if (_metPlaying) { _stopMetronome(); _startMetronome(bpm); }
+      // Tap = override sync, start immediately in free mode
+      _metEnabled = true;
+      _metSyncToAbc = false;
+      _stopMetronome();
+      _startMetronome(bpm);
+      _updateMetronomeBtn();
     }
+  });
+
+  // ── Volume slider ──
+  volSlider?.addEventListener("input", () => {
+    _metVolume = volSlider.valueAsNumber / 100;
   });
 }
 
@@ -3083,6 +3127,10 @@ function renderSheetMusic(abc) {
           _seekToBar(_barSel.start);
           _barSeekPending = false;
         }
+        // Auto-start metronome in sync mode
+        if (_metEnabled && _metSyncToAbc) {
+          _startMetronome();
+        }
       },
       onEvent(ev) {        document.querySelectorAll("#sheet-music-render .abcjs-highlight")
           .forEach(el => el.classList.remove("abcjs-highlight"));
@@ -3114,6 +3162,10 @@ function renderSheetMusic(abc) {
         if (_barLooping && _barSel.start !== null && _synthController && !_loopSeeking) {
           _barSeekPending = true;
           try { _synthController.play(); } catch {}
+        } else if (_metSyncToAbc) {
+          // Auto-stop metronome when music finishes (sync mode only)
+          _stopMetronome();
+          _updateMetronomeBtn();
         }
       },
     };

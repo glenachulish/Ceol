@@ -3360,6 +3360,29 @@ a.bandcamp-link:hover { opacity: .85; }
   color: #fff;
   border-color: var(--accent);
 }
+.metro-vol-slider {
+  width: 5rem;
+  cursor: pointer;
+  accent-color: var(--accent);
+  vertical-align: middle;
+}
+.metro-sync-badge {
+  font-size: .75rem;
+  font-weight: 600;
+  padding: .1rem .4rem;
+  border-radius: .8rem;
+  white-space: nowrap;
+}
+.metro-sync-badge.metro-sync {
+  background: rgba(0,200,150,.18);
+  color: #00c896;
+  border: 1px solid rgba(0,200,150,.35);
+}
+.metro-sync-badge.metro-free {
+  background: rgba(255,160,0,.18);
+  color: #ffa000;
+  border: 1px solid rgba(255,160,0,.35);
+}
 
 /* ── Chord accompaniment controls ───────────────────────────────────────────── */
 .chord-controls {
