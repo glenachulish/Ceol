@@ -7132,7 +7132,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     dropZone.classList.remove("drop-hover");
     const audio = Array.from(e.dataTransfer.files).filter(f => AUDIO_RE.test(f.name));
     if (audio.length) loadAudioPreview(audio);
-    else fileCount.textContent = "No audio files found in drop — use "Choose folder…" instead";
+    else fileCount.textContent = `No audio files found in drop — use "Choose folder…" instead`;
   });
 
   importBtn.addEventListener("click", async () => {
