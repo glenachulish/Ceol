@@ -337,6 +337,7 @@ def list_tunes(
     composer: Optional[str] = Query(None, description="Filter by composer"),
     transcribed_by: Optional[str] = Query(None, description="Filter by ABC transcriber"),
     has_content: Optional[str] = Query(None, description="Filter by content type: abc, pdf, photo, mp3, video, sheet"),
+    starts_with: Optional[str] = Query(None, description="Filter by first letter of title (A-Z)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=10000),
 ):
@@ -415,6 +416,10 @@ def list_tunes(
                 " OR t.notes LIKE '%/api/uploads/%.jpeg%'"
                 " OR t.notes LIKE '%/api/uploads/%.png%')"
             )
+
+    if starts_with:
+        conditions.append("UPPER(SUBSTR(t.title, 1, 1)) = ?")
+        params.append(starts_with.upper()[:1])
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     offset = (page - 1) * page_size

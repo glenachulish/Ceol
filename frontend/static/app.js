@@ -14,6 +14,7 @@ const state = {
   favourite: false,
   min_rating: 0,
   has_content: "",
+  starts_with: "",
   sets: [],
   collections: [],
   capabilities: { has_anthropic_key: true },
@@ -663,6 +664,7 @@ async function fetchTunes() {
   if (state.favourite)  params.set("favourite",   "1");
   if (state.min_rating)   params.set("min_rating",  state.min_rating);
   if (state.has_content)  params.set("has_content", state.has_content);
+  if (state.starts_with)  params.set("starts_with", state.starts_with);
   return apiFetch(`/api/tunes?${params}`);
 }
 
@@ -4809,28 +4811,53 @@ function renderSets(sets) {
     });
   }
 
-  setsList.querySelectorAll(".set-expand-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.setId;
-      const setHeader = document.getElementById("view-sets").querySelector(".view-header");
-      const detailView = document.getElementById("set-detail-view");
-      const detailContent = document.getElementById("set-detail-content");
-      // Switch to focused view
-      setsList.classList.add("hidden");
-      if (setHeader) setHeader.classList.add("hidden");
-      document.getElementById("new-set-form")?.classList.add("hidden");
-      detailContent.innerHTML = '<p class="loading">Loading…</p>';
-      detailView.classList.remove("hidden");
-      const setData = await apiGetSet(id);
-      detailContent.innerHTML = `<h2 class="section-title" style="margin-bottom:.75rem">${escHtml(setData.name)}</h2>`;
-      if (setData.tunes && setData.tunes.length) {
-        _renderSetTunes(detailContent, id, setData.tunes);
+  // Shared helper — also called from createSetBtn after creating a new set
+  async function _openSetDetail(id) {
+    const setHeader = document.getElementById("view-sets").querySelector(".view-header");
+    const detailView = document.getElementById("set-detail-view");
+    const detailContent = document.getElementById("set-detail-content");
+    setsList.classList.add("hidden");
+    if (setHeader) setHeader.classList.add("hidden");
+    document.getElementById("new-set-form")?.classList.add("hidden");
+    detailContent.innerHTML = '<p class="loading">Loading…</p>';
+    detailView.classList.remove("hidden");
+    const setData = await apiGetSet(id);
+    let allTunes = setData.tunes || [];
+
+    function _renderFiltered(q) {
+      const tunesWrap = document.getElementById("set-detail-tunes");
+      if (!tunesWrap) return;
+      tunesWrap.innerHTML = "";
+      const filtered = q ? allTunes.filter(t => t.title.toLowerCase().includes(q.toLowerCase())) : allTunes;
+      if (filtered.length) {
+        _renderSetTunes(tunesWrap, id, filtered);
       } else {
-        detailContent.insertAdjacentHTML("beforeend", '<p class="set-empty">No tunes in this set yet.</p>');
+        tunesWrap.innerHTML = `<p class="set-empty">${allTunes.length ? "No matching tunes." : "No tunes in this set yet."}</p>`;
       }
-      _appendAddTuneFooter(detailContent, id);
+    }
+
+    detailContent.innerHTML = `
+      <h2 class="section-title" style="margin-bottom:.5rem">${escHtml(setData.name)}</h2>
+      <div class="detail-search-row">
+        <input id="set-detail-search" type="search" class="detail-search-input"
+               placeholder="Search within this set…" autocomplete="off">
+      </div>
+      <div id="set-detail-tunes"></div>`;
+
+    _renderFiltered("");
+    _appendAddTuneFooter(detailContent, id);
+
+    document.getElementById("set-detail-search").addEventListener("input", e => {
+      _renderFiltered(e.target.value.trim());
     });
+  }
+
+  setsList.querySelectorAll(".set-expand-btn").forEach(btn => {
+    btn.addEventListener("click", () => _openSetDetail(btn.dataset.setId));
   });
+
+  // Expose so createSetBtn can call it after creating a new set
+  window._openSetDetail = _openSetDetail;
 
   const _setDetailBack = document.getElementById("set-detail-back");
   if (_setDetailBack && !_setDetailBack._bound) {
@@ -5095,47 +5122,94 @@ function renderCollections(collections) {
       colDetailView.classList.remove("hidden");
 
       const colData = await apiGetCollection(id);
-      colDetailContent.innerHTML = `<h2 class="section-title" style="margin-bottom:.75rem">${escHtml(colName)}</h2>`;
+      const allColTunes = colData.tunes || [];
+      const allColSets  = colData.sets  || [];
 
-      let html = "";
-
-      // Tunes section
-      if (colData.tunes && colData.tunes.length) {
-        html += `<p class="col-section-label">Tunes</p>`;
-        html += colData.tunes.map(t => `
-          <div class="set-tune-row">
-            <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
-            <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
-            <span class="badge badge-key">${escHtml(t.key || "")}</span>
-            <button class="btn-icon remove-from-col"
-              data-col-id="${id}" data-tune-id="${t.id}" title="Remove from collection">🗑</button>
-          </div>`).join("");
+      function _renderColItems(q) {
+        const itemsEl = document.getElementById("col-detail-items");
+        if (!itemsEl) return;
+        const ql = q.toLowerCase();
+        const filtTunes = ql ? allColTunes.filter(t => t.title.toLowerCase().includes(ql)) : allColTunes;
+        const filtSets  = ql ? allColSets.filter(s => s.name.toLowerCase().includes(ql))   : allColSets;
+        let html = "";
+        if (filtTunes.length) {
+          html += `<p class="col-section-label">Tunes</p>`;
+          html += filtTunes.map(t => `
+            <div class="set-tune-row">
+              <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
+              <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+              <span class="badge badge-key">${escHtml(t.key || "")}</span>
+              <button class="btn-icon remove-from-col"
+                data-col-id="${id}" data-tune-id="${t.id}" title="Remove from collection">🗑</button>
+            </div>`).join("");
+        }
+        if (filtSets.length) {
+          html += `<p class="col-section-label" style="margin-top:.6rem">Sets</p>`;
+          html += filtSets.map(s => `
+            <div class="set-tune-row col-set-row" data-set-id="${s.id}">
+              <span class="col-set-icon" title="Set">♫</span>
+              <span class="set-tune-title col-set-title">${escHtml(s.name)}</span>
+              <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
+              <button class="btn-icon remove-from-col-set"
+                data-col-id="${id}" data-set-id="${s.id}" title="Remove set from collection">🗑</button>
+            </div>`).join("");
+        }
+        if (!html) {
+          html = `<p class="set-empty">${(allColTunes.length || allColSets.length) ? "No matching items." : "Empty — add tunes or sets to this collection."}</p>`;
+        }
+        itemsEl.innerHTML = html;
+        // Re-wire tune-open and remove buttons inside the re-rendered block
+        itemsEl.querySelectorAll(".tune-open-btn").forEach(tb => {
+          tb.addEventListener("click", async () => {
+            await Promise.all([fetchSets(), fetchCollections()]);
+            const tune = await fetchTune(tb.dataset.tuneId);
+            renderModal(tune);
+            modalOverlay.classList.remove("hidden");
+            document.body.style.overflow = "hidden";
+          });
+        });
+        itemsEl.querySelectorAll(".remove-from-col").forEach(rb => {
+          rb.addEventListener("click", async () => {
+            if (!confirm("Remove this tune from the collection?")) return;
+            rb.disabled = true;
+            try {
+              await apiRemoveTuneFromCollection(rb.dataset.colId, rb.dataset.tuneId);
+              const idx = allColTunes.findIndex(t => String(t.id) === rb.dataset.tuneId);
+              if (idx !== -1) allColTunes.splice(idx, 1);
+              _renderColItems(document.getElementById("col-detail-search")?.value || "");
+            } catch { rb.disabled = false; }
+          });
+        });
+        itemsEl.querySelectorAll(".remove-from-col-set").forEach(rb => {
+          rb.addEventListener("click", async () => {
+            if (!confirm("Remove this set from the collection?")) return;
+            rb.disabled = true;
+            try {
+              await apiFetch(`/api/collections/${rb.dataset.colId}/sets/${rb.dataset.setId}`, { method: "DELETE" });
+              const idx = allColSets.findIndex(s => String(s.id) === rb.dataset.setId);
+              if (idx !== -1) allColSets.splice(idx, 1);
+              _renderColItems(document.getElementById("col-detail-search")?.value || "");
+            } catch { rb.disabled = false; }
+          });
+        });
       }
 
-      // Sets section
-      if (colData.sets && colData.sets.length) {
-        html += `<p class="col-section-label" style="margin-top:.6rem">Sets</p>`;
-        html += colData.sets.map(s => `
-          <div class="set-tune-row col-set-row" data-set-id="${s.id}">
-            <span class="col-set-icon" title="Set">♫</span>
-            <span class="set-tune-title col-set-title">${escHtml(s.name)}</span>
-            <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
-            <button class="btn-icon remove-from-col-set"
-              data-col-id="${id}" data-set-id="${s.id}" title="Remove set from collection">🗑</button>
-          </div>`).join("");
-      }
+      colDetailContent.innerHTML = `
+        <h2 class="section-title" style="margin-bottom:.5rem">${escHtml(colName)}</h2>
+        <div class="detail-search-row">
+          <input id="col-detail-search" type="search" class="detail-search-input"
+                 placeholder="Search within this collection…" autocomplete="off">
+        </div>
+        <div id="col-detail-items"></div>
+        <div class="col-add-set-row">
+          <button class="btn-set btn-sm col-add-set-btn" data-col-id="${id}">+ Add a set…</button>
+          <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${id}" title="Remove guitar chord symbols (e.g. &quot;Am&quot;) from ABC notation of all tunes in this collection">Strip chord symbols</button>
+        </div>`;
 
-      if (!html) {
-        html = '<p class="set-empty">Empty — add tunes or sets to this collection.</p>';
-      }
-
-      // Footer: add-a-set and strip-chords actions
-      html += `<div class="col-add-set-row">
-        <button class="btn-set btn-sm col-add-set-btn" data-col-id="${id}">+ Add a set…</button>
-        <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${id}" title="Remove guitar chord symbols (e.g. &quot;Am&quot;) from ABC notation of all tunes in this collection">Strip chord symbols</button>
-      </div>`;
-
-      colDetailContent.insertAdjacentHTML("beforeend", html);
+      _renderColItems("");
+      document.getElementById("col-detail-search").addEventListener("input", e => {
+        _renderColItems(e.target.value.trim());
+      });
 
       // Add-a-set picker
       colDetailContent.querySelector(".col-add-set-btn").addEventListener("click", async () => {
@@ -5182,42 +5256,6 @@ function renderCollections(collections) {
             status.textContent = "Failed — please try again.";
             confirmBtn.disabled = false;
             confirmBtn.textContent = "Add Set";
-          }
-        });
-      });
-
-      colDetailContent.querySelectorAll(".tune-open-btn").forEach(tb => {
-        tb.addEventListener("click", async () => {
-          await Promise.all([fetchSets(), fetchCollections()]);
-          const tune = await fetchTune(tb.dataset.tuneId);
-          renderModal(tune);
-          modalOverlay.classList.remove("hidden");
-          document.body.style.overflow = "hidden";
-        });
-      });
-
-      colDetailContent.querySelectorAll(".remove-from-col").forEach(rb => {
-        rb.addEventListener("click", async () => {
-          rb.disabled = true;
-          try {
-            await apiRemoveTuneFromCollection(rb.dataset.colId, rb.dataset.tuneId);
-            rb.closest(".set-tune-row").remove();
-          } catch {
-            alert("Failed to remove tune. Please try again.");
-            rb.disabled = false;
-          }
-        });
-      });
-
-      colDetailContent.querySelectorAll(".remove-from-col-set").forEach(rb => {
-        rb.addEventListener("click", async () => {
-          rb.disabled = true;
-          try {
-            await apiFetch(`/api/collections/${rb.dataset.colId}/sets/${rb.dataset.setId}`, { method: "DELETE" });
-            rb.closest(".set-tune-row").remove();
-          } catch {
-            alert("Failed to remove set. Please try again.");
-            rb.disabled = false;
           }
         });
       });
@@ -6048,9 +6086,49 @@ clearBtn.addEventListener("click", () => {
   filterHitlistBtn.classList.remove("active");
   filterFavouriteBtn.classList.remove("active");
   document.querySelectorAll(".content-filter-btn").forEach(b => b.classList.remove("active"));
-  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", composer: "", hitlist: false, favourite: false, min_rating: 0, has_content: "" });
+  _alphaReset();
+  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", composer: "", hitlist: false, favourite: false, min_rating: 0, has_content: "", starts_with: "" });
   loadTunes();
 });
+
+// ── Alphabet slider navigation ────────────────────────────────────────────────
+(function _initAlphaNav() {
+  const slider   = document.getElementById("alpha-slider");
+  const allBtn   = document.getElementById("alpha-all-btn");
+  const currentEl = document.getElementById("alpha-current");
+  if (!slider) return;
+
+  function _alphaApply(letter) {
+    state.starts_with = letter;
+    state.page = 1;
+    currentEl.textContent = letter ? letter : "";
+    allBtn.classList.toggle("active", !letter);
+    loadTunes();
+  }
+
+  // Expose reset so clearBtn can call it
+  window._alphaReset = () => {
+    slider.value = "0";
+    currentEl.textContent = "";
+    allBtn.classList.add("active");
+  };
+
+  slider.addEventListener("input", () => {
+    const letter = String.fromCharCode(65 + parseInt(slider.value));
+    currentEl.textContent = letter;
+    allBtn.classList.remove("active");
+  });
+
+  slider.addEventListener("change", () => {
+    const letter = String.fromCharCode(65 + parseInt(slider.value));
+    _alphaApply(letter);
+  });
+
+  allBtn.addEventListener("click", () => {
+    slider.value = "0";
+    _alphaApply("");
+  });
+})();
 
 // Content-type filter buttons (toggle, mutually exclusive)
 document.querySelectorAll(".content-filter-btn").forEach(btn => {
@@ -6507,11 +6585,18 @@ async function _bldrPickFirst(filters) {
     renderList();
   }
 
+  let searchQ = "";
+
   function renderList() {
     const listEl = document.getElementById("bldr-tune-list");
     if (!listEl) return;
-    if (!tunes.length) { listEl.innerHTML = '<p class="bldr-empty">No tunes found.</p>'; return; }
-    listEl.innerHTML = tunes.map(t => `
+    const q = searchQ.toLowerCase();
+    const filtered = q ? tunes.filter(t => t.title.toLowerCase().includes(q)) : tunes;
+    if (!filtered.length) {
+      listEl.innerHTML = `<p class="bldr-empty">${tunes.length ? "No matching tunes." : "No tunes found."}</p>`;
+      return;
+    }
+    listEl.innerHTML = filtered.map(t => `
       <button class="bldr-slot-tune" data-tune-id="${t.id}">
         <span class="bldr-slot-tune-title">${escHtml(t.title)}</span>
         <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
@@ -6519,7 +6604,7 @@ async function _bldrPickFirst(filters) {
       </button>`).join("");
     listEl.querySelectorAll(".bldr-slot-tune").forEach(btn => {
       btn.addEventListener("click", async () => {
-        const stub = tunes.find(t => String(t.id) === btn.dataset.tuneId);
+        const stub = filtered.find(t => String(t.id) === btn.dataset.tuneId);
         if (!stub) return;
         const fullTune = await apiFetch(`/api/tunes/${stub.id}`);
         const finalFilters = { ...filters, type: filters.type || fullTune.type || "" };
@@ -6534,6 +6619,8 @@ async function _bldrPickFirst(filters) {
     <h2 class="modal-title">Choose your first tune</h2>
     ${_bldrFilterSummary(filters)}
     <div class="bldr-filter-row">
+      <input id="bldr-first-search" type="search" class="bldr-search-input"
+             placeholder="Search tunes…" autocomplete="off" spellcheck="false" value="${escHtml(searchQ)}">
       <select id="bldr-key-filter" class="bldr-type-select">
         <option value="">All keys</option>
         ${keyOpts}
@@ -6546,6 +6633,9 @@ async function _bldrPickFirst(filters) {
     keyFilter = e.target.value;
     loadTunes();
   });
+  const _firstSearch = document.getElementById("bldr-first-search");
+  _firstSearch.addEventListener("input", () => { searchQ = _firstSearch.value.trim(); renderList(); });
+  _firstSearch.focus();
   loadTunes();
 }
 
@@ -6749,7 +6839,9 @@ createSetBtn.addEventListener("click", async () => {
     newSetForm.classList.add("hidden");
     newSetName.value = "";
     newSetNotes.value = "";
-    loadSets();
+    await loadSets();
+    // Jump straight into the new set's detail view so tunes can be added immediately
+    if (window._openSetDetail) window._openSetDetail(set.id);
   } finally {
     createSetBtn.disabled = false;
   }
