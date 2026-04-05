@@ -4160,7 +4160,7 @@ function openFullSetModal(setData) {
         </span>
       </div>
       <div id="set-full-tunes-wrap" style="margin-top:.5rem">${tunesSectionDivs}</div>
-      <div id="set-full-audio-render" style="display:none"></div>
+      <div id="set-full-audio-render" style="height:0;overflow:hidden"></div>
       <div class="set-bot-controls">
         <button class="btn-secondary btn-sm" id="set-bot-play-btn">▶ Play</button>
         <button class="btn-secondary btn-sm" id="set-bot-restart-btn">⟳ Restart</button>
@@ -4195,10 +4195,11 @@ function openFullSetModal(setData) {
 
       requestAnimationFrame(() => {
         try {
-          // Re-render each tune in its own section
+          // Re-render each tune in its own section (T: stripped to avoid double title)
           twAbc.forEach((tune, i) => {
             try {
-              ABCJS.renderAbc(`set-tune-vis-${i}`, expandAbcRepeats(tune.abc), {
+              const visAbc = expandAbcRepeats(tune.abc.replace(/^T:[^\n]*\n?/gm, ''));
+              ABCJS.renderAbc(`set-tune-vis-${i}`, visAbc, {
                 responsive: "resize", add_classes: true,
                 paddingbottom: 10, paddingleft: 15, paddingright: 15, paddingtop: 10,
                 foregroundColor: TUNE_COLORS[i % TUNE_COLORS.length], scale: 1.1,
@@ -4209,7 +4210,7 @@ function openFullSetModal(setData) {
 
           // Hidden combined render for synth
           const fullVisual = ABCJS.renderAbc("set-full-audio-render", combined.abc, {
-            add_classes: true, scale: 1.0,
+            add_classes: true, scale: 1.0, staffwidth: 800,
           });
           if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
@@ -4377,7 +4378,10 @@ function openFullSetModal(setData) {
     tunesWithAbc.forEach((tune, i) => {
       try {
         const renderId = `set-tune-vis-${i}`;
-        const visObjs = ABCJS.renderAbc(renderId, expandAbcRepeats(tune.abc), {
+        // Strip T: lines — the section heading already shows the title;
+        // keeping T: would cause ABCJS to render a second title inside the SVG.
+        const visAbc = expandAbcRepeats(tune.abc.replace(/^T:[^\n]*\n?/gm, ''));
+        ABCJS.renderAbc(renderId, visAbc, {
           responsive: "resize",
           add_classes: true,
           paddingbottom: 10, paddingleft: 15, paddingright: 15, paddingtop: 10,
@@ -4395,7 +4399,7 @@ function openFullSetModal(setData) {
 
     try {
       const fullVisual = ABCJS.renderAbc("set-full-audio-render", playbackAbc, {
-        add_classes: true, scale: 1.0,
+        add_classes: true, scale: 1.0, staffwidth: 800,
       });
       if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
