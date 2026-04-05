@@ -4130,7 +4130,23 @@ function openFullSetModal(setData) {
           if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
           const _ec = new Map();
           let _lastHighlighted = [];
+          const _applyReorderColors = () => {
+            const timings = _setMusicSynth?.timer?.noteTimings;
+            if (!timings?.length) return;
+            timings.forEach(t => {
+              if (!t.elements) return;
+              const sc = t.startChar ?? -1;
+              let ti = combined.tuneRanges.length - 1;
+              for (let i = 0; i < combined.tuneRanges.length; i++) {
+                if (sc >= combined.tuneRanges[i].start && sc <= combined.tuneRanges[i].end) { ti = i; break; }
+              }
+              const color = REORDER_COLORS[ti % REORDER_COLORS.length];
+              t.elements.forEach(grp => { if (!grp) return; grp.forEach(el => { el.style.fill = color; _ec.set(el, color); }); });
+            });
+          };
           const cursorControl = {
+            onReady() { _applyReorderColors(); },
+            onStart() { _applyReorderColors(); },
             onEvent(ev) {
               _lastHighlighted.forEach(el => { el.style.fill = _ec.get(el) || ""; });
               _lastHighlighted = [];
@@ -4146,22 +4162,7 @@ function openFullSetModal(setData) {
             displayProgress: true, displayWarp: true,
           });
           _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
-            .then(() => {
-              try {
-                const timings = _setMusicSynth.timer?.noteTimings || [];
-                timings.forEach(t => {
-                  if (!t.elements) return;
-                  const sc = t.startChar ?? -1;
-                  let ti = combined.tuneRanges.length - 1;
-                  for (let i = 0; i < combined.tuneRanges.length; i++) {
-                    if (sc >= combined.tuneRanges[i].start && sc <= combined.tuneRanges[i].end) { ti = i; break; }
-                  }
-                  const color = REORDER_COLORS[ti % REORDER_COLORS.length];
-                  t.elements.forEach(grp => { if (!grp) return; grp.forEach(el => { el.style.fill = color; _ec.set(el, color); }); });
-                });
-              } catch {}
-              return _setMusicSynth.setWarp(100);
-            })
+            .then(() => _setMusicSynth.setWarp(100))
             .catch(() => {});
         } catch {}
         // Rewire fullscreen button for new combined ABC
@@ -4308,14 +4309,63 @@ function openFullSetModal(setData) {
       _patchSvgViewBox("set-full-render");
       if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
-      // Highlight notes in a bright amber as they play, restore tune colour after
+      // Map: SVG element → resting tune colour (restored after amber highlight)
       let _lastHighlighted = [];
       const _setBotPlayLabel = (playing) => {
         const btn = document.getElementById("set-bot-play-btn");
         if (btn) btn.textContent = playing ? "⏸ Pause" : "▶ Play";
       };
+
+      // Apply per-tune colours + inject SVG title labels.
+      // Must run inside onReady() — setTune(false) never calls go(), so
+      // timer.noteTimings is null in .then().  onReady fires after go() completes
+      // (first play click), when the timer is fully initialised.
+      const _applyTuneColorsAndTitles = () => {
+        const timings = _setMusicSynth?.timer?.noteTimings;
+        if (!timings?.length) return;
+        timings.forEach(t => {
+          if (!t.elements) return;
+          const sc = t.startChar ?? -1;
+          let ti = tuneRanges.length - 1;
+          for (let i = 0; i < tuneRanges.length; i++) {
+            if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { ti = i; break; }
+          }
+          const color = TUNE_COLORS[ti % TUNE_COLORS.length];
+          t.elements.forEach(grp => {
+            if (!grp) return;
+            grp.forEach(el => { el.style.fill = color; _elemColor.set(el, color); });
+          });
+        });
+        // Inject tune title labels directly into the SVG using getBBox() coords
+        const svg = document.querySelector("#set-full-render svg");
+        if (!svg) return;
+        tunesWithAbc.forEach((tune, ti) => {
+          if (ti === 0) return; // tune 1 already has the T: header as its title
+          const firstTiming = timings.find(t => {
+            const sc = t.startChar ?? -1;
+            return t.elements && sc >= tuneRanges[ti].start && sc <= tuneRanges[ti].end;
+          });
+          const firstEl = firstTiming?.elements?.[0]?.[0];
+          if (!firstEl) return;
+          try {
+            const bb = firstEl.getBBox();
+            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", bb.x);
+            label.setAttribute("y", bb.y - 18);
+            label.setAttribute("font-size", "20");
+            label.setAttribute("font-weight", "bold");
+            label.setAttribute("font-family", "serif");
+            label.setAttribute("fill", TUNE_COLORS[ti % TUNE_COLORS.length]);
+            label.textContent = tune.title;
+            svg.appendChild(label);
+          } catch {}
+        });
+      };
+
       const cursorControl = {
+        onReady() { _applyTuneColorsAndTitles(); },
         onStart() {
+          _applyTuneColorsAndTitles(); // fallback if onReady was missed
           _setBotPlayLabel(true);
           if (_metEnabled && _metSyncToAbc) _startMetronome();
         },
@@ -4323,8 +4373,6 @@ function openFullSetModal(setData) {
           _lastHighlighted.forEach(el => { el.style.fill = _elemColor.get(el) || ""; });
           _lastHighlighted = [];
           if (!ev?.elements) return;
-          // Highlight playing notes in amber — distinct from all tune colours,
-          // visible on both light and dark backgrounds
           ev.elements.forEach(grp => {
             if (!grp) return;
             grp.forEach(el => { el.style.fill = "#FFAA00"; _lastHighlighted.push(el); });
@@ -4345,29 +4393,9 @@ function openFullSetModal(setData) {
       });
       _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
         .then(() => {
-          // Pre-color all notes by their tune section using the synth timing data
-          try {
-            const timings = _setMusicSynth.timer?.noteTimings || [];
-            timings.forEach(t => {
-              if (!t.elements) return;
-              const sc = t.startChar ?? -1;
-              let tuneIdx = tuneRanges.length - 1;
-              for (let i = 0; i < tuneRanges.length; i++) {
-                if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
-              }
-              const color = TUNE_COLORS[tuneIdx % TUNE_COLORS.length];
-              t.elements.forEach(grp => {
-                if (!grp) return;
-                grp.forEach(el => {
-                  el.style.fill = color;
-                  _elemColor.set(el, color);
-                });
-              });
-            });
-          } catch {}
-          // Init metronome with BPM from first tune
+          // Init metronome and bottom controls (timer not yet available here —
+          // colouring is deferred to onReady)
           _initMetronomeUI(_extractAbcBpm(tunesWithAbc[0]?.abc));
-          // Wire bottom play/restart controls
           const botPlayBtn    = document.getElementById("set-bot-play-btn");
           const botRestartBtn = document.getElementById("set-bot-restart-btn");
           botPlayBtn?.addEventListener("click", () => {
@@ -4378,7 +4406,6 @@ function openFullSetModal(setData) {
               _setBotPlayLabel(false);
             } else {
               try { _setMusicSynth.play(); } catch {}
-              // label updates via onStart callback
             }
           });
           botRestartBtn?.addEventListener("click", () => {
