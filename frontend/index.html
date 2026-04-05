@@ -112,6 +112,17 @@
           <button id="filter-hitlist-btn" class="btn-secondary" data-tooltip="Show only tunes you&#39;ve flagged to learn">📌 Hitlist</button>
           <button id="filter-favourite-btn" class="btn-secondary" data-tooltip="Show only your favourite tunes">👍 Favourites</button>
           <button id="clear-btn" class="btn-secondary" data-tooltip="Clear all filters and search">Clear</button>
+        </div>
+        <div class="filter-row filter-row-content">
+          <span class="filter-label-sm">Has:</span>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="abc" data-tooltip="Tunes with ABC notation">ABC</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="sheet" data-tooltip="Tunes with PDF or photo sheet music">Sheet music</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="pdf" data-tooltip="Tunes with a PDF">PDF</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="photo" data-tooltip="Tunes with a photo">Photo</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="mp3" data-tooltip="Tunes with an MP3 attached">MP3</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="video" data-tooltip="Tunes with a YouTube or video link">Video</button>
+        </div>
+        <div class="filter-row" style="display:none">
           <button id="print-btn" class="btn-secondary" data-tooltip="Print the current tune list">Print list</button>
           <button id="select-mode-btn" class="btn-secondary" data-tooltip="Select multiple tunes to group or delete">Select</button>
         </div>
@@ -184,6 +195,11 @@
       <div id="sets-list" class="sets-list">
         <p class="loading">Loading sets…</p>
       </div>
+      <!-- Focused single-set view -->
+      <div id="set-detail-view" class="hidden">
+        <button id="set-detail-back" class="modal-back-btn" style="margin-bottom:.75rem">← All Sets</button>
+        <div id="set-detail-content"></div>
+      </div>
     </div>
 
     <!-- ── Collections view ── -->
@@ -255,6 +271,11 @@
 
       <div id="collections-list" class="sets-list">
         <p class="loading">Loading collections…</p>
+      </div>
+      <!-- Focused single-collection view -->
+      <div id="col-detail-view" class="hidden">
+        <button id="col-detail-back" class="modal-back-btn" style="margin-bottom:.75rem">← All Collections</button>
+        <div id="col-detail-content"></div>
       </div>
     </div>
 
@@ -967,6 +988,6 @@
   <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
   <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=176"></script>
+  <script src="/static/app.js?v=177"></script>
 </body>
 </html>

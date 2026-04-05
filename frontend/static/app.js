@@ -13,6 +13,7 @@ const state = {
   hitlist: false,
   favourite: false,
   min_rating: 0,
+  has_content: "",
   sets: [],
   collections: [],
   capabilities: { has_anthropic_key: true },
@@ -671,7 +672,8 @@ async function fetchTunes() {
   if (state.composer)   params.set("composer",    state.composer);
   if (state.hitlist)    params.set("hitlist",     "1");
   if (state.favourite)  params.set("favourite",   "1");
-  if (state.min_rating) params.set("min_rating",  state.min_rating);
+  if (state.min_rating)   params.set("min_rating",  state.min_rating);
+  if (state.has_content)  params.set("has_content", state.has_content);
   return apiFetch(`/api/tunes?${params}`);
 }
 
@@ -1161,6 +1163,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     ${aliasLine}
     ${importedLine}
     ${tagLine}
+    <div id="modal-membership" class="modal-membership"></div>
 
     <div class="modal-tabs">
       <button class="tab-btn active" data-tab="music">Sheet Music</button>
@@ -2220,6 +2223,18 @@ function renderModal(tune, onBack = null, siblings = null) {
     }
   });
 
+  // Populate membership line asynchronously
+  _fetchTuneMemberships(tune.id).then(({ collections, sets }) => {
+    const el = document.getElementById("modal-membership");
+    if (!el) return;
+    const parts = [];
+    if (sets.length)        parts.push(`Sets: ${sets.map(s => `<a class="modal-membership-link" data-set-id="${s.id}">${escHtml(s.name)}</a>`).join(", ")}`);
+    if (collections.length) parts.push(`Collections: ${collections.map(c => `<a class="modal-membership-link" data-col-id="${c.id}">${escHtml(c.name)}</a>`).join(", ")}`);
+    if (parts.length) {
+      el.innerHTML = parts.map(p => `<span class="modal-membership-item">${p}</span>`).join("");
+    }
+  }).catch(() => {});
+
   // Full-screen button
   const abcFsBtn = document.getElementById("abc-fs-btn");
   if (abcFsBtn) {
@@ -2826,6 +2841,18 @@ function renderSheetMusic(abc) {
     _synthController.setTune(_visualObj, false, { program: 73 }).catch(err => {
       console.warn("Audio init failed:", err);
     });
+
+    // Resume AudioContext on click (browsers suspend it until a user gesture).
+    // Use capture phase so we fire before ABCJS's own click handler.
+    const _playerContainer = document.getElementById("audio-player-container");
+    if (_playerContainer) {
+      _playerContainer.addEventListener("click", () => {
+        try {
+          const ctx = ABCJS.synth.activeAudioContext?.();
+          if (ctx && ctx.state === "suspended") ctx.resume();
+        } catch {}
+      }, { capture: true, once: false });
+    }
   } catch (err) {
     console.warn("Sheet music render failed:", err);
     if (container) container.textContent = "(Could not render sheet music)";
@@ -4393,23 +4420,37 @@ function renderSets(sets) {
   setsList.querySelectorAll(".set-expand-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.setId;
-      const tunesDiv = document.getElementById(`set-tunes-${id}`);
-      if (tunesDiv.classList.contains("hidden")) {
-        tunesDiv.innerHTML = '<p class="loading" style="padding:.5rem">Loading…</p>';
-        tunesDiv.classList.remove("hidden");
-        btn.textContent = "Hide";
-        const setData = await apiGetSet(id);
-        tunesDiv.innerHTML = "";
-        if (setData.tunes && setData.tunes.length) {
-          _renderSetTunes(tunesDiv, id, setData.tunes);
-        }
-        _appendAddTuneFooter(tunesDiv, id);
+      const setHeader = document.getElementById("view-sets").querySelector(".view-header");
+      const detailView = document.getElementById("set-detail-view");
+      const detailContent = document.getElementById("set-detail-content");
+      // Switch to focused view
+      setsList.classList.add("hidden");
+      if (setHeader) setHeader.classList.add("hidden");
+      document.getElementById("new-set-form")?.classList.add("hidden");
+      detailContent.innerHTML = '<p class="loading">Loading…</p>';
+      detailView.classList.remove("hidden");
+      const setData = await apiGetSet(id);
+      detailContent.innerHTML = `<h2 class="section-title" style="margin-bottom:.75rem">${escHtml(setData.name)}</h2>`;
+      if (setData.tunes && setData.tunes.length) {
+        _renderSetTunes(detailContent, id, setData.tunes);
       } else {
-        tunesDiv.classList.add("hidden");
-        btn.textContent = "View";
+        detailContent.insertAdjacentHTML("beforeend", '<p class="set-empty">No tunes in this set yet.</p>');
       }
+      _appendAddTuneFooter(detailContent, id);
     });
   });
+
+  const _setDetailBack = document.getElementById("set-detail-back");
+  if (_setDetailBack && !_setDetailBack._bound) {
+    _setDetailBack._bound = true;
+    _setDetailBack.addEventListener("click", () => {
+      document.getElementById("set-detail-view").classList.add("hidden");
+      document.getElementById("set-detail-content").innerHTML = "";
+      setsList.classList.remove("hidden");
+      const setHeader = document.getElementById("view-sets").querySelector(".view-header");
+      if (setHeader) setHeader.classList.remove("hidden");
+    });
+  }
 
   // Full set sheet music
   setsList.querySelectorAll(".set-music-btn").forEach(btn => {
@@ -4603,6 +4644,7 @@ function renderCollections(collections) {
           <span class="set-count">${countLabel}</span>
         </div>
         <div class="set-card-actions">
+          <button class="btn-secondary btn-sm col-rename-btn" data-col-id="${c.id}" title="Rename collection">✏</button>
           <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${c.id}">Strip chords</button>
           <a class="btn-secondary btn-sm" href="/api/export/collection/${c.id}" download title="Export as .ceol.json — can be merged into another Ceol library via Import → Ceol file">⬇ Export</a>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
@@ -4617,159 +4659,180 @@ function renderCollections(collections) {
   collectionsList.querySelectorAll(".col-expand-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.colId;
-      const tunesDiv = document.getElementById(`col-tunes-${id}`);
-      if (tunesDiv.classList.contains("hidden")) {
-        tunesDiv.innerHTML = '<p class="loading" style="padding:.5rem">Loading…</p>';
-        tunesDiv.classList.remove("hidden");
-        btn.textContent = "Hide";
-        const colData = await apiGetCollection(id);
-        let html = "";
+      const colName = btn.closest(".set-card").querySelector(".set-name").textContent;
+      const colDetailView = document.getElementById("col-detail-view");
+      const colDetailContent = document.getElementById("col-detail-content");
+      const colViewHeader = document.getElementById("view-collections").querySelector(".view-header");
+      const newColForm = document.getElementById("new-collection-form");
 
-        // Tunes section
-        if (colData.tunes && colData.tunes.length) {
-          html += `<p class="col-section-label">Tunes</p>`;
-          html += colData.tunes.map(t => `
-            <div class="set-tune-row">
-              <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
-              <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
-              <span class="badge badge-key">${escHtml(t.key || "")}</span>
-              <button class="btn-icon remove-from-col"
-                data-col-id="${id}" data-tune-id="${t.id}" title="Remove from collection">🗑</button>
-            </div>`).join("");
-        }
+      // Switch to focused view
+      collectionsList.classList.add("hidden");
+      if (colViewHeader) colViewHeader.classList.add("hidden");
+      if (newColForm) newColForm.classList.add("hidden");
+      colDetailContent.innerHTML = '<p class="loading">Loading…</p>';
+      colDetailView.classList.remove("hidden");
 
-        // Sets section
-        if (colData.sets && colData.sets.length) {
-          html += `<p class="col-section-label" style="margin-top:.6rem">Sets</p>`;
-          html += colData.sets.map(s => `
-            <div class="set-tune-row col-set-row" data-set-id="${s.id}">
-              <span class="set-tune-title">${escHtml(s.name)}</span>
-              <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
-              <button class="btn-icon remove-from-col-set"
-                data-col-id="${id}" data-set-id="${s.id}" title="Remove set from collection">🗑</button>
-            </div>`).join("");
-        }
+      const colData = await apiGetCollection(id);
+      colDetailContent.innerHTML = `<h2 class="section-title" style="margin-bottom:.75rem">${escHtml(colName)}</h2>`;
 
-        // Footer: add-a-set and strip-chords actions always visible
-        html += `<div class="col-add-set-row">
-          <button class="btn-set btn-sm col-add-set-btn" data-col-id="${id}">+ Add a set…</button>
-          <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${id}" title="Remove guitar chord symbols (e.g. &quot;Am&quot;) from ABC notation of all tunes in this collection">Strip chord symbols</button>
-        </div>`;
+      let html = "";
 
-        tunesDiv.innerHTML = html || '<p class="set-empty">Empty — add tunes or sets to this collection.</p>';
+      // Tunes section
+      if (colData.tunes && colData.tunes.length) {
+        html += `<p class="col-section-label">Tunes</p>`;
+        html += colData.tunes.map(t => `
+          <div class="set-tune-row">
+            <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
+            <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+            <span class="badge badge-key">${escHtml(t.key || "")}</span>
+            <button class="btn-icon remove-from-col"
+              data-col-id="${id}" data-tune-id="${t.id}" title="Remove from collection">🗑</button>
+          </div>`).join("");
+      }
 
-        // Add-a-set picker
-        tunesDiv.querySelector(".col-add-set-btn").addEventListener("click", async () => {
-          const allSets = await apiFetch("/api/sets");
-          if (!allSets.length) { alert("No sets yet — create one in the Sets tab first."); return; }
-          const opts = allSets.map(s =>
-            `<label class="bulk-col-option">
-               <input type="radio" name="col-set-pick" value="${s.id}" />
-               ${escHtml(s.name)} <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
-             </label>`
-          ).join("");
-          modalContent.innerHTML = `
-            <h2 class="modal-title">Add Set to Collection</h2>
-            <div class="bulk-col-list">${opts}</div>
-            <div class="notes-actions" style="margin-top:1.25rem">
-              <button id="col-set-confirm" class="btn-set" disabled>Add Set</button>
-              <button id="col-set-cancel" class="btn-secondary">Cancel</button>
-              <span id="col-set-status" class="notes-status"></span>
-            </div>`;
+      // Sets section
+      if (colData.sets && colData.sets.length) {
+        html += `<p class="col-section-label" style="margin-top:.6rem">Sets</p>`;
+        html += colData.sets.map(s => `
+          <div class="set-tune-row col-set-row" data-set-id="${s.id}">
+            <span class="set-tune-title">${escHtml(s.name)}</span>
+            <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
+            <button class="btn-icon remove-from-col-set"
+              data-col-id="${id}" data-set-id="${s.id}" title="Remove set from collection">🗑</button>
+          </div>`).join("");
+      }
+
+      if (!html) {
+        html = '<p class="set-empty">Empty — add tunes or sets to this collection.</p>';
+      }
+
+      // Footer: add-a-set and strip-chords actions
+      html += `<div class="col-add-set-row">
+        <button class="btn-set btn-sm col-add-set-btn" data-col-id="${id}">+ Add a set…</button>
+        <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${id}" title="Remove guitar chord symbols (e.g. &quot;Am&quot;) from ABC notation of all tunes in this collection">Strip chord symbols</button>
+      </div>`;
+
+      colDetailContent.insertAdjacentHTML("beforeend", html);
+
+      // Add-a-set picker
+      colDetailContent.querySelector(".col-add-set-btn").addEventListener("click", async () => {
+        const allSets = await apiFetch("/api/sets");
+        if (!allSets.length) { alert("No sets yet — create one in the Sets tab first."); return; }
+        const opts = allSets.map(s =>
+          `<label class="bulk-col-option">
+             <input type="radio" name="col-set-pick" value="${s.id}" />
+             ${escHtml(s.name)} <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
+           </label>`
+        ).join("");
+        modalContent.innerHTML = `
+          <h2 class="modal-title">Add Set to Collection</h2>
+          <div class="bulk-col-list">${opts}</div>
+          <div class="notes-actions" style="margin-top:1.25rem">
+            <button id="col-set-confirm" class="btn-set" disabled>Add Set</button>
+            <button id="col-set-cancel" class="btn-secondary">Cancel</button>
+            <span id="col-set-status" class="notes-status"></span>
+          </div>`;
+        modalOverlay.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        const confirmBtn = document.getElementById("col-set-confirm");
+        modalContent.querySelectorAll("input[name=col-set-pick]").forEach(r =>
+          r.addEventListener("change", () => { confirmBtn.disabled = false; })
+        );
+        document.getElementById("col-set-cancel").addEventListener("click", closeModal);
+        confirmBtn.addEventListener("click", async () => {
+          const sel = modalContent.querySelector("input[name=col-set-pick]:checked");
+          if (!sel) return;
+          const status = document.getElementById("col-set-status");
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = "Adding…";
+          try {
+            const res = await apiFetch(`/api/collections/${id}/sets`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ set_id: Number(sel.value) }),
+            });
+            if (!res.added) { status.textContent = "Already in this collection."; status.className = "notes-status"; setTimeout(closeModal, 900); return; }
+            closeModal();
+            // Re-open this collection detail
+            btn.click();
+          } catch {
+            status.textContent = "Failed — please try again.";
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = "Add Set";
+          }
+        });
+      });
+
+      colDetailContent.querySelectorAll(".tune-open-btn").forEach(tb => {
+        tb.addEventListener("click", async () => {
+          await Promise.all([fetchSets(), fetchCollections()]);
+          const tune = await fetchTune(tb.dataset.tuneId);
+          renderModal(tune);
           modalOverlay.classList.remove("hidden");
           document.body.style.overflow = "hidden";
-          const confirmBtn = document.getElementById("col-set-confirm");
-          modalContent.querySelectorAll("input[name=col-set-pick]").forEach(r =>
-            r.addEventListener("change", () => { confirmBtn.disabled = false; })
-          );
-          document.getElementById("col-set-cancel").addEventListener("click", closeModal);
-          confirmBtn.addEventListener("click", async () => {
-            const sel = modalContent.querySelector("input[name=col-set-pick]:checked");
-            if (!sel) return;
-            const status = document.getElementById("col-set-status");
-            confirmBtn.disabled = true;
-            confirmBtn.textContent = "Adding…";
-            try {
-              const res = await apiFetch(`/api/collections/${id}/sets`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ set_id: Number(sel.value) }),
-              });
-              if (!res.added) { status.textContent = "Already in this collection."; status.className = "notes-status"; setTimeout(closeModal, 900); return; }
-              // Refresh the expanded view
-              closeModal();
-              tunesDiv.classList.add("hidden");
-              btn.textContent = "View";
-              btn.click(); // re-expand to show updated content
-            } catch {
-              status.textContent = "Failed — please try again.";
-              confirmBtn.disabled = false;
-              confirmBtn.textContent = "Add Set";
-            }
-          });
         });
+      });
 
-        tunesDiv.querySelectorAll(".tune-open-btn").forEach(tb => {
-            tb.addEventListener("click", async () => {
-              await Promise.all([fetchSets(), fetchCollections()]);
-              const tune = await fetchTune(tb.dataset.tuneId);
-              renderModal(tune);
-              modalOverlay.classList.remove("hidden");
-              document.body.style.overflow = "hidden";
-            });
-          });
-
-          tunesDiv.querySelectorAll(".remove-from-col").forEach(rb => {
-            rb.addEventListener("click", async () => {
-              rb.disabled = true;
-              try {
-                await apiRemoveTuneFromCollection(rb.dataset.colId, rb.dataset.tuneId);
-                rb.closest(".set-tune-row").remove();
-              } catch {
-                alert("Failed to remove tune. Please try again.");
-                rb.disabled = false;
-              }
-            });
-          });
-
-          tunesDiv.querySelectorAll(".remove-from-col-set").forEach(rb => {
-            rb.addEventListener("click", async () => {
-              rb.disabled = true;
-              try {
-                await apiFetch(`/api/collections/${rb.dataset.colId}/sets/${rb.dataset.setId}`, { method: "DELETE" });
-                rb.closest(".set-tune-row").remove();
-              } catch {
-                alert("Failed to remove set. Please try again.");
-                rb.disabled = false;
-              }
-            });
-          });
-
-          // Strip chord symbols
-          const stripBtn = tunesDiv.querySelector(".col-strip-btn");
-          if (stripBtn) {
-            stripBtn.addEventListener("click", async () => {
-              const name = stripBtn.closest(".set-card").querySelector(".set-name").textContent;
-              if (!confirm(`Strip guitar chord symbols from all ABC tunes in "${name}"?\nThis edits the ABC directly and cannot be undone.`)) return;
-              stripBtn.disabled = true;
-              stripBtn.textContent = "Stripping…";
-              try {
-                const res = await apiFetch(`/api/collections/${id}/strip-chords`, { method: "POST" });
-                stripBtn.textContent = `Done — ${res.stripped} tune${res.stripped !== 1 ? "s" : ""} updated`;
-                setTimeout(() => { stripBtn.textContent = "Strip chord symbols"; stripBtn.disabled = false; }, 3000);
-              } catch {
-                alert("Failed. Please try again.");
-                stripBtn.textContent = "Strip chord symbols";
-                stripBtn.disabled = false;
-              }
-            });
+      colDetailContent.querySelectorAll(".remove-from-col").forEach(rb => {
+        rb.addEventListener("click", async () => {
+          rb.disabled = true;
+          try {
+            await apiRemoveTuneFromCollection(rb.dataset.colId, rb.dataset.tuneId);
+            rb.closest(".set-tune-row").remove();
+          } catch {
+            alert("Failed to remove tune. Please try again.");
+            rb.disabled = false;
           }
-      } else {
-        tunesDiv.classList.add("hidden");
-        btn.textContent = "View";
+        });
+      });
+
+      colDetailContent.querySelectorAll(".remove-from-col-set").forEach(rb => {
+        rb.addEventListener("click", async () => {
+          rb.disabled = true;
+          try {
+            await apiFetch(`/api/collections/${rb.dataset.colId}/sets/${rb.dataset.setId}`, { method: "DELETE" });
+            rb.closest(".set-tune-row").remove();
+          } catch {
+            alert("Failed to remove set. Please try again.");
+            rb.disabled = false;
+          }
+        });
+      });
+
+      // Strip chord symbols
+      const stripBtnDetail = colDetailContent.querySelector(".col-strip-btn");
+      if (stripBtnDetail) {
+        stripBtnDetail.addEventListener("click", async () => {
+          if (!confirm(`Strip guitar chord symbols from all ABC tunes in "${colName}"?\nThis edits the ABC directly and cannot be undone.`)) return;
+          stripBtnDetail.disabled = true;
+          stripBtnDetail.textContent = "Stripping…";
+          try {
+            const res = await apiFetch(`/api/collections/${id}/strip-chords`, { method: "POST" });
+            stripBtnDetail.textContent = `Done — ${res.stripped} tune${res.stripped !== 1 ? "s" : ""} updated`;
+            setTimeout(() => { stripBtnDetail.textContent = "Strip chord symbols"; stripBtnDetail.disabled = false; }, 3000);
+          } catch {
+            alert("Failed. Please try again.");
+            stripBtnDetail.textContent = "Strip chord symbols";
+            stripBtnDetail.disabled = false;
+          }
+        });
       }
     });
   });
+
+  const _colDetailBack = document.getElementById("col-detail-back");
+  if (_colDetailBack && !_colDetailBack._bound) {
+    _colDetailBack._bound = true;
+    _colDetailBack.addEventListener("click", () => {
+      document.getElementById("col-detail-view").classList.add("hidden");
+      document.getElementById("col-detail-content").innerHTML = "";
+      collectionsList.classList.remove("hidden");
+      const colViewHeader = document.getElementById("view-collections").querySelector(".view-header");
+      if (colViewHeader) colViewHeader.classList.remove("hidden");
+      const newColForm = document.getElementById("new-collection-form");
+      if (newColForm && newColForm.dataset.wasVisible !== "true") newColForm.classList.add("hidden");
+    });
+  }
 
 
   collectionsList.querySelectorAll(".col-strip-btn").forEach(stripBtn => {
@@ -4788,6 +4851,39 @@ function renderCollections(collections) {
         stripBtn.textContent = "Strip chord symbols";
         stripBtn.disabled = false;
       }
+    });
+  });
+
+  collectionsList.querySelectorAll(".col-rename-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const card = btn.closest(".set-card");
+      const nameSpan = card.querySelector(".set-name");
+      const colId = btn.dataset.colId;
+      const oldName = nameSpan.textContent;
+      const input = document.createElement("input");
+      input.className = "set-rename-input";
+      input.value = oldName;
+      nameSpan.replaceWith(input);
+      input.focus();
+      input.select();
+      const revert = () => { input.replaceWith(nameSpan); };
+      const save = async () => {
+        const newName = input.value.trim();
+        if (!newName || newName === oldName) { revert(); return; }
+        try {
+          await apiFetch(`/api/collections/${colId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newName }),
+          });
+          nameSpan.textContent = newName;
+          input.replaceWith(nameSpan);
+          const col = state.collections.find(c => String(c.id) === String(colId));
+          if (col) col.name = newName;
+        } catch { revert(); }
+      };
+      input.addEventListener("keydown", e => { if (e.key === "Enter") save(); else if (e.key === "Escape") revert(); });
+      input.addEventListener("blur", save);
     });
   });
 
@@ -5528,8 +5624,27 @@ clearBtn.addEventListener("click", () => {
   if (filterComposer) filterComposer.value = "";
   filterHitlistBtn.classList.remove("active");
   filterFavouriteBtn.classList.remove("active");
-  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", composer: "", hitlist: false, favourite: false, min_rating: 0 });
+  document.querySelectorAll(".content-filter-btn").forEach(b => b.classList.remove("active"));
+  Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", composer: "", hitlist: false, favourite: false, min_rating: 0, has_content: "" });
   loadTunes();
+});
+
+// Content-type filter buttons (toggle, mutually exclusive)
+document.querySelectorAll(".content-filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const val = btn.dataset.content;
+    if (state.has_content === val) {
+      // clicking active button clears it
+      state.has_content = "";
+      btn.classList.remove("active");
+    } else {
+      document.querySelectorAll(".content-filter-btn").forEach(b => b.classList.remove("active"));
+      state.has_content = val;
+      btn.classList.add("active");
+    }
+    state.page = 1;
+    loadTunes();
+  });
 });
 
 pagination.addEventListener("click", e => {

@@ -708,6 +708,40 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .todo-card-hint  { color: var(--text-muted); font-size: .8rem; width: 100%; margin-top: .1rem; }
 .todo-card-actions { display: flex; gap: .4rem; flex-shrink: 0; }
 
+/* ── Modal membership (sets/collections a tune belongs to) ── */
+.modal-membership {
+  font-size: .82rem;
+  color: var(--text-muted);
+  margin-top: .4rem;
+  line-height: 1.5;
+}
+.modal-membership-item { display: inline; }
+.modal-membership-link {
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.modal-membership-link:hover { text-decoration: underline; }
+
+/* ── Content-type filter row ─────────────────────────────── */
+.filter-row-content {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.filter-label-sm {
+  font-size: .78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.content-filter-btn { font-size: .75rem !important; padding: .2rem .55rem !important; }
+.content-filter-btn.active {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+}
+
 /* ── Version suggestion banner ───────────────────────────── */
 .version-suggestion-banner {
   display: flex;
