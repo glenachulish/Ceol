@@ -915,6 +915,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   padding-top: .5rem;
   border-top: 1px dashed var(--border);
 }
+.col-set-icon { font-size: .85rem; color: var(--accent2, #7c3aed); opacity: .7; flex-shrink: 0; }
+.col-set-title { color: var(--accent2, #7c3aed) !important; font-style: italic; }
 .col-section-label {
   font-size: .75rem;
   font-weight: 600;
@@ -972,6 +974,18 @@ button.set-tune-title:hover { text-decoration: underline; }
 .set-add-tune-result:hover { background: var(--surface2); }
 .set-add-tune-none { font-size: .82rem; color: var(--text-muted); margin: .25rem 0; }
 .set-add-tune-ver-label { font-size: .8rem; color: var(--text-muted); margin: .15rem 0 .2rem; }
+
+/* ── Inline TheSession import panel (inside set add-tune footer) ── */
+.set-add-session-panel { display: flex; flex-direction: column; gap: .3rem; }
+.set-add-session-search { display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; }
+.set-add-session-input { flex: 1; min-width: 0; font-size: .85rem; }
+.set-add-session-results { display: flex; flex-direction: column; gap: .2rem; margin-top: .15rem; }
+.set-add-session-row {
+  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+  padding: .25rem .4rem; border: 1px solid var(--border); border-radius: var(--radius);
+  font-size: .85rem;
+}
+.set-add-session-name { flex: 1; min-width: 0; font-weight: 500; }
 
 /* ── Modal ────────────────────────────────────────────────── */
 .modal-overlay {
@@ -1420,8 +1434,10 @@ button.set-tune-title:hover { text-decoration: underline; }
 /* ── Merge form ───────────────────────────────────────────── */
 .bulk-col-list { display: flex; flex-direction: column; gap: .4rem; margin: 1rem 0; max-height: 50vh; overflow-y: auto; }
 .bulk-col-option { display: flex; align-items: center; gap: .55rem; padding: .45rem .6rem; border-radius: 6px; cursor: pointer; }
-.bulk-col-option:hover { background: var(--bg-alt, #f4f4f4); }
+.bulk-col-option:hover { background: var(--surface2); }
 .bulk-col-option input { cursor: pointer; }
+.multi-col-new-row { margin: .25rem 0 0; }
+.multi-col-new-label em { color: var(--text-muted); }
 .merge-form {
   display: flex;
   flex-direction: column;

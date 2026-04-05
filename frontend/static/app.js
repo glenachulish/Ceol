@@ -1126,23 +1126,10 @@ function renderModal(tune, onBack = null, siblings = null) {
       <button id="build-set-from-tune-btn" class="btn-set btn-sm">🎵 Build a Set from here</button>
     </div>`;
 
-  const collectionsOptions = state.collections
-    .map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`)
-    .join("");
   const collectionsFooter = `<div class="modal-col-section">
     <div class="modal-sets-row">
-      <select id="col-select" class="set-select set-select-collection">
-        <option value="">Add to a collection…</option>
-        ${collectionsOptions}
-        <option value="__new__">＋ New collection…</option>
-      </select>
+      <button id="col-add-btn" class="btn-collection btn-sm">+ Add to collection…</button>
       <span id="col-status" class="set-status"></span>
-    </div>
-    <div id="new-col-form" class="modal-new-col-form hidden">
-      <input id="new-col-name" type="text" placeholder="New collection name…" maxlength="120" class="ff-url-input" />
-      <button id="new-col-confirm" class="btn-collection btn-sm">Create &amp; Add</button>
-      <button id="new-col-cancel" class="btn-secondary btn-sm">Cancel</button>
-      <span id="new-col-status" class="set-status"></span>
     </div>
   </div>`;
 
@@ -1732,66 +1719,82 @@ function renderModal(tune, onBack = null, siblings = null) {
       _bldrStepMode([tune], { type: tune.type || "", minRating: "", collectionId: "", collectionName: "" }, backToTune);
     });
 
-  // Collection select: auto-add on pick, or show create form for __new__
-  const colSelect   = document.getElementById("col-select");
-  const newColForm  = document.getElementById("new-col-form");
-  const newColName  = document.getElementById("new-col-name");
-  const newColConfirm = document.getElementById("new-col-confirm");
-  const newColCancel  = document.getElementById("new-col-cancel");
-  const newColStatus  = document.getElementById("new-col-status");
-  const colStatus     = document.getElementById("col-status");
+  // "Add to collection" button — opens multi-select modal
+  const colAddBtn  = document.getElementById("col-add-btn");
+  const colStatus  = document.getElementById("col-status");
 
-  colSelect.addEventListener("change", async () => {
-    const colId = colSelect.value;
-    if (!colId) return;
-    if (colId === "__new__") {
-      colSelect.value = "";
-      newColForm.classList.remove("hidden");
-      newColName.focus();
-      return;
-    }
-    try {
-      const result = await apiAddTuneToCollection(colId, tune.id);
-      colStatus.textContent = result.added ? "Added!" : "Already in collection.";
-      colStatus.className = "set-status set-saved";
-      setTimeout(() => { colStatus.textContent = ""; colSelect.value = ""; }, 2000);
-      await fetchCollections();
-    } catch {
-      colStatus.textContent = "Failed.";
-      colStatus.className = "set-status set-error";
-    }
-  });
+  colAddBtn.addEventListener("click", async () => {
+    const cols = await fetchCollections();
+    const existingOptions = cols.map(c =>
+      `<label class="bulk-col-option">
+         <input type="checkbox" name="tune-col-pick" value="${c.id}" />
+         ${escHtml(c.name)}
+       </label>`
+    ).join("");
+    modalContent.innerHTML = `
+      <button class="modal-back-btn" id="tune-col-modal-back">← Back</button>
+      <h2 class="modal-title">Add to Collections</h2>
+      <div class="bulk-col-list">${existingOptions || '<p class="set-add-tune-none">No collections yet.</p>'}</div>
+      <div class="multi-col-new-row">
+        <label class="bulk-col-option multi-col-new-label">
+          <input type="checkbox" id="tune-col-new-chk" />
+          <em>Create new collection…</em>
+        </label>
+        <input id="tune-col-new-name" type="text" class="ff-url-input" placeholder="New collection name" maxlength="120" style="display:none;margin-top:.3rem" />
+      </div>
+      <div class="notes-actions" style="margin-top:1.25rem">
+        <button id="tune-col-confirm" class="btn-collection" disabled>Add to Collections</button>
+        <button id="tune-col-cancel" class="btn-secondary">Cancel</button>
+        <span id="tune-col-status" class="notes-status"></span>
+      </div>`;
+    const confirmBtn  = document.getElementById("tune-col-confirm");
+    const newChk      = document.getElementById("tune-col-new-chk");
+    const newNameIn   = document.getElementById("tune-col-new-name");
+    const tcStatus    = document.getElementById("tune-col-status");
 
-  newColCancel.addEventListener("click", () => {
-    newColForm.classList.add("hidden");
-    newColName.value = "";
-    newColStatus.textContent = "";
-  });
-  newColName.addEventListener("keydown", e => { if (e.key === "Enter") newColConfirm.click(); });
-  newColConfirm.addEventListener("click", async () => {
-    const name = newColName.value.trim();
-    if (!name) { newColName.focus(); return; }
-    newColConfirm.disabled = true;
-    try {
-      const col = await apiCreateCollection(name, "");
-      await apiAddTuneToCollection(col.id, tune.id);
-      newColStatus.textContent = `Added to "${escHtml(name)}"!`;
-      newColStatus.className = "set-status set-saved";
-      newColForm.classList.add("hidden");
-      newColName.value = "";
-      state.collections = await fetchCollections();
-      // Insert new option before the __new__ sentinel
-      const newOpt = document.createElement("option");
-      newOpt.value = col.id; newOpt.textContent = col.name;
-      const sentinel = colSelect.querySelector("option[value='__new__']");
-      colSelect.insertBefore(newOpt, sentinel);
-      setTimeout(() => { newColStatus.textContent = ""; }, 2500);
-    } catch {
-      newColStatus.textContent = "Failed.";
-      newColStatus.className = "set-status set-error";
-    } finally {
-      newColConfirm.disabled = false;
-    }
+    const _updateConfirm = () => {
+      const anyChecked = [...modalContent.querySelectorAll("input[name=tune-col-pick]:checked")].length > 0;
+      const newValid = newChk.checked && newNameIn.value.trim().length > 0;
+      confirmBtn.disabled = !(anyChecked || newValid);
+    };
+    modalContent.querySelectorAll("input[name=tune-col-pick]").forEach(r =>
+      r.addEventListener("change", _updateConfirm)
+    );
+    newChk.addEventListener("change", () => {
+      newNameIn.style.display = newChk.checked ? "block" : "none";
+      if (newChk.checked) newNameIn.focus();
+      _updateConfirm();
+    });
+    newNameIn.addEventListener("input", _updateConfirm);
+    newNameIn.addEventListener("keydown", e => { if (e.key === "Enter") confirmBtn.click(); });
+
+    const _goBack = () => {
+      renderModal(tune, onBack, siblings);
+      requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); });
+    };
+    document.getElementById("tune-col-modal-back").addEventListener("click", _goBack);
+    document.getElementById("tune-col-cancel").addEventListener("click", _goBack);
+
+    confirmBtn.addEventListener("click", async () => {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Adding…";
+      try {
+        const selected = [...modalContent.querySelectorAll("input[name=tune-col-pick]:checked")].map(c => c.value);
+        if (newChk.checked && newNameIn.value.trim()) {
+          const newCol = await apiCreateCollection(newNameIn.value.trim(), "");
+          selected.push(String(newCol.id));
+        }
+        await Promise.all(selected.map(colId => apiAddTuneToCollection(colId, tune.id)));
+        await fetchCollections();
+        tcStatus.textContent = `Added to ${selected.length} collection${selected.length !== 1 ? "s" : ""} ✓`;
+        tcStatus.className = "notes-status notes-saved";
+        setTimeout(_goBack, 900);
+      } catch {
+        tcStatus.textContent = "Failed — please try again.";
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Add to Collections";
+      }
+    });
   });
 
   // ── Fetch ABC from TheSession ──────────────────────────────
@@ -4059,7 +4062,7 @@ function showSetPreviewPanel(tune, setData, onBack, siblings) {
       <div class="set-preview-list" id="set-preview-list">${rows}</div>
       <div class="set-preview-actions">
         <button id="set-preview-play-btn" class="btn-secondary"${previewOrder.some(t => t.abc) ? "" : " disabled"}>▶ Preview playback</button>
-        <button id="set-preview-confirm-btn" class="btn-primary">Add to set</button>
+        <button id="set-preview-confirm-btn" class="btn-primary">Confirm Save</button>
         <button id="set-preview-cancel-btn" class="btn-secondary">Cancel</button>
         <span id="set-preview-status" class="set-status"></span>
       </div>`;
@@ -4332,81 +4335,144 @@ function renderSets(sets) {
     const results = footer.querySelector(".set-add-tune-results");
     let _debounce = null;
 
+    // Helper: add a specific tune ID to the set and refresh the list
+    const _doAdd = async (tuneId) => {
+      await apiFetch(`/api/sets/${id}/tunes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tune_id: Number(tuneId) }),
+      });
+      input.value = "";
+      results.innerHTML = "";
+      const setData = await apiGetSet(id);
+      const emptyMsg = tunesDiv.querySelector(".set-empty");
+      if (emptyMsg) emptyMsg.remove();
+      tunesDiv.querySelectorAll(".set-tune-row, .set-transition-row").forEach(r => r.remove());
+      footer.before(document.createTextNode(""));
+      _renderSetTunes(tunesDiv, id, setData.tunes);
+      tunesDiv.appendChild(footer);
+      const set = state.sets.find(s => String(s.id) === String(id));
+      if (set) {
+        set.tune_count = setData.tunes.length;
+        const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
+        if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
+      }
+    };
+
+    // Mini inline TheSession import — shown when local search finds nothing
+    async function _showSessionImport(q) {
+      results.innerHTML = `
+        <div class="set-add-session-panel">
+          <p class="set-add-tune-none" style="margin-bottom:.4rem">Not in library.</p>
+          <div class="set-add-session-search">
+            <input class="set-add-session-input ff-url-input" type="text" value="${escHtml(q)}" placeholder="Search TheSession.org…" />
+            <button class="btn-secondary btn-sm set-add-session-btn">Search</button>
+            <button class="set-add-tune-cancel btn-secondary btn-sm">Cancel</button>
+          </div>
+          <div class="set-add-session-results"></div>
+        </div>`;
+
+      const sInput = results.querySelector(".set-add-session-input");
+      const sBtn   = results.querySelector(".set-add-session-btn");
+      const sRes   = results.querySelector(".set-add-session-results");
+
+      results.querySelector(".set-add-tune-cancel").addEventListener("click", () => {
+        results.innerHTML = "";
+        input.value = "";
+      });
+
+      const _doSessionSearch = async () => {
+        const sq = sInput.value.trim();
+        if (!sq) return;
+        sBtn.disabled = true;
+        sRes.innerHTML = '<p class="loading" style="padding:.4rem 0">Searching…</p>';
+        try {
+          const data = await apiFetch(`/api/thesession/search?q=${encodeURIComponent(sq)}`);
+          const list = data.tunes || [];
+          if (!list.length) { sRes.innerHTML = '<p class="set-add-tune-none">No results on TheSession.org.</p>'; return; }
+          sRes.innerHTML = list.slice(0, 8).map(t => `
+            <div class="set-add-session-row">
+              <span class="set-add-session-name">${escHtml(t.name)}</span>
+              <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
+              <button class="btn-primary btn-sm set-add-session-import-btn" data-session-id="${t.id}" data-name="${escHtml(t.name)}">Import &amp; Add</button>
+            </div>`).join("");
+          sRes.querySelectorAll(".set-add-session-import-btn").forEach(ib => {
+            ib.addEventListener("click", async () => {
+              ib.disabled = true;
+              ib.textContent = "Importing…";
+              try {
+                const imported = await apiFetch("/api/thesession/import", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ tune_id: Number(ib.dataset.sessionId) }),
+                });
+                // imported.tunes[0] is the new tune
+                const newTune = imported.tunes ? imported.tunes[0] : imported;
+                if (newTune && newTune.id) {
+                  ib.textContent = "Adding…";
+                  await _doAdd(newTune.id);
+                } else {
+                  ib.textContent = "Imported — search library";
+                  input.value = ib.dataset.name;
+                  results.innerHTML = "";
+                  _runSearch(ib.dataset.name);
+                }
+              } catch (err) {
+                ib.disabled = false;
+                ib.textContent = "Import & Add";
+                sRes.insertAdjacentHTML("beforeend", `<p class="set-add-tune-none" style="color:var(--danger)">Import failed — please try again.</p>`);
+              }
+            });
+          });
+        } finally {
+          sBtn.disabled = false;
+        }
+      };
+
+      sBtn.addEventListener("click", _doSessionSearch);
+      sInput.addEventListener("keydown", e => { if (e.key === "Enter") _doSessionSearch(); });
+      // Auto-search with the current query
+      _doSessionSearch();
+    }
+
     async function _runSearch(q) {
       const tunes = await apiFetch(`/api/tunes?q=${encodeURIComponent(q)}&page_size=10`);
-        const list = tunes.tunes || tunes;
-        if (!list.length) { results.innerHTML = '<p class="set-add-tune-none">No tunes found</p>'; return; }
-        results.innerHTML = list.map(t =>
-          `<button class="set-add-tune-result" data-tune-id="${t.id}" data-version-count="${t.version_count || 0}">
-             ${escHtml(t.title)}
-             <span class="badge ${typeBadgeClass(t.type)}" style="margin-left:.4rem">${escHtml(t.type || "")}</span>
-             <span class="badge badge-key">${escHtml(t.key || "")}</span>
-             ${(t.version_count || 0) > 0 ? `<span class="badge badge-versions" style="margin-left:.2rem">${t.version_count} versions</span>` : ""}
-           </button>`
-        ).join("");
+      const list = tunes.tunes || tunes;
+      if (!list.length) {
+        _showSessionImport(q);
+        return;
+      }
+      results.innerHTML = list.map(t =>
+        `<button class="set-add-tune-result" data-tune-id="${t.id}" data-version-count="${t.version_count || 0}">
+           ${escHtml(t.title)}
+           <span class="badge ${typeBadgeClass(t.type)}" style="margin-left:.4rem">${escHtml(t.type || "")}</span>
+           <span class="badge badge-key">${escHtml(t.key || "")}</span>
+           ${(t.version_count || 0) > 0 ? `<span class="badge badge-versions" style="margin-left:.2rem">${t.version_count} versions</span>` : ""}
+         </button>`
+      ).join("");
 
-        // Helper: add a specific tune ID to the set and refresh the list
-        const _doAdd = async (tuneId) => {
-          await apiFetch(`/api/sets/${id}/tunes`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ tune_id: Number(tuneId) }),
-          });
-          input.value = "";
-          results.innerHTML = "";
-          const setData = await apiGetSet(id);
-          const emptyMsg = tunesDiv.querySelector(".set-empty");
-          if (emptyMsg) emptyMsg.remove();
-          tunesDiv.querySelectorAll(".set-tune-row, .set-transition-row").forEach(r => r.remove());
-          footer.before(document.createTextNode(""));
-          _renderSetTunes(tunesDiv, id, setData.tunes);
-          tunesDiv.appendChild(footer);
-          const set = state.sets.find(s => String(s.id) === String(id));
-          if (set) {
-            set.tune_count = setData.tunes.length;
-            const countEl = document.querySelector(`[data-set-id="${id}"] .set-count`);
-            if (countEl) countEl.textContent = `${set.tune_count} tune${set.tune_count !== 1 ? "s" : ""}`;
-          }
-        };
-
-        results.querySelectorAll(".set-add-tune-result").forEach(btn => {
-          btn.addEventListener("click", async () => {
-            const vCount = Number(btn.dataset.versionCount || 0);
-            if (vCount > 0) {
-              // Show inline version picker
-              btn.disabled = true;
+      results.querySelectorAll(".set-add-tune-result").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const vCount = Number(btn.dataset.versionCount || 0);
+          if (vCount > 0) {
+            // Auto-add the first (default) version
+            btn.disabled = true;
+            btn.textContent = "Adding…";
+            try {
               const { versions } = await apiFetch(`/api/tunes/${btn.dataset.tuneId}/versions`);
-              results.innerHTML = `
-                <p class="set-add-tune-ver-label">Choose a version to add:</p>
-                ${versions.map((v, i) => {
-                  const meta = [v.key, v.type].filter(Boolean).map(escHtml).join(" · ");
-                  const label = v.version_label || `Version ${i + 1}`;
-                  const isDefault = i === 0;
-                  return `<button class="set-add-tune-result set-add-ver-btn" data-ver-id="${v.id}">
-                    ${escHtml(label)}
-                    <span style="color:var(--text-muted);font-size:.8rem;margin-left:.4rem">${escHtml(meta)}</span>
-                    ${isDefault ? '<span class="badge" style="margin-left:.4rem;background:var(--surface2)">default</span>' : ""}
-                  </button>`;
-                }).join("")}
-                <button class="set-add-tune-cancel" style="margin-top:.3rem;font-size:.8rem;color:var(--text-muted);background:none;border:none;cursor:pointer">Cancel</button>`;
-              results.querySelector(".set-add-tune-cancel").addEventListener("click", () => {
-                results.innerHTML = "";
-                input.value = "";
-              });
-              results.querySelectorAll(".set-add-ver-btn").forEach(vBtn => {
-                vBtn.addEventListener("click", async () => {
-                  vBtn.disabled = true;
-                  try { await _doAdd(vBtn.dataset.verId); }
-                  catch { vBtn.disabled = false; alert("Could not add tune — it may already be in the set."); }
-                });
-              });
-            } else {
-              btn.disabled = true;
-              try { await _doAdd(btn.dataset.tuneId); }
-              catch { btn.disabled = false; alert("Could not add tune — it may already be in the set."); }
+              await _doAdd(versions[0].id);
+            } catch {
+              btn.disabled = false;
+              btn.textContent = btn.dataset.origText || "Retry";
+              alert("Could not add tune — it may already be in the set.");
             }
-          });
+          } else {
+            btn.disabled = true;
+            try { await _doAdd(btn.dataset.tuneId); }
+            catch { btn.disabled = false; alert("Could not add tune — it may already be in the set."); }
+          }
         });
+      });
     }
 
     input.addEventListener("input", () => {
@@ -4501,52 +4567,82 @@ function renderSets(sets) {
     });
   });
 
-  // Add set to collection
+  // Add set to collection (multi-select + create new)
   setsList.querySelectorAll(".set-add-col-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const setId = btn.dataset.setId;
       const cols = await apiFetch("/api/collections");
-      if (!cols.length) { alert("No collections yet — create one first in the Collections tab."); return; }
       const existingOptions = cols.map(c =>
         `<label class="bulk-col-option">
-           <input type="radio" name="set-col-pick" value="${c.id}" />
+           <input type="checkbox" name="set-col-pick" value="${c.id}" />
            ${escHtml(c.name)}
          </label>`
       ).join("");
       modalContent.innerHTML = `
-        <h2 class="modal-title">Add Set to Collection</h2>
-        <div class="bulk-col-list">${existingOptions}</div>
+        <h2 class="modal-title">Add Set to Collections</h2>
+        <div class="bulk-col-list">${existingOptions || '<p class="set-add-tune-none">No collections yet.</p>'}</div>
+        <div class="multi-col-new-row">
+          <label class="bulk-col-option multi-col-new-label">
+            <input type="checkbox" id="set-col-new-chk" />
+            <em>Create new collection…</em>
+          </label>
+          <input id="set-col-new-name" type="text" class="ff-url-input" placeholder="New collection name" maxlength="120" style="display:none;margin-top:.3rem" />
+        </div>
         <div class="notes-actions" style="margin-top:1.25rem">
-          <button id="set-col-confirm" class="btn-collection" disabled>Add to Collection</button>
+          <button id="set-col-confirm" class="btn-collection" disabled>Add to Collections</button>
           <button id="set-col-cancel" class="btn-secondary">Cancel</button>
           <span id="set-col-status" class="notes-status"></span>
         </div>`;
       modalOverlay.classList.remove("hidden");
       document.body.style.overflow = "hidden";
       const confirmBtn = document.getElementById("set-col-confirm");
-      modalContent.querySelectorAll("input[name=set-col-pick]").forEach(r => {
-        r.addEventListener("change", () => { confirmBtn.disabled = false; });
+      const newChk     = document.getElementById("set-col-new-chk");
+      const newNameIn  = document.getElementById("set-col-new-name");
+
+      const _updateConfirm = () => {
+        const anyChecked = [...modalContent.querySelectorAll("input[name=set-col-pick]:checked")].length > 0;
+        const newValid = newChk.checked && newNameIn.value.trim().length > 0;
+        confirmBtn.disabled = !(anyChecked || newValid);
+      };
+
+      modalContent.querySelectorAll("input[name=set-col-pick]").forEach(r =>
+        r.addEventListener("change", _updateConfirm)
+      );
+      newChk.addEventListener("change", () => {
+        newNameIn.style.display = newChk.checked ? "block" : "none";
+        if (newChk.checked) newNameIn.focus();
+        _updateConfirm();
       });
+      newNameIn.addEventListener("input", _updateConfirm);
+      newNameIn.addEventListener("keydown", e => { if (e.key === "Enter") confirmBtn.click(); });
+
       document.getElementById("set-col-cancel").addEventListener("click", closeModal);
       confirmBtn.addEventListener("click", async () => {
-        const sel = modalContent.querySelector("input[name=set-col-pick]:checked");
-        if (!sel) return;
         const status = document.getElementById("set-col-status");
         confirmBtn.disabled = true;
         confirmBtn.textContent = "Adding…";
         try {
-          const res = await apiFetch(`/api/collections/${sel.value}/sets`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ set_id: Number(setId) }),
-          });
-          status.textContent = res.added ? "Added ✓" : "Already in that collection.";
+          const selected = [...modalContent.querySelectorAll("input[name=set-col-pick]:checked")].map(c => c.value);
+          // Create new collection if requested
+          if (newChk.checked && newNameIn.value.trim()) {
+            const newCol = await apiCreateCollection(newNameIn.value.trim(), "");
+            selected.push(String(newCol.id));
+            await fetchCollections();
+          }
+          await Promise.all(selected.map(colId =>
+            apiFetch(`/api/collections/${colId}/sets`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ set_id: Number(setId) }),
+            })
+          ));
+          status.textContent = `Added to ${selected.length} collection${selected.length !== 1 ? "s" : ""} ✓`;
           status.className = "notes-status notes-saved";
-          setTimeout(closeModal, 700);
+          setTimeout(closeModal, 900);
         } catch {
           status.textContent = "Failed — please try again.";
           confirmBtn.disabled = false;
-          confirmBtn.textContent = "Add to Collection";
+          confirmBtn.textContent = "Add to Collections";
         }
       });
     });
@@ -4695,7 +4791,8 @@ function renderCollections(collections) {
         html += `<p class="col-section-label" style="margin-top:.6rem">Sets</p>`;
         html += colData.sets.map(s => `
           <div class="set-tune-row col-set-row" data-set-id="${s.id}">
-            <span class="set-tune-title">${escHtml(s.name)}</span>
+            <span class="col-set-icon" title="Set">♫</span>
+            <span class="set-tune-title col-set-title">${escHtml(s.name)}</span>
             <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
             <button class="btn-icon remove-from-col-set"
               data-col-id="${id}" data-set-id="${s.id}" title="Remove set from collection">🗑</button>
@@ -6246,7 +6343,7 @@ function _bldrSave(tunes, defaultName, onBack) {
       <label class="create-set-label">Set name</label>
       <input id="bldr-set-name" class="create-set-input" type="text" value="${escHtml(defaultName)}" maxlength="120">
       <div class="create-set-actions">
-        <button id="bldr-confirm-save" class="btn-primary">Save set</button>
+        <button id="bldr-confirm-save" class="btn-primary">Confirm Save</button>
         <button id="bldr-cancel-save" class="btn-secondary">Cancel</button>
         <span id="bldr-save-status" class="set-status"></span>
       </div>
