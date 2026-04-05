@@ -1149,6 +1149,86 @@ def get_info():
     }
 
 
+@app.get("/api/analysis/practice-targets")
+def get_practice_targets(tune_stars: int = 3, set_stars: int = 3):
+    """Return priority tunes and target sets for maximising `set_stars`-rated sets.
+
+    Logic (weakest-link model):
+    - Target sets: sets with 0 < rating < set_stars (rated but below threshold)
+    - Bottleneck tunes: tunes in a target set with rating < tune_stars
+    - Priority score for each tune = sum over target sets of (tune_stars - tune.rating)
+    - Tunes that are the *sole* bottleneck in a set are highest priority (one improvement
+      immediately unlocks that whole set).
+    """
+    tune_stars = max(1, min(5, tune_stars))
+    set_stars  = max(1, min(5, set_stars))
+
+    with _db() as conn:
+        # All rated-but-below-threshold sets
+        sets = conn.execute(
+            "SELECT id, name, rating FROM sets WHERE rating > 0 AND rating < ? ORDER BY rating, name",
+            [set_stars],
+        ).fetchall()
+
+        target_sets   = []
+        tune_priority = {}  # tune_id -> aggregated priority data
+
+        for s in sets:
+            tunes = conn.execute(
+                """SELECT t.id, t.title, COALESCE(t.rating, 0) AS rating
+                   FROM set_tunes st
+                   JOIN tunes t ON t.id = st.tune_id
+                   WHERE st.set_id = ?
+                   ORDER BY st.position""",
+                [s["id"]],
+            ).fetchall()
+
+            bottlenecks = [t for t in tunes if t["rating"] < tune_stars]
+
+            target_sets.append({
+                "id":              s["id"],
+                "name":            s["name"],
+                "rating":          s["rating"],
+                "tunes":           [{"id": t["id"], "title": t["title"], "rating": t["rating"]} for t in tunes],
+                "bottleneck_count": len(bottlenecks),
+            })
+
+            for t in bottlenecks:
+                tid = t["id"]
+                gap = tune_stars - t["rating"]
+                if tid not in tune_priority:
+                    tune_priority[tid] = {
+                        "id":                 tid,
+                        "title":              t["title"],
+                        "rating":             t["rating"],
+                        "gap":                gap,
+                        "score":              0,
+                        "sole_bottleneck_sets": 0,
+                        "target_sets":        [],
+                    }
+                tune_priority[tid]["score"] += gap
+                if len(bottlenecks) == 1:
+                    tune_priority[tid]["sole_bottleneck_sets"] += 1
+                tune_priority[tid]["target_sets"].append({
+                    "id":               s["id"],
+                    "name":             s["name"],
+                    "set_rating":       s["rating"],
+                    "bottleneck_count": len(bottlenecks),
+                })
+
+        # Sole-bottleneck tunes first (immediate set unlock), then by score
+        priority_list = sorted(
+            tune_priority.values(),
+            key=lambda x: (-x["sole_bottleneck_sets"], -x["score"]),
+        )
+
+    return {
+        "target_sets":    target_sets,
+        "priority_tunes": priority_list,
+        "params":         {"tune_stars": tune_stars, "set_stars": set_stars},
+    }
+
+
 @app.get("/api/stats")
 def get_stats():
     with _db() as conn:

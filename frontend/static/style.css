@@ -2879,6 +2879,138 @@ button.set-tune-title:hover { text-decoration: underline; }
 }
 
 /* ── Achievements view ───────────────────────────────────── */
+/* ── Practice Targets view ───────────────────────────────────────────────────── */
+.practice-layout {
+  max-width: 860px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.practice-hint { color: var(--text-muted); font-size: .88rem; }
+.practice-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  background: var(--surface2);
+  padding: .65rem .9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.practice-settings-label { font-size: .85rem; color: var(--text-muted); }
+.practice-star-select {
+  padding: .25rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .85rem;
+}
+.practice-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: .3rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.practice-count {
+  font-size: .78rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  background: var(--surface2);
+  padding: .1rem .4rem;
+  border-radius: 999px;
+}
+
+/* Tune list */
+.pt-tune-list { display: flex; flex-direction: column; gap: .5rem; }
+.pt-tune-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .55rem .75rem;
+  cursor: default;
+}
+.pt-tune-row.pt-sole-bottleneck { border-color: #fb923c; background: rgba(251,146,60,.06); }
+.pt-tune-main { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.pt-tune-title-btn {
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+.pt-tune-title-btn:hover { text-decoration: underline; }
+.pt-tune-sets { margin-top: .2rem; font-size: .78rem; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.pt-set-tag {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: .05rem .35rem;
+  font-size: .75rem;
+}
+.pt-set-tag.pt-set-sole { border-color: #fb923c; color: #fb923c; }
+.pt-score-badge {
+  font-size: .75rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .05rem .4rem;
+  color: var(--text-muted);
+}
+.pt-unlock-badge {
+  font-size: .75rem;
+  background: rgba(251,146,60,.15);
+  border: 1px solid #fb923c;
+  border-radius: 999px;
+  padding: .05rem .4rem;
+  color: #fb923c;
+  font-weight: 600;
+}
+
+/* Stars */
+.pt-star { font-size: .8rem; color: var(--text-muted); }
+.pt-star-filled { color: #fbbf24; }
+.pt-tune-rating { white-space: nowrap; }
+
+/* Target sets */
+.pt-details { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.pt-details-summary {
+  cursor: pointer;
+  padding: .55rem .75rem;
+  font-size: .9rem;
+  font-weight: 700;
+  list-style: none;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.pt-details-summary::-webkit-details-marker { display: none; }
+.pt-details[open] .pt-details-summary { border-bottom: 1px solid var(--border); }
+.pt-set-list { padding: .5rem; display: flex; flex-direction: column; gap: .5rem; }
+.pt-set-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .5rem .75rem; }
+.pt-set-header { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .3rem; }
+.pt-set-name { font-weight: 600; font-size: .88rem; }
+.pt-bottleneck-count { font-size: .75rem; color: var(--text-muted); }
+.pt-set-tunes { display: flex; flex-wrap: wrap; gap: .35rem; }
+.pt-set-tune {
+  font-size: .75rem;
+  border-radius: 4px;
+  padding: .1rem .4rem;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.pt-set-tune:hover { border-color: var(--accent); color: var(--accent); }
+.pt-set-tune-gap { background: rgba(239,68,68,.08); border-color: #ef4444; color: #ef4444; }
+.pt-set-tune-ok  { background: rgba(74,222,128,.08); border-color: #4ade80; color: #4ade80; }
+
 .achievements-layout {
   max-width: 700px;
   margin: 2rem auto;

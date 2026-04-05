@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=89" />
+  <link rel="stylesheet" href="/static/style.css?v=90" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body data-view="library">
@@ -54,6 +54,7 @@
           <div id="nav-more-menu" class="library-menu hidden">
             <button id="nav-notes" class="library-menu-item">📝 Notes</button>
             <button id="nav-achievements" class="library-menu-item">⭐ Achievements</button>
+            <button id="nav-practice" class="library-menu-item">🎯 Practice Targets</button>
             <hr class="library-menu-divider" />
             <a href="/mobile" target="_blank" rel="noopener" class="library-menu-item library-menu-link">📱 Mobile view</a>
             <hr class="library-menu-divider" />
@@ -288,6 +289,36 @@
       <div id="col-detail-view" class="hidden">
         <button id="col-detail-back" class="modal-back-btn" style="margin-bottom:.75rem">← All Collections</button>
         <div id="col-detail-content"></div>
+      </div>
+    </div>
+
+    <!-- ── Practice Targets view ── -->
+    <div id="view-practice" class="hidden">
+      <div class="practice-layout">
+        <div class="practice-header">
+          <h2 class="section-title">Practice Targets</h2>
+          <p class="practice-hint">Find the highest-impact tunes to work on next, based on your ratings.</p>
+        </div>
+        <div class="practice-settings">
+          <label class="practice-settings-label">Target for sets:</label>
+          <select id="practice-set-stars" class="practice-star-select">
+            <option value="2">2 stars (Getting there)</option>
+            <option value="3" selected>3 stars (Almost there)</option>
+            <option value="4">4 stars (Know it well)</option>
+            <option value="5">5 stars (Nailed it!)</option>
+          </select>
+          <label class="practice-settings-label" style="margin-left:.75rem">Target for tunes:</label>
+          <select id="practice-tune-stars" class="practice-star-select">
+            <option value="2">2 stars (Getting there)</option>
+            <option value="3" selected>3 stars (Almost there)</option>
+            <option value="4">4 stars (Know it well)</option>
+            <option value="5">5 stars (Nailed it!)</option>
+          </select>
+          <button id="practice-run-btn" class="btn-primary btn-sm">Analyse</button>
+        </div>
+        <div id="practice-results">
+          <p class="practice-hint" id="practice-empty-hint">Select thresholds above and click Analyse.</p>
+        </div>
       </div>
     </div>
 
@@ -1000,6 +1031,6 @@
   <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
   <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=192"></script>
+  <script src="/static/app.js?v=193"></script>
 </body>
 </html>

@@ -90,6 +90,8 @@ const viewNotes         = document.getElementById("view-notes");
 const navNotes          = document.getElementById("nav-notes");
 const viewAchievements  = document.getElementById("view-achievements");
 const navAchievements   = document.getElementById("nav-achievements");
+const viewPractice      = document.getElementById("view-practice");
+const navPractice       = document.getElementById("nav-practice");
 const navMoreBtn        = document.getElementById("nav-more-btn");
 const navMoreMenu       = document.getElementById("nav-more-menu");
 const notesDocList  = document.getElementById("notes-doc-list");
@@ -839,7 +841,7 @@ function switchView(view) {
   document.body.dataset.view = view;
   _applyNavColour(view);
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
-  [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements, viewTodo].forEach(v => v.classList.add("hidden"));
+  [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements, viewPractice, viewTodo].forEach(v => v.classList.add("hidden"));
   [navLibrary, navSets, navCollections, navTodo].forEach(n => n.classList.remove("active"));
   if (navMoreMenu) navMoreMenu.classList.add("hidden");
 
@@ -865,6 +867,9 @@ function switchView(view) {
     viewAchievements.classList.remove("hidden");
     navAchievements.classList.add("active");
     loadAchievements();
+  } else if (view === "practice") {
+    viewPractice.classList.remove("hidden");
+    if (navPractice) navPractice.classList.add("active");
   } else if (view === "todo") {
     viewTodo.classList.remove("hidden");
     navTodo.classList.add("active");
@@ -3054,24 +3059,21 @@ function _initMetronomeUI(defaultBpm) {
 let _melodyProgram = 73;  // default: flute
 let _chordProgram  = 24;  // default: nylon guitar
 let _chordsOff     = false;
-let _currentTuneAbc = null;  // raw ABC for the active tune (used when re-rendering on instrument change)
+let _currentTuneAbc = null;  // raw ABC for the active tune (used when re-rendering on chord change)
 
-/** Inject %%MIDI program and %%MIDI chordprog directives into ABC so ABCJS
- *  uses the user-selected instruments.  Any existing directives are stripped
- *  first to avoid conflicts. */
-function _injectMidiPrograms(abc) {
-  if (!abc) return abc;
-  // Strip any existing MIDI program/chordprog directives
-  let out = abc
-    .replace(/^%%MIDI\s+program[^\n]*\n?/gm, '')
-    .replace(/^%%MIDI\s+chordprog[^\n]*\n?/gm, '');
-  // Inject before the K: (key) line, which ends the ABC header
-  const kLine = out.match(/^K:[^\n]*/m);
-  if (kLine) {
-    const lines = `%%MIDI program ${_melodyProgram}\n` +
-      (_chordsOff ? '' : `%%MIDI chordprog ${_chordProgram}\n`);
-    out = out.replace(/^(K:[^\n]*)$/m, lines + '$1');
-  }
+/** Inject %%chordprog N into ABC so ABCJS uses the selected chord instrument.
+ *
+ *  Critical notes:
+ *  - ABCJS uses %%chordprog (no MIDI prefix) — not %%MIDI chordprog
+ *  - expandAbcRepeats() strips %%MIDI directives, so %%MIDI chordprog is useless
+ *  - Melody program is set via setTune({ program: N }) option, no ABC injection needed
+ */
+function _injectChordProg(abc) {
+  if (!abc || _chordsOff) return abc;
+  // Strip any existing %%chordprog directives to avoid duplicates
+  let out = abc.replace(/^%%chordprog[^\n]*\n?/gm, '');
+  // Inject before the K: line (ABCJS reads %%chordprog from tune formatting)
+  out = out.replace(/^(K:[^\n]*)$/m, `%%chordprog ${_chordProgram}\n$1`);
   return out;
 }
 
@@ -3082,7 +3084,12 @@ function _initMelodyControls() {
   sel.value = String(_melodyProgram);
   sel.addEventListener("change", () => {
     _melodyProgram = parseInt(sel.value) || 73;
-    if (_currentTuneAbc) renderSheetMusic(_currentTuneAbc);
+    // Melody comes from setTune program: option — just re-setTune, no re-render
+    if (_visualObj && _synthController) {
+      _synthController.setTune(_visualObj, false, {
+        program: _melodyProgram, chordsOff: _chordsOff,
+      }).catch(() => {});
+    }
   });
 }
 
@@ -3097,6 +3104,7 @@ function _initChordControls() {
     const prog = parseInt(sel.value);
     _chordsOff    = prog === -1;
     _chordProgram = _chordsOff ? _chordProgram : prog;
+    // Chord program is baked into the ABC via %%chordprog — must re-render to apply
     if (_currentTuneAbc) renderSheetMusic(_currentTuneAbc);
   });
 }
@@ -3127,9 +3135,9 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    // Inject %%MIDI program/chordprog directives so ABCJS uses the selected instruments.
-    // This is the only reliable way — ABCJS ignores these as setTune() options.
-    const _processedAbc = expandAbcRepeats(_injectMidiPrograms(abc));
+    // Inject %%chordprog so ABCJS uses the selected chord instrument.
+    // Melody is set via setTune program: option (no ABC injection needed).
+    const _processedAbc = expandAbcRepeats(_injectChordProg(abc));
     // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
     // when called from inside a modal (ResizeObserver quirk).
     // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
@@ -3227,8 +3235,8 @@ function renderSheetMusic(abc) {
       displayWarp: true,
     });
 
-    // Programs are baked into the ABC via %%MIDI directives (see _injectMidiPrograms).
-    // chordsOff is still passed as an option since ABCJS honours it from setTune opts.
+    // Melody: program: option.  Chord instrument: baked into ABC via %%chordprog.
+    // chordsOff: passed as option (ABCJS honours it even when %%chordprog is present).
     const _setTuneOpts = { program: _melodyProgram, chordsOff: _chordsOff };
     _synthController.setTune(_visualObj, false, _setTuneOpts).catch(err => {
       console.warn("Audio init failed:", err);
@@ -6500,6 +6508,7 @@ navSets.addEventListener("click",         () => switchView("sets"));
 navCollections.addEventListener("click",  () => switchView("collections"));
 navNotes.addEventListener("click",        () => switchView("notes"));
 navAchievements.addEventListener("click", () => switchView("achievements"));
+if (navPractice) navPractice.addEventListener("click", () => switchView("practice"));
 navTodo.addEventListener("click",         () => switchView("todo"));
 
 // Links ▾ dropdown
@@ -9296,6 +9305,105 @@ async function loadAchievements() {
   const items = await apiFetch("/api/achievements");
   renderAchievements(items);
 }
+
+// ── Practice Targets ─────────────────────────────────────────────────────────
+const STAR_LABELS = ["Unrated", "Just starting", "Getting there", "Almost there", "Know it well", "Nailed it!"];
+
+function _starsHtml(n, max = 5) {
+  return Array.from({ length: max }, (_, i) => `<span class="pt-star${i < n ? " pt-star-filled" : ""}">${i < n ? "★" : "☆"}</span>`).join("");
+}
+
+async function runPracticeTargets() {
+  const resultsEl = document.getElementById("practice-results");
+  const setStars  = parseInt(document.getElementById("practice-set-stars")?.value)  || 3;
+  const tuneStars = parseInt(document.getElementById("practice-tune-stars")?.value) || 3;
+  resultsEl.innerHTML = '<p class="loading">Analysing…</p>';
+
+  let data;
+  try {
+    data = await apiFetch(`/api/analysis/practice-targets?set_stars=${setStars}&tune_stars=${tuneStars}`);
+  } catch (e) {
+    resultsEl.innerHTML = '<p class="error-hint">Analysis failed. Please try again.</p>';
+    return;
+  }
+
+  const { priority_tunes, target_sets } = data;
+
+  if (!priority_tunes.length && !target_sets.length) {
+    resultsEl.innerHTML = `<p class="practice-hint">
+      No target sets found. Either all your rated sets already meet the ${setStars}-star threshold,
+      or you haven't rated any sets yet. Try lowering the set star target, or rate your sets first.
+    </p>`;
+    return;
+  }
+
+  // ── Priority tunes section ──────────────────────────────────────────────────
+  let html = `<h3 class="practice-section-title">Priority tunes <span class="practice-count">${priority_tunes.length}</span></h3>
+  <p class="practice-hint">These tunes have the biggest impact on unlocking ${setStars}-star sets. Sole-bottleneck tunes (orange border) will unlock a complete set on their own.</p>
+  <div class="pt-tune-list">`;
+
+  for (const tune of priority_tunes) {
+    const isSoleBn = tune.sole_bottleneck_sets > 0;
+    const setNames = tune.target_sets.map(s =>
+      `<span class="pt-set-tag${s.bottleneck_count === 1 ? " pt-set-sole" : ""}" title="${escHtml(s.name)} (set rating: ${s.set_rating}★)">${escHtml(s.name)}</span>`
+    ).join(" ");
+
+    html += `
+    <div class="pt-tune-row${isSoleBn ? " pt-sole-bottleneck" : ""}" data-tune-id="${tune.id}">
+      <div class="pt-tune-main">
+        <button class="pt-tune-title-btn btn-link" data-tune-id="${tune.id}">${escHtml(tune.title)}</button>
+        <span class="pt-tune-rating">${_starsHtml(tune.rating)}</span>
+        <span class="pt-score-badge" title="Priority score: higher = more impactful">Score: ${tune.score}</span>
+        ${isSoleBn ? `<span class="pt-unlock-badge" title="Improving this tune alone will unlock ${tune.sole_bottleneck_sets} set(s)">🔓 Unlocks ${tune.sole_bottleneck_sets} set${tune.sole_bottleneck_sets > 1 ? "s" : ""}</span>` : ""}
+      </div>
+      <div class="pt-tune-sets">in: ${setNames}</div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  // ── Target sets section ─────────────────────────────────────────────────────
+  html += `<details class="pt-details" style="margin-top:1.25rem">
+  <summary class="pt-details-summary">Target sets <span class="practice-count">${target_sets.length}</span></summary>
+  <div class="pt-set-list">`;
+
+  for (const s of target_sets) {
+    const bottlenecks = s.tunes.filter(t => t.rating < tuneStars);
+    const others      = s.tunes.filter(t => t.rating >= tuneStars);
+    html += `
+    <div class="pt-set-row">
+      <div class="pt-set-header">
+        <span class="pt-set-name">${escHtml(s.name)}</span>
+        <span class="pt-tune-rating">${_starsHtml(s.rating)}</span>
+        <span class="pt-bottleneck-count">${s.bottleneck_count} tune${s.bottleneck_count !== 1 ? "s" : ""} to improve</span>
+      </div>
+      <div class="pt-set-tunes">
+        ${bottlenecks.map(t => `<span class="pt-set-tune pt-set-tune-gap" data-tune-id="${t.id}">${escHtml(t.title)} ${_starsHtml(t.rating)}</span>`).join("")}
+        ${others.map(t => `<span class="pt-set-tune pt-set-tune-ok" data-tune-id="${t.id}">${escHtml(t.title)} ${_starsHtml(t.rating)}</span>`).join("")}
+      </div>
+    </div>`;
+  }
+  html += `</div></details>`;
+
+  resultsEl.innerHTML = html;
+
+  // Wire up tune title clicks → open tune modal
+  resultsEl.querySelectorAll("[data-tune-id]").forEach(el => {
+    el.addEventListener("click", async () => {
+      const id = el.dataset.tuneId;
+      try {
+        const tune = await fetchTune(id);
+        renderModal(tune);
+        requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); });
+      } catch {}
+    });
+  });
+}
+
+// Wire up analyse button (run once on first view)
+document.addEventListener("DOMContentLoaded", () => {
+  const runBtn = document.getElementById("practice-run-btn");
+  if (runBtn) runBtn.addEventListener("click", runPracticeTargets);
+});
 
 achAddBtn.addEventListener("click", async () => {
   const note = achTextarea.value.trim();
