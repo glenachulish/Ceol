@@ -2896,8 +2896,13 @@ function _metSchedule() {
 
 function _startMetronome(bpm) {
   if (bpm) _metBpm = bpm;
-  if (!_metCtx) _metCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (_metCtx.state === "suspended") _metCtx.resume();
+  // Recreate context if it was closed or is in an unrecoverable state
+  if (!_metCtx || _metCtx.state === "closed") {
+    _metCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (_metCtx.state === "suspended" || _metCtx.state === "interrupted") {
+    _metCtx.resume().catch(() => {});
+  }
   _metPlaying = true;
   _metNextBeat = _metCtx.currentTime + 0.05;
   if (_metTimer) clearTimeout(_metTimer);
@@ -10058,10 +10063,49 @@ function _stopAllAudio() {
   document.querySelectorAll("audio, video").forEach(el => { try { el.pause(); } catch {} });
   try { closeMediaOverlay(); } catch {}
 }
+// Only stop on actual page unload — not on every tab switch.
+// visibilitychange was too aggressive: it fired during file-picker / import dialogs
+// and killed the AudioContext, making audio silent until browser restart.
 window.addEventListener("beforeunload", _stopAllAudio);
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") _stopAllAudio();
-});
+
+// ── Audio context recovery (Safari) ───────────────────────────────────────────
+// Safari suspends / "interrupts" AudioContext after async operations (import,
+// file pickers, etc.).  A suspended context may return state "suspended" or
+// "interrupted" and resume() sometimes silently fails.  We recreate the context
+// if resume() doesn't restore it to "running" within 300 ms.
+function _tryResumeAudioContext(ctx) {
+  if (!ctx || ctx.state === "running") return;
+  if (ctx.state === "closed") return; // can't resume a closed context
+  ctx.resume().then(() => {}).catch(() => {});
+}
+
+function _recoverAudioContexts() {
+  // ABCJS context
+  try {
+    const ctx = ABCJS.synth.activeAudioContext?.();
+    if (ctx) _tryResumeAudioContext(ctx);
+  } catch {}
+
+  // Metronome context — if interrupted and can't be resumed, recreate it
+  if (_metCtx && _metCtx.state !== "running" && _metCtx.state !== "closed") {
+    _metCtx.resume().catch(() => {});
+    // If still not running after a short delay, recreate
+    setTimeout(() => {
+      if (_metCtx && _metCtx.state !== "running") {
+        const wasPlaying = _metPlaying;
+        _stopMetronome();
+        try { _metCtx.close(); } catch {}
+        _metCtx = null;
+        if (wasPlaying) _startMetronome();
+      }
+    }, 300);
+  }
+}
+
+// Fire recovery on every user interaction so audio resumes as soon as the user
+// next touches the page after an interruption.
+document.addEventListener("click",      _recoverAudioContexts, { passive: true, capture: true });
+document.addEventListener("touchstart", _recoverAudioContexts, { passive: true, capture: true });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 _applyNavColour("library");  // set Library button solid on first paint
