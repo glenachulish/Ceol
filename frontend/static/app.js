@@ -1219,20 +1219,38 @@ function renderModal(tune, onBack = null, siblings = null) {
           <span id="metro-sync-badge" class="metro-sync-badge metro-sync">Synced</span>
         </span>
       </div>
-      ${tune.abc && /\"[A-G]/.test(tune.abc) ? `<div id="chord-controls" class="chord-controls">
-        <label class="chord-ctrl-label">Chords:</label>
-        <select id="chord-program-select" class="chord-program-select" title="Chord accompaniment instrument">
-          <option value="-1">Off</option>
-          <option value="0">Piano</option>
-          <option value="24">Guitar (nylon)</option>
-          <option value="25">Guitar (steel)</option>
-          <option value="40">Violin/Strings</option>
-          <option value="46">Harp</option>
-          <option value="11">Vibraphone</option>
-          <option value="19">Organ</option>
-          <option value="48">String Ensemble</option>
-          <option value="52">Choir/Aah</option>
-        </select>
+      ${tune.abc ? `<div class="instrument-controls-row">
+        <div id="melody-controls" class="chord-controls">
+          <label class="chord-ctrl-label">Melody:</label>
+          <select id="melody-program-select" class="chord-program-select" title="Melody instrument">
+            <option value="73">Flute</option>
+            <option value="74">Recorder</option>
+            <option value="110">Fiddle</option>
+            <option value="40">Violin</option>
+            <option value="109">Uilleann Pipes</option>
+            <option value="71">Clarinet</option>
+            <option value="68">Oboe</option>
+            <option value="72">Piccolo</option>
+            <option value="105">Banjo</option>
+            <option value="22">Harmonica</option>
+            <option value="0">Piano</option>
+          </select>
+        </div>
+        ${/\"[A-G]/.test(tune.abc) ? `<div id="chord-controls" class="chord-controls">
+          <label class="chord-ctrl-label">Chords:</label>
+          <select id="chord-program-select" class="chord-program-select" title="Chord accompaniment instrument">
+            <option value="-1">Off</option>
+            <option value="0">Piano</option>
+            <option value="24">Guitar (nylon)</option>
+            <option value="25">Guitar (steel)</option>
+            <option value="40">Violin/Strings</option>
+            <option value="46">Harp</option>
+            <option value="11">Vibraphone</option>
+            <option value="19">Organ</option>
+            <option value="48">String Ensemble</option>
+            <option value="52">Choir/Aah</option>
+          </select>
+        </div>` : ""}
       </div>` : ""}
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
       <div class="highlight-toolbar" id="highlight-toolbar" style="display:flex;gap:6px;align-items:center;margin:4px 0 2px;">
@@ -3032,35 +3050,63 @@ function _initMetronomeUI(defaultBpm) {
   });
 }
 
-// ── Chord accompaniment controls ──────────────────────────────────────────────
-let _chordProgram = 24;  // default: nylon guitar
-let _chordsOff   = false;
+// ── Instrument / accompaniment controls ───────────────────────────────────────
+let _melodyProgram = 73;  // default: flute
+let _chordProgram  = 24;  // default: nylon guitar
+let _chordsOff     = false;
+let _currentTuneAbc = null;  // raw ABC for the active tune (used when re-rendering on instrument change)
+
+/** Inject %%MIDI program and %%MIDI chordprog directives into ABC so ABCJS
+ *  uses the user-selected instruments.  Any existing directives are stripped
+ *  first to avoid conflicts. */
+function _injectMidiPrograms(abc) {
+  if (!abc) return abc;
+  // Strip any existing MIDI program/chordprog directives
+  let out = abc
+    .replace(/^%%MIDI\s+program[^\n]*\n?/gm, '')
+    .replace(/^%%MIDI\s+chordprog[^\n]*\n?/gm, '');
+  // Inject before the K: (key) line, which ends the ABC header
+  const kLine = out.match(/^K:[^\n]*/m);
+  if (kLine) {
+    const lines = `%%MIDI program ${_melodyProgram}\n` +
+      (_chordsOff ? '' : `%%MIDI chordprog ${_chordProgram}\n`);
+    out = out.replace(/^(K:[^\n]*)$/m, lines + '$1');
+  }
+  return out;
+}
+
+function _initMelodyControls() {
+  const sel = document.getElementById("melody-program-select");
+  if (!sel || sel.dataset.initialized) return;
+  sel.dataset.initialized = "1";
+  sel.value = String(_melodyProgram);
+  sel.addEventListener("change", () => {
+    _melodyProgram = parseInt(sel.value) || 73;
+    if (_currentTuneAbc) renderSheetMusic(_currentTuneAbc);
+  });
+}
 
 function _initChordControls() {
   const sel = document.getElementById("chord-program-select");
-  if (!sel) return;
+  if (!sel || sel.dataset.initialized) return;
+  sel.dataset.initialized = "1";
   // Restore previous selection
-  if (_chordsOff) {
-    sel.value = "-1";
-  } else {
-    sel.value = String(_chordProgram);
-    if (sel.value !== String(_chordProgram)) sel.value = "-1"; // fallback if option missing
-  }
+  sel.value = _chordsOff ? "-1" : String(_chordProgram);
+  if (!_chordsOff && sel.value !== String(_chordProgram)) sel.value = "-1";
   sel.addEventListener("change", () => {
     const prog = parseInt(sel.value);
-    _chordsOff   = prog === -1;
+    _chordsOff    = prog === -1;
     _chordProgram = _chordsOff ? _chordProgram : prog;
-    if (!_visualObj || !_synthController) return;
-    const opts = _chordsOff
-      ? { program: 73, chordsOff: true }
-      : { program: 73, chordsOff: false, chordProgram: prog };
-    _synthController.setTune(_visualObj, false, opts).catch(() => {});
+    if (_currentTuneAbc) renderSheetMusic(_currentTuneAbc);
   });
 }
 
 function renderSheetMusic(abc) {
   const container = document.getElementById("sheet-music-render");
   if (!container || typeof ABCJS === "undefined") return;
+
+  // Store raw ABC so instrument-change handlers can call renderSheetMusic again
+  _currentTuneAbc = abc;
 
   // Reset bar selection state for new tune
   _barSel = { start: null, end: null };
@@ -3081,7 +3127,9 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    const _processedAbc = expandAbcRepeats(abc);
+    // Inject %%MIDI program/chordprog directives so ABCJS uses the selected instruments.
+    // This is the only reliable way — ABCJS ignores these as setTune() options.
+    const _processedAbc = expandAbcRepeats(_injectMidiPrograms(abc));
     // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
     // when called from inside a modal (ResizeObserver quirk).
     // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
@@ -3179,9 +3227,9 @@ function renderSheetMusic(abc) {
       displayWarp: true,
     });
 
-    const _setTuneOpts = _chordsOff
-      ? { program: 73, chordsOff: true }
-      : { program: 73, chordsOff: false, chordProgram: _chordProgram };
+    // Programs are baked into the ABC via %%MIDI directives (see _injectMidiPrograms).
+    // chordsOff is still passed as an option since ABCJS honours it from setTune opts.
+    const _setTuneOpts = { program: _melodyProgram, chordsOff: _chordsOff };
     _synthController.setTune(_visualObj, false, _setTuneOpts).catch(err => {
       console.warn("Audio init failed:", err);
     });
@@ -3189,7 +3237,8 @@ function renderSheetMusic(abc) {
     // Init metronome UI with BPM from ABC
     _initMetronomeUI(_extractAbcBpm(abc));
 
-    // Init chord controls
+    // Init instrument selectors (dataset.initialized prevents double-binding on re-render)
+    _initMelodyControls();
     _initChordControls();
 
     // Resume AudioContext on click (browsers suspend it until a user gesture).
@@ -3544,7 +3593,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
         displayProgress: true,
         displayWarp: true,
       });
-      _abcFsSynthCtrl.setTune(_abcFsVisualObj, false, { program: 73 }).catch(err => {
+      _abcFsSynthCtrl.setTune(_abcFsVisualObj, false, { program: _melodyProgram, chordsOff: _chordsOff }).catch(err => {
         console.warn("Fullscreen audio init failed:", err);
       });
     }
@@ -10099,7 +10148,7 @@ function _renderPracticeMusic(pracAbc) {
       displayProgress: true,
       displayWarp: true,
     });
-    _pracSynthCtrl.setTune(_pracVisualObj, false, { program: 73 })
+    _pracSynthCtrl.setTune(_pracVisualObj, false, { program: _melodyProgram, chordsOff: _chordsOff })
       .then(() => {
         _pracSynthCtrl.setWarp(_pracCurWarp);
         try { _pracSynthCtrl.pause(); } catch {}  // prevent auto-start

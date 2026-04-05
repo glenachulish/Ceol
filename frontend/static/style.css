@@ -3399,6 +3399,14 @@ a.bandcamp-link:hover { opacity: .85; }
 }
 
 /* ── Chord accompaniment controls ───────────────────────────────────────────── */
+.instrument-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  align-items: center;
+  margin: .3rem 0 .4rem;
+}
+.instrument-controls-row .chord-controls { margin: 0; }
 .chord-controls {
   display: flex;
   align-items: center;
