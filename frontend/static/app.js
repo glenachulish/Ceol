@@ -3923,8 +3923,11 @@ function buildCombinedPlaybackAbcWithRanges(tunes) {
       // create a blank line (blank line = tune separator in ABC → ABCJS stops rendering)
       if (prefix) prefix += '\n';
     }
-    // Title label above each tune's section in the score
-    const titleLine = `%%text ${t.title || ''}\n`;
+    // Use a plain ABC comment for the title — %% directives (e.g. %%text) inside a
+    // single-tune body cause ABCJS's visual renderer to stop at that point even though
+    // the audio parser ignores them.  A % comment is invisible to both parsers but
+    // still contributes to character positions, keeping tuneRanges accurate.
+    const titleLine = `% ${t.title || ''}\n`;
     const body = extractBody(abc);
     const start = header.length + combined.length + prefix.length + titleLine.length;
     tuneRanges.push({ start, end: start + body.length });
