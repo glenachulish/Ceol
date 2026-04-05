@@ -23,6 +23,9 @@
         <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
         <button id="nav-sets" class="nav-btn" data-tooltip="Group tunes into practice sets">Sets</button>
         <button id="nav-collections" class="nav-btn" data-tooltip="Organise tunes into themed collections">Collections</button>
+        <button id="nav-todo" class="nav-btn todo-nav-btn" data-tooltip="Tasks needing your attention">
+          To Do <span id="todo-badge" class="todo-badge hidden">0</span>
+        </button>
       </nav>
       <div class="header-actions">
         <a href="https://folkfriend.app/" target="_blank" rel="noopener"
@@ -274,6 +277,26 @@
       </div>
     </div>
   </main>
+
+  <!-- ── To Do view ── -->
+  <div id="view-todo" class="hidden">
+    <div class="view-header">
+      <h2 class="section-title">To Do</h2>
+      <p class="todo-hint">Tasks the app has identified that need your attention.</p>
+    </div>
+    <div id="todo-sections">
+      <!-- Version matching section -->
+      <div id="todo-section-matching" class="todo-section hidden">
+        <h3 class="todo-section-title">🔗 Possible duplicate tunes</h3>
+        <p class="todo-section-hint">These tunes have similar names. Group them as versions of the same tune, or mark them as different.</p>
+        <div id="todo-matching-list"></div>
+      </div>
+      <!-- Empty state -->
+      <div id="todo-empty" class="todo-empty hidden">
+        <p>Nothing to do right now — your library is all tidied up.</p>
+      </div>
+    </div>
+  </div>
 
   <!-- ── Tune detail modal ── -->
   <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">

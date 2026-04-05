@@ -60,6 +60,9 @@ const viewCollections    = document.getElementById("view-collections");
 const navLibrary    = document.getElementById("nav-library");
 const navSets       = document.getElementById("nav-sets");
 const navCollections= document.getElementById("nav-collections");
+const navTodo       = document.getElementById("nav-todo");
+const todoBadge     = document.getElementById("todo-badge");
+const viewTodo      = document.getElementById("view-todo");
 const importBtn     = document.getElementById("import-btn");
 const importOverlay = document.getElementById("import-overlay");
 const importClose   = document.getElementById("import-close");
@@ -416,7 +419,9 @@ function _showGroupDialog(tunes) {
       });
       closeModal();
       _exitSelectMode();
+      _todoSuggestions = null;  // invalidate cache so badge re-fetches fresh data
       await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+      _refreshTodoBadge();
     } catch (err) {
       status.textContent = `Error: ${err.message}`;
       confirmBtn.disabled = false;
@@ -818,6 +823,7 @@ const _NAV_COLOURS = {
   library:     { el: () => navLibrary,     bg: "#7c6af7" },
   sets:        { el: () => navSets,        bg: "#0d9488" },
   collections: { el: () => navCollections, bg: "#f59e0b" },
+  todo:        { el: () => navTodo,        bg: "#ef4444" },
 };
 function _applyNavColour(view) {
   Object.values(_NAV_COLOURS).forEach(({ el }) => {
@@ -840,8 +846,8 @@ function switchView(view) {
   document.body.dataset.view = view;
   _applyNavColour(view);
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
-  [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements].forEach(v => v.classList.add("hidden"));
-  [navLibrary, navSets, navCollections].forEach(n => n.classList.remove("active"));
+  [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements, viewTodo].forEach(v => v.classList.add("hidden"));
+  [navLibrary, navSets, navCollections, navTodo].forEach(n => n.classList.remove("active"));
   if (navMoreMenu) navMoreMenu.classList.add("hidden");
 
   if (view === "library") {
@@ -866,6 +872,10 @@ function switchView(view) {
     viewAchievements.classList.remove("hidden");
     navAchievements.classList.add("active");
     loadAchievements();
+  } else if (view === "todo") {
+    viewTodo.classList.remove("hidden");
+    navTodo.classList.add("active");
+    loadTodoView();
   }
 }
 
@@ -5096,62 +5106,110 @@ async function loadTunes() {
     tuneList.innerHTML = '<p class="empty">Failed to load tunes. Is the server running?</p>';
     console.error(err);
   }
-  // Check for version suggestions once per page-1 load (no filters active)
+  // Update To Do badge after loading (no filters = full library)
   if (state.page === 1 && !state.q && !state.type && !state.key) {
-    _checkVersionSuggestions();
+    _refreshTodoBadge();
   }
 }
 
-// ── Version similarity suggestions ────────────────────────────────────────────
-const _vsbEl = document.getElementById("version-suggestion-banner");
-let _vsbQueue = null;  // cached list; null = not yet fetched
+// ── To Do system ──────────────────────────────────────────────────────────────
+// _todoSuggestions: null = not yet fetched, [] = fetched but empty, [...] = items
+// _todoSkipped: set of "a-b" keys skipped this session (not persisted)
+let _todoSuggestions = null;
+const _todoSkipped = new Set();
 
-async function _checkVersionSuggestions() {
-  if (_vsbEl.classList.contains("hidden") === false) return; // already showing one
+async function _refreshTodoBadge() {
   try {
-    if (_vsbQueue === null) {
-      const list = await apiFetch("/api/tunes/version-suggestions");
-      _vsbQueue = list;
+    const list = await apiFetch("/api/tunes/version-suggestions");
+    // Filter out session-skipped items
+    _todoSuggestions = list.filter(({ tune_a, tune_b }) =>
+      !_todoSkipped.has(`${Math.min(tune_a.id, tune_b.id)}-${Math.max(tune_a.id, tune_b.id)}`)
+    );
+    const count = _todoSuggestions.length;
+    if (count > 0) {
+      todoBadge.textContent = count;
+      todoBadge.classList.remove("hidden");
+    } else {
+      todoBadge.classList.add("hidden");
     }
-    _showNextVersionSuggestion();
+    // If To Do view is currently open, refresh it
+    if (state.view === "todo") loadTodoView();
   } catch { /* silently ignore */ }
 }
 
-function _showNextVersionSuggestion() {
-  if (!_vsbQueue || !_vsbQueue.length) { _vsbEl.classList.add("hidden"); return; }
-  const { tune_a, tune_b } = _vsbQueue[0];
-  _vsbEl.innerHTML = `
-    <span class="vsb-text">
-      💡 <strong>${escHtml(tune_a.title)}</strong> and <strong>${escHtml(tune_b.title)}</strong>
-      look like the same tune — group as versions?
-    </span>
-    <span class="vsb-actions">
-      <button class="btn-primary btn-sm" id="vsb-group-btn">Group as versions</button>
-      <button class="btn-secondary btn-sm" id="vsb-dismiss-btn">Not the same</button>
-    </span>`;
-  _vsbEl.classList.remove("hidden");
+async function loadTodoView() {
+  const matchingSection = document.getElementById("todo-section-matching");
+  const matchingList    = document.getElementById("todo-matching-list");
+  const emptyEl         = document.getElementById("todo-empty");
 
-  document.getElementById("vsb-group-btn").addEventListener("click", async () => {
-    _vsbEl.classList.add("hidden");
-    const tunes = await Promise.all([fetchTune(tune_a.id), fetchTune(tune_b.id)]);
-    await Promise.all([fetchSets(), fetchCollections()]);
-    _showGroupDialog(tunes);
-    // Remove from queue (user will decide in the dialog; if they cancel we don't re-show)
-    _vsbQueue.shift();
+  // Fetch fresh if needed
+  if (_todoSuggestions === null) {
+    matchingList.innerHTML = '<p class="loading">Loading…</p>';
+    await _refreshTodoBadge();
+  }
+
+  const items = (_todoSuggestions || []);
+
+  if (!items.length) {
+    matchingSection.classList.add("hidden");
+    emptyEl.classList.remove("hidden");
+    return;
+  }
+
+  emptyEl.classList.add("hidden");
+  matchingSection.classList.remove("hidden");
+
+  matchingList.innerHTML = items.map((item, i) => `
+    <div class="todo-card" data-idx="${i}">
+      <div class="todo-card-body">
+        <span class="todo-card-title">${escHtml(item.tune_a.title)}</span>
+        <span class="todo-card-sep">and</span>
+        <span class="todo-card-title">${escHtml(item.tune_b.title)}</span>
+        <span class="todo-card-hint">look like the same tune</span>
+      </div>
+      <div class="todo-card-actions">
+        <button class="btn-primary btn-sm todo-group-btn" data-idx="${i}">Group as versions</button>
+        <button class="btn-secondary btn-sm todo-skip-btn" data-idx="${i}">Skip for now</button>
+        <button class="btn-danger btn-sm todo-dismiss-btn" data-idx="${i}">Not the same</button>
+      </div>
+    </div>
+  `).join("");
+
+  // Group
+  matchingList.querySelectorAll(".todo-group-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const { tune_a, tune_b } = items[+btn.dataset.idx];
+      const tunes = await Promise.all([fetchTune(tune_a.id), fetchTune(tune_b.id)]);
+      await Promise.all([fetchSets(), fetchCollections()]);
+      _todoSuggestions = null; // force re-fetch after dialog
+      _showGroupDialog(tunes);
+    });
   });
 
-  document.getElementById("vsb-dismiss-btn").addEventListener("click", async () => {
-    _vsbEl.classList.add("hidden");
-    _vsbQueue.shift();
-    try {
-      await apiFetch("/api/tunes/version-suggestions/dismiss", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tune_id_a: tune_a.id, tune_id_b: tune_b.id }),
-      });
-    } catch { /* persist best-effort */ }
-    // Show next suggestion if any (after a short pause so it doesn't feel jarring)
-    setTimeout(_showNextVersionSuggestion, 400);
+  // Skip for now (session-only, no DB write)
+  matchingList.querySelectorAll(".todo-skip-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const { tune_a, tune_b } = items[+btn.dataset.idx];
+      _todoSkipped.add(`${Math.min(tune_a.id, tune_b.id)}-${Math.max(tune_a.id, tune_b.id)}`);
+      _todoSuggestions = null; // re-filter on next load
+      _refreshTodoBadge();
+    });
+  });
+
+  // Not the same — permanently dismissed
+  matchingList.querySelectorAll(".todo-dismiss-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const { tune_a, tune_b } = items[+btn.dataset.idx];
+      try {
+        await apiFetch("/api/tunes/version-suggestions/dismiss", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tune_id_a: tune_a.id, tune_id_b: tune_b.id }),
+        });
+      } catch { /* best-effort */ }
+      _todoSuggestions = null; // force fresh fetch from DB
+      _refreshTodoBadge();
+    });
   });
 }
 
@@ -5651,6 +5709,7 @@ navSets.addEventListener("click",         () => switchView("sets"));
 navCollections.addEventListener("click",  () => switchView("collections"));
 navNotes.addEventListener("click",        () => switchView("notes"));
 navAchievements.addEventListener("click", () => switchView("achievements"));
+navTodo.addEventListener("click",         () => switchView("todo"));
 
 // Links ▾ dropdown
 const navLinksBtn  = document.getElementById("nav-links-btn");
@@ -9244,4 +9303,5 @@ _applyNavColour("library");  // set Library button solid on first paint
   await Promise.allSettled([loadFilters(), loadStats(), fetchSets(), fetchCollections(), loadCapabilities()]);
   switchView("library");
   loadTunes();
+  _refreshTodoBadge();  // populate badge without waiting for first library load
 })();
