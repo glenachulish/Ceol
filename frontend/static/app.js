@@ -6596,14 +6596,12 @@ function _toggleFullscreen() {
     (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
   }
 }
-_modalFsBtn.addEventListener("click", _toggleFullscreen);
+_modalFsBtn?.addEventListener("click", _toggleFullscreen);
 document.addEventListener("fullscreenchange", () => {
-  _modalFsBtn.title = _isFullscreen() ? "Exit full screen" : "Full screen";
-  _modalFsBtn.textContent = _isFullscreen() ? "⛶✕" : "⛶";
+  if (_modalFsBtn) { _modalFsBtn.title = _isFullscreen() ? "Exit full screen" : "Full screen"; _modalFsBtn.textContent = _isFullscreen() ? "⛶✕" : "⛶"; }
 });
 document.addEventListener("webkitfullscreenchange", () => {
-  _modalFsBtn.title = _isFullscreen() ? "Exit full screen" : "Full screen";
-  _modalFsBtn.textContent = _isFullscreen() ? "⛶✕" : "⛶";
+  if (_modalFsBtn) { _modalFsBtn.title = _isFullscreen() ? "Exit full screen" : "Full screen"; _modalFsBtn.textContent = _isFullscreen() ? "⛶✕" : "⛶"; }
 });
 modalOverlay.addEventListener("click", e => { if (e.target === modalOverlay) closeModal(); });
 document.addEventListener("keydown", e => {
@@ -9799,7 +9797,7 @@ function _todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-autoGroupBtn.addEventListener("click", async () => {
+autoGroupBtn?.addEventListener("click", async () => {
   libraryMenu.classList.add("hidden");
   const { grouped } = await apiFetch("/api/tunes/auto-group", { method: "POST" });
   if (grouped === 0) {
@@ -9943,7 +9941,7 @@ function _closeLibMerge() {
   libMergeOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }
-libraryMergeBtn.addEventListener("click", () => {
+libraryMergeBtn?.addEventListener("click", () => {
   libraryMenu.classList.add("hidden");
   libMergeFile.value = "";
   libMergeFilename.textContent = "";
@@ -9952,16 +9950,16 @@ libraryMergeBtn.addEventListener("click", () => {
   libMergeOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 });
-libMergeClose.addEventListener("click", _closeLibMerge);
-libMergeCancel.addEventListener("click", _closeLibMerge);
+libMergeClose?.addEventListener("click", _closeLibMerge);
+libMergeCancel?.addEventListener("click", _closeLibMerge);
 
-libMergeFile.addEventListener("change", () => {
+libMergeFile?.addEventListener("change", () => {
   const f = libMergeFile.files[0];
   libMergeFilename.textContent = f ? f.name : "";
   libMergeSubmit.disabled = !f;
 });
 
-libMergeSubmit.addEventListener("click", async () => {
+libMergeSubmit?.addEventListener("click", async () => {
   const f = libMergeFile.files[0];
   if (!f) return;
   libMergeSubmit.disabled = true;
