@@ -469,7 +469,7 @@ function _showPendingTransferBanner() {
   _pendingTransferBanner.classList.remove("hidden");
 }
 
-document.getElementById("pending-transfer-dismiss").addEventListener("click", () => {
+document.getElementById("pending-transfer-dismiss")?.addEventListener("click", () => {
   _clearPendingTransfer();
   _showPendingTransferBanner();
 });
@@ -6244,7 +6244,7 @@ filterHitlistBtn.addEventListener("click", () => {
   loadTunes();
 });
 
-filterFavouriteBtn.addEventListener("click", () => {
+filterFavouriteBtn?.addEventListener("click", () => {
   state.favourite = !state.favourite;
   filterFavouriteBtn.classList.toggle("active", state.favourite);
   state.page = 1;
@@ -6252,7 +6252,7 @@ filterFavouriteBtn.addEventListener("click", () => {
 });
 
 // ── Print list ────────────────────────────────────────────────────────────────
-document.getElementById("print-btn").addEventListener("click", async () => {
+document.getElementById("print-btn")?.addEventListener("click", async () => {
   // Open the window synchronously (must happen before any await to avoid popup blockers)
   const win = window.open("", "_blank");
   if (!win) { alert("Please allow popups for this page to use Print."); return; }
@@ -6335,7 +6335,7 @@ clearBtn.addEventListener("click", () => {
   filterType.value = filterKey.value = filterMode.value = filterRating.value = "";
   if (filterComposer) filterComposer.value = "";
   filterHitlistBtn.classList.remove("active");
-  filterFavouriteBtn.classList.remove("active");
+  filterFavouriteBtn?.classList.remove("active");
   document.querySelectorAll(".content-filter-btn").forEach(b => b.classList.remove("active"));
   window._alphaReset?.();
   Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", composer: "", hitlist: false, favourite: false, min_rating: 0, has_content: "", starts_with: "" });
@@ -7145,7 +7145,7 @@ function _bldrSave(tunes, defaultName, onBack) {
   });
 }
 
-document.getElementById("build-set-btn").addEventListener("click", showSetBuilder);
+document.getElementById("build-set-btn")?.addEventListener("click", showSetBuilder);
 
 // ── Sets form ─────────────────────────────────────────────────────────────────
 newSetBtn.addEventListener("click", () => {
@@ -9810,7 +9810,7 @@ autoGroupBtn.addEventListener("click", async () => {
   }
 });
 
-document.getElementById("dedup-versions-btn").addEventListener("click", async () => {
+document.getElementById("dedup-versions-btn")?.addEventListener("click", async () => {
   libraryMenu.classList.add("hidden");
   const { removed } = await apiFetch("/api/tunes/dedup-versions", { method: "POST" });
   if (removed === 0) {
