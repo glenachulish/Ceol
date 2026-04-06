@@ -5359,8 +5359,8 @@ function renderCollections(collections) {
       collectionsList.classList.add("hidden");
       if (colViewHeader) colViewHeader.classList.add("hidden");
       if (newColForm) newColForm.classList.add("hidden");
-      colDetailContent.innerHTML = '<p class="loading">Loading…</p>';
-      colDetailView.classList.remove("hidden");
+      if (colDetailContent) colDetailContent.innerHTML = '<p class="loading">Loading…</p>';
+      if (colDetailView) colDetailView.classList.remove("hidden");
 
       const colData = await apiGetCollection(id);
       const allColTunes = colData.tunes || [];
@@ -5649,6 +5649,9 @@ function renderCollections(collections) {
   const addToColBtn      = document.getElementById("recent-add-to-collection-btn");
   const newColBtn        = document.getElementById("recent-new-collection-btn");
 
+  // Not present on mobile — skip entire block
+  if (!selectAllCb) return;
+
   function _updateRecentToolbar() {
     const cbs    = listEl.querySelectorAll(".recent-row-cb");
     const checked = listEl.querySelectorAll(".recent-row-cb:checked");
@@ -5666,7 +5669,7 @@ function renderCollections(collections) {
       : "🗑 Delete selected";
   }
 
-  selectAllCb.addEventListener("change", () => {
+  selectAllCb?.addEventListener("change", () => {
     listEl.querySelectorAll(".recent-row-cb").forEach(cb => { cb.checked = selectAllCb.checked; });
     // Keep select-all checked/unchecked state as the user left it; clear indeterminate
     selectAllCb.indeterminate = false;
