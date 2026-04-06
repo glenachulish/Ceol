@@ -1844,6 +1844,15 @@ button.set-tune-title:hover { text-decoration: underline; }
 .set-tune-section-hd { font-size: .9rem; font-weight: 700; margin-bottom: .3rem; padding-bottom: .25rem; border-bottom: 1px solid #e0e0e0; font-family: serif; letter-spacing: .01em; }
 .set-tune-vis-render svg { max-width: 100%; display: block; }
 .set-tune-section.set-tune-active { background: #fffbf0; outline: 2px solid #FFAA00; outline-offset: -2px; }
+/* Note cursor highlight in set music view — orange glow matching regular playback */
+.set-tune-vis-render .abcjs-highlight path,
+.set-tune-vis-render .abcjs-highlight rect,
+.set-tune-vis-render .abcjs-highlight ellipse,
+.set-tune-vis-render path.abcjs-highlight,
+.set-tune-vis-render rect.abcjs-highlight,
+.set-tune-vis-render ellipse.abcjs-highlight {
+  fill: #e65c00 !important;
+}
 .set-bot-controls {
   display: flex;
   gap: .5rem;

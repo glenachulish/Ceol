@@ -3061,24 +3061,23 @@ let _chordProgram  = 24;  // default: nylon guitar
 let _chordsOff     = false;
 let _currentTuneAbc = null;  // raw ABC for the active tune (used when re-rendering on chord change)
 
-/** Inject %%instrument and %%chordprog directives into the ABC body (after K:).
+/** Inject %%chordprog N into the ABC header (before K:) so ABCJS reads it
+ *  from the tune's formatting object.  %%chordprog is a formatting directive —
+ *  it must be in the header for ABCJS to pick it up via n.formatting.chordprog.
  *
- *  Body injection (after K:) is more reliable than header injection because
- *  ABCJS processes body formatting directives as it parses note data.
+ *  Melody instrument is set via the `program:` option on SynthController.setTune,
+ *  which overrides the default (0 = piano) for the entire playback sequence.
  *
- *  Notes:
- *  - %%instrument N  — sets melody MIDI program for all subsequent notes
- *  - %%chordprog N   — sets chord/accompaniment instrument (no MIDI prefix)
- *  - expandAbcRepeats() strips %%MIDI directives, so use %% not %%MIDI
+ *  Note: %%MIDI directives are stripped by expandAbcRepeats(), so we use the
+ *  bare %% form (%%chordprog, not %%MIDI chordprog).
  */
-function _injectInstruments(abc) {
+function _injectChordProg(abc) {
   if (!abc) return abc;
-  // Strip any existing directives to avoid duplicates
-  let out = abc.replace(/^%%instrument[^\n]*\n?/gm, '');
-  out = out.replace(/^%%chordprog[^\n]*\n?/gm, '');
-  // Inject into body — right after the K: line so they apply from the first note
-  const chordsLine = _chordsOff ? '' : `%%chordprog ${_chordProgram}\n`;
-  out = out.replace(/^(K:[^\n]*)(\n|$)/m, `$1\n%%instrument ${_melodyProgram}\n${chordsLine}`);
+  // Strip any existing %%chordprog directives to avoid duplicates
+  let out = abc.replace(/^%%chordprog[^\n]*\n?/gm, '');
+  if (_chordsOff) return out;
+  // Inject BEFORE the K: line — header position so ABCJS formatting reads it
+  out = out.replace(/^(K:[^\n]*)$/m, `%%chordprog ${_chordProgram}\n$1`);
   return out;
 }
 
@@ -3136,9 +3135,9 @@ function renderSheetMusic(abc) {
   container.addEventListener("click", _sheetMusicClickHandler, true);
 
   try {
-    // Inject %%instrument (melody) and %%chordprog (chords) into the ABC body.
-    // Body-position directives are baked into the visual object's note data.
-    const _processedAbc = expandAbcRepeats(_injectInstruments(abc));
+    // Inject %%chordprog (header) for chord instrument; melody program is passed
+    // via setTune program: option so no ABC injection is needed for melody.
+    const _processedAbc = expandAbcRepeats(_injectChordProg(abc));
     // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
     // when called from inside a modal (ResizeObserver quirk).
     // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
@@ -3238,7 +3237,7 @@ function renderSheetMusic(abc) {
 
     // Melody: program: option.  Chord instrument: baked into ABC via %%chordprog.
     // chordsOff: passed as option (ABCJS honours it even when %%chordprog is present).
-    const _setTuneOpts = { chordsOff: _chordsOff };
+    const _setTuneOpts = { program: _melodyProgram, chordsOff: _chordsOff };
     _synthController.setTune(_visualObj, false, _setTuneOpts).catch(err => {
       console.warn("Audio init failed:", err);
     });
@@ -4215,6 +4214,16 @@ function openFullSetModal(setData) {
           });
           if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
+          // Map hidden render note elements → visible render note elements by index
+          const hiddenNotes2 = [...document.querySelectorAll('#set-full-audio-render .abcjs-note')];
+          const visNotes2 = [];
+          twAbc.forEach((_, i) => {
+            document.querySelectorAll(`#set-tune-vis-${i} .abcjs-note`).forEach(el => visNotes2.push(el));
+          });
+          const hiddenToVis2 = new Map();
+          const mapLen2 = Math.min(hiddenNotes2.length, visNotes2.length);
+          for (let i = 0; i < mapLen2; i++) hiddenToVis2.set(hiddenNotes2[i], visNotes2[i]);
+
           const _getActiveTuneIdx = (sc) => {
             for (let i = 0; i < combined.tuneRanges.length; i++) {
               if (sc >= combined.tuneRanges[i].start && sc <= combined.tuneRanges[i].end) return i;
@@ -4231,9 +4240,21 @@ function openFullSetModal(setData) {
                 document.getElementById(`set-tune-section-${ti}`)?.classList.add("set-tune-active");
                 _activeTuneIdx = ti;
               }
+              document.querySelectorAll('.set-tune-vis-render .abcjs-highlight')
+                .forEach(el => el.classList.remove('abcjs-highlight'));
+              if (ev?.elements) {
+                ev.elements.forEach(grp => {
+                  if (!grp) return;
+                  grp.forEach(hiddenEl => {
+                    const visEl = hiddenToVis2.get(hiddenEl);
+                    if (visEl) visEl.classList.add('abcjs-highlight');
+                  });
+                });
+              }
             },
             onFinished() {
               document.querySelectorAll(".set-tune-section.set-tune-active").forEach(el => el.classList.remove("set-tune-active"));
+              document.querySelectorAll('.set-tune-vis-render .abcjs-highlight').forEach(el => el.classList.remove('abcjs-highlight'));
               _activeTuneIdx = -1;
             },
           };
@@ -4243,7 +4264,7 @@ function openFullSetModal(setData) {
             displayLoop: false, displayRestart: true, displayPlay: true,
             displayProgress: true, displayWarp: true,
           });
-          _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
+          _setMusicSynth.setTune(fullVisual[0], false, { program: _melodyProgram, chordsOff: _chordsOff })
             .then(() => _setMusicSynth.setWarp(100))
             .catch(() => {});
         } catch {}
@@ -4404,6 +4425,19 @@ function openFullSetModal(setData) {
       });
       if (!fullVisual.length || !ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
+      // Build a mapping from each note element in the hidden combined render to
+      // the corresponding note element in the visible individual renders.
+      // Both renders use add_classes:true so elements share the same DOM order as
+      // the ABC note sequence — we can map by position index.
+      const hiddenNotes = [...document.querySelectorAll('#set-full-audio-render .abcjs-note')];
+      const visNotes = [];
+      tunesWithAbc.forEach((_, i) => {
+        document.querySelectorAll(`#set-tune-vis-${i} .abcjs-note`).forEach(el => visNotes.push(el));
+      });
+      const hiddenToVis = new Map();
+      const mapLen = Math.min(hiddenNotes.length, visNotes.length);
+      for (let i = 0; i < mapLen; i++) hiddenToVis.set(hiddenNotes[i], visNotes[i]);
+
       const _setBotPlayLabel = (playing) => {
         const btn = document.getElementById("set-bot-play-btn");
         if (btn) btn.textContent = playing ? "⏸ Pause" : "▶ Play";
@@ -4426,18 +4460,32 @@ function openFullSetModal(setData) {
         onEvent(ev) {
           const sc = ev?.startChar ?? -1;
           const ti = _getActiveTuneIdx(sc);
+          // Section-level highlight
           if (ti !== _activeTuneIdx) {
-            // Highlight the newly-active tune section; de-highlight the old one
             if (_activeTuneIdx >= 0) {
               document.getElementById(`set-tune-section-${_activeTuneIdx}`)?.classList.remove("set-tune-active");
             }
             document.getElementById(`set-tune-section-${ti}`)?.classList.add("set-tune-active");
             _activeTuneIdx = ti;
           }
+          // Note-level highlight: map hidden render elements → visible render elements
+          document.querySelectorAll('.set-tune-vis-render .abcjs-highlight')
+            .forEach(el => el.classList.remove('abcjs-highlight'));
+          if (ev?.elements) {
+            ev.elements.forEach(grp => {
+              if (!grp) return;
+              grp.forEach(hiddenEl => {
+                const visEl = hiddenToVis.get(hiddenEl);
+                if (visEl) visEl.classList.add('abcjs-highlight');
+              });
+            });
+          }
         },
         onFinished() {
           document.querySelectorAll(".set-tune-section.set-tune-active")
             .forEach(el => el.classList.remove("set-tune-active"));
+          document.querySelectorAll('.set-tune-vis-render .abcjs-highlight')
+            .forEach(el => el.classList.remove('abcjs-highlight'));
           _activeTuneIdx = -1;
           _setBotPlayLabel(false);
           if (_metSyncToAbc) { _stopMetronome(); _updateMetronomeBtn(); }
@@ -4449,7 +4497,7 @@ function openFullSetModal(setData) {
         displayLoop: false, displayRestart: true, displayPlay: true,
         displayProgress: true, displayWarp: true,
       });
-      _setMusicSynth.setTune(fullVisual[0], false, { program: 73 })
+      _setMusicSynth.setTune(fullVisual[0], false, { program: _melodyProgram, chordsOff: _chordsOff })
         .then(() => {
           _initMetronomeUI(_extractAbcBpm(tunesWithAbc[0]?.abc));
           const botPlayBtn    = document.getElementById("set-bot-play-btn");

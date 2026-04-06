@@ -1153,12 +1153,15 @@ def get_info():
 def get_practice_targets(tune_stars: int = 3, set_stars: int = 3):
     """Return priority tunes and target sets for maximising `set_stars`-rated sets.
 
-    Logic (weakest-link model):
+    Logic (efficiency model):
     - Target sets: sets with 0 < rating < set_stars (rated but below threshold)
     - Bottleneck tunes: tunes in a target set with rating < tune_stars
-    - Priority score for each tune = sum over target sets of (tune_stars - tune.rating)
-    - Tunes that are the *sole* bottleneck in a set are highest priority (one improvement
-      immediately unlocks that whole set).
+    - gap = tune_stars - tune.rating  (1 = almost there, 4 = a long way off)
+    - Priority score = num_target_sets / gap  — rewards tunes closest to the
+      threshold that appear as a bottleneck in the most sets.  A tune at 2★
+      blocking 3 sets scores 3/1=3.0; a tune at 1★ blocking 3 sets scores 3/2=1.5.
+    - Tunes that are the *sole* bottleneck in a set are surfaced first within each
+      score tier (one improvement immediately unlocks the whole set).
     """
     tune_stars = max(1, min(5, tune_stars))
     set_stars  = max(1, min(5, set_stars))
@@ -1202,11 +1205,11 @@ def get_practice_targets(tune_stars: int = 3, set_stars: int = 3):
                         "title":              t["title"],
                         "rating":             t["rating"],
                         "gap":                gap,
-                        "score":              0,
+                        "num_sets":           0,
                         "sole_bottleneck_sets": 0,
                         "target_sets":        [],
                     }
-                tune_priority[tid]["score"] += gap
+                tune_priority[tid]["num_sets"] += 1
                 if len(bottlenecks) == 1:
                     tune_priority[tid]["sole_bottleneck_sets"] += 1
                 tune_priority[tid]["target_sets"].append({
@@ -1216,10 +1219,14 @@ def get_practice_targets(tune_stars: int = 3, set_stars: int = 3):
                     "bottleneck_count": len(bottlenecks),
                 })
 
-        # Sole-bottleneck tunes first (immediate set unlock), then by score
+        # Compute efficiency score = num_sets / gap (closer to threshold + more sets = higher)
+        for entry in tune_priority.values():
+            entry["score"] = round(entry["num_sets"] / entry["gap"], 3)
+
+        # Sort: sole-bottleneck tunes first (immediate unlock), then by efficiency score
         priority_list = sorted(
             tune_priority.values(),
-            key=lambda x: (-x["sole_bottleneck_sets"], -x["score"]),
+            key=lambda x: (-x["sole_bottleneck_sets"], -x["score"], x["gap"]),
         )
 
     return {
