@@ -5314,6 +5314,12 @@ function renderSets(sets) {
       }
     });
   });
+
+  collectionsList.querySelectorAll(".col-export-btn").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      openCollectionExportModal(btn.dataset.colId, btn.dataset.colName);
+    });
+  });
 }
 
 function renderCollections(collections) {
@@ -5337,7 +5343,7 @@ function renderCollections(collections) {
         </div>
         <div class="set-card-actions">
           <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${c.id}">Strip chords</button>
-          <button class="btn-secondary btn-sm" title="Export collection as Ceòl JSON or TheCraic ABC" onclick="openCollectionExportModal(${c.id}, ${JSON.stringify(c.name)})">⬇ Export</button>
+          <button class="btn-secondary btn-sm col-export-btn" title="Export collection" data-col-id="${c.id}" data-col-name="${escHtml(c.name)}">⬇ Export</button>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
           <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">🗑</button>
         </div>
