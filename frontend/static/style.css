@@ -723,6 +723,34 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 }
 .modal-membership-link:hover { text-decoration: underline; }
 
+/* ── Pagination top ─────────────────────────────────────── */
+.pagination-top { margin-bottom: .5rem; }
+
+/* ── Bottom alpha nav ───────────────────────────────────── */
+.alpha-nav-bottom { margin-top: .75rem; }
+
+/* ── Collection rename button inline with name ──────────── */
+.col-rename-inline {
+  font-size: .75rem;
+  padding: 0 .2rem;
+  opacity: .5;
+  vertical-align: middle;
+}
+.col-rename-inline:hover { opacity: 1; }
+
+/* ── Set link inside collection detail ─────────────────── */
+.col-set-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+.col-set-link:hover { text-decoration: underline; }
+
 /* ── Content-type filter row ─────────────────────────────── */
 .filter-row-content {
   display: flex;

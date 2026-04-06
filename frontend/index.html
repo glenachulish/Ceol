@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=91" />
+  <link rel="stylesheet" href="/static/style.css?v=92" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body data-view="library">
@@ -123,7 +123,7 @@
           <button class="content-filter-btn btn-secondary btn-sm" data-content="mp3" data-tooltip="Tunes with an MP3 attached">MP3</button>
           <button class="content-filter-btn btn-secondary btn-sm" data-content="video" data-tooltip="Tunes with a YouTube or video link">Video</button>
         </div>
-        <div class="filter-row" style="display:none">
+        <div class="filter-row">
           <button id="print-btn" class="btn-secondary" data-tooltip="Print the current tune list">Print list</button>
           <button id="select-mode-btn" class="btn-secondary" data-tooltip="Select multiple tunes to group or delete">Select</button>
         </div>
@@ -161,10 +161,22 @@
         <span id="alpha-current" class="alpha-current"></span>
       </div>
 
+      <div class="pagination pagination-top" id="pagination-top"></div>
       <section class="tune-list" id="tune-list">
         <p class="loading">Loading tunes…</p>
       </section>
       <div class="pagination" id="pagination"></div>
+      <!-- Bottom alphabet slider — mirrors the one at the top -->
+      <div id="alpha-nav-bottom" class="alpha-nav alpha-nav-bottom">
+        <button id="alpha-all-btn-bot" class="alpha-all-btn active" title="Show all tunes">All</button>
+        <div class="alpha-slider-wrap">
+          <input type="range" id="alpha-slider-bot" class="alpha-slider" min="0" max="25" value="0" step="1">
+          <div class="alpha-slider-labels" aria-hidden="true">
+            <span>A</span><span>E</span><span>J</span><span>N</span><span>S</span><span>Z</span>
+          </div>
+        </div>
+        <span id="alpha-current-bot" class="alpha-current"></span>
+      </div>
     </div>
 
     <!-- ── Notes view ── -->
@@ -1033,6 +1045,6 @@
   <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
   <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=196"></script>
+  <script src="/static/app.js?v=197"></script>
 </body>
 </html>

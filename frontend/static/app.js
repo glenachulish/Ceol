@@ -946,7 +946,12 @@ function renderTunes(data) {
 }
 
 function renderPagination(current, total) {
-  if (total <= 1) { pagination.innerHTML = ""; return; }
+  const paginationTop = document.getElementById("pagination-top");
+  if (total <= 1) {
+    pagination.innerHTML = "";
+    if (paginationTop) paginationTop.innerHTML = "";
+    return;
+  }
 
   const visible = new Set([1, total]);
   for (let p = Math.max(1, current - 2); p <= Math.min(total, current + 2); p++) {
@@ -964,6 +969,7 @@ function renderPagination(current, total) {
   html += `<button ${current === total ? "disabled" : ""} data-page="${current + 1}">›</button>`;
 
   pagination.innerHTML = html;
+  if (paginationTop) paginationTop.innerHTML = html;
 }
 
 /// Render a notes string: URLs become playable embeds or clickable links
@@ -1196,7 +1202,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         const label = notesAudioUrls.length > 1 ? `▶ Play MP3 ${i + 1}` : "▶ Play MP3";
         return `<div class="ff-download-row media-attachment-row" data-url="${escHtml(u)}" data-media-type="audio">
           <button class="btn-secondary media-play-btn" data-url="${escHtml(u)}" data-media-type="audio">${label}</button>
-          <button class="btn-icon media-remove-btn" data-url="${escHtml(u)}" title="Remove this audio attachment">✕</button>
+          <button class="btn-icon media-remove-btn" data-url="${escHtml(u)}" title="Remove this audio attachment">🗑</button>
         </div>`;
       }).join("")}
       ${notesVideoUrls.map((u, i) => {
@@ -1205,7 +1211,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         return `<div class="ff-download-row media-attachment-row" data-url="${escHtml(u)}" data-media-type="video">
           <button class="btn-secondary media-embed-btn" data-url="${escHtml(u)}">${label}</button>
           <a class="btn-secondary btn-sm" href="${escHtml(u)}" target="_blank" rel="noopener" title="Open in new tab">↗</a>
-          <button class="btn-icon media-remove-btn" data-url="${escHtml(u)}" title="Remove this video attachment">✕</button>
+          <button class="btn-icon media-remove-btn" data-url="${escHtml(u)}" title="Remove this video attachment">🗑</button>
         </div>
         <div class="media-inline-embed hidden" id="embed-${escHtml(u).replace(/[^a-z0-9]/gi,'_').slice(0,30)}"></div>`;
       }).join("")}
@@ -1656,34 +1662,33 @@ function renderModal(tune, onBack = null, siblings = null) {
     embedDiv.classList.remove("hidden");
   });
 
-  // Remove audio/video attachment
-  modalContent.addEventListener("click", async e => {
-    const btn = e.target.closest(".media-remove-btn");
-    if (!btn) return;
-    const urlToRemove = btn.dataset.url;
-    if (!confirm("Remove this media attachment from the tune's notes?")) return;
-    btn.disabled = true;
-    try {
-      // Escape regex special chars in URL
-      const escaped = urlToRemove.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const re = new RegExp(`(?:audio:|video:|\\n?)\\s*${escaped}\\s*\\n?`, "g");
-      let newNotes = (tune.notes || "").replace(re, "");
-      // Fallback: direct string removal
-      newNotes = newNotes.replace(urlToRemove, "").replace(/\n{3,}/g, "\n\n").trim();
-      await apiFetch(`/api/tunes/${tune.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: newNotes }),
-      });
-      tune.notes = newNotes;
-      btn.closest(".media-attachment-row")?.remove();
-      // Also remove the inline embed if it exists
-      const embedEl = document.getElementById("embed-" + urlToRemove.replace(/[^a-z0-9]/gi, "_").slice(0, 30));
-      if (embedEl) embedEl.remove();
-    } catch {
-      btn.disabled = false;
-      alert("Failed to remove attachment.");
-    }
+  // Remove audio/video attachment — attach directly to each button to avoid
+  // stale-closure bugs from multiple renderModal calls accumulating on modalContent.
+  modalContent.querySelectorAll(".media-remove-btn").forEach(removeBtn => {
+    removeBtn.addEventListener("click", async () => {
+      const urlToRemove = removeBtn.dataset.url;
+      if (!confirm("Remove this media attachment from the tune's notes?")) return;
+      removeBtn.disabled = true;
+      try {
+        // Remove the URL line (with any audio:/video: prefix) then collapse blank lines
+        const escaped = urlToRemove.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const re = new RegExp(`(?:audio:|video:|\\n?)\\s*${escaped}\\s*\\n?`, "g");
+        let newNotes = (tune.notes || "").replace(re, "");
+        newNotes = newNotes.replace(urlToRemove, "").replace(/\n{3,}/g, "\n\n").trim();
+        await apiFetch(`/api/tunes/${tune.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: newNotes }),
+        });
+        tune.notes = newNotes;
+        removeBtn.closest(".media-attachment-row")?.remove();
+        const embedEl = document.getElementById("embed-" + urlToRemove.replace(/[^a-z0-9]/gi, "_").slice(0, 30));
+        if (embedEl) embedEl.remove();
+      } catch {
+        removeBtn.disabled = false;
+        alert("Failed to remove attachment.");
+      }
+    });
   });
 
   // Tab switching
@@ -3216,6 +3221,9 @@ function renderSheetMusic(abc) {
         // condition: loop endpoint detected in onEvent, tune still finished before
         // seek took effect).  onStart will immediately seek to selection start.
         if (_barLooping && _barSel.start !== null && _synthController && !_loopSeeking) {
+          // Pre-seek to loop start BEFORE calling play(), so ABCJS doesn't
+          // briefly play from bar 0 while waiting for onStart to fire.
+          _seekToBar(_barSel.start);
           _barSeekPending = true;
           try { _synthController.play(); } catch {}
         } else if (_metSyncToAbc) {
@@ -5323,10 +5331,10 @@ function renderCollections(collections) {
       <div class="set-card-header">
         <div class="set-card-info">
           <span class="set-name">${escHtml(c.name)}</span>
+          <button class="btn-icon col-rename-btn col-rename-inline" data-col-id="${c.id}" title="Rename collection">✏</button>
           <span class="set-count">${countLabel}</span>
         </div>
         <div class="set-card-actions">
-          <button class="btn-secondary btn-sm col-rename-btn" data-col-id="${c.id}" title="Rename collection">✏</button>
           <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${c.id}">Strip chords</button>
           <a class="btn-secondary btn-sm" href="/api/export/collection/${c.id}" download title="Export as .ceol.json — can be merged into another Ceol library via Import → Ceol file">⬇ Export</a>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
@@ -5381,7 +5389,7 @@ function renderCollections(collections) {
           html += filtSets.map(s => `
             <div class="set-tune-row col-set-row" data-set-id="${s.id}">
               <span class="col-set-icon" title="Set">♫</span>
-              <span class="set-tune-title col-set-title">${escHtml(s.name)}</span>
+              <button class="set-tune-title col-set-link" data-set-id="${s.id}" title="Open this set">${escHtml(s.name)}</button>
               <span class="set-count">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
               <button class="btn-icon remove-from-col-set"
                 data-col-id="${id}" data-set-id="${s.id}" title="Remove set from collection">🗑</button>
@@ -5423,6 +5431,16 @@ function renderCollections(collections) {
               if (idx !== -1) allColSets.splice(idx, 1);
               _renderColItems(document.getElementById("col-detail-search")?.value || "");
             } catch { rb.disabled = false; }
+          });
+        });
+        // Set name links — navigate to the set in the Sets view
+        itemsEl.querySelectorAll(".col-set-link").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const sid = btn.dataset.setId;
+            switchView("sets");
+            setTimeout(() => {
+              if (window._openSetDetail) window._openSetDetail(sid);
+            }, 250);
           });
         });
       }
@@ -6339,11 +6357,17 @@ clearBtn.addEventListener("click", () => {
     loadTunes();
   }
 
-  // Expose reset so clearBtn can call it
+  // Expose reset so clearBtn (and bottom nav sync) can call it
   window._alphaReset = () => {
     slider.value = "0";
     currentEl.textContent = "";
     allBtn.classList.add("active");
+    const sliderBot = document.getElementById("alpha-slider-bot");
+    const currentElBot = document.getElementById("alpha-current-bot");
+    const allBtnBot = document.getElementById("alpha-all-btn-bot");
+    if (sliderBot) sliderBot.value = "0";
+    if (currentElBot) currentElBot.textContent = "";
+    if (allBtnBot) allBtnBot.classList.add("active");
   };
 
   slider.addEventListener("input", () => {
@@ -6360,6 +6384,48 @@ clearBtn.addEventListener("click", () => {
   allBtn.addEventListener("click", () => {
     slider.value = "0";
     _alphaApply("");
+  });
+})();
+
+// ── Bottom alphabet slider (mirrors the top one) ──────────────────────────────
+(function _initAlphaNavBottom() {
+  const sliderBot    = document.getElementById("alpha-slider-bot");
+  const allBtnBot    = document.getElementById("alpha-all-btn-bot");
+  const currentElBot = document.getElementById("alpha-current-bot");
+  if (!sliderBot) return;
+
+  const topSlider    = document.getElementById("alpha-slider");
+  const topCurrent   = document.getElementById("alpha-current");
+  const topAllBtn    = document.getElementById("alpha-all-btn");
+
+  function _syncTop(letter) {
+    if (topSlider) topSlider.value = sliderBot.value;
+    if (topCurrent) topCurrent.textContent = letter;
+    if (topAllBtn)  topAllBtn.classList.toggle("active", !letter);
+  }
+
+  sliderBot.addEventListener("input", () => {
+    const letter = String.fromCharCode(65 + parseInt(sliderBot.value));
+    currentElBot.textContent = letter;
+    allBtnBot.classList.remove("active");
+    _syncTop(letter);
+  });
+
+  sliderBot.addEventListener("change", () => {
+    const letter = String.fromCharCode(65 + parseInt(sliderBot.value));
+    state.starts_with = letter;
+    state.page = 1;
+    loadTunes();
+  });
+
+  allBtnBot.addEventListener("click", () => {
+    sliderBot.value = "0";
+    currentElBot.textContent = "";
+    allBtnBot.classList.add("active");
+    _syncTop("");
+    state.starts_with = "";
+    state.page = 1;
+    loadTunes();
   });
 })();
 
@@ -6387,6 +6453,13 @@ pagination.addEventListener("click", e => {
   state.page = Number(btn.dataset.page);
   loadTunes();
   window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+document.getElementById("pagination-top")?.addEventListener("click", e => {
+  const btn = e.target.closest("button[data-page]");
+  if (!btn || btn.disabled) return;
+  state.page = Number(btn.dataset.page);
+  loadTunes();
 });
 
 tuneList.addEventListener("click", async e => {
@@ -6552,6 +6625,28 @@ function closeModal() {
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }
+
+// ── Membership link navigation (sets/collections shown in modal header) ──────
+modalOverlay.addEventListener("click", e => {
+  const link = e.target.closest(".modal-membership-link");
+  if (!link) return;
+  e.preventDefault();
+  const setId = link.dataset.setId;
+  const colId = link.dataset.colId;
+  closeModal();
+  if (setId) {
+    switchView("sets");
+    // Wait for loadSets to finish before opening detail view
+    setTimeout(() => {
+      if (window._openSetDetail) window._openSetDetail(setId);
+    }, 250);
+  } else if (colId) {
+    switchView("collections");
+    setTimeout(() => {
+      document.querySelector(`.col-expand-btn[data-col-id="${colId}"]`)?.click();
+    }, 250);
+  }
+});
 
 // Note: bar-selection click listener is attached inside renderSheetMusic (capture phase).
 
@@ -7074,6 +7169,8 @@ createSetBtn.addEventListener("click", async () => {
     newSetForm.classList.add("hidden");
     newSetName.value = "";
     newSetNotes.value = "";
+    // Hide list immediately so user never sees the full list before the detail opens
+    setsList.classList.add("hidden");
     await loadSets();
     // Jump straight into the new set's detail view so tunes can be added immediately
     if (window._openSetDetail) window._openSetDetail(set.id);
