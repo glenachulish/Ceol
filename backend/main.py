@@ -678,6 +678,7 @@ class TuneUpdate(BaseModel):
     key: Optional[str] = None
     mode: Optional[str] = None
     abc: Optional[str] = None
+    notes: Optional[str] = None
     version_label: Optional[str] = None
     rating: Optional[int] = None
     on_hitlist: Optional[int] = None
