@@ -6666,9 +6666,10 @@ def serve_sw():
 # ── COLLECTION EXPORT ─────────────────────────────────────────────────────────
 
 @app.get("/api/collections/{collection_id}/export/ceol")
-def export_collection_ceol(collection_id: int, db=Depends(get_db)):
+def export_collection_ceol(collection_id: int):
     """Export a collection (tunes + sets) as a Ceòl JSON file.
     Personal data (ratings, hitlist, notes) is excluded."""
+    with _db() as db:
     import json, datetime
 
     col = db.execute("SELECT * FROM collections WHERE id=?", (collection_id,)).fetchone()
@@ -6781,10 +6782,11 @@ def export_collection_ceol(collection_id: int, db=Depends(get_db)):
 
 
 @app.get("/api/collections/{collection_id}/export/thecraic")
-def export_collection_thecraic(collection_id: int, db=Depends(get_db)):
+def export_collection_thecraic(collection_id: int):
     """Export a collection as a TheCraic-compatible ABC file.
     Personal data (ratings, hitlist, notes) is excluded.
     Sets are wrapped in starttunegroup/endtunegroup blocks."""
+    with _db() as db:
     import datetime
 
     col = db.execute("SELECT * FROM collections WHERE id=?", (collection_id,)).fetchone()
