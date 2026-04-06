@@ -9832,6 +9832,17 @@ document.getElementById("dedup-versions-btn")?.addEventListener("click", async (
   }
 });
 
+document.getElementById("strip-track-numbers-btn")?.addEventListener("click", async () => {
+  libraryMenu.classList.add("hidden");
+  const { updated } = await apiFetch("/api/tunes/strip-track-numbers", { method: "POST" });
+  if (updated === 0) {
+    alert("No track numbers found — all titles are already clean.");
+  } else {
+    alert(`Stripped track numbers from ${updated} tune title${updated !== 1 ? "s" : ""}.`);
+    await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+  }
+});
+
 const _rationaliseBtn = document.getElementById("rationalise-btn");
 if (_rationaliseBtn) {
   _rationaliseBtn.addEventListener("click", async () => {

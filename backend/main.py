@@ -186,6 +186,11 @@ def _normalize_title_for_grouping(title: str) -> str:
     return t
 
 
+def _strip_track_number(title: str) -> str:
+    """Strip leading track numbers like '02 ' or '16 - ' but preserve ordinals like '1st'."""
+    return re.sub(r"^\d+(?!st|nd|rd|th)[\s\-_\.]+", "", title).strip()
+
+
 def _do_auto_group(conn) -> int:
     """Group standalone tunes that share the same title. Returns count of new groups created."""
     rows = conn.execute(
@@ -1887,10 +1892,11 @@ async def import_folder(
 
         # If no match, create a bare tune entry
         if tune_id is None:
+            clean_stem = _strip_track_number(stem)
             with _db() as conn:
                 cur = conn.execute(
                     "INSERT INTO tunes (title, type, key, mode, abc, notes, imported_at) VALUES (?, '', '', '', '', ?, datetime('now'))",
-                    (stem, f"Imported from folder: {import_date}"),
+                    (clean_stem, f"Imported from folder: {import_date}"),
                 )
                 tune_id = cur.lastrowid
                 imported_title_map[title_lower] = tune_id
@@ -3780,6 +3786,20 @@ def auto_group_tunes():
     with _db() as conn:
         grouped = _do_auto_group(conn)
     return {"grouped": grouped}
+
+
+@app.post("/api/tunes/strip-track-numbers")
+def strip_track_numbers():
+    """Strip leading track numbers (e.g. '02 ', '16 - ') from all tune titles."""
+    updated = 0
+    with _db() as conn:
+        rows = conn.execute("SELECT id, title FROM tunes").fetchall()
+        for row in rows:
+            clean = _strip_track_number(row["title"])
+            if clean != row["title"]:
+                conn.execute("UPDATE tunes SET title = ? WHERE id = ?", (clean, row["id"]))
+                updated += 1
+    return {"updated": updated}
 
 
 @app.post("/api/tunes/dedup-versions")
@@ -6405,8 +6425,7 @@ def _title_from_filename(filename: str) -> str:
     stem = Path(filename).stem
     # Replace underscores and hyphens with spaces
     stem = re.sub(r"[_\-]+", " ", stem)
-    # Strip leading digits + punctuation (e.g. "01. Title" → "Title")
-    stem = re.sub(r"^\d+[\s.\-_]+", "", stem)
+    stem = _strip_track_number(stem)
     return stem.strip().title()
 
 
