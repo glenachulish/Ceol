@@ -459,6 +459,7 @@ function _getPendingTransfer() { try { return JSON.parse(localStorage.getItem(_T
 function _clearPendingTransfer() { localStorage.removeItem(_TRANSFER_KEY); }
 
 function _showPendingTransferBanner() {
+  if (!_pendingTransferBanner) return;
   const pt = _getPendingTransfer();
   if (!pt) { _pendingTransferBanner.classList.add("hidden"); return; }
   const parts = [];
@@ -8619,7 +8620,7 @@ theCraicSubmit.addEventListener("click", async () => {
       ytImportBtn.textContent = "Import YouTube video";
     }
   });
-})()
+})();
 
 // ── Ceol file (merge) import ───────────────────────────────────────────────
 (function(){
@@ -8679,7 +8680,7 @@ theCraicSubmit.addEventListener("click", async () => {
       ceolImportBtn.textContent = "Merge into library";
     }
   });
-})()
+})();
 
 // ── Music Scanner (.msca) import ──────────────────────────────────────────────
 (function(){
@@ -8878,7 +8879,7 @@ theCraicSubmit.addEventListener("click", async () => {
     mscaImportBtn.textContent = "Import tunes";
     if (totalImported > 0) { _afterImportSuccess(); } else { await Promise.all([loadTunes(), loadStats()]); }
   });
-})()
+})();
 
 // ── User-managed links ─────────────────────────────────────────────────────────
 (function(){
@@ -8952,7 +8953,7 @@ theCraicSubmit.addEventListener("click", async () => {
 
   // Load on startup
   _loadUserLinks();
-})()
+})();
 
 // ── TheCraic export ───────────────────────────────────────────────────────────
 document.getElementById("thecraic-export-btn").addEventListener("click", () => {
