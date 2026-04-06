@@ -5315,11 +5315,6 @@ function renderSets(sets) {
     });
   });
 
-  collectionsList.querySelectorAll(".col-export-btn").forEach(function(btn) {
-    btn.addEventListener("click", function() {
-      openCollectionExportModal(btn.dataset.colId, btn.dataset.colName);
-    });
-  });
 }
 
 function renderCollections(collections) {
@@ -5628,6 +5623,12 @@ function renderCollections(collections) {
         alert("Failed to delete collection. Please try again.");
         btn.disabled = false;
       }
+    });
+  });
+
+  collectionsList.querySelectorAll(".col-export-btn").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      openCollectionExportModal(btn.dataset.colId, btn.dataset.colName);
     });
   });
 }
