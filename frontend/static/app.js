@@ -10563,3 +10563,41 @@ _applyNavColour("library");  // set Library button solid on first paint
   loadTunes();
   _refreshTodoBadge();  // populate badge without waiting for first library load
 })();
+
+// ── Collection Export ─────────────────────────────────────────────────────────
+
+let _exportCollectionId = null;
+
+function openCollectionExportModal(id, name) {
+  _exportCollectionId = id;
+  const modal = document.getElementById("collectionExportModal");
+  const nameEl = document.getElementById("collectionExportName");
+  if (nameEl) nameEl.textContent = name || "Collection";
+  if (modal) modal.style.display = "flex";
+}
+
+function closeCollectionExportModal() {
+  const modal = document.getElementById("collectionExportModal");
+  if (modal) modal.style.display = "none";
+  _exportCollectionId = null;
+}
+
+function doExportCollection(format) {
+  if (!_exportCollectionId) return;
+  const url = `/api/collections/${_exportCollectionId}/export/${format}`;
+  // Trigger browser download
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  closeCollectionExportModal();
+}
+
+// Close export modal on backdrop click
+document.addEventListener("click", function(e) {
+  const modal = document.getElementById("collectionExportModal");
+  if (modal && e.target === modal) closeCollectionExportModal();
+});
+

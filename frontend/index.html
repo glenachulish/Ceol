@@ -1047,5 +1047,30 @@
   <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
   <script src="/static/abcjs-basic-min.js"></script>
   <script src="/static/app.js?v=204"></script>
+
+<!-- Collection Export Modal -->
+<div id="collectionExportModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:420px;">
+    <div class="modal-header">
+      <h2>Export Collection</h2>
+      <button class="modal-close" onclick="closeCollectionExportModal()">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:1.5rem;">
+      <p id="collectionExportName" style="font-weight:600;margin-bottom:1.2rem;font-size:1.05rem;"></p>
+      <p style="margin-bottom:1.4rem;color:var(--text-secondary);font-size:0.93rem;">
+        Personal data (ratings, hitlist, notes) is not included in the export.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:0.85rem;">
+        <button class="btn btn-primary" onclick="doExportCollection('ceol')" style="justify-content:center;">
+          ⬇ Ceòl JSON (.ceol.json)
+        </button>
+        <button class="btn btn-secondary" onclick="doExportCollection('thecraic')" style="justify-content:center;">
+          ⬇ TheCraic ABC (.abc)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
