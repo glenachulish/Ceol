@@ -15,7 +15,7 @@
   <script>
     (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);})();
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=52" />
+  <link rel="stylesheet" href="/static/style.css?v=92" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
   <link rel="stylesheet" href="/static/mobile.css?v=6" />
 </head>
@@ -502,11 +502,22 @@
        ─────────────────────────────────────────────────────── -->
   <div id="m-compat" style="display:none" aria-hidden="true">
     <!-- Desktop nav buttons (switchView uses these to mark .active) -->
+    <!-- Desktop nav buttons (switchView uses these to mark .active) -->
     <button id="nav-library">Library</button>
     <button id="nav-sets">Sets</button>
     <button id="nav-collections">Collections</button>
     <button id="nav-notes">Notes</button>
     <button id="nav-achievements">Achievements</button>
+    <button id="nav-todo">To Do</button>
+    <button id="nav-practice">Practice</button>
+    <!-- Views referenced in switchView array -->
+    <div id="view-practice"></div>
+    <div id="view-todo"></div>
+    <!-- Todo badge -->
+    <span id="todo-badge"></span>
+    <!-- More menu (null-guarded in app.js but included for completeness) -->
+    <button id="nav-more-btn"></button>
+    <div id="nav-more-menu" class="hidden"></div>
     <!-- Stats bar -->
     <div id="stats-bar"><span id="stats-text"></span></div>
     <!-- Header action buttons -->
@@ -537,7 +548,7 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=142"></script>
+  <script src="/static/app.js?v=197"></script>
   <script src="/static/mobile.js?v=3"></script>
   <script>
     if ("serviceWorker" in navigator) {
