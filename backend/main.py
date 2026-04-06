@@ -6663,117 +6663,88 @@ def serve_sw():
     )
 
 
-# ── COLLECTION EXPORT ─────────────────────────────────────────────────────────
+# ── COLLECTION EXPORT ─────────────────────────────────────────────────────
 
 @app.get("/api/collections/{collection_id}/export/ceol")
 def export_collection_ceol(collection_id: int):
     """Export a collection (tunes + sets) as a Ceòl JSON file.
     Personal data (ratings, hitlist, notes) is excluded."""
-    with _db() as db:
     import json, datetime
-
-    col = db.execute("SELECT * FROM collections WHERE id=?", (collection_id,)).fetchone()
-    if not col:
-        raise HTTPException(status_code=404, detail="Collection not found")
-
-    # Tunes directly in this collection (not via a set)
-    tune_rows = db.execute("""
-        SELECT t.id, t.title, t.type, t.key, t.mode, t.abc, t.composer,
-               t.transcribed_by, t.setting_id, t.session_id, t.source_url,
-               t.version_label, t.parent_id
-        FROM collection_tunes ct
-        JOIN tunes t ON t.id = ct.tune_id
-        WHERE ct.collection_id = ? AND (ct.set_id IS NULL OR ct.set_id = 0)
-        ORDER BY ct.position, t.title
-    """, (collection_id,)).fetchall()
-
-    tunes_out = []
-    for t in tune_rows:
-        aliases = [r[0] for r in db.execute(
-            "SELECT alias FROM tune_aliases WHERE tune_id=?", (t["id"],)).fetchall()]
-        tags = [r[0] for r in db.execute(
-            "SELECT tag FROM tune_tags WHERE tune_id=?", (t["id"],)).fetchall()]
-        tunes_out.append({
-            "id": t["id"],
-            "title": t["title"],
-            "aliases": aliases,
-            "type": t["type"],
-            "key": t["key"],
-            "mode": t["mode"],
-            "abc": t["abc"],
-            "composer": t["composer"],
-            "transcribed_by": t["transcribed_by"],
-            "setting_id": t["setting_id"],
-            "session_id": t["session_id"],
-            "source_url": t["source_url"],
-            "version_label": t["version_label"],
-            "parent_id": t["parent_id"],
-            "tags": tags,
-        })
-
-    # Sets in this collection
-    set_rows = db.execute("""
-        SELECT DISTINCT s.id, s.name, s.description
-        FROM collection_tunes ct
-        JOIN sets s ON s.id = ct.set_id
-        WHERE ct.collection_id = ? AND ct.set_id IS NOT NULL AND ct.set_id != 0
-        ORDER BY ct.position, s.name
-    """, (collection_id,)).fetchall()
-
-    sets_out = []
-    for s in set_rows:
-        st = db.execute("""
-            SELECT t.id, t.title, t.type, t.key, t.mode, t.abc,
-                   t.composer, t.transcribed_by, t.setting_id, t.session_id,
-                   t.source_url, t.version_label, t.parent_id
-            FROM set_tunes st
-            JOIN tunes t ON t.id = st.tune_id
-            WHERE st.set_id = ?
-            ORDER BY st.position
-        """, (s["id"],)).fetchall()
-
-        set_tunes_out = []
-        for t in st:
+    with _db() as db:
+        col = db.execute("SELECT * FROM collections WHERE id=?", (collection_id,)).fetchone()
+        if not col:
+            raise HTTPException(status_code=404, detail="Collection not found")
+        tune_rows = db.execute("""
+            SELECT t.id, t.title, t.type, t.key, t.mode, t.abc, t.composer,
+                   t.transcribed_by, t.setting_id, t.session_id, t.source_url,
+                   t.version_label, t.parent_id
+            FROM collection_tunes ct
+            JOIN tunes t ON t.id = ct.tune_id
+            WHERE ct.collection_id = ? AND (ct.set_id IS NULL OR ct.set_id = 0)
+            ORDER BY ct.position, t.title
+        """, (collection_id,)).fetchall()
+        tunes_out = []
+        for t in tune_rows:
             aliases = [r[0] for r in db.execute(
                 "SELECT alias FROM tune_aliases WHERE tune_id=?", (t["id"],)).fetchall()]
             tags = [r[0] for r in db.execute(
                 "SELECT tag FROM tune_tags WHERE tune_id=?", (t["id"],)).fetchall()]
-            set_tunes_out.append({
-                "id": t["id"],
-                "title": t["title"],
-                "aliases": aliases,
-                "type": t["type"],
-                "key": t["key"],
-                "mode": t["mode"],
-                "abc": t["abc"],
-                "composer": t["composer"],
+            tunes_out.append({
+                "id": t["id"], "title": t["title"], "aliases": aliases,
+                "type": t["type"], "key": t["key"], "mode": t["mode"],
+                "abc": t["abc"], "composer": t["composer"],
                 "transcribed_by": t["transcribed_by"],
-                "setting_id": t["setting_id"],
-                "session_id": t["session_id"],
-                "source_url": t["source_url"],
-                "version_label": t["version_label"],
-                "parent_id": t["parent_id"],
-                "tags": tags,
+                "setting_id": t["setting_id"], "session_id": t["session_id"],
+                "source_url": t["source_url"], "version_label": t["version_label"],
+                "parent_id": t["parent_id"], "tags": tags,
             })
-        sets_out.append({
-            "id": s["id"],
-            "name": s["name"],
-            "description": s["description"] or "",
-            "tunes": set_tunes_out,
-        })
-
+        set_rows = db.execute("""
+            SELECT DISTINCT s.id, s.name, s.description
+            FROM collection_tunes ct
+            JOIN sets s ON s.id = ct.set_id
+            WHERE ct.collection_id = ? AND ct.set_id IS NOT NULL AND ct.set_id != 0
+            ORDER BY ct.position, s.name
+        """, (collection_id,)).fetchall()
+        sets_out = []
+        for s in set_rows:
+            st = db.execute("""
+                SELECT t.id, t.title, t.type, t.key, t.mode, t.abc,
+                       t.composer, t.transcribed_by, t.setting_id, t.session_id,
+                       t.source_url, t.version_label, t.parent_id
+                FROM set_tunes st
+                JOIN tunes t ON t.id = st.tune_id
+                WHERE st.set_id = ?
+                ORDER BY st.position
+            """, (s["id"],)).fetchall()
+            set_tunes_out = []
+            for t in st:
+                aliases = [r[0] for r in db.execute(
+                    "SELECT alias FROM tune_aliases WHERE tune_id=?", (t["id"],)).fetchall()]
+                tags = [r[0] for r in db.execute(
+                    "SELECT tag FROM tune_tags WHERE tune_id=?", (t["id"],)).fetchall()]
+                set_tunes_out.append({
+                    "id": t["id"], "title": t["title"], "aliases": aliases,
+                    "type": t["type"], "key": t["key"], "mode": t["mode"],
+                    "abc": t["abc"], "composer": t["composer"],
+                    "transcribed_by": t["transcribed_by"],
+                    "setting_id": t["setting_id"], "session_id": t["session_id"],
+                    "source_url": t["source_url"], "version_label": t["version_label"],
+                    "parent_id": t["parent_id"], "tags": tags,
+                })
+            sets_out.append({
+                "id": s["id"], "name": s["name"],
+                "description": s["description"] or "",
+                "tunes": set_tunes_out,
+            })
+        col_name = col["name"]
+        col_desc = col["description"] if "description" in col.keys() else ""
     payload = {
         "ceol_export_version": "1.0",
         "exported_at": datetime.datetime.utcnow().isoformat() + "Z",
-        "collection": {
-            "name": col["name"],
-            "description": col["description"] if "description" in col.keys() else "",
-        },
-        "tunes": tunes_out,
-        "sets": sets_out,
+        "collection": {"name": col_name, "description": col_desc},
+        "tunes": tunes_out, "sets": sets_out,
     }
-
-    filename = col["name"].replace(" ", "_").replace("/", "-") + ".ceol.json"
+    filename = col_name.replace(" ", "_").replace("/", "-") + ".ceol.json"
     return Response(
         content=json.dumps(payload, indent=2, ensure_ascii=False),
         media_type="application/json",
@@ -6786,23 +6757,13 @@ def export_collection_thecraic(collection_id: int):
     """Export a collection as a TheCraic-compatible ABC file.
     Personal data (ratings, hitlist, notes) is excluded.
     Sets are wrapped in starttunegroup/endtunegroup blocks."""
-    with _db() as db:
     import datetime
-
-    col = db.execute("SELECT * FROM collections WHERE id=?", (collection_id,)).fetchone()
-    if not col:
-        raise HTTPException(status_code=404, detail="Collection not found")
-
-    col_name = col["name"]
-    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S +0000")
-
     METER_MAP = {
         "reel": "4/4", "jig": "6/8", "slip jig": "9/8", "single jig": "6/8",
         "double jig": "6/8", "polka": "2/4", "waltz": "3/4",
         "strathspey": "4/4", "hornpipe": "4/4", "march": "4/4",
         "air": "4/4", "barndance": "4/4",
     }
-
     def tune_abc_block(t, x_num):
         src = t.get("source_url") or ""
         block = [
@@ -6813,93 +6774,74 @@ def export_collection_thecraic(collection_id: int):
         ]
         abc = (t.get("abc") or "").strip()
         if abc:
-            # If the stored ABC already has an X: header use it as-is,
-            # otherwise prepend X: so it is valid
             if not re.match(r"^X\s*:", abc, re.MULTILINE):
                 abc = f"X: {x_num}\n" + abc
             block.append(abc)
         else:
-            # Build a minimal ABC skeleton from metadata
             rtype = (t.get("type") or "").lower()
             meter = METER_MAP.get(rtype, "4/4")
-            key   = t.get("key") or "D"
-            mode  = (t.get("mode") or "").lower()
+            key = t.get("key") or "D"
+            mode = (t.get("mode") or "").lower()
             key_str = key if mode in ("", "major") else f"{key}{mode}"
-            block += [
-                f"X: {x_num}",
-                f"T: {t.get('title') or 'Unknown'}",
-            ]
+            block += [f"X: {x_num}", f"T: {t.get('title') or 'Unknown'}"]
             if t.get("composer"):
                 block.append(f"C: {t['composer']}")
             if rtype:
                 block.append(f"R: {rtype}")
-            block += [f"M: {meter}", "L: 1/8", f"K: {key_str}",
-                      "% No ABC notation stored"]
+            block += [f"M: {meter}", "L: 1/8", f"K: {key_str}", "% No ABC notation stored"]
         block.append("")
         return "\n".join(block)
-
-    lines = [
-        "%abc-2.1",
-        "I:abc-creator Ceòl",
-        f'%%thecraic:exported collection "{col_name}" {now}',
-        "",
-        f'%%thecraic:collectionstart="{col_name}"',
-        "",
-    ]
-
-    x = 1
-
-    # Standalone tunes
-    tune_rows = db.execute("""
-        SELECT t.id, t.title, t.type, t.key, t.mode, t.abc,
-               t.composer, t.source_url
-        FROM collection_tunes ct
-        JOIN tunes t ON t.id = ct.tune_id
-        WHERE ct.collection_id = ? AND (ct.set_id IS NULL OR ct.set_id = 0)
-        ORDER BY ct.position, t.title
-    """, (collection_id,)).fetchall()
-
-    for t in tune_rows:
-        lines.append(tune_abc_block(dict(t), x))
-        x += 1
-
-    # Sets
-    set_rows = db.execute("""
-        SELECT DISTINCT s.id, s.name
-        FROM collection_tunes ct
-        JOIN sets s ON s.id = ct.set_id
-        WHERE ct.collection_id = ? AND ct.set_id IS NOT NULL AND ct.set_id != 0
-        ORDER BY ct.position, s.name
-    """, (collection_id,)).fetchall()
-
-    for s in set_rows:
-        st = db.execute("""
+    with _db() as db:
+        col = db.execute("SELECT * FROM collections WHERE id=?", (collection_id,)).fetchone()
+        if not col:
+            raise HTTPException(status_code=404, detail="Collection not found")
+        col_name = col["name"]
+        now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S +0000")
+        out_lines = [
+            "%abc-2.1", "I:abc-creator Ceòl",
+            f'%%thecraic:exported collection "{col_name}" {now}',
+            "", f'%%thecraic:collectionstart="{col_name}"', "",
+        ]
+        x = 1
+        tune_rows = db.execute("""
             SELECT t.id, t.title, t.type, t.key, t.mode, t.abc,
                    t.composer, t.source_url
-            FROM set_tunes st
-            JOIN tunes t ON t.id = st.tune_id
-            WHERE st.set_id = ?
-            ORDER BY st.position
-        """, (s["id"],)).fetchall()
-        if not st:
-            continue
-        lines += [
-            "%%thecraic:starttunegroup",
-            "%%thecraic:isfavorite=0",
-            "",
-        ]
-        for t in st:
-            lines.append(tune_abc_block(dict(t), x))
+            FROM collection_tunes ct
+            JOIN tunes t ON t.id = ct.tune_id
+            WHERE ct.collection_id = ? AND (ct.set_id IS NULL OR ct.set_id = 0)
+            ORDER BY ct.position, t.title
+        """, (collection_id,)).fetchall()
+        for t in tune_rows:
+            out_lines.append(tune_abc_block(dict(t), x))
             x += 1
-        lines += ["%%thecraic:endtunegroup", ""]
-
-    lines += [f'%%thecraic:collectionend="{col_name}"', ""]
-
-    content = "\n".join(lines)
+        set_rows = db.execute("""
+            SELECT DISTINCT s.id, s.name
+            FROM collection_tunes ct
+            JOIN sets s ON s.id = ct.set_id
+            WHERE ct.collection_id = ? AND ct.set_id IS NOT NULL AND ct.set_id != 0
+            ORDER BY ct.position, s.name
+        """, (collection_id,)).fetchall()
+        for s in set_rows:
+            st = db.execute("""
+                SELECT t.id, t.title, t.type, t.key, t.mode, t.abc,
+                       t.composer, t.source_url
+                FROM set_tunes st
+                JOIN tunes t ON t.id = st.tune_id
+                WHERE st.set_id = ?
+                ORDER BY st.position
+            """, (s["id"],)).fetchall()
+            if not st:
+                continue
+            out_lines += ["%%thecraic:starttunegroup", "%%thecraic:isfavorite=0", ""]
+            for t in st:
+                out_lines.append(tune_abc_block(dict(t), x))
+                x += 1
+            out_lines += ["%%thecraic:endtunegroup", ""]
+        out_lines += [f'%%thecraic:collectionend="{col_name}"', ""]
+    content = "\n".join(out_lines)
     filename = col_name.replace(" ", "_").replace("/", "-") + "_thecraic.abc"
     return Response(
         content=content,
         media_type="text/plain; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
-
