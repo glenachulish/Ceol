@@ -10570,10 +10570,19 @@ let _exportCollectionId = null;
 
 function openCollectionExportModal(id, name) {
   _exportCollectionId = id;
-  const modal = document.getElementById("collectionExportModal");
-  const nameEl = document.getElementById("collectionExportName");
-  if (nameEl) nameEl.textContent = name || "Collection";
-  if (modal) modal.style.display = "flex";
+  const safeName = escHtml(name || "");
+  modalContent.innerHTML =
+    "<h2 style='margin:0 0 0.5rem'>Export Collection</h2>" +
+    "<p style='font-weight:600;margin:0 0 1rem;color:var(--accent)'>" + safeName + "</p>" +
+    "<p style='margin:0 0 1.25rem;color:var(--text-secondary);font-size:0.9rem'>Personal data (ratings, hitlist, notes) is not included.</p>" +
+    "<div style='display:flex;flex-direction:column;gap:0.75rem'>" +
+    "<button id='_exp-ceol-btn' class='btn-primary'>&#11015; Ceòl JSON (.ceol.json)</button>" +
+    "<button id='_exp-thecraic-btn' class='btn-secondary'>&#11015; TheCraic ABC (.abc)</button>" +
+    "</div>";
+  document.getElementById("_exp-ceol-btn").addEventListener("click", function() { doExportCollection("ceol"); });
+  document.getElementById("_exp-thecraic-btn").addEventListener("click", function() { doExportCollection("thecraic"); });
+  modalOverlay.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
 }
 
 function closeCollectionExportModal() {
