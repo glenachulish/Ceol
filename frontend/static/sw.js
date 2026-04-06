@@ -5,7 +5,7 @@
    Only truly static assets (abcjs bundle, icons) are cached.
    ---------------------------------------------------------------- */
 
-const CACHE = "ceol-v4";
+const CACHE = "ceol-v5";
 
 const STATIC_ONLY = [
   "/static/abcjs-basic-min.js",
@@ -48,11 +48,11 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // HTML pages and versioned assets: network only (fast, no stale risk)
+  // HTML pages and versioned assets: network only, bypass all caches
   const isHtml       = !url.pathname.startsWith("/static/");
   const isVersioned  = url.search.includes("v=");
   if (isHtml || isVersioned) {
-    event.respondWith(fetch(event.request));
+    event.respondWith(fetch(event.request, { cache: "no-store" }));
     return;
   }
 
