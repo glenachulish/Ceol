@@ -5337,7 +5337,7 @@ function renderCollections(collections) {
         </div>
         <div class="set-card-actions">
           <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${c.id}">Strip chords</button>
-          <a class="btn-secondary btn-sm" href="/api/export/collection/${c.id}" download title="Export as .ceol.json — can be merged into another Ceol library via Import → Ceol file">⬇ Export</a>
+          <button class="btn-secondary btn-sm" title="Export collection as Ceòl JSON or TheCraic ABC" onclick="openCollectionExportModal(${c.id}, ${JSON.stringify(c.name)})">⬇ Export</button>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
           <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">🗑</button>
         </div>
