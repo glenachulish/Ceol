@@ -7403,8 +7403,9 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   window.addEventListener(ev, e => e.preventDefault(), true);
 });
 
-{
+(function(){
   const fileInput   = document.getElementById("audio-file-input");
+  if (!fileInput) return; // not present on mobile
   const folderInput = document.getElementById("audio-folder-input");
   const dropZone    = document.getElementById("audio-drop-zone");
   const fileCount   = document.getElementById("audio-file-count");
@@ -7512,11 +7513,12 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     importBtn.textContent = "Import audio files";
     _afterImportSuccess();
   });
-}
+})();
 
 // ── PDF Bulk Import ────────────────────────────────────────────────────────────
-{
+(function(){
   const fileInput         = document.getElementById("pdf-file-input");
+  if (!fileInput) return;
   const dropZone          = document.getElementById("pdf-drop-zone");
   const fileCount         = document.getElementById("pdf-file-count");
   const previewArea       = document.getElementById("pdf-preview-area");
@@ -7645,11 +7647,12 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     importBtn.textContent = "Import";
     fetchTunes(); // refresh library
   });
-}
+})();
 
 // ── PDF Book Import ────────────────────────────────────────────────────────────
-{
+(function(){
   const bookFileInput    = document.getElementById("book-file-input");
+  if (!bookFileInput) return;
   const bookDropZone     = document.getElementById("book-drop-zone");
   const bookFilename     = document.getElementById("book-filename");
   const bookCollName     = document.getElementById("book-collection-name");
@@ -8046,11 +8049,12 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     bookAbcImportBtn.disabled = false;
     bookAbcImportBtn.textContent = "Import tunes";
   }
-}
+})();
 
 // ── Photos Import ──────────────────────────────────────────────────────────────
-{
+(function(){
   const fileInput   = document.getElementById("photos-file-input");
+  if (!fileInput) return;
   const dropZone    = document.getElementById("photos-drop-zone");
   const fileCount   = document.getElementById("photos-file-count");
   const previewArea = document.getElementById("photos-preview-area");
@@ -8173,7 +8177,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     importBtn.textContent = "Import & enhance";
     _afterImportSuccess();
   });
-}
+})();
 
 // ── FlutefFling Catalogue Browser ─────────────────────────────────────────────
 const ffCatSearchInput = document.getElementById("ff-cat-search");
