@@ -4169,7 +4169,7 @@ function openFullSetModal(setData) {
         </span>
       </div>
       <div id="set-full-tunes-wrap" style="margin-top:.5rem">${tunesSectionDivs}</div>
-      <div id="set-full-audio-render" style="height:0;overflow:hidden"></div>
+      <div id="set-full-audio-render" style="display:none"></div>
       <div class="set-bot-controls">
         <button class="btn-secondary btn-sm" id="set-bot-play-btn">▶ Play</button>
         <button class="btn-secondary btn-sm" id="set-bot-restart-btn">⟳ Restart</button>
