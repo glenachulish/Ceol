@@ -4390,7 +4390,14 @@ function openFullSetModal(setData) {
       }).join('');
       win.document.write(`<!DOCTYPE html><html><head>
         <title>${setData.name.replace(/</g,'&lt;')}</title>
-        <style>body{font-family:sans-serif;margin:1.5cm;color:#000;background:#fff}h1{font-size:16pt;margin:0 0 .5em}svg{max-width:100%;display:block}@page{margin:1.5cm}</style>
+        <style>
+          body{font-family:sans-serif;margin:1.5cm;color:#000;background:#fff}
+          h1{font-size:16pt;margin:0 0 .5em}
+          div[style*="position"]{position:static!important;top:auto!important;left:auto!important}
+          svg{position:static!important;max-width:100%;display:block;height:auto!important}
+          .abcjs-container{position:static!important;overflow:visible!important}
+          @page{margin:1.5cm}
+        </style>
       </head><body>
         <h1>${setData.name.replace(/</g,'&lt;')}</h1>${parts}
       </body></html>`);
