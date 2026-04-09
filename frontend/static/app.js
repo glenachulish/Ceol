@@ -1125,13 +1125,13 @@ function renderModal(tune, onBack = null, siblings = null) {
   })();
   const notesVideoUrls = (() => {
     if (!tune.notes) return [];
-    const urlRe = /(?:https?:\/\/)[^\s<>"]+/g;
+    const urlRe = /(?:https?:\/\/|\/api\/uploads\/)[^\s<>"]+/g;
     const urls = [];
     let m;
     while ((m = urlRe.exec(tune.notes)) !== null) {
       const url = m[0];
       if (/(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/.test(url) ||
-          /\.(mp4|mov|webm)(\?|$)/i.test(url)) {
+          /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(url)) {
         urls.push(url);
       }
     }
@@ -2225,6 +2225,54 @@ function renderModal(tune, onBack = null, siblings = null) {
   });
 
   // Append a URL to notes and refresh the rendered notes section
+  // Re-renders just the media play buttons in the Sheet Music tab from the
+  // current tune.notes, without touching the ABC render or other controls.
+  function _refreshSheetMusicMediaButtons(t) {
+    const container = document.getElementById(\"tab-music\");
+    if (!container) return;
+    // Remove existing media rows
+    container.querySelectorAll(\".media-attachment-row, .media-inline-embed\").forEach(el => el.remove());
+    // Re-parse URLs
+    const urlRe = /(?:https?:\/\/|\/api\/uploads\/)[^\s<>\"]+/g;
+    const audioUrls = [], videoUrls = [];
+    let m;
+    while ((m = urlRe.exec(t.notes || \"\")) !== null) {
+      const u = m[0];
+      if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(u)) audioUrls.push(u);
+      else if (/(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/.test(u) ||
+               /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(u)) videoUrls.push(u);
+    }
+    // Insert before #audio-player-container
+    const anchor = container.querySelector(\"#audio-player-container\");
+    if (!anchor) return;
+    const frag = document.createDocumentFragment();
+    audioUrls.forEach((u, i) => {
+      const label = audioUrls.length > 1 ? `▶ Play MP3 ${i + 1}` : \"▶ Play MP3\";
+      const row = document.createElement(\"div\");
+      row.className = \"ff-download-row media-attachment-row\";
+      row.dataset.url = u; row.dataset.mediaType = \"audio\";
+      row.innerHTML = `<button class=\"btn-secondary media-play-btn\" data-url=\"${escHtml(u)}\" data-media-type=\"audio\">${label}</button>
+        <button class=\"btn-icon media-remove-btn\" data-url=\"${escHtml(u)}\" title=\"Remove this audio attachment\">🗑</button>`;
+      frag.appendChild(row);
+    });
+    videoUrls.forEach((u, i) => {
+      const label = videoUrls.length > 1 ? `▶ Play video ${i + 1}` : \"▶ Play video\";
+      const safeId = \"embed-\" + u.replace(/[^a-z0-9]/gi, \"_\").slice(0, 30);
+      const row = document.createElement(\"div\");
+      row.className = \"ff-download-row media-attachment-row\";
+      row.dataset.url = u; row.dataset.mediaType = \"video\";
+      row.innerHTML = `<button class=\"btn-secondary media-embed-btn\" data-url=\"${escHtml(u)}\">${label}</button>
+        <a class=\"btn-secondary btn-sm\" href=\"${escHtml(u)}\" target=\"_blank\" rel=\"noopener\" title=\"Open in new tab\">↗</a>
+        <button class=\"btn-icon media-remove-btn\" data-url=\"${escHtml(u)}\" title=\"Remove this video attachment\">🗑</button>`;
+      const embedDiv = document.createElement(\"div\");
+      embedDiv.className = \"media-inline-embed hidden\";
+      embedDiv.id = safeId;
+      frag.appendChild(row);
+      frag.appendChild(embedDiv);
+    });
+    anchor.before(frag);
+  }
+
   async function _appendUrlToNotes(url, statusEl) {
     const current = tune.notes || "";
     const newNotes = current.trimEnd() ? `${current.trimEnd()}\n${url}` : url;
@@ -2243,6 +2291,8 @@ function renderModal(tune, onBack = null, siblings = null) {
         const tab = document.getElementById("tab-notes");
         if (tab) tab.insertAdjacentHTML("afterbegin", `<div class="notes-rendered">${renderNotesHtml(newNotes)}</div><hr class="notes-divider">`);
       }
+      // Refresh media buttons in Sheet Music tab too
+      _refreshSheetMusicMediaButtons(tune);
       if (statusEl) statusEl.textContent = "";
       attachAudioPanel.classList.add("hidden");
       attachVideoPanel.classList.add("hidden");
