@@ -1185,10 +1185,8 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
       </div>
-      <div id="fetch-abc-section"${tune.abc ? ' class="fetch-abc-collapsed"' : ""}>
+      <div id="fetch-abc-section">
         <div class="fetch-abc-row">
-          ${tune.abc ? `<button id="fetch-abc-toggle" class="btn-secondary btn-sm">🔍 Find on TheSession.org…</button>` : ""}
-          <button id="fetch-session-abc" class="btn-import${tune.abc ? " hidden" : ""}">🔍 Find ABC on TheSession.org</button>
           <a id="open-session-btn" href="${sessionHref}" target="_blank" rel="noopener" class="btn-secondary btn-sm">${sessionBtnLabel}</a>
           <span id="fetch-abc-status" class="notes-status"></span>
           ${tune.abc ? `<button id="strip-chords-btn" class="btn-secondary btn-sm" title="Remove guitar chord symbols from ABC">✂ Strip chords</button>` : ""}
@@ -2098,20 +2096,6 @@ function renderModal(tune, onBack = null, siblings = null) {
         abcResults.innerHTML = `<p class="import-error" style="padding:.4rem .6rem">Failed to save: ${escHtml(err.message)}</p>`;
       }
     }
-  }
-
-  // Toggle "Find on TheSession" when tune already has ABC
-  const fetchAbcToggle = document.getElementById("fetch-abc-toggle");
-  if (fetchAbcToggle) {
-    fetchAbcToggle.addEventListener("click", () => {
-      const realBtn = document.getElementById("fetch-session-abc");
-      if (realBtn) {
-        realBtn.classList.toggle("hidden");
-        fetchAbcToggle.textContent = realBtn.classList.contains("hidden")
-          ? "🔍 Find on TheSession.org…"
-          : "▲ Hide search";
-      }
-    });
   }
 
   // Strip chords button (when tune has ABC)
