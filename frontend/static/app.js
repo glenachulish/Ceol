@@ -1193,10 +1193,14 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
         <div id="sheet-music-render"></div>
         <div id="sheet-music-render-hidden" style="display:none;height:0;overflow:hidden"></div>
-        ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
-        ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
-        ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
-        ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
+        ${(imageUrl && !tune.abc) ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
+        ${(imageUrl && !tune.abc) ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
+        ${(pdfUrl && !tune.abc) ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
+        ${(pdfUrl && !tune.abc) ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
+        ${(tune.abc && (imageUrl || pdfUrl)) ? `<p class="pdf-link-hint" style="margin-top:.5rem">
+          📎 This tune also has ${imageUrl ? "a photo" : "a PDF"} of sheet music.
+          <button class="btn-secondary btn-sm" id="split-abc-btn" style="margin-left:.4rem">Separate into versions</button>
+        </p>` : ""}
       </div>
       <div id="fetch-abc-section">
         <div class="fetch-abc-row">
@@ -1209,7 +1213,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         </div>
         <div id="session-abc-results" class="session-abc-results hidden"></div>
       </div>
-      ${pdfUrl ? `<div class="ff-download-row">
+      ${(pdfUrl && !tune.abc) ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
       </div>` : ""}
       ${notesAudioUrls.map((u, i) => {
@@ -2311,6 +2315,54 @@ function renderModal(tune, onBack = null, siblings = null) {
         tempoSetBtn.textContent = "Set tempo";
         tempoSetBtn.disabled = false;
         if (tempoStatus) tempoStatus.textContent = `Error: ${err.message}`;
+      }
+    });
+  }
+
+  // Split ABC + PDF/photo into separate versions
+  const splitAbcBtn = document.getElementById("split-abc-btn");
+  if (splitAbcBtn) {
+    splitAbcBtn.addEventListener("click", async () => {
+      splitAbcBtn.disabled = true;
+      splitAbcBtn.textContent = "Separating…";
+      try {
+        // Create a new tune entry for the ABC
+        const abcTune = await apiFetch("/api/tunes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: tune.title,
+            abc: tune.abc,
+            key: tune.key || "",
+            mode: tune.mode || "",
+            type: tune.type || "",
+            version_label: "ABC",
+            ...(tune.session_id ? { session_id: String(tune.session_id) } : {}),
+          }),
+        });
+        // Remove ABC from the original tune, keep the PDF/photo
+        await apiFetch(`/api/tunes/${tune.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ abc: "" }),
+        });
+        // Group both as versions
+        await apiFetch("/api/tunes/group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: tune.title,
+            tune_ids: [tune.id, abcTune.id],
+            labels: ["Sheet Music", "ABC"],
+          }),
+        });
+        await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+        const fresh = await fetchTune(tune.id);
+        renderModal(fresh, onBack, null);
+      } catch (err) {
+        splitAbcBtn.disabled = false;
+        splitAbcBtn.textContent = "Separate into versions";
+        alert("Failed to separate: " + err.message);
       }
     });
   }
