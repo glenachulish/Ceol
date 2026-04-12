@@ -600,38 +600,41 @@ def get_tune(tune_id: int):
             "SELECT COUNT(*) FROM tunes WHERE parent_id = ?", (tune_id,)
         ).fetchone()[0]
 
-    # Collect media URLs from all related tunes (parent + all versions)
-    # so audio/video attached to any version is available on all versions.
-    tune_data = dict(row)
-    if tune_data.get("parent_id"):
-        # This tune is a version — gather notes from parent + all siblings
-        related = conn.execute(
-            """SELECT notes FROM tunes
-               WHERE (id = ? OR parent_id = ?) AND notes != ''""",
-            (tune_data["parent_id"], tune_data["parent_id"]),
-        ).fetchall()
-    else:
-        # This is a parent or standalone — gather notes from self + all children
-        related = conn.execute(
-            """SELECT notes FROM tunes
-               WHERE (id = ? OR parent_id = ?) AND notes != ''""",
-            (tune_id, tune_id),
-        ).fetchall()
-    all_notes = " ".join(r["notes"] for r in related if r["notes"])
+        # Collect media URLs from all related tunes (parent + all versions)
+        # so audio/video attached to any version is available on all versions.
+        tune_data = dict(row)
+        parent_id = tune_data.get("parent_id")
+        if parent_id:
+            # This tune is a version — gather notes from parent + all siblings
+            related = conn.execute(
+                """SELECT notes FROM tunes
+                   WHERE (id = ? OR parent_id = ?) AND notes != ''""",
+                (parent_id, parent_id),
+            ).fetchall()
+        else:
+            # This is a parent or standalone — gather notes from self + all children
+            related = conn.execute(
+                """SELECT notes FROM tunes
+                   WHERE (id = ? OR parent_id = ?) AND notes != ''""",
+                (tune_id, tune_id),
+            ).fetchall()
+        all_notes = " ".join(r["notes"] for r in related if r["notes"])
+
+        # If parent has no session_id, inherit from first version that has one
+        ver_sid = None
+        if not tune_data.get("session_id"):
+            ver_sid = conn.execute(
+                "SELECT session_id FROM tunes WHERE parent_id = ? AND session_id IS NOT NULL AND session_id != '' LIMIT 1",
+                (tune_id,)
+            ).fetchone()
 
     result = dict(row)
     result["aliases"] = [a["alias"] for a in aliases]
     result["tags"] = [t["name"] for t in tags]
     result["version_count"] = version_count
-    result["all_notes"] = all_notes  # combined notes for media URL extraction
-    # If parent has no session_id, inherit from first version that has one
-    if not result.get("session_id"):
-        ver_sid = conn.execute(
-            "SELECT session_id FROM tunes WHERE parent_id = ? AND session_id IS NOT NULL AND session_id != '' LIMIT 1",
-            (tune_id,)
-        ).fetchone()
-        if ver_sid:
-            result["session_id"] = ver_sid["session_id"]
+    result["all_notes"] = all_notes
+    if ver_sid:
+        result["session_id"] = ver_sid["session_id"]
     return result
 
 
