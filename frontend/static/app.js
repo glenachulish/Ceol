@@ -675,9 +675,6 @@ async function fetchTune(id) {
   return apiFetch(`/api/tunes/${id}`);
 }
 
-// One-time cleanup: strip photo/PDF lines from ABC versions (idempotent, fast)
-fetch("/api/versions/clean-media-notes", { method: "POST" }).catch(() => {});
-
 async function fetchStats() {
   return apiFetch("/api/stats");
 }
