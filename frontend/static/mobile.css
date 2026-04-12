@@ -260,6 +260,28 @@
   align-items: flex-end; /* slide up from bottom */
 }
 
+/* The actual modal on mobile: full width, slides up from bottom */
+.mobile-body .modal {
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: 92vh;
+  border-radius: 16px 16px 0 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  padding: 1.25rem 1.25rem 1.5rem !important;
+}
+
+/* Pull handle hint */
+.mobile-body .modal::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto .75rem;
+}
+
 .mobile-body .m-modal-fullscreen {
   max-width: 100%;
   max-height: 96vh;
@@ -269,22 +291,11 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Pull handle hint */
-.mobile-body .m-modal-fullscreen::before {
-  content: "";
-  display: block;
-  width: 36px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  margin: .6rem auto .3rem;
-}
-
 /* Narrow dialogs (backup, delete) still centered */
 .mobile-body .modal.modal-narrow {
-  max-width: 90vw;
-  border-radius: 12px;
-  margin: 0 auto;
+  max-width: 92vw !important;
+  border-radius: 12px !important;
+  margin: 0 auto !important;
 }
 .mobile-body .modal-overlay:has(.modal-narrow) {
   align-items: center;
@@ -484,12 +495,7 @@
   }
 }
 
-/* ── iPhone safe area: modal padding ───────────────────────── */
-.mobile-body .modal {
-  padding-left:  max(1.5rem, env(safe-area-inset-left, 0px) + 1rem);
-  padding-right: max(1.5rem, env(safe-area-inset-right, 0px) + 1rem);
-  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px) + 1rem);
-}
+
 
 /* ── Practice tab: boxes don't overflow on small screens ────── */
 .mobile-body .practice-settings {
@@ -513,9 +519,4 @@
   overflow-x: hidden;
 }
 
-/* ── Safe area: regular modal and fullscreen content ───────── */
-.mobile-body .modal {
-  padding-left:   1.25rem !important;
-  padding-right:  1.25rem !important;
-  padding-bottom: 1.25rem !important;
-}
+
