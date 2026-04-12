@@ -207,6 +207,7 @@
     <div id="view-sets" class="hidden">
       <div class="view-header">
         <h2 class="section-title">Sets</h2>
+        <input id="sets-search" type="search" class="view-search-input" placeholder="Search sets…" autocomplete="off">
         <button id="new-set-btn" class="btn-set">+ New Set</button>
         <button id="build-set-btn" class="btn-set">🎵 Build a Set</button>
       </div>
@@ -232,6 +233,7 @@
     <div id="view-collections">
       <div class="view-header">
         <h2 class="section-title">Collections</h2>
+        <input id="collections-search" type="search" class="view-search-input" placeholder="Search collections…" autocomplete="off">
         <button id="new-collection-btn" class="btn-collection">+ New Collection</button>
         <button id="discography-btn" class="btn-secondary">🎵 Build from Discography</button>
       </div>
@@ -1046,7 +1048,7 @@
   <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
   <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=205"></script>
+  <script src="/static/app.js?v=206"></script>
 
 <!-- Collection Export Modal -->
 <div id="collectionExportModal" class="modal" style="display:none;">

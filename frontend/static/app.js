@@ -4754,14 +4754,18 @@ function showCreateSetPanel(tune, onBack, siblings) {
 }
 
 function renderSets(sets) {
-  if (!sets.length) {
-    setsList.innerHTML = '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
-    return;
-  }
-
+  const _setsSearchInput = document.getElementById("sets-search");
   const _masteryLabels = ["Unrated","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
 
-  setsList.innerHTML = sets.map(s => {
+  function _doRenderSets(items) {
+    if (!items.length) {
+      const q = _setsSearchInput ? _setsSearchInput.value.trim() : "";
+      setsList.innerHTML = q
+        ? `<p class="empty">No sets match “${escHtml(q)}”.</p>`
+        : '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
+      return;
+    }
+    setsList.innerHTML = items.map(s => {
     const rating = s.rating || 0;
     const stars = [1,2,3,4,5].map(n =>
       `<button class="set-star-btn${rating >= n ? " filled" : ""}" data-n="${n}" data-set-id="${s.id}" title="${_masteryLabels[n]}">★</button>`
@@ -5353,16 +5357,33 @@ function renderSets(sets) {
       }
     });
   });
+  } // end _doRenderSets
 
+  if (_setsSearchInput) {
+    _setsSearchInput.oninput = () => {
+      const q = _setsSearchInput.value.trim().toLowerCase();
+      _doRenderSets(q ? sets.filter(s => s.name.toLowerCase().includes(q)) : sets);
+    };
+  }
+  _doRenderSets(
+    (_setsSearchInput && _setsSearchInput.value.trim())
+      ? sets.filter(s => s.name.toLowerCase().includes(_setsSearchInput.value.trim().toLowerCase()))
+      : sets
+  );
 }
 
 function renderCollections(collections) {
-  if (!collections.length) {
-    collectionsList.innerHTML = '<p class="empty">No collections yet. Create one to group tunes by theme!</p>';
-    return;
-  }
+  const _colsSearchInput = document.getElementById("collections-search");
 
-  collectionsList.innerHTML = collections.map(c => {
+  function _doRenderCollections(items) {
+    if (!items.length) {
+      const q = _colsSearchInput ? _colsSearchInput.value.trim() : "";
+      collectionsList.innerHTML = q
+        ? `<p class="empty">No collections match “${escHtml(q)}”.</p>`
+        : '<p class="empty">No collections yet. Create one to group tunes by theme!</p>';
+      return;
+    }
+    collectionsList.innerHTML = items.map(c => {
     const parts = [];
     if (c.tune_count) parts.push(`${c.tune_count} tune${c.tune_count !== 1 ? "s" : ""}`);
     if (c.set_count)  parts.push(`${c.set_count} set${c.set_count !== 1 ? "s" : ""}`);
@@ -5670,6 +5691,19 @@ function renderCollections(collections) {
       openCollectionExportModal(btn.dataset.colId, btn.dataset.colName);
     });
   });
+  } // end _doRenderCollections
+
+  if (_colsSearchInput) {
+    _colsSearchInput.oninput = () => {
+      const q = _colsSearchInput.value.trim().toLowerCase();
+      _doRenderCollections(q ? collections.filter(c => c.name.toLowerCase().includes(q)) : collections);
+    };
+  }
+  _doRenderCollections(
+    (_colsSearchInput && _colsSearchInput.value.trim())
+      ? collections.filter(c => c.name.toLowerCase().includes(_colsSearchInput.value.trim().toLowerCase()))
+      : collections
+  );
 }
 
 // ── Recently Imported smart collection ───────────────────────────────────────

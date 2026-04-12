@@ -637,10 +637,22 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .view-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: .5rem;
+  flex-wrap: wrap;
   margin: 1rem 0;
 }
-.section-title { font-size: 1.1rem; font-weight: 700; }
+.section-title { font-size: 1.1rem; font-weight: 700; margin-right: auto; }
+.view-search-input {
+  flex: 1 1 160px;
+  max-width: 220px;
+  padding: .35rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .9rem;
+}
+.view-search-input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 
 .new-set-form {
   background: var(--surface);
