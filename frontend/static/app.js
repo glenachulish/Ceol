@@ -6981,6 +6981,9 @@ function closeModal() {
   _stopMetronome();
   const inlineMp3 = document.getElementById("inline-mp3-player");
   if (inlineMp3) { inlineMp3.pause(); inlineMp3.src = ""; }
+  // Stop any inline video embeds inside the modal (YouTube iframes + <video> elements)
+  modalContent.querySelectorAll(".media-inline-embed iframe").forEach(el => { el.src = ""; });
+  modalContent.querySelectorAll(".media-inline-embed video, .media-inline-embed audio").forEach(el => { el.pause(); el.src = ""; });
   closeMediaOverlay();
   modalOverlay.classList.add("hidden");
   document.body.style.overflow = "";
