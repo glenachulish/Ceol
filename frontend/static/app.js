@@ -1101,7 +1101,7 @@ function renderModal(tune, onBack = null, siblings = null) {
   // TheSession.org button — direct link if we have a session ID, search otherwise
   const sessionHref = _sessionId
     ? `https://thesession.org/tunes/${_sessionId}`
-    : `https://thesession.org/tunes?q=${encodeURIComponent(tune.title)}`;
+    : null;
   const sessionBtnLabel = _sessionId
     ? "🌐 Open on TheSession.org ↗"
     : `🔍 Search TheSession.org for "${tune.title}" ↗`;
@@ -1199,7 +1199,9 @@ function renderModal(tune, onBack = null, siblings = null) {
       </div>
       <div id="fetch-abc-section">
         <div class="fetch-abc-row">
-          <a id="open-session-btn" href="${sessionHref}" target="_blank" rel="noopener" class="btn-secondary btn-sm">${sessionBtnLabel}</a>
+          ${sessionHref
+            ? `<a id="open-session-btn" href="${sessionHref}" target="_blank" rel="noopener" class="btn-secondary btn-sm">${sessionBtnLabel}</a>`
+            : `<button id="open-session-btn" class="btn-secondary btn-sm" data-search-title="${escHtml(tune.title)}">${sessionBtnLabel}</button>`}
           <span id="fetch-abc-status" class="notes-status"></span>
           ${tune.abc ? `<button id="strip-chords-btn" class="btn-secondary btn-sm" title="Remove guitar chord symbols from ABC">✂ Strip chords</button>` : ""}
           ${tune.abc ? `<button id="clear-abc-btn" class="btn-danger btn-sm" title="Remove the ABC notation for this tune">🗑 Clear ABC</button>` : ""}
@@ -1961,6 +1963,91 @@ function renderModal(tune, onBack = null, siblings = null) {
       }
     });
   });
+
+  // ── Open-session button: direct link if session_id known, else trigger inline search ──
+  const openSessionBtn = document.getElementById("open-session-btn");
+  if (openSessionBtn && openSessionBtn.tagName === "BUTTON") {
+    openSessionBtn.addEventListener("click", async () => {
+      const title = openSessionBtn.dataset.searchTitle || tune.title;
+      const abcStatus = document.getElementById("fetch-abc-status");
+      const abcResults = document.getElementById("session-abc-results");
+      if (!abcStatus || !abcResults) return;
+      openSessionBtn.disabled = true;
+      openSessionBtn.textContent = "Searching…";
+      abcStatus.textContent = "";
+      abcResults.classList.add("hidden");
+      try {
+        const res = await fetch(`/api/thesession/search?q=${encodeURIComponent(title)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Search failed");
+        if (!data.tunes || !data.tunes.length) {
+          openSessionBtn.textContent = sessionBtnLabel;
+          openSessionBtn.disabled = false;
+          abcStatus.textContent = `No matches found on TheSession.org for "${escHtml(title)}".`;
+          return;
+        }
+        openSessionBtn.textContent = sessionBtnLabel;
+        openSessionBtn.disabled = false;
+        abcStatus.textContent = `${data.tunes.length} match${data.tunes.length === 1 ? "" : "es"} — pick one to import ABC:`;
+        abcResults.innerHTML = data.tunes.slice(0, 8).map(t => `
+          <div class="session-abc-match">
+            <button class="session-abc-pick" data-session-id="${t.id}">
+              <strong>${escHtml(t.name)}</strong>
+              <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type)}</span>
+              <span class="session-abc-meta">${t.tunebooks} setting${t.tunebooks === 1 ? "" : "s"}</span>
+            </button>
+          </div>`).join("");
+        abcResults.classList.remove("hidden");
+        // Wire pick buttons — reuse same logic as fetchAbcBtn
+        abcResults.querySelectorAll(".session-abc-pick").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const sessionId = btn.dataset.sessionId;
+            abcResults.innerHTML = '<p class="loading" style="padding:.3rem 0">Fetching ABC…</p>';
+            try {
+              const fRes = await fetch(`/api/thesession/fetch/${sessionId}`);
+              const sessionData = await fRes.json();
+              if (!fRes.ok) throw new Error(sessionData.detail || "Fetch failed");
+              const settings = sessionData.settings || [];
+              if (!settings.length) { abcResults.innerHTML = "<p>No settings found.</p>"; return; }
+              abcResults.innerHTML = settings.slice(0, 6).map((s, idx) => `
+                <div class="session-abc-match">
+                  <button class="session-abc-import" data-idx="${idx}">
+                    Setting ${s.id} · ${escHtml(s.key || "")}
+                  </button>
+                  <div id="preview-mini-${idx}" style="font-size:.75rem;color:var(--text-muted);margin:.2rem 0 0 .5rem">${escHtml((s.abc||"").slice(0,80))}…</div>
+                </div>`).join("");
+              abcResults.querySelectorAll(".session-abc-import").forEach(impBtn => {
+                impBtn.addEventListener("click", async () => {
+                  const s = settings[Number(impBtn.dataset.idx)];
+                  impBtn.disabled = true; impBtn.textContent = "Saving…";
+                  try {
+                    await apiFetch(`/api/tunes/${tune.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ abc: s.abc, session_id: String(sessionData.session_id) }),
+                    });
+                    tune.abc = s.abc;
+                    tune.session_id = sessionData.session_id;
+                    abcResults.classList.add("hidden");
+                    abcStatus.textContent = "ABC saved ✓";
+                    renderSheetMusic(s.abc);
+                  } catch (err) {
+                    abcResults.innerHTML = `<p class="import-error">Failed: ${escHtml(err.message)}</p>`;
+                  }
+                });
+              });
+            } catch (err) {
+              abcResults.innerHTML = `<p class="import-error">Error: ${escHtml(err.message)}</p>`;
+            }
+          });
+        });
+      } catch (err) {
+        openSessionBtn.textContent = sessionBtnLabel;
+        openSessionBtn.disabled = false;
+        abcStatus.textContent = `Error: ${escHtml(err.message)}`;
+      }
+    });
+  }
 
   // ── Fetch ABC from TheSession ──────────────────────────────
   const fetchAbcBtn = document.getElementById("fetch-session-abc");
