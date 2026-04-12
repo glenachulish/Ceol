@@ -1492,6 +1492,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         renderModal(t, onBack, siblings);
         requestAnimationFrame(() => {
           if (t.abc) renderSheetMusic(t.abc);
+          else if (t.sibling_abc) renderSheetMusic(t.sibling_abc);
         });
       });
     });
@@ -4802,7 +4803,7 @@ function openFullSetModal(setData, opts = {}) {
 
 // Panel 1: list of existing sets to choose from
 async function showSetPickerPanel(tune, onBack, siblings) {
-  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); }); };
+  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); else if (tune.sibling_abc) renderSheetMusic(tune.sibling_abc); }); };
 
   // Fetch which sets this tune already belongs to
   let memberSetIds = new Set();
@@ -4844,7 +4845,7 @@ async function showSetPickerPanel(tune, onBack, siblings) {
 // Panel 2: preview the set with the new tune appended, allow reorder + playback
 function showSetPreviewPanel(tune, setData, onBack, siblings) {
   const backToPicker = () => showSetPickerPanel(tune, onBack, siblings);
-  const backToTune   = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); }); };
+  const backToTune   = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); else if (tune.sibling_abc) renderSheetMusic(tune.sibling_abc); }); };
 
   // Working copy of the order; new tune is appended at the end
   let previewOrder = [...(setData.tunes || []), { ...tune, _isNew: true }];
@@ -4928,7 +4929,7 @@ function showSetPreviewPanel(tune, setData, onBack, siblings) {
 
 // Panel 3: create a new set with this tune as the first entry
 function showCreateSetPanel(tune, onBack, siblings) {
-  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); }); };
+  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); else if (tune.sibling_abc) renderSheetMusic(tune.sibling_abc); }); };
   const defaultName = `${tune.title} Set`;
 
   modalContent.innerHTML = `
@@ -6880,6 +6881,9 @@ tuneList.addEventListener("click", async e => {
       renderModal(firstTune, () => renderVersionsPanel(parentId), versions);
       modalOverlay.classList.remove("hidden");
       document.body.style.overflow = "hidden";
+      if (!firstTune.abc && firstTune.sibling_abc) {
+        requestAnimationFrame(() => renderSheetMusic(firstTune.sibling_abc));
+      }
     }
     return;
   }
@@ -6888,6 +6892,9 @@ tuneList.addEventListener("click", async e => {
   renderModal(tune);
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+  if (!tune.abc && tune.sibling_abc) {
+    requestAnimationFrame(() => renderSheetMusic(tune.sibling_abc));
+  }
 });
 
 tuneList.addEventListener("keydown", e => {
@@ -9579,6 +9586,9 @@ async function renderVersionsPanel(parentId) {
         await fetchSets();
         const tune = await fetchTune(item.dataset.id);
         renderModal(tune, () => renderVersionsPanel(parentId));
+        if (!tune.abc && tune.sibling_abc) {
+          requestAnimationFrame(() => renderSheetMusic(tune.sibling_abc));
+        }
       };
       item.addEventListener("click", open);
       item.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") open(); });

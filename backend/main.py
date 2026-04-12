@@ -620,6 +620,22 @@ def get_tune(tune_id: int):
             ).fetchall()
         all_notes = " ".join(r["notes"] for r in related if r["notes"])
 
+        # Find ABC from a sibling/child if this tune has none
+        sibling_abc = None
+        if not tune_data.get("abc"):
+            if parent_id:
+                sibling_abc_row = conn.execute(
+                    "SELECT abc FROM tunes WHERE parent_id = ? AND abc IS NOT NULL AND abc != '' LIMIT 1",
+                    (parent_id,)
+                ).fetchone()
+            else:
+                sibling_abc_row = conn.execute(
+                    "SELECT abc FROM tunes WHERE parent_id = ? AND abc IS NOT NULL AND abc != '' LIMIT 1",
+                    (tune_id,)
+                ).fetchone()
+            if sibling_abc_row:
+                sibling_abc = sibling_abc_row["abc"]
+
         # If parent has no session_id, inherit from first version that has one
         ver_sid = None
         if not tune_data.get("session_id"):
@@ -633,6 +649,8 @@ def get_tune(tune_id: int):
     result["tags"] = [t["name"] for t in tags]
     result["version_count"] = version_count
     result["all_notes"] = all_notes
+    if sibling_abc is not None:
+        result["sibling_abc"] = sibling_abc
     if ver_sid:
         result["session_id"] = ver_sid["session_id"]
     return result
