@@ -3839,6 +3839,30 @@ def set_default_version(tune_id: int):
     return {"ok": True}
 
 
+@app.post("/api/versions/clean-media-notes")
+def clean_version_media_notes():
+    """Strip sheet music (PDF/image) URLs from ABC versions — they belong on the Sheet Music version only."""
+    with _db() as conn:
+        # Find versioned tunes that have ABC AND photo/PDF in their notes
+        rows = conn.execute("""
+            SELECT id, notes FROM tunes
+            WHERE parent_id IS NOT NULL
+              AND abc IS NOT NULL AND abc != ''
+              AND notes IS NOT NULL AND notes != ''
+              AND (notes LIKE '%sheet music (PDF):%' OR notes LIKE '%sheet music (image):%')
+        """).fetchall()
+        cleaned = 0
+        for row in rows:
+            new_notes = "\n".join(
+                l for l in row["notes"].split("\n")
+                if not l.strip().lower().startswith("sheet music (pdf):")
+                and not l.strip().lower().startswith("sheet music (image):")
+            ).strip()
+            conn.execute("UPDATE tunes SET notes = ? WHERE id = ?", (new_notes, row["id"]))
+            cleaned += 1
+    return {"cleaned": cleaned}
+
+
 @app.post("/api/tunes/auto-group")
 def auto_group_tunes():
     """Find standalone tunes sharing the same title and group them as versions."""

@@ -675,6 +675,9 @@ async function fetchTune(id) {
   return apiFetch(`/api/tunes/${id}`);
 }
 
+// One-time cleanup: strip photo/PDF lines from ABC versions (idempotent, fast)
+fetch("/api/versions/clean-media-notes", { method: "POST" }).catch(() => {});
+
 async function fetchStats() {
   return apiFetch("/api/stats");
 }
@@ -1193,10 +1196,10 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
         <div id="sheet-music-render"></div>
         <div id="sheet-music-render-hidden" style="display:none;height:0;overflow:hidden"></div>
-        ${(imageUrl && !(tune.parent_id && tune.abc)) ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
-        ${(imageUrl && !(tune.parent_id && tune.abc)) ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
-        ${(pdfUrl && !(tune.parent_id && tune.abc)) ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
-        ${(pdfUrl && !(tune.parent_id && tune.abc)) ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
+        ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
+        ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
+        ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
+        ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
         ${(!tune.parent_id && tune.abc && (imageUrl || pdfUrl)) ? `<p class="pdf-link-hint" style="margin-top:.5rem">
           📎 This tune has both ABC and ${imageUrl ? "a photo" : "a PDF"} of sheet music on the same page.
           <button class="btn-secondary btn-sm" id="split-abc-btn" style="margin-left:.4rem">Separate into versions</button>
@@ -1213,7 +1216,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         </div>
         <div id="session-abc-results" class="session-abc-results hidden"></div>
       </div>
-      ${(pdfUrl && !(tune.parent_id && tune.abc)) ? `<div class="ff-download-row">
+      ${pdfUrl ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
       </div>` : ""}
       ${notesAudioUrls.map((u, i) => {
@@ -2326,13 +2329,22 @@ function renderModal(tune, onBack = null, siblings = null) {
       splitAbcBtn.disabled = true;
       splitAbcBtn.textContent = "Separating…";
       try {
-        // Create a new tune entry for the ABC
+        // Strip photo/PDF lines from notes — they belong on the Sheet Music version only
+        function _stripMediaFromNotes(notes) {
+          return (notes || "").split("\n")
+            .filter(l => !/sheet music \((PDF|image)\):/i.test(l))
+            .join("\n").trim();
+        }
+        const abcOnlyNotes = _stripMediaFromNotes(tune.notes);
+
+        // Create a new tune entry for the ABC (no photo/PDF in its notes)
         const abcTune = await apiFetch("/api/tunes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: tune.title,
             abc: tune.abc,
+            notes: abcOnlyNotes,
             key: tune.key || "",
             mode: tune.mode || "",
             type: tune.type || "",
@@ -2340,7 +2352,7 @@ function renderModal(tune, onBack = null, siblings = null) {
             ...(tune.session_id ? { session_id: String(tune.session_id) } : {}),
           }),
         });
-        // Remove ABC from the original tune, keep the PDF/photo
+        // Remove ABC from the original tune, keep the PDF/photo in its notes
         await apiFetch(`/api/tunes/${tune.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
