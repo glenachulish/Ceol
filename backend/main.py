@@ -446,7 +446,8 @@ def list_tunes(
                       WHERE v.parent_id = t.id AND v.key != ''
                       ORDER BY v.id LIMIT 1)) AS key,
                    t.mode, t.notes, t.imported_at, t.created_at,
-                   t.rating, t.on_hitlist, t.is_favourite,
+                   MAX(t.rating, COALESCE((SELECT MAX(v.rating) FROM tunes v WHERE v.parent_id = t.id), 0)) AS rating,
+                   t.on_hitlist, t.is_favourite,
                    (SELECT COUNT(*) FROM tunes v WHERE v.parent_id = t.id) AS version_count
             FROM tunes t
             {where}
@@ -591,10 +592,28 @@ def get_tune(tune_id: int):
             "SELECT COUNT(*) FROM tunes WHERE parent_id = ?", (tune_id,)
         ).fetchone()[0]
 
+    # Collect media URLs from all child versions too
+    version_notes = conn.execute(
+        "SELECT notes FROM tunes WHERE parent_id = ? AND notes != ''", (tune_id,)
+    ).fetchall() if not dict(row).get("parent_id") else []
+    all_notes = " ".join(
+        [dict(row).get("notes") or ""] +
+        [vn["notes"] for vn in version_notes if vn["notes"]]
+    )
+
     result = dict(row)
     result["aliases"] = [a["alias"] for a in aliases]
     result["tags"] = [t["name"] for t in tags]
     result["version_count"] = version_count
+    result["all_notes"] = all_notes  # combined notes for media URL extraction
+    # If parent has no session_id, inherit from first version that has one
+    if not result.get("session_id"):
+        ver_sid = conn.execute(
+            "SELECT session_id FROM tunes WHERE parent_id = ? AND session_id IS NOT NULL AND session_id != '' LIMIT 1",
+            (tune_id,)
+        ).fetchone()
+        if ver_sid:
+            result["session_id"] = ver_sid["session_id"]
     return result
 
 

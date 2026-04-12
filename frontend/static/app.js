@@ -906,7 +906,15 @@ function renderTunes(data) {
       });
       document.getElementById("empty-help-btn").addEventListener("click", _openHelp);
     } else {
-      tuneList.innerHTML = '<p class="empty">No tunes match your search.</p>';
+      const _sq = encodeURIComponent(state.q || "");
+      tuneList.innerHTML = `<div class="empty-library">
+        <p>No tunes in your library match <strong>${escHtml(state.q || "")}</strong>.</p>
+        <p style="margin-top:.5rem">
+          <a class="btn-secondary btn-sm" href="https://thesession.org/tunes?q=${_sq}" target="_blank" rel="noopener">
+            🔍 Search TheSession.org for this tune ↗
+          </a>
+        </p>
+      </div>`;
     }
     return;
   }
@@ -1111,28 +1119,30 @@ function renderModal(tune, onBack = null, siblings = null) {
     return m ? m[1] : null;
   })();
   const notesAudioUrls = (() => {
-    if (!tune.notes) return [];
+    const src = tune.all_notes || tune.notes || "";
+    if (!src) return [];
     const urlRe = /(?:https?:\/\/|\/api\/uploads\/)[^\s<>"]+/g;
-    const urls = [];
+    const seen = new Set(), urls = [];
     let m;
-    while ((m = urlRe.exec(tune.notes)) !== null) {
+    while ((m = urlRe.exec(src)) !== null) {
       const url = m[0];
-      if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url)) {
-        urls.push(url);
+      if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url) && !seen.has(url)) {
+        seen.add(url); urls.push(url);
       }
     }
     return urls;
   })();
   const notesVideoUrls = (() => {
-    if (!tune.notes) return [];
+    const src = tune.all_notes || tune.notes || "";
+    if (!src) return [];
     const urlRe = /(?:https?:\/\/|\/api\/uploads\/)[^\s<>"]+/g;
-    const urls = [];
+    const seen = new Set(), urls = [];
     let m;
-    while ((m = urlRe.exec(tune.notes)) !== null) {
+    while ((m = urlRe.exec(src)) !== null) {
       const url = m[0];
-      if (/(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/.test(url) ||
-          /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(url)) {
-        urls.push(url);
+      if ((/(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/.test(url) ||
+          /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(url)) && !seen.has(url)) {
+        seen.add(url); urls.push(url);
       }
     }
     return urls;
@@ -4116,7 +4126,8 @@ function openSetMusicModal(title, abc, opts = {}) {
   });
 }
 
-function openFullSetModal(setData) {
+function openFullSetModal(setData, opts = {}) {
+  const { onBack: _fullSetOnBack = null } = opts;
   const tunes = setData.tunes || [];
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
 
@@ -4171,8 +4182,9 @@ function openFullSetModal(setData) {
   }
 
   modalContent.innerHTML = `
+    ${_fullSetOnBack ? '<button class="modal-back-btn" id="full-set-back-btn">← Back</button>' : ""}
     <h2 class="modal-title">${escHtml(setData.name)}
-      <a class="btn-secondary btn-sm modal-export-btn" href="/api/export/set/${setData.id}" download title="Download as .ceol.json">⬇ Export</a>
+      ${setData.id ? `<a class="btn-secondary btn-sm modal-export-btn" href="/api/export/set/${setData.id}" download title="Download as .ceol.json">⬇ Export</a>` : ""}
     </h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
     ${transRows.length ? `
@@ -4374,6 +4386,14 @@ function openFullSetModal(setData) {
         });
       });
     }
+  }
+
+  if (_fullSetOnBack) {
+    const _backBtn = document.getElementById("full-set-back-btn");
+    if (_backBtn) _backBtn.addEventListener("click", () => {
+      if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
+      _fullSetOnBack();
+    });
   }
 
   modalContent.querySelectorAll(".set-trans-play-btn, .set-trans-music-btn").forEach(btn => {
@@ -4667,11 +4687,12 @@ function showSetPreviewPanel(tune, setData, onBack, siblings) {
       });
     });
 
-    // Preview playback — build combined ABC and open music modal with back callback
+    // Preview playback — open the coloured per-tune sheet music view
     document.getElementById("set-preview-play-btn").addEventListener("click", () => {
-      const abc = buildCombinedPlaybackAbc(previewOrder);
-      if (!abc) return;
-      openSetMusicModal(`Preview: ${setData.name}`, abc, { onBack: renderPreview });
+      const tunesForPreview = previewOrder.filter(t => t.abc);
+      if (!tunesForPreview.length) return;
+      const fakeSet = { ...setData, tunes: previewOrder, name: `Preview: ${setData.name}` };
+      openFullSetModal(fakeSet, { onBack: renderPreview });
     });
 
     // Confirm — add tune at the correct position then reorder
@@ -6309,7 +6330,13 @@ function renderNoteEditor(doc) {
 // ── Event handlers ────────────────────────────────────────────────────────────
 const debouncedLoad = debounce(() => { state.page = 1; loadTunes(); }, 280);
 
-searchEl.addEventListener("input", () => { state.q = searchEl.value.trim(); debouncedLoad(); });
+searchEl.addEventListener("input", () => {
+  // Stop any playing audio when user starts typing in library search
+  if (_synthController) { try { _synthController.pause(); } catch {} }
+  const inlineMp3 = document.getElementById("inline-mp3-player");
+  if (inlineMp3) { inlineMp3.pause(); inlineMp3.src = ""; }
+  state.q = searchEl.value.trim(); debouncedLoad();
+});
 filterType.addEventListener("change", () => { state.type = filterType.value; state.page = 1; loadTunes(); });
 filterKey.addEventListener("change",  () => { state.key  = filterKey.value;  state.page = 1; loadTunes(); });
 filterMode.addEventListener("change", () => { state.mode = filterMode.value; state.page = 1; loadTunes(); });
@@ -6967,9 +6994,9 @@ async function _bldrTemplateMode(template, filters) {
 
     if (chosen.length) {
       document.getElementById("bldr-preview-btn").addEventListener("click", () => {
-        const abc = buildCombinedPlaybackAbc(chosen);
-        if (abc) openSetMusicModal(`Preview: ${template.name}`, abc, { onBack: render });
-        else { const b = document.getElementById("bldr-preview-btn"); b.textContent = "No ABC available"; b.disabled = true; }
+        const tunesForPreview = chosen.filter(t => t.abc);
+        if (!tunesForPreview.length) { const b = document.getElementById("bldr-preview-btn"); b.textContent = "No ABC available"; b.disabled = true; return; }
+        openFullSetModal({ id: 0, name: `Preview: ${template.name}`, tunes: chosen }, { onBack: render });
       });
       document.getElementById("bldr-save-btn").addEventListener("click", () => {
         _bldrSave(chosen, template.name, render);
@@ -7136,9 +7163,9 @@ async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
     });
 
     document.getElementById("bldr-preview-btn").addEventListener("click", () => {
-      const abc = buildCombinedPlaybackAbc(selectedTunes);
-      if (abc) openSetMusicModal("Preview", abc, { onBack: render });
-      else { const b = document.getElementById("bldr-preview-btn"); b.textContent = "No ABC available"; b.disabled = true; }
+      const tunesForPreview = selectedTunes.filter(t => t.abc);
+      if (!tunesForPreview.length) { const b = document.getElementById("bldr-preview-btn"); b.textContent = "No ABC available"; b.disabled = true; return; }
+      openFullSetModal({ id: 0, name: "Preview", tunes: selectedTunes }, { onBack: render });
     });
 
     document.getElementById("bldr-save-btn").addEventListener("click", () => {
@@ -7592,7 +7619,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     previewArea.classList.add("hidden");
     importBtn.disabled = false;
     importBtn.textContent = "Import audio files";
-    _afterImportSuccess();
+    _afterImportSuccess(data.tune_id || null);
   });
 })();
 
@@ -7723,10 +7750,10 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     _selectedFiles = [];
     _previewData = [];
     fileInput.value = "";
-    _afterImportSuccess();
+    const _firstCreatedId = data.results?.find(r => r.action === "created")?.tune_id || null;
+    _afterImportSuccess(_firstCreatedId);
     importBtn.disabled = false;
     importBtn.textContent = "Import";
-    fetchTunes(); // refresh library
   });
 })();
 
