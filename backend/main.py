@@ -600,14 +600,24 @@ def get_tune(tune_id: int):
             "SELECT COUNT(*) FROM tunes WHERE parent_id = ?", (tune_id,)
         ).fetchone()[0]
 
-    # Collect media URLs from all child versions too
-    version_notes = conn.execute(
-        "SELECT notes FROM tunes WHERE parent_id = ? AND notes != ''", (tune_id,)
-    ).fetchall() if not dict(row).get("parent_id") else []
-    all_notes = " ".join(
-        [dict(row).get("notes") or ""] +
-        [vn["notes"] for vn in version_notes if vn["notes"]]
-    )
+    # Collect media URLs from all related tunes (parent + all versions)
+    # so audio/video attached to any version is available on all versions.
+    tune_data = dict(row)
+    if tune_data.get("parent_id"):
+        # This tune is a version — gather notes from parent + all siblings
+        related = conn.execute(
+            """SELECT notes FROM tunes
+               WHERE (id = ? OR parent_id = ?) AND notes != ''""",
+            (tune_data["parent_id"], tune_data["parent_id"]),
+        ).fetchall()
+    else:
+        # This is a parent or standalone — gather notes from self + all children
+        related = conn.execute(
+            """SELECT notes FROM tunes
+               WHERE (id = ? OR parent_id = ?) AND notes != ''""",
+            (tune_id, tune_id),
+        ).fetchall()
+    all_notes = " ".join(r["notes"] for r in related if r["notes"])
 
     result = dict(row)
     result["aliases"] = [a["alias"] for a in aliases]
