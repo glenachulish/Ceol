@@ -2026,7 +2026,9 @@ function renderModal(tune, onBack = null, siblings = null) {
                   <button class="session-abc-import" data-idx="${idx}">
                     Setting ${s.id} · ${escHtml(s.key || "")}
                   </button>
-                  <div id="preview-mini-${idx}" style="font-size:.75rem;color:var(--text-muted);margin:.2rem 0 0 .5rem">${escHtml((s.abc||"").slice(0,80))}…</div>
+                  <a class="btn-secondary btn-sm session-abc-view"
+                     href="https://thesession.org/tunes/${sessionData.session_id}#setting${s.id}"
+                     target="_blank" rel="noopener" title="View this setting on TheSession.org">↗ View</a>
                 </div>`).join("");
               abcResults.querySelectorAll(".session-abc-import").forEach(impBtn => {
                 impBtn.addEventListener("click", async () => {
@@ -2116,6 +2118,9 @@ function renderModal(tune, onBack = null, siblings = null) {
                         Setting ${s.index}: <strong>${escHtml(s.key)}${s.mode ? " " + escHtml(s.mode) : ""}</strong>
                         ${s.member ? `<span class="session-abc-meta">by ${escHtml(s.member)}</span>` : ""}
                       </button>
+                      <a class="btn-secondary btn-sm session-abc-view"
+                         href="https://thesession.org/tunes/${fData.session_id}#setting${s.index}"
+                         target="_blank" rel="noopener" title="View this setting on TheSession.org">↗ View</a>
                     </div>`).join("");
                 abcResults.querySelectorAll(".session-setting-pick").forEach(sBtn => {
                   sBtn.addEventListener("click", async () => {
