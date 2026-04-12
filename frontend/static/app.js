@@ -1197,7 +1197,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
         ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
-        ${(!tune.parent_id && tune.abc && (imageUrl || pdfUrl)) ? `<p class="pdf-link-hint" style="margin-top:.5rem">
+        ${(tune.abc && (imageUrl || pdfUrl)) ? `<p class="pdf-link-hint" style="margin-top:.5rem">
           📎 This tune has both ABC and ${imageUrl ? "a photo" : "a PDF"} of sheet music on the same page.
           <button class="btn-secondary btn-sm" id="split-abc-btn" style="margin-left:.4rem">Separate into versions</button>
         </p>` : ""}
@@ -2326,10 +2326,10 @@ function renderModal(tune, onBack = null, siblings = null) {
       splitAbcBtn.disabled = true;
       splitAbcBtn.textContent = "Separating…";
       try {
-        // Strip photo/PDF lines from notes — they belong on the Sheet Music version only
+        // Strip photo/PDF lines from notes — they stay on the Sheet Music version only
         function _stripMediaFromNotes(notes) {
           return (notes || "").split("\n")
-            .filter(l => !/sheet music \((PDF|image)\):/i.test(l))
+            .filter(l => !/^sheet music \((PDF|image)\):/i.test(l.trim()))
             .join("\n").trim();
         }
         const abcOnlyNotes = _stripMediaFromNotes(tune.notes);
@@ -2349,13 +2349,14 @@ function renderModal(tune, onBack = null, siblings = null) {
             ...(tune.session_id ? { session_id: String(tune.session_id) } : {}),
           }),
         });
-        // Remove ABC from the original tune, keep the PDF/photo in its notes
+        // Remove ABC from the original tune, keep only the PDF/photo
         await apiFetch(`/api/tunes/${tune.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ abc: "" }),
         });
-        // Group both as versions
+        // Group as versions — use existing parent if already versioned, else create new group
+        const existingParentId = tune.parent_id || null;
         await apiFetch("/api/tunes/group", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2363,6 +2364,7 @@ function renderModal(tune, onBack = null, siblings = null) {
             title: tune.title,
             tune_ids: [tune.id, abcTune.id],
             labels: ["Sheet Music", "ABC"],
+            ...(existingParentId ? { existing_parent_id: existingParentId } : {}),
           }),
         });
         await Promise.all([loadStats(), loadFilters(), loadTunes()]);
