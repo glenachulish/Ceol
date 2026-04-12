@@ -1193,12 +1193,12 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
         <div id="sheet-music-render"></div>
         <div id="sheet-music-render-hidden" style="display:none;height:0;overflow:hidden"></div>
-        ${(imageUrl && !tune.abc) ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
-        ${(imageUrl && !tune.abc) ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
-        ${(pdfUrl && !tune.abc) ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
-        ${(pdfUrl && !tune.abc) ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
+        ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
+        ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
+        ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
+        ${pdfUrl ? `<p class="pdf-link-hint"><a href="${escHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF in new tab ↗</a></p>` : ""}
         ${(tune.abc && (imageUrl || pdfUrl)) ? `<p class="pdf-link-hint" style="margin-top:.5rem">
-          📎 This tune also has ${imageUrl ? "a photo" : "a PDF"} of sheet music.
+          📎 This tune has both ABC and ${imageUrl ? "a photo" : "a PDF"} of sheet music on the same page.
           <button class="btn-secondary btn-sm" id="split-abc-btn" style="margin-left:.4rem">Separate into versions</button>
         </p>` : ""}
       </div>
@@ -1213,7 +1213,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         </div>
         <div id="session-abc-results" class="session-abc-results hidden"></div>
       </div>
-      ${(pdfUrl && !tune.abc) ? `<div class="ff-download-row">
+      ${pdfUrl ? `<div class="ff-download-row">
         <a class="btn-secondary ff-dl-btn" href="/api/proxy-download?url=${encodeURIComponent(pdfUrl)}" download>⬇ Download PDF</a>
       </div>` : ""}
       ${notesAudioUrls.map((u, i) => {
