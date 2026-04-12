@@ -3887,7 +3887,10 @@ function openAbcFullscreen(abc, title, opts = {}) {
     const measuresPerLine = w > 1200 ? 6 : w > 800 ? 5 : w > 500 ? 4 : 3;
     const staffWidth = Math.max(300, w - 20);
 
-    const visualObjs = ABCJS.renderAbc("abc-fullscreen-render", expandAbcRepeats(abc), {
+    // If tuneRanges are provided, abc is already expanded (from buildCombinedPlaybackAbcWithRanges)
+    // Re-expanding would shift character offsets and break tuneRange matching.
+    const abcToRender = tuneRanges ? abc : expandAbcRepeats(abc);
+    const visualObjs = ABCJS.renderAbc("abc-fullscreen-render", abcToRender, {
       responsive: "resize",
       wrap: { preferredMeasuresPerLine: measuresPerLine },
       add_classes: true,
