@@ -1365,44 +1365,29 @@ button.set-tune-title:hover { text-decoration: underline; }
 }
 .abc-fs-audio-player { min-height: 0; }
 .abc-fs-audio-player .abcjs-inline-audio { margin: 0; }
-/* Mobile: compact header, maximise music area */
+/* Mobile: fullscreen padding — generous fixed values so nothing touches edges */
 @media (max-width: 768px) {
   .abc-fullscreen-header {
-    padding-top:    max(.4rem, env(safe-area-inset-top, 12px));
-    padding-left:   max(1rem, env(safe-area-inset-left, 16px));
-    padding-right:  max(1rem, env(safe-area-inset-right, 16px));
-    padding-bottom: .3rem;
-    gap: .3rem;
+    padding: 1rem 1.25rem .5rem;
+    gap: .4rem;
   }
   .abc-fullscreen-title-text { font-size: .85rem; }
-  .abc-fullscreen-close { padding: .25rem .5rem; font-size: .75rem; }
+  .abc-fullscreen-close { padding: .3rem .6rem; font-size: .75rem; }
   .abc-fullscreen-body {
-    padding-top:    .5rem;
-    padding-left:   max(1rem, env(safe-area-inset-left, 16px));
-    padding-right:  max(1rem, env(safe-area-inset-right, 16px));
-    padding-bottom: .25rem;
+    padding: .5rem 1.25rem;
   }
   .abc-fullscreen-controls {
-    padding-top:    .15rem;
-    padding-left:   max(1rem, env(safe-area-inset-left, 16px));
-    padding-right:  max(1rem, env(safe-area-inset-right, 16px));
-    padding-bottom: max(.5rem, env(safe-area-inset-bottom, 8px));
+    padding: .25rem 1.25rem max(0.5rem, env(safe-area-inset-bottom, 0px));
   }
 }
-/* Landscape on mobile */
+/* Landscape: safe area on sides for notch */
 @media (max-width: 768px) and (orientation: landscape) {
   .abc-fullscreen-header {
-    padding-top:   max(.2rem, env(safe-area-inset-top, 0px));
-    padding-left:  max(1.25rem, env(safe-area-inset-left, 44px));
-    padding-right: max(1.25rem, env(safe-area-inset-right, 44px));
+    padding: .4rem max(1.25rem, env(safe-area-inset-left, 0px)) .4rem max(1.25rem, env(safe-area-inset-right, 0px));
   }
   .abc-fullscreen-body {
-    padding-left:  max(1.25rem, env(safe-area-inset-left, 44px));
-    padding-right: max(1.25rem, env(safe-area-inset-right, 44px));
-  }
-  .abc-fullscreen-controls {
-    padding-left:  max(1.25rem, env(safe-area-inset-left, 44px));
-    padding-right: max(1.25rem, env(safe-area-inset-right, 44px));
+    padding-left:  max(1.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
   }
 }
 .pdf-embed {

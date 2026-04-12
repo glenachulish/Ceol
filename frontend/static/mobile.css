@@ -513,9 +513,9 @@
   overflow-x: hidden;
 }
 
-/* ── Safe area: regular modal content ──────────────────────── */
+/* ── Safe area: regular modal and fullscreen content ───────── */
 .mobile-body .modal {
-  padding-left:   max(1.25rem, env(safe-area-inset-left, 0px) + .75rem) !important;
-  padding-right:  max(1.25rem, env(safe-area-inset-right, 0px) + .75rem) !important;
-  padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px) + .75rem) !important;
+  padding-left:   1.25rem !important;
+  padding-right:  1.25rem !important;
+  padding-bottom: 1.25rem !important;
 }
