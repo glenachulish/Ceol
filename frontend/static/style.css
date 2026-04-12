@@ -1315,6 +1315,11 @@ button.set-tune-title:hover { text-decoration: underline; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Respect iPhone notch/Dynamic Island in all orientations */
+  padding-left:   env(safe-area-inset-left, 0px);
+  padding-right:  env(safe-area-inset-right, 0px);
+  padding-top:    env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .abc-fullscreen-overlay.hidden { display: none; }
 .abc-fullscreen-header {
