@@ -1102,7 +1102,9 @@ function renderModal(tune, onBack = null, siblings = null) {
   const sessionHref = _sessionId
     ? `https://thesession.org/tunes/${_sessionId}`
     : `https://thesession.org/tunes?q=${encodeURIComponent(tune.title)}`;
-  const sessionBtnLabel = _sessionId ? "🌐 Open on TheSession.org ↗" : "🔍 Search TheSession.org ↗";
+  const sessionBtnLabel = _sessionId
+    ? "🌐 Open on TheSession.org ↗"
+    : `🔍 Search TheSession.org for "${tune.title}" ↗`;
   const tagLine = tune.tags && tune.tags.length
     ? `<div class="modal-meta">${tune.tags.map(g => `<span class="badge badge-other">${escHtml(g)}</span>`).join("")}</div>`
     : "";
