@@ -3826,7 +3826,7 @@ function _fsMeasureClickHandler(e) {
 }
 
 function openAbcFullscreen(abc, title, opts = {}) {
-  const { tuneRanges = null, tuneColors = null } = opts;
+  const { tuneRanges = null, tuneColors = null, initialWarp = null, pracSettings = null } = opts;
   _abcFsTitleEl.textContent = title || "";
   _abcFsOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -3960,9 +3960,35 @@ function openAbcFullscreen(abc, title, opts = {}) {
         displayProgress: true,
         displayWarp: true,
       });
-      _abcFsSynthCtrl.setTune(_abcFsVisualObj, false, { program: _melodyProgram, chordsOff: _chordsOff }).catch(err => {
-        console.warn("Fullscreen audio init failed:", err);
-      });
+      _abcFsSynthCtrl.setTune(_abcFsVisualObj, false, { program: _melodyProgram, chordsOff: _chordsOff })
+        .then(() => {
+          // Apply practice tempo progression if opened from Practice tab
+          if (initialWarp !== null) {
+            _abcFsSynthCtrl.setWarp(initialWarp);
+          }
+          if (pracSettings) {
+            const { start: tempoStart = 60, final: tempoFinal = 100, inc: tempoInc = 5, loopsPerStep: tempoLoops = 2 } = pracSettings;
+            let curWarp = initialWarp || tempoStart;
+            let loopCount = 0;
+            const _origOnFinished = cursorControl.onFinished;
+            cursorControl.onFinished = function() {
+              _origOnFinished && _origOnFinished();
+              loopCount++;
+              if (loopCount >= tempoLoops && curWarp < tempoFinal) {
+                curWarp = Math.min(tempoFinal, curWarp + tempoInc);
+                _abcFsSynthCtrl.setWarp(curWarp);
+                // Update warp display in the fullscreen player
+                const warpEl = document.querySelector("#abc-fs-audio .abcjs-midi-warp input");
+                if (warpEl) { warpEl.value = curWarp; warpEl.dispatchEvent(new Event("input")); }
+                loopCount = 0;
+              }
+              try { _abcFsSynthCtrl.play(); } catch {}
+            };
+          }
+        })
+        .catch(err => {
+          console.warn("Fullscreen audio init failed:", err);
+        });
     }
   });
 }
@@ -10924,7 +10950,10 @@ function _initPracticeTab(tune) {
   document.getElementById("prac-fs-btn")?.addEventListener("click", () => {
     if (!_pracCurrentAbc) return;
     if (_pracSynthCtrl) { try { _pracSynthCtrl.pause(); } catch {} }
-    openAbcFullscreen(_pracCurrentAbc, (tune.title || "Practice") + " – Practice");
+    openAbcFullscreen(_pracCurrentAbc, (tune.title || "Practice") + " – Practice", {
+      initialWarp: _pracCurWarp || 60,
+      pracSettings: _pracSettings,
+    });
   });
 }
 

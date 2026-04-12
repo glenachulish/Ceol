@@ -483,3 +483,32 @@
     grid-template-columns: repeat(4, 1fr);
   }
 }
+
+/* ── iPhone safe area: modal padding ───────────────────────── */
+.mobile-body .modal {
+  padding-left:  max(1.5rem, env(safe-area-inset-left, 0px) + 1rem);
+  padding-right: max(1.5rem, env(safe-area-inset-right, 0px) + 1rem);
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+/* ── Practice tab: boxes don't overflow on small screens ────── */
+.mobile-body .practice-settings {
+  flex-direction: column;
+  align-items: stretch;
+}
+.mobile-body .practice-row {
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+.mobile-body .practice-num-input {
+  width: 4rem;
+  min-width: 3.5rem;
+}
+.mobile-body .practice-section {
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.mobile-body #tab-practice {
+  overflow-x: hidden;
+}
