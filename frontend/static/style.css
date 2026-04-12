@@ -1322,7 +1322,7 @@ button.set-tune-title:hover { text-decoration: underline; }
   align-items: center;
   justify-content: space-between;
   gap: .5rem;
-  padding: .4rem .75rem;
+  padding: max(.4rem, env(safe-area-inset-top, 0px)) .75rem .4rem;
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
   flex-shrink: 0;
@@ -1368,37 +1368,41 @@ button.set-tune-title:hover { text-decoration: underline; }
 /* Mobile: compact header, maximise music area */
 @media (max-width: 768px) {
   .abc-fullscreen-header {
-    padding-top:    max(.3rem, env(safe-area-inset-top, 0px));
-    padding-left:   max(.5rem, env(safe-area-inset-left, 0px));
-    padding-right:  max(.5rem, env(safe-area-inset-right, 0px));
+    padding-top:    max(.4rem, env(safe-area-inset-top, 12px));
+    padding-left:   max(1rem, env(safe-area-inset-left, 16px));
+    padding-right:  max(1rem, env(safe-area-inset-right, 16px));
     padding-bottom: .3rem;
     gap: .3rem;
   }
   .abc-fullscreen-title-text { font-size: .85rem; }
   .abc-fullscreen-close { padding: .25rem .5rem; font-size: .75rem; }
   .abc-fullscreen-body {
-    padding-top:    .25rem;
-    padding-left:   max(.25rem, env(safe-area-inset-left, 0px));
-    padding-right:  max(.25rem, env(safe-area-inset-right, 0px));
+    padding-top:    .5rem;
+    padding-left:   max(1rem, env(safe-area-inset-left, 16px));
+    padding-right:  max(1rem, env(safe-area-inset-right, 16px));
     padding-bottom: .25rem;
   }
   .abc-fullscreen-controls {
     padding-top:    .15rem;
-    padding-left:   max(.35rem, env(safe-area-inset-left, 0px));
-    padding-right:  max(.35rem, env(safe-area-inset-right, 0px));
-    padding-bottom: max(.15rem, env(safe-area-inset-bottom, 0px));
+    padding-left:   max(1rem, env(safe-area-inset-left, 16px));
+    padding-right:  max(1rem, env(safe-area-inset-right, 16px));
+    padding-bottom: max(.5rem, env(safe-area-inset-bottom, 8px));
   }
 }
-/* Landscape on mobile: even more compact */
+/* Landscape on mobile */
 @media (max-width: 768px) and (orientation: landscape) {
   .abc-fullscreen-header {
-    padding-top:   .2rem;
-    padding-left:  max(.5rem, env(safe-area-inset-left, 0px));
-    padding-right: max(.5rem, env(safe-area-inset-right, 0px));
+    padding-top:   max(.2rem, env(safe-area-inset-top, 0px));
+    padding-left:  max(1.25rem, env(safe-area-inset-left, 44px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 44px));
   }
   .abc-fullscreen-body {
-    padding-left:  max(.25rem, env(safe-area-inset-left, 0px));
-    padding-right: max(.25rem, env(safe-area-inset-right, 0px));
+    padding-left:  max(1.25rem, env(safe-area-inset-left, 44px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 44px));
+  }
+  .abc-fullscreen-controls {
+    padding-left:  max(1.25rem, env(safe-area-inset-left, 44px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 44px));
   }
 }
 .pdf-embed {
