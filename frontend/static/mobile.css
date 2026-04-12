@@ -512,3 +512,10 @@
 .mobile-body #tab-practice {
   overflow-x: hidden;
 }
+
+/* ── Safe area: regular modal content ──────────────────────── */
+.mobile-body .modal {
+  padding-left:   max(1.25rem, env(safe-area-inset-left, 0px) + .75rem) !important;
+  padding-right:  max(1.25rem, env(safe-area-inset-right, 0px) + .75rem) !important;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px) + .75rem) !important;
+}
