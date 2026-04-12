@@ -421,6 +421,8 @@ def list_tunes(
                 " OR t.notes LIKE '%/api/uploads/%.jpeg%'"
                 " OR t.notes LIKE '%/api/uploads/%.png%')"
             )
+        elif has_content == "no_abc":
+            conditions.append("(t.abc IS NULL OR t.abc = '')")
 
     if starts_with:
         conditions.append("UPPER(SUBSTR(t.title, 1, 1)) = ?")
