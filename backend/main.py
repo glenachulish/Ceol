@@ -399,7 +399,10 @@ def list_tunes(
 
     if has_content:
         if has_content == "abc":
-            conditions.append("(t.abc IS NOT NULL AND t.abc != '')")
+            conditions.append(
+                "((t.abc IS NOT NULL AND t.abc != '') OR "
+                "EXISTS (SELECT 1 FROM tunes v WHERE v.parent_id = t.id AND v.abc IS NOT NULL AND v.abc != ''))"
+            )
         elif has_content == "pdf":
             conditions.append("t.notes LIKE '%/api/uploads/%.pdf%'")
         elif has_content == "photo":
@@ -422,7 +425,10 @@ def list_tunes(
                 " OR t.notes LIKE '%/api/uploads/%.png%')"
             )
         elif has_content == "no_abc":
-            conditions.append("(t.abc IS NULL OR t.abc = '')")
+            conditions.append(
+                "(t.abc IS NULL OR t.abc = '') AND "
+                "NOT EXISTS (SELECT 1 FROM tunes v WHERE v.parent_id = t.id AND v.abc IS NOT NULL AND v.abc != '')"
+            )
 
     if starts_with:
         conditions.append("UPPER(SUBSTR(t.title, 1, 1)) = ?")
