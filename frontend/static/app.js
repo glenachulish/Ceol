@@ -1839,6 +1839,34 @@ function renderModal(tune, onBack = null, siblings = null) {
     const abc    = document.getElementById("abc-edit-textarea").value;
     btn.disabled = true;
     try {
+      // If the tune has a PDF/photo but no ABC yet, save as a separate version
+      const hasPdfOrPhoto = /\/api\/uploads\/[^\s]+(\.pdf|\.jpe?g|\.png)/i.test(tune.notes || "");
+      if (hasPdfOrPhoto && !tune.abc) {
+        const created = await apiFetch("/api/tunes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: tune.title, abc,
+            key: tune.key || "", mode: tune.mode || "", type: tune.type || "",
+            version_label: "ABC",
+          }),
+        });
+        await apiFetch("/api/tunes/group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: tune.title,
+            tune_ids: [tune.id, created.id],
+            labels: ["Sheet Music", "ABC"],
+          }),
+        });
+        status.textContent = "Saved as new version ✓";
+        status.className = "notes-status notes-saved";
+        await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+        const fresh = await fetchTune(tune.id);
+        renderModal(fresh, onBack, null);
+        return;
+      }
       const res = await fetch(`/api/tunes/${tune.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1847,15 +1875,14 @@ function renderModal(tune, onBack = null, siblings = null) {
       if (res.ok) {
         status.textContent = "Saved!";
         status.className = "notes-status notes-saved";
-        // Re-render the sheet music with the updated ABC
         renderSheetMusic(abc);
         setTimeout(() => { status.textContent = ""; }, 2000);
       } else {
         status.textContent = "Failed to save.";
         status.className = "notes-status notes-error";
       }
-    } catch {
-      status.textContent = "Failed to save.";
+    } catch (err) {
+      status.textContent = `Failed: ${err.message}`;
       status.className = "notes-status notes-error";
     } finally {
       btn.disabled = false;
@@ -2035,6 +2062,10 @@ function renderModal(tune, onBack = null, siblings = null) {
                   const s = settings[Number(impBtn.dataset.idx)];
                   impBtn.disabled = true; impBtn.textContent = "Saving…";
                   try {
+                    const split = await _splitAbcAsVersionIfNeeded(
+                      s.abc, "ABC (TheSession.org)", sessionData.session_id, abcStatus
+                    );
+                    if (split) return;
                     await apiFetch(`/api/tunes/${tune.id}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
@@ -2142,48 +2173,58 @@ function renderModal(tune, onBack = null, siblings = null) {
       }
     });
 
+    // ── Shared helper: split ABC off as its own version if tune has PDF/photo ──
+    // Returns true if the ABC was split into a new version (caller should reload modal).
+    // Returns false if ABC was patched directly onto the tune (caller should re-render).
+    async function _splitAbcAsVersionIfNeeded(abcText, versionLabel, sessionId, statusEl) {
+      const hasPdfOrPhoto = /\/api\/uploads\/[^\s]+(\.pdf|\.jpe?g|\.png)/i.test(tune.notes || "");
+      if (!hasPdfOrPhoto || tune.abc) return false; // no split needed
+
+      const created = await apiFetch("/api/tunes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: tune.title,
+          abc: abcText,
+          key: tune.key || "",
+          mode: tune.mode || "",
+          type: tune.type || "",
+          version_label: versionLabel,
+        }),
+      });
+      await apiFetch("/api/tunes/group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: tune.title,
+          tune_ids: [tune.id, created.id],
+          labels: ["Sheet Music", versionLabel],
+        }),
+      });
+      if (sessionId) {
+        await apiFetch(`/api/tunes/${created.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: String(sessionId) }),
+        });
+      }
+      if (statusEl) statusEl.innerHTML = `<p style="color:var(--success);padding:.4rem .6rem">✓ ABC saved as a new version alongside the sheet music. Use the version switcher at the top to move between them.</p>`;
+      await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+      // Reload the modal to show the version strip
+      const fresh = await fetchTune(tune.id);
+      renderModal(fresh, onBack, null);
+      return true;
+    }
+
     async function _applySessionAbc(tuneId, setting, sessionData) {
       try {
-        // If this tune already has PDF/photo sheet music, create the ABC as a
-        // separate version rather than adding it to the same tune entry.
-        const hasPdfOrPhoto = /\/api\/uploads\/[^\s]+(\.pdf|\.jpe?g|\.png)/i.test(tune.notes || "");
-
-        if (hasPdfOrPhoto && !tune.abc) {
-          // Create a new tune entry for the ABC
-          const created = await apiFetch("/api/tunes", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: tune.title,
-              abc: setting.abc,
-              key: setting.key || "",
-              mode: setting.mode || "",
-              type: tune.type || "",
-              version_label: "ABC (TheSession.org)",
-            }),
-          });
-          // Group the original tune + new ABC tune as versions
-          await apiFetch("/api/tunes/group", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: tune.title,
-              tune_ids: [tuneId, created.id],
-              labels: ["Sheet Music", "ABC (TheSession.org)"],
-            }),
-          });
-          // Persist session_id on the new ABC tune
-          if (sessionData?.session_id) {
-            await fetch(`/api/tunes/${created.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ session_id: String(sessionData.session_id) }),
-            });
-          }
-          abcResults.innerHTML = `<p style="color:var(--success);padding:.4rem .6rem">✓ ABC added as a new version — grouped with the sheet music.</p>`;
-          await Promise.all([loadStats(), loadFilters(), loadTunes()]);
-          return;
-        }
+        const split = await _splitAbcAsVersionIfNeeded(
+          setting.abc,
+          "ABC (TheSession.org)",
+          sessionData?.session_id || null,
+          document.getElementById("fetch-abc-status") || document.getElementById("fetch-abc-status")
+        );
+        if (split) return;
 
         // Normal case: patch the ABC onto the existing tune
         await fetch(`/api/tunes/${tuneId}`, {
