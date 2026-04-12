@@ -15,9 +15,9 @@
   <script>
     (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);})();
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=98" />
+  <link rel="stylesheet" href="/static/style.css?v=99" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=10" />
+  <link rel="stylesheet" href="/static/mobile.css?v=11" />
 </head>
 <body class="mobile-body">
 
@@ -302,7 +302,7 @@
 
   <!-- ── Tune detail modal ──────────────────────────────────── -->
   <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
-    <div class="modal modal-wide m-modal-fullscreen">
+    <div class="modal modal-wide m-modal-fullscreen" style="padding:1.25rem;width:100%;max-width:100%;box-sizing:border-box">
       <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
       <div id="modal-content"></div>
     </div>
@@ -310,7 +310,7 @@
 
   <!-- ── Import modal ───────────────────────────────────────── -->
   <div id="import-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
-    <div class="modal modal-wide m-modal-fullscreen">
+    <div class="modal modal-wide m-modal-fullscreen" style="padding:1.25rem;width:100%;max-width:100%;box-sizing:border-box">
       <button class="modal-close" id="import-close" aria-label="Close">✕</button>
       <h2 class="modal-title">Import Tunes</h2>
 
@@ -626,7 +626,7 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=228"></script>
+  <script src="/static/app.js?v=229"></script>
   <script src="/static/mobile.js?v=3"></script>
   <script>
     if ("serviceWorker" in navigator) {
