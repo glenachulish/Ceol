@@ -523,3 +523,19 @@
 }
 
 
+
+/* ── Sheet music options: hidden behind ⚙ button on mobile ─── */
+/* Panel starts hidden — opened by the gear button */
+.mobile-body .sheet-music-options-panel {
+  position: fixed;
+  bottom: calc(var(--m-nav-h) + var(--safe-bottom) + .5rem);
+  left: .75rem;
+  right: .75rem;
+  z-index: 150;
+  max-height: 60vh;
+  overflow-y: auto;
+  box-shadow: 0 -4px 20px rgba(0,0,0,.3);
+  border-radius: 12px;
+  margin: 0;
+}
+/* On desktop, always show panel inline and hide gear button */

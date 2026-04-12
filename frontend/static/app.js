@@ -1191,6 +1191,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     <div id="tab-music" class="tab-panel">
       <div class="sheet-music-wrap">
         ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
+        ${tune.abc ? `<button id="sheet-music-menu-btn" class="abc-fs-btn sheet-music-menu-btn" title="Sheet music options" style="right:7.5rem">⚙</button>` : ""}
         <div id="sheet-music-render"></div>
         <div id="sheet-music-render-hidden" style="display:none;height:0;overflow:hidden"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
@@ -1248,6 +1249,11 @@ function renderModal(tune, onBack = null, siblings = null) {
           <span id="metro-sync-badge" class="metro-sync-badge metro-sync">Synced</span>
         </span>
       </div>
+      <div id="sheet-music-options-panel" class="sheet-music-options-panel hidden">
+        <div class="sheet-music-options-header">
+          <span class="sheet-music-options-title">Sheet Music Options</span>
+          <button id="sheet-music-options-close" class="btn-icon">✕</button>
+        </div>
       ${tune.abc ? `<div class="instrument-controls-row">
         <div id="melody-controls" class="chord-controls">
           <label class="chord-ctrl-label">Melody:</label>
@@ -1292,7 +1298,6 @@ function renderModal(tune, onBack = null, siblings = null) {
         <button id="tempo-set-btn" class="btn-secondary btn-sm" title="Write this tempo into the ABC and save">Set tempo</button>
         <span id="tempo-status" class="notes-status"></span>
       </div>` : ""}
-      <div id="bar-selection-info" class="bar-selection-info hidden"></div>
       <div class="highlight-toolbar" id="highlight-toolbar" style="display:flex;gap:6px;align-items:center;margin:4px 0 2px;">
         <button id="highlight-mode-btn" class="btn-secondary highlight-mode-btn" title="Toggle highlight mode — click bars to mark difficult sections">🖊 Highlight</button>
         <button id="highlight-clear-btn" class="btn-secondary highlight-clear-btn hidden" title="Remove all highlights">✕ Clear</button>
@@ -1304,6 +1309,8 @@ function renderModal(tune, onBack = null, siblings = null) {
         <button id="attach-audio-btn" class="btn-secondary">🎧 Add audio link</button>
         <button id="attach-video-btn" class="btn-secondary">📹 Add video</button>
       </div>
+      </div><!-- end sheet-music-options-panel -->
+      <div id="bar-selection-info" class="bar-selection-info hidden"></div>
       <div id="attach-video-panel" class="attach-audio-panel hidden">
         <div class="attach-audio-tabs">
           <button class="attach-vtab-btn active" data-tab="upload">Upload file</button>
@@ -2259,6 +2266,21 @@ function renderModal(tune, onBack = null, siblings = null) {
       } catch (err) {
         abcResults.innerHTML = `<p class="import-error" style="padding:.4rem .6rem">Failed to save: ${escHtml(err.message)}</p>`;
       }
+    }
+  }
+
+  // ── Sheet music options panel (mobile hamburger) ───────────────────────────
+  const sheetMenuBtn   = document.getElementById("sheet-music-menu-btn");
+  const sheetMenuPanel = document.getElementById("sheet-music-options-panel");
+  const sheetMenuClose = document.getElementById("sheet-music-options-close");
+  if (sheetMenuBtn && sheetMenuPanel) {
+    sheetMenuBtn.addEventListener("click", () => {
+      sheetMenuPanel.classList.toggle("hidden");
+    });
+    if (sheetMenuClose) {
+      sheetMenuClose.addEventListener("click", () => {
+        sheetMenuPanel.classList.add("hidden");
+      });
     }
   }
 

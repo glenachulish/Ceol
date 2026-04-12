@@ -15,9 +15,9 @@
   <script>
     (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);})();
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=100" />
+  <link rel="stylesheet" href="/static/style.css?v=101" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=11" />
+  <link rel="stylesheet" href="/static/mobile.css?v=12" />
 </head>
 <body class="mobile-body">
 
@@ -91,10 +91,35 @@
         <button id="bulk-cancel-btn" class="btn-secondary btn-sm">Cancel</button>
       </div>
 
+      <!-- Alphabet slider top -->
+      <div id="alpha-nav" class="alpha-nav">
+        <button id="alpha-all-btn" class="alpha-all-btn active" title="Show all tunes">All</button>
+        <div class="alpha-slider-wrap">
+          <input type="range" id="alpha-slider" class="alpha-slider" min="0" max="25" value="0" step="1">
+          <div class="alpha-slider-labels" aria-hidden="true">
+            <span>A</span><span>E</span><span>J</span><span>N</span><span>S</span><span>Z</span>
+          </div>
+        </div>
+        <span id="alpha-current" class="alpha-current"></span>
+      </div>
+      <div class="pagination pagination-top" id="pagination-top"></div>
+
       <section class="tune-list" id="tune-list">
         <p class="loading">Loading tunes…</p>
       </section>
       <div class="pagination" id="pagination"></div>
+
+      <!-- Alphabet slider bottom -->
+      <div id="alpha-nav-bottom" class="alpha-nav alpha-nav-bottom">
+        <button id="alpha-all-btn-bot" class="alpha-all-btn active" title="Show all tunes">All</button>
+        <div class="alpha-slider-wrap">
+          <input type="range" id="alpha-slider-bot" class="alpha-slider" min="0" max="25" value="0" step="1">
+          <div class="alpha-slider-labels" aria-hidden="true">
+            <span>A</span><span>E</span><span>J</span><span>N</span><span>S</span><span>Z</span>
+          </div>
+        </div>
+        <span id="alpha-current-bot" class="alpha-current"></span>
+      </div>
     </div>
 
     <!-- ── Sets view ── -->
@@ -626,7 +651,7 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=231"></script>
+  <script src="/static/app.js?v=232"></script>
   <script src="/static/mobile.js?v=3"></script>
   <script>
     if ("serviceWorker" in navigator) {

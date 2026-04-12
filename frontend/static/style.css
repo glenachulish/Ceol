@@ -3760,3 +3760,36 @@ a.bandcamp-link:hover { opacity: .85; }
   font-size: .9rem;
 }
 .bldr-search-input:focus { outline: none; border-color: var(--accent); }
+
+/* ── Sheet music options panel ───────────────────────────────────────── */
+.sheet-music-menu-btn {
+  right: 7rem !important;
+}
+.sheet-music-options-panel {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem 1rem;
+  margin: .5rem 0;
+}
+.sheet-music-options-panel.hidden { display: none; }
+.sheet-music-options-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .5rem;
+  padding-bottom: .4rem;
+  border-bottom: 1px solid var(--border);
+}
+.sheet-music-options-title {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Desktop: always show options inline, hide the gear toggle button */
+@media (min-width: 600px) {
+  .sheet-music-menu-btn { display: none !important; }
+  .sheet-music-options-panel.hidden { display: block !important; }
+  .sheet-music-options-header { display: none; }
+}
