@@ -1192,6 +1192,7 @@ function renderModal(tune, onBack = null, siblings = null) {
       <div class="sheet-music-wrap">
         ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
         <div id="sheet-music-render"></div>
+        <div id="sheet-music-render-hidden" style="display:none;height:0;overflow:hidden"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
         ${imageUrl ? `<p class="pdf-link-hint"><a href="${escHtml(imageUrl)}" target="_blank" rel="noopener">Open image in new tab ↗</a></p>` : ""}
         ${pdfUrl ? `<iframe id="pdf-embed" class="pdf-embed" src="${escHtml(pdfUrl)}" title="Sheet music PDF"></iframe>` : ""}
@@ -1492,7 +1493,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         renderModal(t, onBack, siblings);
         requestAnimationFrame(() => {
           if (t.abc) renderSheetMusic(t.abc);
-          else if (t.sibling_abc) renderSheetMusic(t.sibling_abc);
+          else if (t.sibling_abc) renderSheetMusicAudioOnly(t.sibling_abc);
         });
       });
     });
@@ -3363,6 +3364,44 @@ function _initChordControls() {
   });
 }
 
+// Render ABC into a hidden div — provides audio player without showing notation.
+// Used when the current version has no ABC but a sibling does.
+function renderSheetMusicAudioOnly(abc) {
+  const hiddenContainer = document.getElementById("sheet-music-render-hidden");
+  if (!hiddenContainer || typeof ABCJS === "undefined") return;
+
+  _currentTuneAbc = abc;
+  if (_synthController) { try { _synthController.pause(); } catch {} }
+  _synthController = null;
+
+  try {
+    const _processedAbc = expandAbcRepeats(_injectChordProg(abc));
+    const visualObjs = ABCJS.renderAbc("sheet-music-render-hidden", _processedAbc, {
+      add_classes: true, staffwidth: 800,
+    });
+    if (!visualObjs?.length) return;
+    _visualObj = visualObjs[0];
+
+    if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
+
+    const cursorControl = {
+      onEvent() {},
+      onFinished() {},
+    };
+    _synthController = new ABCJS.synth.SynthController();
+    _synthController.load("#audio-player-container", cursorControl, {
+      displayLoop: false, displayRestart: true, displayPlay: true,
+      displayProgress: true, displayWarp: true,
+    });
+    _synthController.setTune(_visualObj, false, { program: _melodyProgram, chordsOff: _chordsOff })
+      .catch(() => {});
+    _initMetronomeUI(_extractAbcBpm(abc));
+    _initMelodyControls();
+  } catch (err) {
+    console.warn("Audio-only render failed:", err);
+  }
+}
+
 function renderSheetMusic(abc) {
   const container = document.getElementById("sheet-music-render");
   if (!container || typeof ABCJS === "undefined") return;
@@ -4803,7 +4842,7 @@ function openFullSetModal(setData, opts = {}) {
 
 // Panel 1: list of existing sets to choose from
 async function showSetPickerPanel(tune, onBack, siblings) {
-  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); else if (tune.sibling_abc) renderSheetMusic(tune.sibling_abc); }); };
+  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); else if (tune.sibling_abc) renderSheetMusicAudioOnly(tune.sibling_abc); }); };
 
   // Fetch which sets this tune already belongs to
   let memberSetIds = new Set();
@@ -4845,7 +4884,7 @@ async function showSetPickerPanel(tune, onBack, siblings) {
 // Panel 2: preview the set with the new tune appended, allow reorder + playback
 function showSetPreviewPanel(tune, setData, onBack, siblings) {
   const backToPicker = () => showSetPickerPanel(tune, onBack, siblings);
-  const backToTune   = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); else if (tune.sibling_abc) renderSheetMusic(tune.sibling_abc); }); };
+  const backToTune   = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); else if (tune.sibling_abc) renderSheetMusicAudioOnly(tune.sibling_abc); }); };
 
   // Working copy of the order; new tune is appended at the end
   let previewOrder = [...(setData.tunes || []), { ...tune, _isNew: true }];
@@ -4929,7 +4968,7 @@ function showSetPreviewPanel(tune, setData, onBack, siblings) {
 
 // Panel 3: create a new set with this tune as the first entry
 function showCreateSetPanel(tune, onBack, siblings) {
-  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); else if (tune.sibling_abc) renderSheetMusic(tune.sibling_abc); }); };
+  const backToTune = () => { renderModal(tune, onBack, siblings); requestAnimationFrame(() => { if (tune.abc) renderSheetMusic(tune.abc); else if (tune.sibling_abc) renderSheetMusicAudioOnly(tune.sibling_abc); }); };
   const defaultName = `${tune.title} Set`;
 
   modalContent.innerHTML = `
@@ -6882,7 +6921,7 @@ tuneList.addEventListener("click", async e => {
       modalOverlay.classList.remove("hidden");
       document.body.style.overflow = "hidden";
       if (!firstTune.abc && firstTune.sibling_abc) {
-        requestAnimationFrame(() => renderSheetMusic(firstTune.sibling_abc));
+        requestAnimationFrame(() => renderSheetMusicAudioOnly(firstTune.sibling_abc));
       }
     }
     return;
@@ -6893,7 +6932,7 @@ tuneList.addEventListener("click", async e => {
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
   if (!tune.abc && tune.sibling_abc) {
-    requestAnimationFrame(() => renderSheetMusic(tune.sibling_abc));
+    requestAnimationFrame(() => renderSheetMusicAudioOnly(tune.sibling_abc));
   }
 });
 
@@ -9587,7 +9626,7 @@ async function renderVersionsPanel(parentId) {
         const tune = await fetchTune(item.dataset.id);
         renderModal(tune, () => renderVersionsPanel(parentId));
         if (!tune.abc && tune.sibling_abc) {
-          requestAnimationFrame(() => renderSheetMusic(tune.sibling_abc));
+          requestAnimationFrame(() => renderSheetMusicAudioOnly(tune.sibling_abc));
         }
       };
       item.addEventListener("click", open);
