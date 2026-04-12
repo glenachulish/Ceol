@@ -3878,6 +3878,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
     });
     _abcFsTitleEl.closest(".abc-fullscreen-header").after(pillsRow);
   }
+  window._fsDebugLogged = false;
   _abcFsOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 
@@ -3956,6 +3957,11 @@ function openAbcFullscreen(abc, title, opts = {}) {
             _fsLastHighlighted = [];
             if (ev?.elements) {
               const sc = ev.startChar ?? -1;
+              // Debug: log first few events to console
+              if (sc > 0 && !window._fsDebugLogged) {
+                console.log('[FS Debug] startChar:', sc, 'tuneRanges:', JSON.stringify(tuneRanges));
+                window._fsDebugLogged = true;
+              }
               let tuneIdx = tuneRanges.length - 1;
               for (let i = 0; i < tuneRanges.length; i++) {
                 if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
@@ -5180,6 +5186,17 @@ function renderSets(sets) {
     const stars = [1,2,3,4,5].map(n =>
       `<button class="set-star-btn${rating >= n ? " filled" : ""}" data-n="${n}" data-set-id="${s.id}" title="${_masteryLabels[n]}">★</button>`
     ).join("");
+    const isMobile = document.body.classList.contains("mobile-body");
+    if (isMobile) {
+      return `
+      <div class="m-set-row" data-set-id="${s.id}">
+        <div class="m-set-row-info">
+          <span class="m-set-row-name">${escHtml(s.name)}</span>
+          <span class="m-set-row-meta">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}${rating ? " · " + "★".repeat(rating) : ""}</span>
+        </div>
+        <span class="m-set-row-arrow">›</span>
+      </div>`;
+    }
     return `
     <div class="set-card" data-set-id="${s.id}" data-favourite="${s.is_favourite || 0}" data-rating="${rating}">
       <div class="set-card-header">
@@ -5546,6 +5563,16 @@ function renderSets(sets) {
       _renderFiltered(e.target.value.trim());
     });
   }
+
+  // Mobile: tapping a set row opens the sheet music directly
+  setsList.querySelectorAll(".m-set-row").forEach(row => {
+    row.addEventListener("click", async () => {
+      const setData = await apiGetSet(row.dataset.setId);
+      openFullSetModal(setData);
+      modalOverlay.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+    });
+  });
 
   setsList.querySelectorAll(".set-expand-btn").forEach(btn => {
     btn.addEventListener("click", () => _openSetDetail(btn.dataset.setId));

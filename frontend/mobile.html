@@ -17,7 +17,7 @@
   </script>
   <link rel="stylesheet" href="/static/style.css?v=101" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=12" />
+  <link rel="stylesheet" href="/static/mobile.css?v=13" />
 </head>
 <body class="mobile-body">
 
@@ -128,7 +128,6 @@
         <h2 class="section-title">Sets</h2>
         <input id="sets-search" type="search" class="view-search-input" placeholder="Search sets…" autocomplete="off">
         <button id="new-set-btn" class="btn-set">+ New Set</button>
-        <button id="build-set-btn" class="btn-set">🎵 Build a Set</button>
       </div>
       <div id="new-set-form" class="new-set-form hidden">
         <input id="new-set-name" type="text" placeholder="Set name…" maxlength="120" />
@@ -138,7 +137,7 @@
           <button id="cancel-set-btn" class="btn-secondary">Cancel</button>
         </div>
       </div>
-      <div id="sets-list" class="sets-list">
+      <div id="sets-list" class="sets-list m-sets-list">
         <p class="loading">Loading sets…</p>
       </div>
       <!-- Focused single-set view -->
@@ -651,7 +650,7 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=232"></script>
+  <script src="/static/app.js?v=234"></script>
   <script src="/static/mobile.js?v=3"></script>
   <script>
     if ("serviceWorker" in navigator) {
