@@ -3588,6 +3588,26 @@ a.bandcamp-link:hover { opacity: .85; }
   margin: .3rem 0 .4rem;
 }
 .instrument-controls-row .chord-controls { margin: 0; }
+.tempo-control-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin: .3rem 0 .4rem;
+}
+.tempo-adj {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.tempo-adj:hover { background: var(--border); }
 .chord-controls {
   display: flex;
   align-items: center;

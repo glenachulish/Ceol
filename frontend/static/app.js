@@ -1276,6 +1276,17 @@ function renderModal(tune, onBack = null, siblings = null) {
           </select>
         </div>` : ""}
       </div>` : ""}
+      ${tune.abc ? `<div class="tempo-control-row" id="tempo-control-row">
+        <label class="chord-ctrl-label">Tempo:</label>
+        <button class="btn-icon tempo-adj" id="tempo-dec">−</button>
+        <input id="tempo-bpm-input" type="number" min="20" max="400"
+               value="${_extractAbcBpm(tune.abc) || 120}"
+               class="metro-bpm-input" title="Beats per minute" style="width:4rem">
+        <button class="btn-icon tempo-adj" id="tempo-inc">+</button>
+        <span class="metro-label">BPM</span>
+        <button id="tempo-set-btn" class="btn-secondary btn-sm" title="Write this tempo into the ABC and save">Set tempo</button>
+        <span id="tempo-status" class="notes-status"></span>
+      </div>` : ""}
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
       <div class="highlight-toolbar" id="highlight-toolbar" style="display:flex;gap:6px;align-items:center;margin:4px 0 2px;">
         <button id="highlight-mode-btn" class="btn-secondary highlight-mode-btn" title="Toggle highlight mode — click bars to mark difficult sections">🖊 Highlight</button>
@@ -2195,6 +2206,63 @@ function renderModal(tune, onBack = null, siblings = null) {
         abcResults.innerHTML = `<p class="import-error" style="padding:.4rem .6rem">Failed to save: ${escHtml(err.message)}</p>`;
       }
     }
+  }
+
+  // ── Tempo control ──────────────────────────────────────────────────────────
+  const tempoDecBtn   = document.getElementById("tempo-dec");
+  const tempoIncBtn   = document.getElementById("tempo-inc");
+  const tempoBpmInput = document.getElementById("tempo-bpm-input");
+  const tempoSetBtn   = document.getElementById("tempo-set-btn");
+  const tempoStatus   = document.getElementById("tempo-status");
+
+  if (tempoDecBtn && tempoIncBtn && tempoBpmInput && tempoSetBtn) {
+    const _clampBpm = v => Math.min(400, Math.max(20, v));
+
+    tempoDecBtn.addEventListener("click", () => {
+      tempoBpmInput.value = _clampBpm((parseInt(tempoBpmInput.value) || 120) - 5);
+    });
+    tempoIncBtn.addEventListener("click", () => {
+      tempoBpmInput.value = _clampBpm((parseInt(tempoBpmInput.value) || 120) + 5);
+    });
+
+    tempoSetBtn.addEventListener("click", async () => {
+      const bpm = _clampBpm(parseInt(tempoBpmInput.value) || 120);
+      tempoBpmInput.value = bpm;
+      tempoSetBtn.disabled = true;
+      tempoSetBtn.textContent = "Saving…";
+      if (tempoStatus) tempoStatus.textContent = "";
+
+      // Inject or replace Q: line in ABC header (before the first K: line)
+      let abc = tune.abc || "";
+      const qLine = "Q:1/4=" + bpm;
+      const hasQ = abc.split("\n").some(l => l.startsWith("Q:"));
+      if (hasQ) {
+        abc = abc.split("\n").map(l => l.startsWith("Q:") ? qLine : l).join("\n");
+      } else {
+        // Insert before K: line
+        abc = abc.split("\n").map(l => l.startsWith("K:") ? qLine + "\n" + l : l).join("\n");
+      }
+
+      try {
+        await apiFetch(`/api/tunes/${tune.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ abc }),
+        });
+        tune.abc = abc;
+        if (document.getElementById("abc-edit-textarea")) {
+          document.getElementById("abc-edit-textarea").value = abc;
+        }
+        renderSheetMusic(abc);
+        tempoSetBtn.textContent = "Set tempo";
+        tempoSetBtn.disabled = false;
+        if (tempoStatus) { tempoStatus.textContent = `✓ Saved — ${bpm} BPM`; setTimeout(() => { tempoStatus.textContent = ""; }, 2500); }
+      } catch (err) {
+        tempoSetBtn.textContent = "Set tempo";
+        tempoSetBtn.disabled = false;
+        if (tempoStatus) tempoStatus.textContent = `Error: ${err.message}`;
+      }
+    });
   }
 
   // Strip chords button (when tune has ABC)
