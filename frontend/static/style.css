@@ -1418,7 +1418,8 @@ button.set-tune-title:hover { text-decoration: underline; }
   gap: .3rem;
   margin-bottom: .75rem;
 }
-.session-abc-match { display: flex; }
+.session-abc-match { display: flex; align-items: center; gap: .4rem; }
+.session-abc-view { flex-shrink: 0; white-space: nowrap; font-size: .78rem; }
 .session-abc-pick,
 .session-setting-pick {
   background: var(--surface2);

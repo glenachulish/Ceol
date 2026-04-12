@@ -2007,6 +2007,7 @@ function renderModal(tune, onBack = null, siblings = null) {
               <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type)}</span>
               <span class="session-abc-meta">${t.tunebooks} setting${t.tunebooks === 1 ? "" : "s"}</span>
             </button>
+            <a class="btn-secondary btn-sm session-abc-view" href="https://thesession.org/tunes/${t.id}" target="_blank" rel="noopener" title="View this tune on TheSession.org before selecting">↗ View</a>
           </div>`).join("");
         abcResults.classList.remove("hidden");
         // Wire pick buttons — reuse same logic as fetchAbcBtn
@@ -2088,6 +2089,7 @@ function renderModal(tune, onBack = null, siblings = null) {
               <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type)}</span>
               <span class="session-abc-meta">${t.tunebooks} setting${t.tunebooks === 1 ? "" : "s"}</span>
             </button>
+            <a class="btn-secondary btn-sm session-abc-view" href="https://thesession.org/tunes/${t.id}" target="_blank" rel="noopener" title="View this tune on TheSession.org before selecting">↗ View</a>
           </div>`).join("");
         abcResults.classList.remove("hidden");
 
