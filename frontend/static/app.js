@@ -2432,7 +2432,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     const urlRe = /(?:https?:\/\/|\/api\/uploads\/)[^\s<>"]+/g;
     const audioUrls = [], videoUrls = [];
     let mx;
-    while ((mx = urlRe.exec(t.notes || "")) !== null) {
+    while ((mx = urlRe.exec(t.all_notes || t.notes || "")) !== null) {
       const u = mx[0];
       if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(u)) audioUrls.push(u);
       else if (/(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/.test(u) ||
