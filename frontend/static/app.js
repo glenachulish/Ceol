@@ -3173,7 +3173,14 @@ function _barMs(barIndex) {
   if (Object.prototype.hasOwnProperty.call(_barFirstMs, barIndex)) {
     return _barFirstMs[barIndex];
   }
-  return barIndex * (_msPerMeasure || 0);
+  // If we have some timing data, interpolate from the last known bar
+  const keys = Object.keys(_barFirstMs).map(Number).sort((a,b) => a-b);
+  if (keys.length > 1 && _msPerMeasure) {
+    const lastKey = keys[keys.length - 1];
+    return _barFirstMs[lastKey] + (barIndex - lastKey) * _msPerMeasure;
+  }
+  if (!_msPerMeasure) return 0;
+  return barIndex * _msPerMeasure;
 }
 
 function _seekToBar(barIndex) {
@@ -3560,8 +3567,14 @@ function renderSheetMusic(abc) {
             : _barMs(_barSel.end) + (_msPerMeasure || 0);
           if (ev.milliseconds >= endTimeMs) {
             _loopSeeking = true;
-            _seekToBar(_barSel.start);
-            setTimeout(() => { _loopSeeking = false; }, 300);
+            // Delay seek slightly so _barFirstMs is fully populated before seeking
+            const _loopStart = _barSel.start;
+            setTimeout(() => {
+              if (_barLooping && _barSel.start !== null) {
+                _seekToBar(_loopStart);
+              }
+              setTimeout(() => { _loopSeeking = false; }, 250);
+            }, 30);
           }
         }
       },
@@ -3826,8 +3839,23 @@ function _fsMeasureClickHandler(e) {
 }
 
 function openAbcFullscreen(abc, title, opts = {}) {
-  const { tuneRanges = null, tuneColors = null, initialWarp = null, pracSettings = null } = opts;
+  const { tuneRanges = null, tuneColors = null, tuneNames = null, initialWarp = null, pracSettings = null } = opts;
   _abcFsTitleEl.textContent = title || "";
+  // Show coloured tune name pills for sets
+  const existingPills = document.getElementById("abc-fs-tune-pills");
+  if (existingPills) existingPills.remove();
+  if (tuneNames && tuneColors && tuneNames.length > 1) {
+    const pillsRow = document.createElement("div");
+    pillsRow.id = "abc-fs-tune-pills";
+    pillsRow.style.cssText = "display:flex;flex-wrap:wrap;gap:.35rem;padding:.3rem .75rem .2rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;";
+    tuneNames.forEach((name, i) => {
+      const pill = document.createElement("span");
+      pill.textContent = name;
+      pill.style.cssText = `background:${tuneColors[i % tuneColors.length]};color:#fff;padding:.15rem .55rem;border-radius:20px;font-size:.75rem;font-weight:600;`;
+      pillsRow.appendChild(pill);
+    });
+    _abcFsTitleEl.closest(".abc-fullscreen-header").after(pillsRow);
+  }
   _abcFsOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 
@@ -4663,6 +4691,7 @@ function openFullSetModal(setData, opts = {}) {
             openAbcFullscreen(combined.abc, setData.name, {
               tuneRanges: combined.tuneRanges,
               tuneColors: TUNE_COLORS,
+              tuneNames: twAbc.map(t => t.title),
             });
           };
         }
@@ -4759,6 +4788,7 @@ function openFullSetModal(setData, opts = {}) {
       openAbcFullscreen(_setCombined.abc, setData.name, {
         tuneRanges: _setCombined.tuneRanges,
         tuneColors: TUNE_COLORS,
+        tuneNames: tunesWithAbc.map(t => t.title),
       });
     });
   }
