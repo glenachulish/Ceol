@@ -104,6 +104,37 @@
     setTimeout(_updateFilterIndicator, 50);
   });
 
+  // ── Type filter pills ───────────────────────────────────────────────────────
+  (function _buildTypePills() {
+    const filterType = document.getElementById("filter-type");
+    if (!filterType) return;
+    function _render() {
+      const opts = [...filterType.options].filter(o => o.value !== "");
+      if (!opts.length) { setTimeout(_render, 200); return; }
+      const existing = document.getElementById("m-type-pills");
+      if (existing) existing.remove();
+      const row = document.createElement("div");
+      row.id = "m-type-pills"; row.className = "m-type-pills";
+      const allPill = document.createElement("button");
+      allPill.className = "m-type-pill active"; allPill.dataset.value = ""; allPill.textContent = "All";
+      row.appendChild(allPill);
+      opts.forEach(o => {
+        const pill = document.createElement("button");
+        pill.className = "m-type-pill"; pill.dataset.value = o.value; pill.textContent = o.text;
+        row.appendChild(pill);
+      });
+      filterType.parentElement.insertBefore(row, filterType);
+      row.addEventListener("click", e => {
+        const pill = e.target.closest(".m-type-pill"); if (!pill) return;
+        row.querySelectorAll(".m-type-pill").forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        filterType.value = pill.dataset.value;
+        filterType.dispatchEvent(new Event("change"));
+      });
+    }
+    _render();
+  })();
+
   // ── Hamburger menu ───────────────────────────────────────────────────────────
   const mMenuBtn     = document.getElementById("m-menu-btn");
   const mMenuOverlay = document.getElementById("m-menu-overlay");

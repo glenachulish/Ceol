@@ -582,3 +582,9 @@
 .mobile-body .m-filter-grid select {
   font-size: 1rem;
 }
+
+/* ── Type filter: pill buttons replace <select> on mobile ───── */
+.mobile-body #filter-type { display: none; }
+.m-type-pills { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0 .1rem; }
+.m-type-pill { padding: .35rem .8rem; border-radius: 999px; border: 1.5px solid var(--border); background: var(--surface); font-size: 1rem; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.m-type-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
