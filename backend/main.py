@@ -411,15 +411,17 @@ def list_tunes(
             params.extend(_excl)
         elif _type_l in _type_groups:
             _cond, _ps = _type_groups[_type_l]
-            conditions.append(_cond)
-            params.extend(_ps)
+            _vcond = _cond.replace("t.type", "v.type")
+            conditions.append(f"({_cond} OR EXISTS (SELECT 1 FROM tunes v WHERE v.parent_id = t.id AND {_vcond}))")
+            params.extend(_ps + _ps)
         else:
             conditions.append("t.type = ?")
             params.append(_type_l)
 
     if key:
-        conditions.append("t.key LIKE ?")
-        params.append(f"%{key}%")
+        _kp = f"%{key}%"
+        conditions.append("(t.key LIKE ? OR EXISTS (SELECT 1 FROM tunes v WHERE v.parent_id = t.id AND v.key LIKE ?))")
+        params.extend([_kp, _kp])
 
     if mode:
         conditions.append("t.mode = ?")
