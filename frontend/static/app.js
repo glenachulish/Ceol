@@ -6515,7 +6515,7 @@ async function loadFilters() {
   // Clear existing options (except placeholder) to allow safe re-calling
   filterType.innerHTML = '<option value="">All types</option>';
   filterKey.innerHTML  = '<option value="">All keys</option>';
-  filterMode.innerHTML = '<option value="">All modes</option>';
+  if (filterMode) filterMode.innerHTML = '<option value="">All modes</option>';
   if (filterComposer) filterComposer.innerHTML = '<option value="">All composers</option>';
 
   // Grouped type options — each group value matches multiple DB types
