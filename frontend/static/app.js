@@ -3958,8 +3958,8 @@ function openAbcFullscreen(abc, title, opts = {}) {
             if (ev?.elements) {
               const sc = ev.startChar ?? -1;
               // Debug: log first few events to console
-              if (sc > 0 && !window._fsDebugLogged) {
-                console.log('[FS Debug] startChar:', sc, 'tuneRanges:', JSON.stringify(tuneRanges));
+              if (!window._fsDebugLogged) {
+                console.log('[FS Debug] sc:', sc, 'ev.startChar:', ev.startChar, 'ev keys:', Object.keys(ev||{}), 'ranges:', JSON.stringify(tuneRanges));
                 window._fsDebugLogged = true;
               }
               let tuneIdx = tuneRanges.length - 1;
@@ -4714,18 +4714,7 @@ function openFullSetModal(setData, opts = {}) {
             .then(() => _setMusicSynth.setWarp(100))
             .catch(() => {});
         } catch {}
-        // Rewire fullscreen button
-        const fsBtn = document.getElementById("set-full-fs-btn");
-        if (fsBtn && combined) {
-          fsBtn.onclick = () => {
-            if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} }
-            openAbcFullscreen(combined.abc, setData.name, {
-              tuneRanges: combined.tuneRanges,
-              tuneColors: TUNE_COLORS,
-              tuneNames: twAbc.map(t => t.title),
-            });
-          };
-        }
+        // Fullscreen button is wired below via addEventListener — no duplicate onclick needed
       });
     }
 
