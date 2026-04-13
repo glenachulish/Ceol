@@ -4647,7 +4647,7 @@ function openFullSetModal(setData, opts = {}) {
   modalContent.innerHTML = `
     ${_fullSetOnBack ? '<button class="modal-back-btn" id="full-set-back-btn">← Back</button>' : ""}
     <h2 class="modal-title">${escHtml(setData.name)}
-      ${setData.id ? `<a class="btn-secondary btn-sm modal-export-btn" href="/api/export/set/${setData.id}" download title="Download as .ceol.json">⬇ Export</a>` : ""}
+      ${setData.id ? `<span class="set-export-wrap" style="position:relative;display:inline-block;vertical-align:middle"><button class="btn-secondary btn-sm set-export-menu-btn">⬇ Export ▾</button><div class="set-export-menu hidden" style="position:absolute;right:0;top:2.1rem;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:185px;overflow:hidden"><a class="library-menu-item" href="/api/export/set/${setData.id}" download style="display:block;padding:.55rem .9rem;text-decoration:none;color:var(--text)">📄 Ceòl JSON (.ceol.json)</a><button class="library-menu-item set-export-abc-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">🎵 ABC for TheCraic (.abc)</button></div></span>` : ""}
     </h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
     ${transRows.length ? `
@@ -4871,6 +4871,31 @@ function openFullSetModal(setData, opts = {}) {
   const _setCombined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
 
   // Wire fullscreen button (uses combined ABC with per-tune colour highlights)
+  const _setExportMenuBtn = modalContent.querySelector(".set-export-menu-btn");
+  if (_setExportMenuBtn) {
+    const _setExportMenu = _setExportMenuBtn.nextElementSibling;
+    _setExportMenuBtn.addEventListener("click", e => { e.stopPropagation(); _setExportMenu.classList.toggle("hidden"); });
+    document.addEventListener("click", () => _setExportMenu?.classList.add("hidden"), { once: true });
+  }
+  const _setExportAbcBtn = modalContent.querySelector(".set-export-abc-btn");
+  if (_setExportAbcBtn) {
+    _setExportAbcBtn.addEventListener("click", async () => {
+      _setExportAbcBtn.textContent = "Building…";
+      try {
+        const tunesForAbc = tunes.filter(t => t.abc);
+        if (!tunesForAbc.length) { alert("No ABC notation in this set."); _setExportAbcBtn.textContent = "🎵 ABC for TheCraic (.abc)"; return; }
+        const abcText = tunesForAbc.map(t => t.abc.trim()).join("\n\n");
+        const blob = new Blob([abcText], { type: "application/octet-stream" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = (setData.name || "set").replace(/[^\w\s\-]/g, "").trim() + ".abc";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch { alert("Export failed."); }
+      _setExportAbcBtn.textContent = "🎵 ABC for TheCraic (.abc)";
+      _setExportMenuBtn?.nextElementSibling?.classList.add("hidden");
+    });
+  }
   const setFsBtn = document.getElementById("set-full-fs-btn");
   if (setFsBtn && _setCombined) {
     setFsBtn.addEventListener("click", () => {
@@ -5950,11 +5975,13 @@ function renderCollections(collections) {
       const allColTunes = colData.tunes || [];
       const allColSets  = colData.sets  || [];
 
+      let _colTypeFilter = "";
       function _renderColItems(q) {
         const itemsEl = document.getElementById("col-detail-items");
         if (!itemsEl) return;
         const ql = q.toLowerCase();
-        const filtTunes = ql ? allColTunes.filter(t => t.title.toLowerCase().includes(ql)) : allColTunes;
+        let filtTunes = ql ? allColTunes.filter(t => t.title.toLowerCase().includes(ql)) : [...allColTunes];
+        if (_colTypeFilter) filtTunes = filtTunes.filter(t => (t.type || "").toLowerCase() === _colTypeFilter);
         const filtSets  = ql ? allColSets.filter(s => s.name.toLowerCase().includes(ql))   : allColSets;
         let html = "";
         if (filtTunes.length) {
@@ -6035,13 +6062,31 @@ function renderCollections(collections) {
           <input id="col-detail-search" type="search" class="detail-search-input"
                  placeholder="Search within this collection…" autocomplete="off">
         </div>
+        <div id="col-type-filter" class="col-type-filter"></div>
         <div id="col-detail-items"></div>
         <div class="col-add-set-row">
           <button class="btn-set btn-sm col-add-set-btn" data-col-id="${id}">+ Add a set…</button>
           <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${id}" title="Remove guitar chord symbols (e.g. &quot;Am&quot;) from ABC notation of all tunes in this collection">Strip chord symbols</button>
         </div>`;
 
+      _colTypeFilter = "";
       _renderColItems("");
+      const _typeFilterEl = document.getElementById("col-type-filter");
+      if (_typeFilterEl) {
+        const _tuneTypes = [...new Set(allColTunes.map(t => (t.type || "").toLowerCase()).filter(Boolean))].sort();
+        if (_tuneTypes.length > 1) {
+          _typeFilterEl.innerHTML = ["", ..._tuneTypes].map(ty =>
+            `<button class="col-type-chip${ty === "" ? " active" : ""}" data-type="${ty}">${ty === "" ? "All" : ty.charAt(0).toUpperCase() + ty.slice(1) + "s"}</button>`
+          ).join("");
+          _typeFilterEl.querySelectorAll(".col-type-chip").forEach(chip => {
+            chip.addEventListener("click", () => {
+              _colTypeFilter = chip.dataset.type;
+              _typeFilterEl.querySelectorAll(".col-type-chip").forEach(c => c.classList.toggle("active", c === chip));
+              _renderColItems(document.getElementById("col-detail-search")?.value || "");
+            });
+          });
+        }
+      }
       document.getElementById("col-detail-search").addEventListener("input", e => {
         _renderColItems(e.target.value.trim());
       });

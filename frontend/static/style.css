@@ -3793,3 +3793,15 @@ a.bandcamp-link:hover { opacity: .85; }
   .sheet-music-options-panel.hidden { display: block !important; }
   .sheet-music-options-header { display: none; }
 }
+
+/* ── Collection detail: type filter chips ───────────────────── */
+.col-type-filter { display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0 .3rem; }
+.col-type-chip { padding: .22rem .65rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: .78rem; cursor: pointer; transition: background .15s, color .15s; }
+.col-type-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.col-type-chip:hover:not(.active) { background: var(--surface2); }
+
+/* ── Collection detail: type filter chips ───────────────────── */
+.col-type-filter { display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0 .3rem; }
+.col-type-chip { padding: .22rem .65rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: .78rem; cursor: pointer; transition: background .15s, color .15s; }
+.col-type-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.col-type-chip:hover:not(.active) { background: var(--surface2); }

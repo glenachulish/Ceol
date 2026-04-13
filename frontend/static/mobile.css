@@ -560,3 +560,19 @@
 .m-set-row-name { font-weight: 600; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-set-row-meta { font-size: .78rem; color: var(--text-muted); }
 .m-set-row-arrow { color: var(--text-muted); font-size: 1.3rem; margin-left: .5rem; flex-shrink: 0; }
+
+/* ── Tune cards: hide key badge on mobile ───────────────────── */
+.mobile-body .tune-card [data-badge="key"] { display: none; }
+
+/* ── Collection detail: hide edit-only actions on mobile ────── */
+.mobile-body .col-add-set-row { display: none; }
+.mobile-body .remove-from-col,
+.mobile-body .remove-from-col-set { display: none; }
+
+/* ── Tune cards: hide key badge on mobile ───────────────────── */
+.mobile-body .tune-card [data-badge="key"] { display: none; }
+
+/* ── Collection detail: hide edit-only actions on mobile ────── */
+.mobile-body .col-add-set-row { display: none; }
+.mobile-body .remove-from-col,
+.mobile-body .remove-from-col-set { display: none; }
