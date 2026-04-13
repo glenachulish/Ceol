@@ -94,13 +94,13 @@
   }
 
   ["filter-type", "filter-key", "filter-mode", "filter-rating"].forEach(id => {
-    document.getElementById(id).addEventListener("change", _updateFilterIndicator);
+    document.getElementById(id)?.addEventListener("change", _updateFilterIndicator);
   });
-  document.getElementById("filter-hitlist-btn").addEventListener("click", () => {
+  document.getElementById("filter-hitlist-btn")?.addEventListener("click", () => {
     // slight delay so app.js's handler runs first
     setTimeout(_updateFilterIndicator, 50);
   });
-  document.getElementById("clear-btn").addEventListener("click", () => {
+  document.getElementById("clear-btn")?.addEventListener("click", () => {
     setTimeout(_updateFilterIndicator, 50);
   });
 

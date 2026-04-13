@@ -6864,25 +6864,25 @@ function renderNoteEditor(doc) {
 // ── Event handlers ────────────────────────────────────────────────────────────
 const debouncedLoad = debounce(() => { state.page = 1; loadTunes(); }, 280);
 
-searchEl.addEventListener("input", () => {
+searchEl?.addEventListener("input", () => {
   // Stop any playing audio when user starts typing in library search
   if (_synthController) { try { _synthController.pause(); } catch {} }
   const inlineMp3 = document.getElementById("inline-mp3-player");
   if (inlineMp3) { inlineMp3.pause(); inlineMp3.src = ""; }
   state.q = searchEl.value.trim(); debouncedLoad();
 });
-filterType.addEventListener("change", () => { state.type = filterType.value; state.page = 1; loadTunes(); });
-filterKey.addEventListener("change",  () => { state.key  = filterKey.value;  state.page = 1; loadTunes(); });
-filterMode.addEventListener("change", () => { state.mode = filterMode.value; state.page = 1; loadTunes(); });
+filterType?.addEventListener("change", () => { state.type = filterType.value; state.page = 1; loadTunes(); });
+filterKey?.addEventListener("change",  () => { state.key  = filterKey.value;  state.page = 1; loadTunes(); });
+filterMode?.addEventListener("change", () => { state.mode = filterMode.value; state.page = 1; loadTunes(); });
 if (filterComposer) filterComposer.addEventListener("change", () => { state.composer = filterComposer.value; state.page = 1; loadTunes(); });
 
-filterRating.addEventListener("change", () => {
+filterRating?.addEventListener("change", () => {
   state.min_rating = Number(filterRating.value) || 0;
   state.page = 1;
   loadTunes();
 });
 
-filterHitlistBtn.addEventListener("click", () => {
+filterHitlistBtn?.addEventListener("click", () => {
   state.hitlist = !state.hitlist;
   filterHitlistBtn.classList.toggle("active", state.hitlist);
   state.page = 1;
