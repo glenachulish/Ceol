@@ -588,3 +588,8 @@
 .m-type-pills { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0 .1rem; }
 .m-type-pill { padding: .35rem .8rem; border-radius: 999px; border: 1.5px solid var(--border); background: var(--surface); font-size: 1rem; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .m-type-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Key filter: pill row + hidden select revealed by Other ─── */
+.mobile-body #filter-key { display: none; }
+.mobile-body #filter-key.m-key-other-active { display: block; margin-top: .4rem; font-size: 1rem; width: 100%; }
+.m-key-other-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }

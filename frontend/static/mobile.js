@@ -135,6 +135,78 @@
     _render();
   })();
 
+  // ── Key filter pills ────────────────────────────────────────────────────────
+  (function _buildKeyPills() {
+    const filterKey = document.getElementById("filter-key");
+    if (!filterKey) return;
+    const QUICK_KEYS = ["D major","G major","E minor","A minor","B minor","A major"];
+    const QUICK_LABELS = ["D","G","Em","Am","Bm","A"];
+
+    function _render() {
+      const allOpts = [...filterKey.options].filter(o => o.value !== "");
+      if (!allOpts.length) { setTimeout(_render, 200); return; }
+      const existing = document.getElementById("m-key-pills");
+      if (existing) existing.remove();
+      filterKey.classList.remove("m-key-other-active");
+
+      const row = document.createElement("div");
+      row.id = "m-key-pills"; row.className = "m-type-pills";
+
+      // All pill
+      const allPill = document.createElement("button");
+      allPill.className = "m-type-pill active"; allPill.dataset.value = ""; allPill.textContent = "All";
+      row.appendChild(allPill);
+
+      // Quick-pick key pills
+      QUICK_KEYS.forEach((key, i) => {
+        if (!allOpts.some(o => o.value === key)) return;
+        const pill = document.createElement("button");
+        pill.className = "m-type-pill"; pill.dataset.value = key;
+        pill.textContent = QUICK_LABELS[i];
+        row.appendChild(pill);
+      });
+
+      // Other pill — reveals the full <select>
+      const otherPill = document.createElement("button");
+      otherPill.className = "m-type-pill m-key-other-pill"; otherPill.dataset.value = "__other_key__";
+      otherPill.textContent = "Other ▾";
+      row.appendChild(otherPill);
+
+      filterKey.parentElement.insertBefore(row, filterKey);
+
+      row.addEventListener("click", e => {
+        const pill = e.target.closest(".m-type-pill"); if (!pill) return;
+        if (pill.dataset.value === "__other_key__") {
+          // Toggle the full select visible
+          row.querySelectorAll(".m-type-pill").forEach(p => p.classList.remove("active"));
+          pill.classList.add("active");
+          filterKey.classList.add("m-key-other-active");
+          filterKey.value = "";
+          filterKey.dispatchEvent(new Event("change"));
+          filterKey.focus();
+          return;
+        }
+        row.querySelectorAll(".m-type-pill").forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        filterKey.classList.remove("m-key-other-active");
+        filterKey.value = pill.dataset.value;
+        filterKey.dispatchEvent(new Event("change"));
+      });
+
+      // When user picks from the full select, mark Other pill active
+      filterKey.addEventListener("change", () => {
+        const val = filterKey.value;
+        if (!val) return;
+        const matchesPill = QUICK_KEYS.includes(val);
+        if (!matchesPill) {
+          row.querySelectorAll(".m-type-pill").forEach(p => p.classList.remove("active"));
+          otherPill.classList.add("active");
+        }
+      });
+    }
+    _render();
+  })();
+
   // ── Hamburger menu ───────────────────────────────────────────────────────────
   const mMenuBtn     = document.getElementById("m-menu-btn");
   const mMenuOverlay = document.getElementById("m-menu-overlay");
