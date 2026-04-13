@@ -3861,7 +3861,7 @@ function _fsMeasureClickHandler(e) {
 }
 
 function openAbcFullscreen(abc, title, opts = {}) {
-  const { tuneRanges = null, tuneColors = null, tuneNames = null, initialWarp = null, pracSettings = null } = opts;
+  const { tuneRanges = null, tuneColors = null, tuneNames = null, tuneAbcs = null, initialWarp = null, pracSettings = null } = opts;
   _abcFsTitleEl.textContent = title || "";
   // Show coloured tune name pills for sets
   const existingPills = document.getElementById("abc-fs-tune-pills");
