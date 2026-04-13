@@ -1210,7 +1210,6 @@ function renderModal(tune, onBack = null, siblings = null) {
             : `<button id="open-session-btn" class="btn-secondary btn-sm" data-search-title="${escHtml(tune.title)}">${sessionBtnLabel}</button>`}
           <span id="fetch-abc-status" class="notes-status"></span>
           ${tune.abc ? `<button id="strip-chords-btn" class="btn-secondary btn-sm" title="Remove guitar chord symbols from ABC">✂ Strip chords</button>` : ""}
-          ${tune.abc ? `<button id="clear-abc-btn" class="btn-danger btn-sm" title="Remove the ABC notation for this tune">🗑 Clear ABC</button>` : ""}
         </div>
         <div id="session-abc-results" class="session-abc-results hidden"></div>
       </div>
@@ -5328,7 +5327,7 @@ function renderSets(sets) {
         if (footer) footer.before(tr); else tunesDiv.appendChild(tr);
         const open = () => openSetMusicModal(`${a.title} → ${b.title}`, transAbc, { isTransition: true });
         tr.querySelector(".set-transition-play-btn").addEventListener("click", open);
-        tr.querySelector(".set-transition-music-btn").addEventListener("click", async () => {
+        tr.querySelector(".set-transition-music-btn")?.addEventListener("click", async () => {
           const fullSetData = await apiGetSet(id);
           openFullSetModal(fullSetData);
         });

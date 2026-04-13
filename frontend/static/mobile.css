@@ -593,3 +593,71 @@
 .mobile-body #filter-key { display: none; }
 .mobile-body #filter-key.m-key-other-active { display: block; margin-top: .4rem; font-size: 1rem; width: 100%; }
 .m-key-other-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+
+/* ══ PATCH-2-MOBILE-UX ══ */
+/* ══════════════════════════════════════════════════════════════════════════
+   PATCH 2 – Mobile UX improvements
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Dynamic Island / notch: header height grows to clear the island ─────── */
+.m-header {
+  height: auto !important;
+  min-height: calc(var(--m-header-h) + var(--safe-top)) !important;
+  padding-top: var(--safe-top) !important;
+  box-sizing: border-box;
+}
+/* Fullscreen overlay header: also clears notch */
+.abc-fullscreen-header {
+  padding-top: calc(var(--safe-top) + 4px) !important;
+  box-sizing: border-box;
+}
+
+/* ── Sheet music page: move Full Screen button to left side ─────────────── */
+#abc-fs-btn.abc-fs-btn {
+  left: .5rem;
+  right: auto !important;
+}
+/* Reposition ⚙ options button so it doesn't clash */
+#sheet-music-menu-btn {
+  left: 5.5rem;
+  right: auto !important;
+}
+
+/* ── Sets: hide print button on mobile ──────────────────────────────────── */
+#set-full-print-btn { display: none !important; }
+
+/* ── Tune modal: hide "Add to Set" on mobile ────────────────────────────── */
+#add-to-set-btn { display: none !important; }
+
+/* ── Transitions: only one Play button — hide the secondary button ──────── */
+.set-transition-music-btn,
+.set-trans-music-btn { display: none !important; }
+
+/* ── Library: remove double-click hint cursor so single-click feels natural  */
+.tune-card { cursor: pointer; }
+
+/* ── Landscape orientation ──────────────────────────────────────────────── */
+@media (orientation: landscape) {
+  /* Compact header in landscape so sheet music has more room */
+  .m-header {
+    min-height: 40px !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+  }
+  /* Full-screen overlay: account for side notches (iPhone Pro in landscape) */
+  .abc-fullscreen-overlay {
+    padding-left:  env(safe-area-inset-left,  0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  /* Compact bottom nav in landscape */
+  .m-nav {
+    height: 44px !important;
+  }
+  .m-nav-btn {
+    padding: 3px 6px !important;
+    gap: 1px !important;
+  }
+  .m-nav-label {
+    font-size: .58rem !important;
+  }
+}
