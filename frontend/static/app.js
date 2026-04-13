@@ -3931,6 +3931,24 @@ function openAbcFullscreen(abc, title, opts = {}) {
       ? _abcFsVisualObj.millisecondsPerMeasure()
       : null;
 
+    // Pre-color all notes by tune range (set fullscreen)
+    if (tuneRanges && tuneColors && _abcFsVisualObj) {
+      try {
+        const timings = _abcFsVisualObj.setTiming(120, 0);
+        timings.filter(t => t.type === "event" && t.startChar != null).forEach(t => {
+          let tuneIdx = tuneRanges.length - 1;
+          for (let i = 0; i < tuneRanges.length; i++) {
+            if (t.startChar >= tuneRanges[i].start && t.startChar <= tuneRanges[i].end) { tuneIdx = i; break; }
+          }
+          const col = tuneColors[tuneIdx % tuneColors.length];
+          (t.elements || []).forEach(grp => {
+            if (!grp) return;
+            grp.forEach(el => { if (el) el.style.fill = col; });
+          });
+        });
+      } catch(e) { console.warn("Pre-color failed:", e); }
+    }
+
     // Wire bar-selection click handler
     const renderEl = document.getElementById("abc-fullscreen-render");
     if (renderEl) {
