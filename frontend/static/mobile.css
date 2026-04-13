@@ -576,3 +576,9 @@
 .mobile-body .col-add-set-row { display: none; }
 .mobile-body .remove-from-col,
 .mobile-body .remove-from-col-set { display: none; }
+
+/* ── Filter selects: readable font size on mobile ───────────── */
+.mobile-body select,
+.mobile-body .m-filter-grid select {
+  font-size: 1rem;
+}
