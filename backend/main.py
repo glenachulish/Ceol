@@ -329,6 +329,35 @@ def _db():
 # Tune endpoints
 # ---------------------------------------------------------------------------
 
+
+def _apply_type_filter(cond_list, params_list, type_val):
+    """Apply grouped type filter to SQL conditions and params."""
+    if not type_val:
+        return
+    _t = type_val.lower()
+    _groups = {
+        "reel":       ("type LIKE ?", ["%reel%"]),
+        "jig":        ("(type LIKE ? OR type LIKE ? OR type LIKE ?)", ["%jig%", "%slide%", "%slip%"]),
+        "hornpipe":   ("type LIKE ?", ["%hornpipe%"]),
+        "strathspey": ("(type LIKE ? OR type LIKE ?)", ["%strathspey%", "%highland%"]),
+        "waltz":      ("type LIKE ?", ["%waltz%"]),
+        "march":      ("type LIKE ?", ["%march%"]),
+        "air":        ("(type LIKE ? OR type LIKE ?)", ["%air%", "%slow air%"]),
+        "polka":      ("type LIKE ?", ["%polka%"]),
+    }
+    if _t == "__other__":
+        excl = ["%reel%","%jig%","%slide%","%slip%","%hornpipe%",
+                "%strathspey%","%highland%","%waltz%","%march%","%air%","%polka%"]
+        cond_list.append("(" + " AND ".join(["type NOT LIKE ?"] * len(excl)) + ")")
+        params_list.extend(excl)
+    elif _t in _groups:
+        c, ps = _groups[_t]
+        cond_list.append(c)
+        params_list.extend(ps)
+    else:
+        cond_list.append("type = ?")
+        params_list.append(_t)
+
 @app.get("/api/tunes")
 def list_tunes(
     q: Optional[str] = Query(None, description="Search title / alias"),
@@ -361,8 +390,32 @@ def list_tunes(
         params += [like, like]
 
     if type:
-        conditions.append("t.type = ?")
-        params.append(type.lower())
+        _type_l = type.lower()
+        # Handle grouped type values from the frontend
+        _type_groups = {
+            "reel":       ("t.type LIKE ?", ["%reel%"]),
+            "jig":        ("(t.type LIKE ? OR t.type LIKE ? OR t.type LIKE ?)", ["%jig%", "%slide%", "%slip%"]),
+            "hornpipe":   ("t.type LIKE ?", ["%hornpipe%"]),
+            "strathspey": ("(t.type LIKE ? OR t.type LIKE ?)", ["%strathspey%", "%highland%"]),
+            "waltz":      ("t.type LIKE ?", ["%waltz%"]),
+            "march":      ("t.type LIKE ?", ["%march%"]),
+            "air":        ("(t.type LIKE ? OR t.type LIKE ?)", ["%air%", "%slow air%"]),
+            "polka":      ("t.type LIKE ?", ["%polka%"]),
+        }
+        if _type_l == "__other__":
+            # Exclude all known grouped types
+            _excl = ["%reel%","%jig%","%slide%","%slip%","%hornpipe%","%strathspey%",
+                     "%highland%","%waltz%","%march%","%air%","%polka%"]
+            _conds = " AND ".join([f"t.type NOT LIKE ?" for _ in _excl])
+            conditions.append(f"({_conds})")
+            params.extend(_excl)
+        elif _type_l in _type_groups:
+            _cond, _ps = _type_groups[_type_l]
+            conditions.append(_cond)
+            params.extend(_ps)
+        else:
+            conditions.append("t.type = ?")
+            params.append(_type_l)
 
     if key:
         conditions.append("t.key LIKE ?")
@@ -945,8 +998,8 @@ def cof_templates(
                 params: list = [key]
                 extra = ""
                 if type:
-                    extra += " AND type = ?"
-                    params.append(type.lower())
+                    _tc = []; _tp = []; _apply_type_filter(_tc, _tp, type)
+                    if _tc: extra += " AND " + _tc[0]; params.extend(_tp)
                 if min_rating is not None:
                     extra += " AND rating >= ?"
                     params.append(min_rating)
@@ -1019,8 +1072,8 @@ def cof_compatible(
                 cond = f"key IN ({placeholders})"
                 params: list = list(matching_keys)
                 if type:
-                    cond += " AND type = ?"
-                    params.append(type.lower())
+                    _tc = []; _tp = []; _apply_type_filter(_tc, _tp, type)
+                    if _tc: cond += " AND " + _tc[0]; params.extend(_tp)
                 cond += extra_cond
                 params.extend(extra_params)
                 tunes = conn.execute(
@@ -1072,8 +1125,8 @@ def cof_compatible(
             cond = "key != ?" if key else "1=1"
             params = [key] if key else []
             if type:
-                cond += " AND type = ?"
-                params.append(type.lower())
+                _tc = []; _tp = []; _apply_type_filter(_tc, _tp, type)
+                if _tc: cond += " AND " + _tc[0]; params.extend(_tp)
             cond += extra_cond
             params.extend(extra_params)
             tunes = conn.execute(

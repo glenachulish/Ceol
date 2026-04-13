@@ -3907,53 +3907,84 @@ function openAbcFullscreen(abc, title, opts = {}) {
 
     // Determine optimal measures per line based on screen width
     const w = window.innerWidth;
-    const measuresPerLine = w > 1200 ? 6 : w > 800 ? 5 : w > 500 ? 4 : 3;
-    const staffWidth = Math.max(300, w - 20);
+    // On mobile: fewer measures = bigger notes. 2 measures per line on small screens.
+    const measuresPerLine = w > 1200 ? 6 : w > 800 ? 5 : w > 500 ? 3 : 2;
+    const staffWidth = Math.max(300, w - 32);
 
-    // If tuneRanges are provided, abc is already expanded (from buildCombinedPlaybackAbcWithRanges)
-    // Re-expanding would shift character offsets and break tuneRange matching.
-    const abcToRender = tuneRanges ? abc : expandAbcRepeats(abc);
-    const visualObjs = ABCJS.renderAbc("abc-fullscreen-render", abcToRender, {
-      responsive: "resize",
-      wrap: { preferredMeasuresPerLine: measuresPerLine },
-      add_classes: true,
-      paddingbottom: 10,
-      paddingleft: 10,
-      paddingright: 10,
-      paddingtop: 10,
-      staffwidth: staffWidth,
-      selectTypes: false,
-      foregroundColor: "#000000",
-    });
+    const renderEl = document.getElementById("abc-fullscreen-render");
 
-    _abcFsVisualObj = visualObjs && visualObjs[0] ? visualObjs[0] : null;
+    // SET FULLSCREEN: render each tune as a separate coloured section
+    if (tuneAbcs && tuneNames && tuneColors && tuneAbcs.length > 1) {
+      renderEl.innerHTML = "";
+      tuneAbcs.forEach((tuneAbc, i) => {
+        const color = tuneColors[i % tuneColors.length];
+        const section = document.createElement("div");
+        section.className = "fs-set-tune-section";
+        section.style.cssText = `border-left: 4px solid ${color}; margin-bottom: 1.5rem; padding-left: .5rem;`;
+        const titleEl = document.createElement("div");
+        titleEl.className = "fs-set-tune-title";
+        titleEl.textContent = `${i + 1}. ${tuneNames[i] || ""}`;
+        titleEl.style.cssText = `color: ${color}; font-weight: 700; font-size: 1rem; margin-bottom: .25rem;`;
+        section.appendChild(titleEl);
+        const renderDiv = document.createElement("div");
+        renderDiv.id = `fs-tune-render-${i}`;
+        section.appendChild(renderDiv);
+        renderEl.appendChild(section);
+        try {
+          ABCJS.renderAbc(`fs-tune-render-${i}`, expandAbcRepeats(tuneAbc), {
+            responsive: "resize",
+            wrap: { preferredMeasuresPerLine: measuresPerLine },
+            add_classes: true,
+            paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
+            staffwidth: staffWidth,
+            foregroundColor: color,
+          });
+        } catch(e) {}
+      });
+      // Hidden combined render for synth cursor tracking
+      const abcToRender = tuneRanges ? abc : expandAbcRepeats(abc);
+      let hiddenDiv = document.getElementById("abc-fs-hidden-render");
+      if (!hiddenDiv) {
+        hiddenDiv = document.createElement("div");
+        hiddenDiv.id = "abc-fs-hidden-render";
+        hiddenDiv.style.cssText = "position:absolute;left:-9999px;width:600px;height:1px;overflow:hidden;pointer-events:none;";
+        document.body.appendChild(hiddenDiv);
+      }
+      const hiddenVisuals = ABCJS.renderAbc("abc-fs-hidden-render", abcToRender, { add_classes: true, staffwidth: 600 });
+      _abcFsVisualObj = hiddenVisuals && hiddenVisuals[0] ? hiddenVisuals[0] : null;
+      // Build hidden→visible note map (by index) for cursor highlighting
+      const hiddenNotes = [...document.querySelectorAll("#abc-fs-hidden-render .abcjs-note")];
+      const visibleNotes = [];
+      tuneAbcs.forEach((_, i) => {
+        document.querySelectorAll(`#fs-tune-render-${i} .abcjs-note`).forEach(el => visibleNotes.push(el));
+      });
+      window._fsHiddenToVis = new Map();
+      const mapLen = Math.min(hiddenNotes.length, visibleNotes.length);
+      for (let i = 0; i < mapLen; i++) window._fsHiddenToVis.set(hiddenNotes[i], visibleNotes[i]);
+    } else {
+      window._fsHiddenToVis = null;
+      // SINGLE TUNE FULLSCREEN: render normally
+      const visualObjs = ABCJS.renderAbc("abc-fullscreen-render", expandAbcRepeats(abc), {
+        responsive: "resize",
+        wrap: { preferredMeasuresPerLine: measuresPerLine },
+        add_classes: true,
+        paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
+        staffwidth: staffWidth,
+        selectTypes: false,
+        foregroundColor: "#000000",
+      });
+      _abcFsVisualObj = visualObjs && visualObjs[0] ? visualObjs[0] : null;
+    }
+
     _fsMsPerMeasure = _abcFsVisualObj && typeof _abcFsVisualObj.millisecondsPerMeasure === "function"
       ? _abcFsVisualObj.millisecondsPerMeasure()
       : null;
 
-    // Pre-color all notes by tune range (set fullscreen)
-    if (tuneRanges && tuneColors && _abcFsVisualObj) {
-      try {
-        const timings = _abcFsVisualObj.setTiming(120, 0);
-        timings.filter(t => t.type === "event" && t.startChar != null).forEach(t => {
-          let tuneIdx = tuneRanges.length - 1;
-          for (let i = 0; i < tuneRanges.length; i++) {
-            if (t.startChar >= tuneRanges[i].start && t.startChar <= tuneRanges[i].end) { tuneIdx = i; break; }
-          }
-          const col = tuneColors[tuneIdx % tuneColors.length];
-          (t.elements || []).forEach(grp => {
-            if (!grp) return;
-            grp.forEach(el => { if (el) el.style.fill = col; });
-          });
-        });
-      } catch(e) { console.warn("Pre-color failed:", e); }
-    }
-
     // Wire bar-selection click handler
-    const renderEl = document.getElementById("abc-fullscreen-render");
-    if (renderEl) {
-      renderEl.removeEventListener("click", _fsMeasureClickHandler, true);
-      renderEl.addEventListener("click", _fsMeasureClickHandler, true);
+    const renderElClick = document.getElementById("abc-fullscreen-render");
+    if (renderElClick) {
+      renderElClick.removeEventListener("click", _fsMeasureClickHandler, true);
+      renderElClick.addEventListener("click", _fsMeasureClickHandler, true);
     }
 
     // Set up synth playback with full cursor + loop logic
@@ -3971,21 +4002,43 @@ function openAbcFullscreen(abc, title, opts = {}) {
         },
         onEvent(ev) {          // Highlight current note
           if (tuneRanges && tuneColors) {
-            _fsLastHighlighted.forEach(el => { el.style.fill = ''; });
+            // Restore pre-colored fills instead of clearing to black
+            _fsLastHighlighted.forEach(el => {
+              if (el._fsPreColor) el.style.fill = el._fsPreColor;
+            });
             _fsLastHighlighted = [];
             if (ev?.elements) {
               const sc = ev.startChar ?? -1;
-              // Debug: log first few events to console
-
               let tuneIdx = tuneRanges.length - 1;
               for (let i = 0; i < tuneRanges.length; i++) {
                 if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
               }
               const color = tuneColors[tuneIdx % tuneColors.length];
-              ev.elements.forEach(grp => {
-                if (!grp) return;
-                grp.forEach(el => { el.style.fill = color; _fsLastHighlighted.push(el); });
-              });
+              const brightColor = "#ff6b35"; // distinct highlight colour
+              if (window._fsHiddenToVis) {
+                // Set mode: highlight in visible renders via the map
+                ev.elements.forEach(grp => {
+                  if (!grp) return;
+                  grp.forEach(hiddenEl => {
+                    const visEl = window._fsHiddenToVis.get(hiddenEl);
+                    if (visEl) {
+                      if (!visEl._fsPreColor) visEl._fsPreColor = color;
+                      visEl.style.fill = brightColor;
+                      _fsLastHighlighted.push(visEl);
+                    }
+                  });
+                });
+              } else {
+                // Single tune mode: highlight directly
+                ev.elements.forEach(grp => {
+                  if (!grp) return;
+                  grp.forEach(el => {
+                    if (!el._fsPreColor) el._fsPreColor = "#000000";
+                    el.style.fill = brightColor;
+                    _fsLastHighlighted.push(el);
+                  });
+                });
+              }
             }
           } else {
             document.querySelectorAll("#abc-fullscreen-render .abcjs-highlight")
@@ -4826,6 +4879,7 @@ function openFullSetModal(setData, opts = {}) {
         tuneRanges: _setCombined.tuneRanges,
         tuneColors: TUNE_COLORS,
         tuneNames: tunesWithAbc.map(t => t.title),
+        tuneAbcs: tunesWithAbc.map(t => t.abc),
       });
     });
   }
@@ -5835,21 +5889,46 @@ function renderCollections(collections) {
     <div class="set-card" data-col-id="${c.id}">
       <div class="set-card-header">
         <div class="set-card-info">
-          <span class="set-name">${escHtml(c.name)}</span>
-          <button class="btn-icon col-rename-btn col-rename-inline" data-col-id="${c.id}" title="Rename collection">✏</button>
+          <span class="set-name col-name-link" data-col-id="${c.id}" style="cursor:pointer;text-decoration:underline dotted">${escHtml(c.name)}</span>
           <span class="set-count">${countLabel}</span>
         </div>
         <div class="set-card-actions">
-          <button class="btn-secondary btn-sm col-strip-btn" data-col-id="${c.id}">Strip chords</button>
-          <button class="btn-secondary btn-sm col-export-btn" title="Export collection" data-col-id="${c.id}" data-col-name="${escHtml(c.name)}">⬇ Export</button>
           <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
-          <button class="btn-danger col-delete-btn" data-col-id="${c.id}" title="Delete collection">🗑</button>
+          <div class="library-menu-wrap">
+            <button class="btn-icon col-menu-btn" data-col-id="${c.id}" title="Options">⋯</button>
+            <div class="library-menu hidden col-options-menu" id="col-menu-${c.id}">
+              <button class="library-menu-item col-export-btn" data-col-id="${c.id}" data-col-name="${escHtml(c.name)}">⬇ Export</button>
+              <button class="library-menu-item col-rename-btn col-rename-inline" data-col-id="${c.id}">✏ Rename</button>
+              <hr class="library-menu-divider"/>
+              <button class="library-menu-item library-menu-danger col-delete-btn" data-col-id="${c.id}">🗑 Delete</button>
+            </div>
+          </div>
         </div>
       </div>
       ${c.description ? `<p class="set-notes">${escHtml(c.description)}</p>` : ""}
       <div class="set-tunes-list hidden" id="col-tunes-${c.id}"></div>
     </div>`;
   }).join("");
+  
+  // Wire collection name click → view
+  collectionsList.querySelectorAll(".col-name-link").forEach(link => {
+    link.addEventListener("click", () => {
+      const btn = collectionsList.querySelector(`.col-expand-btn[data-col-id="${link.dataset.colId}"]`);
+      if (btn) btn.click();
+    });
+  });
+  
+  // Wire ⋯ menu buttons
+  collectionsList.querySelectorAll(".col-menu-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const menu = document.getElementById(`col-menu-${btn.dataset.colId}`);
+      if (menu) { menu.classList.toggle("hidden"); }
+    });
+  });
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".col-options-menu").forEach(m => m.classList.add("hidden"));
+  }, { once: false, capture: false });
 
   collectionsList.querySelectorAll(".col-expand-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -6394,11 +6473,44 @@ async function loadFilters() {
   filterMode.innerHTML = '<option value="">All modes</option>';
   if (filterComposer) filterComposer.innerHTML = '<option value="">All composers</option>';
 
-  types.forEach(t => {
-    const o = document.createElement("option");
-    o.value = t; o.textContent = t.charAt(0).toUpperCase() + t.slice(1);
-    filterType.appendChild(o);
+  // Grouped type options — each group value matches multiple DB types
+  const TYPE_GROUPS = [
+    { label: "Reel",       value: "reel",       match: /reel/i },
+    { label: "Jig",        value: "jig",        match: /jig|slide/i },
+    { label: "Hornpipe",   value: "hornpipe",   match: /hornpipe/i },
+    { label: "Strathspey", value: "strathspey", match: /strathspey|highland/i },
+    { label: "Waltz",      value: "waltz",      match: /waltz/i },
+    { label: "March",      value: "march",      match: /march/i },
+    { label: "Air",        value: "air",        match: /air/i },
+    { label: "Polka",      value: "polka",      match: /polka/i },
+    { label: "Other",      value: "__other__",  match: null },
+  ];
+  // Build a set of types from DB to know which groups have data
+  const typeSet = new Set((types||[]).map(t => t.toLowerCase()));
+  const usedGroups = new Set();
+  TYPE_GROUPS.forEach(g => {
+    if (g.match) {
+      const hasMatch = [...typeSet].some(t => g.match.test(t));
+      if (hasMatch) {
+        usedGroups.add(g.value);
+        const o = document.createElement("option");
+        o.value = g.value; o.textContent = g.label;
+        filterType.appendChild(o);
+      }
+    } else {
+      // "Other" — show if any types don't match any group
+      const unmatched = [...typeSet].filter(t =>
+        !TYPE_GROUPS.slice(0,-1).some(g2 => g2.match && g2.match.test(t))
+      );
+      if (unmatched.length) {
+        const o = document.createElement("option");
+        o.value = "__other__"; o.textContent = "Other";
+        filterType.appendChild(o);
+      }
+    }
   });
+  // Store grouping map on the element for use in loadTunes
+  filterType._typeGroups = TYPE_GROUPS;
   keys.forEach(k => {
     const o = document.createElement("option");
     o.value = k; o.textContent = k;

@@ -17,7 +17,7 @@
   </script>
   <link rel="stylesheet" href="/static/style.css?v=101" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=13" />
+  <link rel="stylesheet" href="/static/mobile.css?v=15" />
 </head>
 <body class="mobile-body">
 
@@ -28,7 +28,6 @@
       <span class="m-title-text">Ceòl</span>
       <span class="m-title-sub">Mobile</span>
     </div>
-    <button id="m-info-btn" class="m-header-btn" aria-label="App info">ℹ</button>
     <button id="theme-toggle-btn" class="m-header-btn" aria-label="Toggle theme">🌙</button>
     <button id="import-btn" class="m-header-btn m-import-icon" aria-label="Import tunes">＋</button>
   </header>
@@ -50,7 +49,7 @@
           <div class="m-filter-grid">
             <select id="filter-type"><option value="">All types</option></select>
             <select id="filter-key"><option value="">All keys</option></select>
-            <select id="filter-mode"><option value="">All modes</option></select>
+
             <select id="filter-rating">
               <option value="">Any rating</option>
               <option value="1">★ +</option>
@@ -65,16 +64,7 @@
             <button id="clear-btn" class="btn-secondary btn-sm">Clear</button>
             <button id="select-mode-btn" class="btn-secondary btn-sm">Select</button>
           </div>
-          <div class="filter-row filter-row-content">
-            <span class="filter-label-sm">Has:</span>
-            <button class="content-filter-btn btn-secondary btn-sm" data-content="abc" data-tooltip="Tunes with ABC notation">ABC</button>
-            <button class="content-filter-btn btn-secondary btn-sm" data-content="sheet" data-tooltip="Tunes with PDF or photo sheet music">Sheet music</button>
-            <button class="content-filter-btn btn-secondary btn-sm" data-content="pdf" data-tooltip="Tunes with a PDF">PDF</button>
-            <button class="content-filter-btn btn-secondary btn-sm" data-content="photo" data-tooltip="Tunes with a photo">Photo</button>
-            <button class="content-filter-btn btn-secondary btn-sm" data-content="mp3" data-tooltip="Tunes with an MP3 attached">MP3</button>
-            <button class="content-filter-btn btn-secondary btn-sm" data-content="video" data-tooltip="Tunes with a YouTube or video link">Video</button>
-            <button class="content-filter-btn btn-secondary btn-sm" data-content="no_abc" data-tooltip="Tunes with no ABC notation">No ABC</button>
-          </div>
+
         </div>
 
         <div class="result-count" id="result-count"></div>
@@ -128,6 +118,7 @@
         <h2 class="section-title">Sets</h2>
         <input id="sets-search" type="search" class="view-search-input" placeholder="Search sets…" autocomplete="off">
         <button id="new-set-btn" class="btn-set">+ New Set</button>
+        <button id="build-set-btn" class="btn-set" title="Build a set using Circle of Fifths, compatible keys, or other templates to find tunes that flow well together">🎵 Build a Set</button>
       </div>
       <div id="new-set-form" class="new-set-form hidden">
         <input id="new-set-name" type="text" placeholder="Set name…" maxlength="120" />
@@ -281,6 +272,10 @@
     <button class="m-nav-btn" data-view="collections" aria-label="Collections">
       <span class="m-nav-icon">📁</span>
       <span class="m-nav-label">Collections</span>
+    </button>
+    <button id="import-nav-btn" class="m-nav-btn" aria-label="Import tunes" data-action="import">
+      <span class="m-nav-icon">＋</span>
+      <span class="m-nav-label">Import</span>
     </button>
     <button id="m-more-btn" class="m-nav-btn" aria-label="More">
       <span class="m-nav-icon">···</span>
@@ -650,7 +645,7 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=238"></script>
+  <script src="/static/app.js?v=240"></script>
   <script src="/static/mobile.js?v=3"></script>
   <script>
     if ("serviceWorker" in navigator) {
