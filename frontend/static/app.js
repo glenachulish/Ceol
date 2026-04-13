@@ -3958,10 +3958,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
             if (ev?.elements) {
               const sc = ev.startChar ?? -1;
               // Debug: log first few events to console
-              if (!window._fsDebugLogged) {
-                console.log('[FS Debug] sc:', sc, 'ev.startChar:', ev.startChar, 'ev keys:', Object.keys(ev||{}), 'ranges:', JSON.stringify(tuneRanges));
-                window._fsDebugLogged = true;
-              }
+
               let tuneIdx = tuneRanges.length - 1;
               for (let i = 0; i < tuneRanges.length; i++) {
                 if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
@@ -4396,7 +4393,9 @@ function buildCombinedPlaybackAbcWithRanges(tunes) {
     const kMatch = abc.match(/^K:[^\n]*/m);
     if (!kMatch) return '';
     let body = abc.slice(abc.indexOf(kMatch[0]) + kMatch[0].length);
-    body = body.replace(/^[A-Za-z]:[^\n]*/gm, '').replace(/%%[^\n]*/g, '').trim();
+    body = body.replace(/^[A-Za-z]:[^\n]*/gm, '').replace(/%%[^\n]*/g, '');
+    // Collapse blank lines — a blank line in ABC means "end of tune" and breaks parsing
+    body = body.replace(/\n{2,}/g, '\n').trim();
     return body;
   }
 
