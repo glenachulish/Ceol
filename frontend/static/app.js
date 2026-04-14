@@ -1210,6 +1210,7 @@ function renderModal(tune, onBack = null, siblings = null) {
             : `<button id="open-session-btn" class="btn-secondary btn-sm" data-search-title="${escHtml(tune.title)}">${sessionBtnLabel}</button>`}
           <span id="fetch-abc-status" class="notes-status"></span>
           ${tune.abc ? `<button id="strip-chords-btn" class="btn-secondary btn-sm" title="Remove guitar chord symbols from ABC">✂ Strip chords</button>` : ""}
+            ${tune.abc ? `<button id="print-tune-pdf-btn" class="btn-secondary btn-sm" title="Print or save as PDF">⎙ Print / PDF</button>` : ""}
         </div>
         <div id="session-abc-results" class="session-abc-results hidden"></div>
       </div>
@@ -3880,6 +3881,25 @@ function openAbcFullscreen(abc, title, opts = {}) {
   window._fsDebugLogged = false;
   _abcFsOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+  // Landscape More toggle: inject a ⋯ button into the FS header if not already there
+  (() => {
+    const _fsHeader = _abcFsOverlay.querySelector(".abc-fullscreen-header");
+    if (!_fsHeader) return;
+    if (_fsHeader.querySelector(".fs-more-btn")) return; // already added
+    const _moreBtn = document.createElement("button");
+    _moreBtn.className = "fs-more-btn btn-secondary btn-sm";
+    _moreBtn.title = "Show / hide controls";
+    _moreBtn.textContent = "⋯ More";
+    _moreBtn.addEventListener("click", () => {
+      const _ctrl = _abcFsOverlay.querySelector(".abc-fs-controls, .abcjs-midi-wrap");
+      if (_ctrl) {
+        const hidden = _ctrl.style.display === "none";
+        _ctrl.style.display = hidden ? "" : "none";
+        _moreBtn.textContent = hidden ? "✕ Controls" : "⋯ More";
+      }
+    });
+    _fsHeader.appendChild(_moreBtn);
+  })();
 
   // Reset fullscreen bar-selection state
   _fsBarSel = { start: null, end: null };
@@ -3907,7 +3927,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
     // Determine optimal measures per line based on screen width
     const w = window.innerWidth;
     // On mobile: fewer measures = bigger notes. 2 measures per line on small screens.
-    const measuresPerLine = w > 1200 ? 6 : w > 800 ? 5 : w > 500 ? 3 : 2;
+    const measuresPerLine = w > 800 ? 4 : w > 500 ? 3 : 2; // max 4 bars per row on mobile
     const staffWidth = Math.max(300, w - 32);
 
     const renderEl = document.getElementById("abc-fullscreen-render");
@@ -3937,6 +3957,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
             paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
             staffwidth: staffWidth,
             foregroundColor: color,
+            selectTypes: false,
           });
         } catch(e) {}
       });
@@ -3957,9 +3978,17 @@ function openAbcFullscreen(abc, title, opts = {}) {
       tuneAbcs.forEach((_, i) => {
         document.querySelectorAll(`#fs-tune-render-${i} .abcjs-note`).forEach(el => visibleNotes.push(el));
       });
+      // Tune-segmented map: slice hidden notes by per-tune visible counts
+      // so inline key/meter changes in the combined ABC don't shift alignment
       window._fsHiddenToVis = new Map();
-      const mapLen = Math.min(hiddenNotes.length, visibleNotes.length);
-      for (let i = 0; i < mapLen; i++) window._fsHiddenToVis.set(hiddenNotes[i], visibleNotes[i]);
+      let _hiddenCursor = 0;
+      tuneAbcs.forEach((_, _ti) => {
+        const _tuneVis = [...document.querySelectorAll(`#fs-tune-render-${_ti} .abcjs-note`)];
+        for (let _j = 0; _j < _tuneVis.length && (_hiddenCursor + _j) < hiddenNotes.length; _j++) {
+          window._fsHiddenToVis.set(hiddenNotes[_hiddenCursor + _j], _tuneVis[_j]);
+        }
+        _hiddenCursor += _tuneVis.length;
+      });
     } else {
       window._fsHiddenToVis = null;
       // SINGLE TUNE FULLSCREEN: render normally
@@ -4646,7 +4675,7 @@ function openFullSetModal(setData, opts = {}) {
   modalContent.innerHTML = `
     ${_fullSetOnBack ? '<button class="modal-back-btn" id="full-set-back-btn">← Back</button>' : ""}
     <h2 class="modal-title">${escHtml(setData.name)}
-      ${setData.id ? `<span class="set-export-wrap" style="position:relative;display:inline-block;vertical-align:middle"><button class="btn-secondary btn-sm set-export-menu-btn">⬇ Export ▾</button><div class="set-export-menu hidden" style="position:absolute;right:0;top:2.1rem;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:185px;overflow:hidden"><a class="library-menu-item" href="/api/export/set/${setData.id}" download style="display:block;padding:.55rem .9rem;text-decoration:none;color:var(--text)">📄 Ceòl JSON (.ceol.json)</a><button class="library-menu-item set-export-abc-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">🎵 ABC for TheCraic (.abc)</button></div></span>` : ""}
+      ${setData.id ? `<span class="set-export-wrap" style="position:relative;display:inline-block;vertical-align:middle"><button class="btn-secondary btn-sm set-export-menu-btn">⬇ Export ▾</button><div class="set-export-menu hidden" style="position:absolute;right:0;top:2.1rem;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:185px;overflow:hidden"><a class="library-menu-item" href="/api/export/set/${setData.id}" download style="display:block;padding:.55rem .9rem;text-decoration:none;color:var(--text)">📄 Ceòl JSON (.ceol.json)</a><button class="library-menu-item set-export-abc-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">🎵 ABC for TheCraic (.abc)</button><button class="library-menu-item set-export-pdf-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">⎙ Print / PDF</button></div></span>` : ""}
     </h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
     ${transRows.length ? `
@@ -11278,9 +11307,32 @@ function openCollectionExportModal(id, name) {
     "<div style='display:flex;flex-direction:column;gap:0.75rem'>" +
     "<button id='_exp-ceol-btn' class='btn-primary'>&#11015; Ceòl JSON (.ceol.json)</button>" +
     "<button id='_exp-thecraic-btn' class='btn-secondary'>&#11015; TheCraic ABC (.abc)</button>" +
+    "<button id='_exp-pdf-btn' class='btn-secondary'>&#9113; Print / PDF (ABC text)</button>" +
     "</div>";
   document.getElementById("_exp-ceol-btn").addEventListener("click", function() { doExportCollection("ceol"); });
   document.getElementById("_exp-thecraic-btn").addEventListener("click", function() { doExportCollection("thecraic"); });
+  document.getElementById("_exp-pdf-btn").addEventListener("click", function() {
+    // Print the ABC text as a formatted page (sheet music not available at collection level)
+    const colId = _exportCollectionId;
+    if (!colId) return;
+    apiFetch("/api/export/collection/" + colId + "?fmt=thecraic")
+      .then(function(data) {
+        // data is likely JSON with tunes; build a simple ABC printout
+        return apiFetch("/api/collections/" + colId + "/tunes");
+      })
+      .catch(function() { return null; })
+      .then(function(resp) {
+        // Fallback: open the TheCraic ABC export URL in a printable window
+        const win = window.open("/api/export/collection/" + colId + "?fmt=thecraic_abc", "_blank");
+        if (!win) {
+          // Direct link fallback
+          const a = document.createElement("a");
+          a.href = "/api/export/collection/" + colId;
+          a.download = (safeName || "collection") + ".abc";
+          a.click();
+        }
+      });
+  });
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 }

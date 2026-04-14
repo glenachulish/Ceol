@@ -661,3 +661,51 @@
     font-size: .58rem !important;
   }
 }
+
+
+/* ══ PATCH-3-LANDSCAPE-MORE ══ */
+/* ══════════════════════════════════════════════════════════════════════════
+   PATCH 3 – Landscape More button + fullscreen controls
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* More button in fullscreen header — always available, looks like small pill */
+.fs-more-btn {
+  margin-left: .75rem;
+  padding: 2px 9px;
+  font-size: .78rem;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+/* In landscape: hide fullscreen controls by default so sheet music has full height.
+   User taps ⋯ More to reveal them. */
+@media (orientation: landscape) {
+  /* Hide bottom playback controls in FS by default */
+  .abc-fullscreen-overlay .abc-fs-controls,
+  .abc-fullscreen-overlay .abcjs-midi-wrap {
+    display: none;
+  }
+  /* Show the More button */
+  .fs-more-btn {
+    display: inline-block !important;
+  }
+
+  /* Non-fullscreen sheet music page in landscape:
+     collapse metronome, tempo and bar-info rows to give sheet music more room */
+  .mobile-body .metronome-row,
+  .mobile-body .bar-selection-info,
+  .mobile-body .tempo-control-row {
+    display: none;
+  }
+}
+
+/* In portrait: always show controls, hide More */
+@media (orientation: portrait) {
+  .abc-fullscreen-overlay .abc-fs-controls,
+  .abc-fullscreen-overlay .abcjs-midi-wrap {
+    display: block;
+  }
+  .fs-more-btn {
+    display: none;
+  }
+}

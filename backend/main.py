@@ -348,7 +348,7 @@ def _apply_type_filter(cond_list, params_list, type_val):
     if _t == "__other__":
         excl = ["%reel%","%jig%","%slide%","%slip%","%hornpipe%",
                 "%strathspey%","%highland%","%waltz%","%march%","%air%","%polka%"]
-        cond_list.append("(" + " AND ".join(["type NOT LIKE ?"] * len(excl)) + ")")
+        cond_list.append("(type IS NOT NULL AND type != '' AND " + " AND ".join(["type NOT LIKE ?"] * len(excl)) + ")")
         params_list.extend(excl)
     elif _t in _groups:
         c, ps = _groups[_t]
