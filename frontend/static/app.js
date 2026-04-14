@@ -3860,7 +3860,11 @@ function _fsMeasureClickHandler(e) {
   if (_fsBarSel.start !== null) _fsSeekToBar(_fsBarSel.start);
 }
 
+let _fsCurrentOpts = null;
+let _fsResizeHandler = null;
+
 function openAbcFullscreen(abc, title, opts = {}) {
+  _fsCurrentOpts = arguments[0];  // store for resize re-render
   const { tuneRanges = null, tuneColors = null, tuneNames = null, tuneAbcs = null, initialWarp = null, pracSettings = null } = opts;
   _abcFsTitleEl.textContent = title || "";
   // Show coloured tune name pills for sets
@@ -4169,6 +4173,12 @@ function closeAbcFullscreen() {
       screen.orientation.unlock();
     }
   } catch {}
+
+  // Clean up resize listener
+  if (_fsResizeHandler) {
+    window.removeEventListener('resize', _fsResizeHandler);
+    _fsResizeHandler = null;
+  }
 }
 
 _abcFsCloseBtn.addEventListener("click", closeAbcFullscreen);
