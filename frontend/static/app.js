@@ -3884,6 +3884,11 @@ function openAbcFullscreen(abc, title, opts = {}) {
   }
   window._fsDebugLogged = false;
   _abcFsOverlay.classList.remove("hidden");
+
+  // Re-render on rotate / resize so portrait↔landscape always fits
+  if (_fsResizeHandler) window.removeEventListener('resize', _fsResizeHandler);
+  _fsResizeHandler = () => { if (_fsCurrentOpts) openAbcFullscreen(_fsCurrentOpts); };
+  window.addEventListener('resize', _fsResizeHandler);
   document.body.style.overflow = "hidden";
   // Landscape More toggle: inject a ⋯ button into the FS header if not already there
   (() => {
