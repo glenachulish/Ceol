@@ -407,11 +407,15 @@ def list_tunes(
             "polka":      ("t.type LIKE ?", ["%polka%"]),
         }
         if _type_l == "__other__":
-            # Exclude all known grouped types
+            # Tunes with a real non-empty type that doesn't match any named group.
+            # Must guard against NULL and '' — empty-string parent tunes would
+            # otherwise pass all NOT LIKE conditions and flood the results.
             _excl = ["%reel%","%jig%","%slide%","%slip%","%hornpipe%","%strathspey%",
                      "%highland%","%waltz%","%march%","%air%","%polka%"]
-            _conds = " AND ".join([f"t.type NOT LIKE ?" for _ in _excl])
-            conditions.append(f"({_conds})")
+            _not_likes = " AND ".join([f"t.type NOT LIKE ?" for _ in _excl])
+            conditions.append(
+                f"(t.type IS NOT NULL AND t.type != '' AND {_not_likes})"
+            )
             params.extend(_excl)
         elif _type_l in _type_groups:
             _cond, _ps = _type_groups[_type_l]
