@@ -346,9 +346,13 @@ def _apply_type_filter(cond_list, params_list, type_val):
         "polka":      ("type LIKE ?", ["%polka%"]),
     }
     if _t == "__other__":
+        # Tunes that have a non-empty type not matching any named group
         excl = ["%reel%","%jig%","%slide%","%slip%","%hornpipe%",
                 "%strathspey%","%highland%","%waltz%","%march%","%air%","%polka%"]
-        cond_list.append("(type IS NOT NULL AND type != '' AND " + " AND ".join(["type NOT LIKE ?"] * len(excl)) + ")")
+        not_clauses = " AND ".join(["type NOT LIKE ?"] * len(excl))
+        cond_list.append(
+            "(type IS NOT NULL AND type != '' AND " + not_clauses + ")"
+        )
         params_list.extend(excl)
     elif _t in _groups:
         c, ps = _groups[_t]
