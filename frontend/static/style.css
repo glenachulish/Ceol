@@ -314,6 +314,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 }
 
 .tune-card {
+  touch-action: manipulation; /* kill iOS 300ms tap delay */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);

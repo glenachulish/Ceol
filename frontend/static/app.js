@@ -1209,8 +1209,6 @@ function renderModal(tune, onBack = null, siblings = null) {
             ? `<a id="open-session-btn" href="${sessionHref}" target="_blank" rel="noopener" class="btn-secondary btn-sm">${sessionBtnLabel}</a>`
             : `<button id="open-session-btn" class="btn-secondary btn-sm" data-search-title="${escHtml(tune.title)}">${sessionBtnLabel}</button>`}
           <span id="fetch-abc-status" class="notes-status"></span>
-          ${tune.abc ? `<button id="strip-chords-btn" class="btn-secondary btn-sm" title="Remove guitar chord symbols from ABC">✂ Strip chords</button>` : ""}
-            ${tune.abc ? `<button id="print-tune-pdf-btn" class="btn-secondary btn-sm" title="Print or save as PDF">⎙ Print / PDF</button>` : ""}
         </div>
         <div id="session-abc-results" class="session-abc-results hidden"></div>
       </div>
@@ -1476,11 +1474,21 @@ function renderModal(tune, onBack = null, siblings = null) {
         <button id="modal-fav-btn" class="btn-secondary${tune.is_favourite ? " fav-active" : ""}">
           👍 ${tune.is_favourite ? "Favourite" : "Add to Favourites"}
         </button>
-        <a id="export-tune-btn" class="btn-secondary" href="/api/export/tune/${tune.id}" download title="Download as .ceol.json for sharing">⬇ Export</a>
-        <button id="delete-tune-modal-btn" class="btn-danger" data-tune-id="${tune.id}">
-          ${tune.parent_id ? "Delete this version" : "Delete from Library"}
-        </button>
-      </div>
+        <div class="tune-more-wrap" style="position:relative;display:inline-block">
+          <button id="tune-more-btn" class="btn-secondary">⋯ More</button>
+          <div id="tune-more-menu" class="library-menu hidden" style="position:absolute;bottom:2.6rem;right:0;z-index:300;min-width:210px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:hidden">
+            ${tune.abc ? `<button class="library-menu-item" id="strip-chords-btn">✂ Strip chords</button>` : ""}
+            <hr class="library-menu-divider" style="margin:.25rem 0"/>
+            <a class="library-menu-item" href="/api/export/tune/${tune.id}" download style="display:block;text-decoration:none;color:var(--text);padding:.5rem .9rem">📄 Export Ceòl JSON</a>
+            ${tune.abc ? `<button class="library-menu-item" id="tune-export-abc-btn">🎵 Export TheCraic ABC</button>` : ""}
+            ${tune.abc ? `<button class="library-menu-item" id="print-tune-pdf-btn">⎙ Print / PDF</button>` : ""}
+            <hr class="library-menu-divider" style="margin:.25rem 0"/>
+            <button class="library-menu-item library-menu-danger" id="delete-tune-modal-btn" data-tune-id="${tune.id}">
+              🗑 ${tune.parent_id ? "Delete this version" : "Delete from Library"}
+            </button>
+          </div>
+        </div>
+        </div>
     </div>
   `;
 
@@ -2397,6 +2405,34 @@ function renderModal(tune, onBack = null, siblings = null) {
         splitAbcBtn.textContent = "Separate into versions";
         alert("Failed to separate: " + err.message);
       }
+    });
+  }
+
+
+  // ⋯ More dropdown in tune footer
+  const tuneMoreBtn  = document.getElementById("tune-more-btn");
+  const tuneMoreMenu = document.getElementById("tune-more-menu");
+  if (tuneMoreBtn && tuneMoreMenu) {
+    tuneMoreBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      tuneMoreMenu.classList.toggle("hidden");
+    });
+    document.addEventListener("click", () => tuneMoreMenu?.classList.add("hidden"), { once: true });
+  }
+
+  // TheCraic ABC export from More menu
+  const tuneExportAbcBtn = document.getElementById("tune-export-abc-btn");
+  if (tuneExportAbcBtn) {
+    tuneExportAbcBtn.addEventListener("click", async () => {
+      tuneMoreMenu?.classList.add("hidden");
+      if (!tune.abc) { alert("No ABC notation for this tune."); return; }
+      const safeName = (tune.title || "tune").replace(/[^a-z0-9]/gi, "_");
+      const blob = new Blob([tune.abc.trim()], { type: "application/octet-stream" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${safeName}.abc`;
+      link.click();
+      URL.revokeObjectURL(link.href);
     });
   }
 
