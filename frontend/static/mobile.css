@@ -709,3 +709,62 @@
     display: none;
   }
 }
+
+
+/* ══ PATCH-4-BTN-LAYOUT ══ */
+/* ══════════════════════════════════════════════════════════════════════════
+   PATCH 4 – Button layout + landscape control hiding
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Full screen button: RIGHT side (override patch-2 left positioning) ─── */
+#abc-fs-btn.abc-fs-btn {
+  right: .5rem !important;
+  left:  auto !important;
+}
+
+/* ── ⚙ options button: LEFT side ────────────────────────────────────────── */
+#sheet-music-menu-btn {
+  left:  .5rem !important;
+  right: auto !important;
+}
+
+/* ── Landscape: hide everything below the sheet music ───────────────────── */
+/* This applies to the non-fullscreen tune modal on a phone held sideways.
+   The user can still tap ⚙ (which stays visible) to access options. */
+@media (orientation: landscape) {
+
+  /* Options panel — hidden until ⚙ is tapped */
+  .mobile-body .sheet-music-options-panel { display: none !important; }
+
+  /* Playback controls below sheet music */
+  .mobile-body .metronome-row          { display: none !important; }
+  .mobile-body .bar-selection-info     { display: none !important; }
+  .mobile-body .tempo-control-row      { display: none !important; }
+  .mobile-body .instrument-controls-row{ display: none !important; }
+  .mobile-body .chord-controls         { display: none !important; }
+
+  /* Audio / video players */
+  .mobile-body .audio-player-wrap      { display: none !important; }
+  .mobile-body .inline-mp3-player      { display: none !important; }
+  .mobile-body #audio-player-container { display: none !important; }
+
+  /* Session ABC search row */
+  .mobile-body .session-abc-section    { display: none !important; }
+
+  /* FlutefFling download row + attach row */
+  .mobile-body .ff-download-row        { display: none !important; }
+  .mobile-body .attach-audio-row       { display: none !important; }
+
+  /* Sheet music gets maximum vertical space */
+  .mobile-body .sheet-music-wrap {
+    min-height: 45vh;
+  }
+  .mobile-body #sheet-music-render svg {
+    max-height: 70vh;
+  }
+
+  /* ⚙ button stays visible in landscape so user can reach options */
+  #sheet-music-menu-btn {
+    display: block !important;
+  }
+}
