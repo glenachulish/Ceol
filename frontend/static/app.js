@@ -8125,7 +8125,7 @@ newCollectionName?.addEventListener("keydown", e => { if (e.key === "Enter") cre
 }
 
 // ── Import ────────────────────────────────────────────────────────────────────
-importBtn.addEventListener("click", () => {
+importBtn?.addEventListener("click", () => {
   importResult.classList.add("hidden");
   importFilename.textContent = "";
   importSubmit.disabled = true;
@@ -8316,7 +8316,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     else fileCount.textContent = `No audio files found in drop — use "Choose folder…" instead`;
   });
 
-  importBtn.addEventListener("click", async () => {
+  importBtn?.addEventListener("click", async () => {
     if (!_audioFiles.length) return;
     const titles     = Array.from(previewBody.querySelectorAll(".audio-title-input")).map(el => el.value.trim());
     const actions    = Array.from(previewBody.querySelectorAll(".audio-action-sel")).map(el => el.value);
@@ -8436,7 +8436,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     loadPreview(pdfs);
   });
 
-  importBtn.addEventListener("click", async () => {
+  importBtn?.addEventListener("click", async () => {
     importBtn.disabled = true;
     importBtn.textContent = "Importing…";
 
@@ -8975,7 +8975,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     }
   });
 
-  importBtn.addEventListener("click", async () => {
+  importBtn?.addEventListener("click", async () => {
     if (!_photoFiles.length) return;
     const col = collName.value.trim();
     if (!col) { alert("Enter a collection name."); return; }
