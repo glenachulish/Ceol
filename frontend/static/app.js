@@ -2757,12 +2757,20 @@ function renderModal(tune, onBack = null, siblings = null) {
   _fetchTuneMemberships(tune.id).then(({ collections, sets }) => {
     const el = document.getElementById("modal-membership");
     if (!el) return;
-    const parts = [];
-    if (sets.length)        parts.push(`Sets: ${sets.map(s => `<a class="modal-membership-link" data-set-id="${s.id}">${escHtml(s.name)}</a>`).join(", ")}`);
-    if (collections.length) parts.push(`Collections: ${collections.map(c => `<a class="modal-membership-link" data-col-id="${c.id}">${escHtml(c.name)}</a>`).join(", ")}`);
-    if (parts.length) {
-      el.innerHTML = parts.map(p => `<span class="modal-membership-item">${p}</span>`).join("");
-    }
+          const rows = [];
+      if (sets.length) rows.push(
+        `<div class="modal-membership-row">` +
+        `<span class="modal-membership-label">☰ Sets</span>` +
+        sets.map(s => `<a class="modal-membership-link" data-set-id="${s.id}">${escHtml(s.name)}</a>`).join(", ") +
+        `</div>`
+      );
+      if (collections.length) rows.push(
+        `<div class="modal-membership-row">` +
+        `<span class="modal-membership-label">📁 Collections</span>` +
+        collections.map(c => `<a class="modal-membership-link" data-col-id="${c.id}">${escHtml(c.name)}</a>`).join(", ") +
+        `</div>`
+      );
+      if (rows.length) el.innerHTML = rows.join("");
   }).catch(() => {});
 
   // Full-screen button
