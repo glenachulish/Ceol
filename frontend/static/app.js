@@ -1251,6 +1251,13 @@ function renderModal(tune, onBack = null, siblings = null) {
           <span class="sheet-music-options-title">Sheet Music Options</span>
           <button id="sheet-music-options-close" class="btn-icon">✕</button>
         </div>
+        <div class="transpose-row" style="display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border-bottom:1px solid var(--border)">
+          <span style="font-size:.8rem;color:var(--text-muted);flex:1">Transpose</span>
+          <button id="transpose-down-btn" class="btn-secondary btn-sm" title="Down 1 semitone">♭ −</button>
+          <span id="transpose-label" style="min-width:2.5rem;text-align:center;font-size:.85rem;font-weight:600">0</span>
+          <button id="transpose-up-btn" class="btn-secondary btn-sm" title="Up 1 semitone">♯ +</button>
+          <button id="transpose-reset-btn" class="btn-secondary btn-sm" title="Reset">Reset</button>
+        </div>
       ${tune.abc ? `<div class="instrument-controls-row">
         <div id="melody-controls" class="chord-controls">
           <label class="chord-ctrl-label">Melody:</label>
@@ -2750,6 +2757,21 @@ function renderModal(tune, onBack = null, siblings = null) {
   requestAnimationFrame(() => {
     if (tune.abc) {
       renderSheetMusic(tune.abc);
+
+  // ── Transpose controls ────────────────────────────────────────────────
+  let _transposeSteps = 0;
+  const _transposeLabel = document.getElementById("transpose-label");
+  const _transposeUp    = document.getElementById("transpose-up-btn");
+  const _transposeDown  = document.getElementById("transpose-down-btn");
+  const _transposeReset = document.getElementById("transpose-reset-btn");
+  function _applyTranspose() {
+    if (_transposeLabel) _transposeLabel.textContent = _transposeSteps > 0 ? "+" + _transposeSteps : String(_transposeSteps);
+    if (tune.abc) renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
+  }
+  _transposeUp?.addEventListener("click",    () => { _transposeSteps++; _applyTranspose(); });
+  _transposeDown?.addEventListener("click",  () => { _transposeSteps--; _applyTranspose(); });
+  _transposeReset?.addEventListener("click", () => { _transposeSteps = 0; _applyTranspose(); });
+
     }
   });
 
@@ -3561,7 +3583,7 @@ function renderSheetMusicAudioOnly(abc) {
   }
 }
 
-function renderSheetMusic(abc) {
+function renderSheetMusic(abc, opts = {}) {
   const container = document.getElementById("sheet-music-render");
   if (!container || typeof ABCJS === "undefined") return;
 
@@ -3596,6 +3618,7 @@ function renderSheetMusic(abc) {
     // Fallback to 600 so narrow/unmeasured containers still render full staves.
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
       responsive: "resize",
+        visualTranspose: opts.visualTranspose || 0,
       wrap: { preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
@@ -4772,6 +4795,7 @@ function openFullSetModal(setData, opts = {}) {
         <button class="btn-secondary btn-sm" id="set-full-fs-btn" title="Full screen sheet music">⛶ Full screen</button>
       </div>
       ${timelineHtml}
+        <div style="display:flex;justify-content:flex-end;margin-bottom:.35rem"><button class="btn-secondary btn-sm set-more-btn">⋯ More</button></div>
       <div id="set-full-audio" style="margin-top:.5rem"></div>
       <div id="metronome-row" class="metronome-row" style="margin:.3rem 0">
         <button id="metro-toggle" class="btn-secondary btn-sm">♩ Metronome</button>
