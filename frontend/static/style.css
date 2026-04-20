@@ -3806,3 +3806,26 @@ a.bandcamp-link:hover { opacity: .85; }
 .col-type-chip { padding: .22rem .65rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: .78rem; cursor: pointer; transition: background .15s, color .15s; }
 .col-type-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .col-type-chip:hover:not(.active) { background: var(--surface2); }
+
+/* ── Sets / Collections view header layout ───────────────────── */
+.view-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+.view-header .section-title {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 1.2rem;
+}
+.view-header .view-search-input {
+  flex: 1 1 160px;
+  min-width: 120px;
+}
+.view-header .btn-set,
+.view-header .btn-secondary {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}

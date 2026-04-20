@@ -3963,13 +3963,17 @@ function openAbcFullscreen(abc, title, opts = {}) {
     _moreBtn.className = "fs-more-btn btn-secondary btn-sm";
     _moreBtn.title = "Show / hide controls";
     _moreBtn.textContent = "⋯ More";
-    _moreBtn.addEventListener("click", () => {
-      const _ctrl = _abcFsOverlay.querySelector(".abc-fs-controls, .abcjs-midi-wrap");
-      if (_ctrl) {
-        const hidden = _ctrl.style.display === "none";
-        _ctrl.style.display = hidden ? "" : "none";
-        _moreBtn.textContent = hidden ? "✕ Controls" : "⋯ More";
-      }
+    _moreBtn.addEventListener('click', () => {
+      const targets = [
+        _abcFsOverlay.querySelector('.abcjs-midi-wrap'),
+        _abcFsOverlay.querySelector('.abc-fs-controls'),
+        document.getElementById('abc-fs-audio'),
+        document.getElementById('abc-fs-bar-info'),
+      ].filter(Boolean);
+      if (!targets.length) return;
+      const hidden = targets[0].style.display === 'none';
+      targets.forEach(el => { el.style.display = hidden ? '' : 'none'; });
+      _moreBtn.textContent = hidden ? '\u2715 Less' : '\u22ef More';
     });
     _fsHeader.appendChild(_moreBtn);
   })();
