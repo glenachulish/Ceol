@@ -6090,8 +6090,8 @@ function renderCollections(collections) {
   // Wire collection name click → view
   collectionsList.querySelectorAll(".col-name-link").forEach(link => {
     link.addEventListener("click", () => {
-      const btn = collectionsList.querySelector(`.col-expand-btn[data-col-id="${link.dataset.colId}"]`);
-      if (btn) btn.click();
+        const id = link.dataset.colId;
+        collectionsList.dispatchEvent(new CustomEvent("ceol-col-open", { detail: { id } }));
     });
   });
   
