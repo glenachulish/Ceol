@@ -17,7 +17,7 @@
   </script>
   <link rel="stylesheet" href="/static/style.css?v=102" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=25" />
+  <link rel="stylesheet" href="/static/mobile.css?v=26" />
 </head>
 <body class="mobile-body">
 
@@ -326,73 +326,118 @@
 
   <!-- ── Import modal ───────────────────────────────────────── -->
   <div id="import-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
-    <div class="modal modal-wide m-modal-fullscreen" style="padding:1.25rem;width:100%;max-width:100%;box-sizing:border-box">
+    <div class="modal modal-wide">
       <button class="modal-close" id="import-close" aria-label="Close">✕</button>
       <h2 class="modal-title">Import Tunes</h2>
 
-      <div class="modal-tabs m-import-tabs">
+      <!-- Import source tabs -->
+      <div class="modal-tabs">
         <button class="tab-btn active" data-import-tab="file">ABC File</button>
-        <button class="tab-btn" data-import-tab="paste">Paste</button>
+        <button class="tab-btn" data-import-tab="folder">Folder</button>
+        <button class="tab-btn" data-import-tab="paste">Paste ABC</button>
         <button class="tab-btn" data-import-tab="thecraic">TheCraic</button>
-        <button class="tab-btn" data-import-tab="session">TheSession</button>
-        <button class="tab-btn" data-import-tab="flutefling">FlutefFling</button>
+        <button class="tab-btn" data-import-tab="session">TheSession.org</button>
+        <button class="tab-btn" data-import-tab="flutefling">FlutefFling.scot</button>
         <button class="tab-btn" data-import-tab="dropbox">Dropbox</button>
+        <button class="tab-btn" data-import-tab="audio">Audio Files</button>
+        <button class="tab-btn" data-import-tab="pdf">PDF Files</button>
+        <button class="tab-btn" data-import-tab="book">PDF Book</button>
+        <button class="tab-btn" data-import-tab="photos">Photos</button>
+        <button class="tab-btn" data-import-tab="youtube">YouTube</button>
+        <button class="tab-btn" data-import-tab="ceol">Ceol file</button>
+        <button class="tab-btn" data-import-tab="msca">Music Scanner</button>
       </div>
 
+      <!-- ABC file tab -->
       <div id="import-tab-file" class="tab-panel">
         <p class="import-desc">Choose an .abc file to bulk-import tunes into your library.</p>
         <label class="import-drop">
           <input type="file" id="import-file" accept=".abc,.txt" />
           <span class="import-icon">📁</span>
-          <span class="import-label">Tap to choose a file</span>
+          <span class="import-label">Click to choose a file</span>
           <span id="import-filename" class="import-filename"></span>
         </label>
         <div id="import-result" class="import-result hidden"></div>
         <div class="import-actions">
-          <button id="import-submit" class="btn-primary" disabled>Import</button>
+          <button id="import-submit" class="btn-import" disabled>Import</button>
         </div>
       </div>
 
+      <!-- Folder tab -->
+      <div id="import-tab-folder" class="tab-panel hidden">
+        <p class="import-desc">Select a folder to import its contents. The app will sort files
+          by type — <strong>ABC</strong> tunes are imported first, then
+          <strong>MP3</strong>, <strong>PDF</strong> and <strong>photo</strong>
+          files are matched to tunes by filename and attached automatically.</p>
+        <label class="import-drop">
+          <input type="file" id="folder-input" webkitdirectory multiple />
+          <span class="import-icon">📂</span>
+          <span class="import-label">Click to choose a folder</span>
+          <span id="folder-summary" class="import-filename"></span>
+        </label>
+        <div id="folder-preview" class="folder-preview hidden"></div>
+        <div id="folder-collection-row" class="book-meta-row hidden">
+          <label class="book-meta-label" for="folder-collection-name">Auto-create collection</label>
+          <input id="folder-collection-name" class="book-meta-input" type="text" placeholder="Collection name (optional)" />
+        </div>
+        <div id="folder-progress-wrap" class="import-progress-wrap hidden">
+          <div class="import-progress-label" id="folder-progress-label">Processing…</div>
+          <div class="import-progress-bar-outer">
+            <div class="import-progress-bar-inner" id="folder-progress-bar"></div>
+          </div>
+        </div>
+        <div id="folder-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="folder-import-btn" class="btn-import" disabled>Import All</button>
+        </div>
+      </div>
+
+      <!-- Paste ABC tab -->
       <div id="import-tab-paste" class="tab-panel hidden">
-        <p class="import-desc">Paste ABC notation. Each tune must start with <code>X:</code>.</p>
-        <textarea id="paste-abc-input" class="paste-abc-textarea" placeholder="X:1&#10;T:The Morning Dew&#10;…" rows="10"></textarea>
+        <p class="import-desc">Paste ABC notation to import one or more tunes. Each tune must start with <code>X:</code>.</p>
+        <textarea id="paste-abc-input" class="paste-abc-textarea" placeholder="X:1&#10;T:The Morning Dew&#10;M:6/8&#10;L:1/8&#10;K:G&#10;…" rows="12"></textarea>
         <div id="paste-abc-result" class="import-result hidden"></div>
         <div class="import-actions">
-          <button id="paste-abc-submit" class="btn-primary">Import</button>
+          <button id="paste-abc-submit" class="btn-import">Import</button>
         </div>
       </div>
 
+      <!-- TheCraic tab -->
       <div id="import-tab-thecraic" class="tab-panel hidden">
         <p class="import-desc">
           Import an export from <strong>TheCraic</strong> iOS app (.abc file).<br>
-          In TheCraic: <em>Settings → Export → All Tunes</em>, then share the file here.
+          In TheCraic: <em>Settings → Export → All Tunes</em>, then share the file here.<br>
+          Tunes already in Ceol (matched by source URL) will have their
+          <strong>favourite</strong> status synced rather than being duplicated.
         </p>
         <label class="import-drop">
           <input type="file" id="thecraic-import-file" accept=".abc" />
           <span class="import-icon">📱</span>
-          <span class="import-label">Tap to choose TheCraic export</span>
+          <span class="import-label">Click to choose TheCraic export file</span>
           <span id="thecraic-import-filename" class="import-filename"></span>
         </label>
         <div id="thecraic-import-result" class="import-result hidden"></div>
         <div class="import-actions">
-          <button id="thecraic-import-submit" class="btn-primary" disabled>Import from TheCraic</button>
+          <button id="thecraic-import-submit" class="btn-import" disabled>Import from TheCraic</button>
         </div>
       </div>
 
+      <!-- TheSession.org tab -->
       <div id="import-tab-session" class="tab-panel hidden">
         <div id="session-search-pane">
-          <p class="import-desc">Search TheSession.org and preview before saving.</p>
+          <p class="import-desc">Search TheSession.org and preview a tune before adding it to your library.</p>
           <div class="session-search-row">
-            <input id="session-search-input" type="search" placeholder="Search TheSession.org…" autocomplete="off" />
-            <button id="session-search-btn" class="btn-primary">Search</button>
+            <input id="session-search-input" type="search" placeholder="Search tunes on TheSession.org…" autocomplete="off" />
+            <button id="session-search-btn" class="btn-import">Search</button>
           </div>
           <div id="session-results" class="session-results"></div>
           <div style="margin-top:0.75rem">
-            <button id="session-backfill-btn" class="btn-secondary btn-sm">Update submitter info</button>
+            <button id="session-backfill-btn" class="btn-secondary btn-sm">Update submitter info for existing tunes</button>
             <span id="session-backfill-status" class="notes-status"></span>
           </div>
         </div>
 
+        <!-- Preview panel (hidden until a result is clicked) -->
         <div id="session-preview" class="session-preview hidden">
           <div class="session-preview-header">
             <button id="session-preview-back" class="btn-secondary btn-sm">← Back</button>
@@ -400,7 +445,9 @@
             <span id="session-preview-badges"></span>
             <span id="session-preview-submitter" class="session-preview-submitter"></span>
           </div>
+          <!-- Settings selector: shown when >1 setting available -->
           <div id="session-settings-strip" class="session-settings-strip hidden"></div>
+
           <div class="modal-tabs">
             <button class="tab-btn active" data-preview-tab="sheet">Sheet Music</button>
             <button class="tab-btn" data-preview-tab="abc">ABC</button>
@@ -413,50 +460,73 @@
             <pre id="preview-abc-text" class="preview-abc-text"></pre>
           </div>
           <div class="session-preview-footer">
-            <button id="session-save-btn" class="btn-primary">Save to Library</button>
+            <button id="session-save-btn" class="btn-import">Save to Library</button>
             <a id="session-visit-btn" class="btn-secondary" target="_blank" rel="noopener noreferrer" href="#">View on TheSession ↗</a>
             <span id="session-save-status" class="notes-status"></span>
           </div>
         </div>
       </div>
 
+      <!-- FlutefFling.scot tab -->
       <div id="import-tab-flutefling" class="tab-panel hidden">
+
+        <!-- ── Browse catalogue ── -->
         <div class="ff-browse-section">
           <div class="ff-browse-header">
-            <h3 class="ff-browse-title">Browse FlutefFling</h3>
+            <h3 class="ff-browse-title">Browse FlutefFling Catalogue</h3>
             <span id="ff-cat-count" class="ff-cat-count"></span>
           </div>
           <div class="ff-search-row">
             <input id="ff-cat-search" type="search" class="ff-cat-search-input"
               placeholder="Search by tune name…" autocomplete="off" />
-            <button id="ff-cat-refresh" class="btn-secondary ff-refresh-btn" title="Reload">↻</button>
+            <button id="ff-cat-refresh" class="btn-secondary ff-refresh-btn" title="Reload catalogue">↻</button>
           </div>
           <div id="ff-cat-status" class="ff-cat-status"></div>
           <div id="ff-cat-list" class="ff-cat-list">
-            <p class="ff-cat-hint">Open this tab to load the FlutefFling catalogue</p>
+            <p class="ff-cat-hint">Open this tab to load the catalogue from FlutefFling.scot</p>
           </div>
         </div>
+
+        <!-- ── Manual URL entry (fallback) ── -->
         <details class="ff-manual-details">
           <summary class="ff-manual-summary">Or add manually by URL</summary>
-          <div class="ff-url-form" style="margin-top:.5rem">
+          <p class="ff-site-hint" style="margin-top:.5rem">
+            Copy the PDF and MP3 links from
+            <a class="ff-site-link-inline"
+               href="https://flutefling.scot/resources/flutefling-session-tunes/"
+               target="_blank" rel="noopener">FlutefFling.scot ↗</a>
+            and paste them below.
+          </p>
+          <div class="ff-url-form">
             <label class="ff-url-label" for="ff-abc-url">Sheet music PDF link</label>
             <input id="ff-abc-url" type="url" class="ff-url-input"
-              placeholder="https://flutefling.scot/…pdf" autocomplete="off" spellcheck="false" />
+              placeholder="https://flutefling.scot/wp/wp-content/uploads/….pdf"
+              autocomplete="off" spellcheck="false" />
+
             <label class="ff-url-label" for="ff-mp3-url">MP3 link</label>
             <input id="ff-mp3-url" type="url" class="ff-url-input"
-              placeholder="https://flutefling.scot/…mp3" autocomplete="off" spellcheck="false" />
+              placeholder="https://flutefling.scot/wp/wp-content/uploads/….mp3"
+              autocomplete="off" spellcheck="false" />
+
             <label class="ff-url-label" for="ff-title-input">Tune title <span class="ff-url-hint">(required)</span></label>
             <input id="ff-title-input" type="text" class="ff-url-input"
               placeholder="e.g. The Morning Dew" autocomplete="off" />
-            <button id="ff-add-btn" class="btn-primary ff-add-btn">Add to Library</button>
+
+            <button id="ff-add-btn" class="btn-import ff-add-btn">Add to Library</button>
           </div>
           <div id="ff-status" class="ff-cat-status"></div>
         </details>
       </div>
 
+      <!-- Dropbox tab -->
       <div id="import-tab-dropbox" class="tab-panel hidden">
+
+        <!-- Token setup (shown when no token is saved) -->
         <div id="dropbox-setup" class="hidden">
-          <p class="import-desc">Connect a Dropbox folder to browse and import tunes.</p>
+          <p class="import-desc">
+            Connect a Dropbox folder to browse and import tunes.
+            You'll need a personal access token from a Dropbox app.
+          </p>
           <ol class="dropbox-setup-steps">
             <li>Go to <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener">dropbox.com/developers/apps ↗</a></li>
             <li>Create an app → <strong>Scoped access</strong> → <strong>Full Dropbox</strong></li>
@@ -471,6 +541,8 @@
           </div>
           <div id="dropbox-setup-status" class="ff-cat-status"></div>
         </div>
+
+        <!-- File browser (shown when token is saved) -->
         <div id="dropbox-browser" class="hidden">
           <div class="ff-browse-header">
             <h3 class="ff-browse-title">Browse Dropbox</h3>
@@ -486,8 +558,244 @@
             <p class="ff-cat-hint">Enter a folder path above and click Browse</p>
           </div>
         </div>
+
       </div>
 
+      <!-- Audio Files import tab -->
+      <div id="import-tab-audio" class="tab-panel hidden">
+        <p class="import-desc">Import MP3, M4A, WAV or other audio files. Ceol matches filenames to tunes in your library — review before importing.</p>
+        <div id="audio-drop-zone" class="import-drop audio-drop-outer">
+          <span class="import-icon">🎵</span>
+          <span class="import-label">Drag audio files here, or pick files / folder:</span>
+          <div class="import-drop-btns">
+            <label class="btn-secondary audio-pick-label" for="audio-file-input">Choose files…</label>
+            <label class="btn-secondary audio-pick-label" for="audio-folder-input">Choose folder…</label>
+          </div>
+          <span id="audio-file-count" class="import-filename"></span>
+        </div>
+        <div id="audio-preview-area" class="hidden">
+          <table class="pdf-preview-table">
+            <thead><tr>
+              <th class="pdf-col-file">File</th>
+              <th class="pdf-col-title">Tune title</th>
+              <th class="pdf-col-action">Action</th>
+            </tr></thead>
+            <tbody id="audio-preview-body"></tbody>
+          </table>
+          <div class="import-actions">
+            <button id="audio-import-btn" class="btn-primary">Import audio files</button>
+          </div>
+        </div>
+        <div id="audio-result" class="import-result hidden"></div>
+      </div>
+
+      <!-- PDF bulk import tab -->
+      <div id="import-tab-pdf" class="tab-panel hidden">
+        <p class="import-desc">Select PDF sheet music files from your hard drive. Titles are taken from filenames — you can adjust them before importing.</p>
+        <label class="import-drop" id="pdf-drop-zone">
+          <input type="file" id="pdf-file-input" accept=".pdf" multiple />
+          <span class="import-icon">📄</span>
+          <span class="import-label">Click to choose PDFs, or drag and drop</span>
+          <span id="pdf-file-count" class="import-filename"></span>
+        </label>
+        <div id="pdf-preview-area" class="hidden">
+          <table class="pdf-preview-table">
+            <thead>
+              <tr>
+                <th>Filename</th>
+                <th>Title (editable)</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="pdf-preview-body"></tbody>
+          </table>
+          <div class="book-meta-row" style="margin-top:.75rem">
+            <label class="book-meta-label" for="pdf-collection-name">Auto-create collection</label>
+            <input id="pdf-collection-name" class="book-meta-input" type="text" placeholder="Collection name (optional)" />
+          </div>
+          <div class="import-actions">
+            <button id="pdf-import-btn" class="btn-primary">Import</button>
+          </div>
+        </div>
+        <div id="pdf-result" class="import-result hidden"></div>
+      </div>
+
+      <!-- PDF Book import tab -->
+      <div id="import-tab-book" class="tab-panel hidden">
+        <p class="import-desc">Upload a PDF music book. Ceol will scan it for tunes automatically — or you can enter the table of contents manually. All tunes are grouped into a Collection named after the book.</p>
+
+        <!-- Step 1: file + collection name -->
+        <div class="book-step" id="book-step1">
+          <label class="import-drop" id="book-drop-zone">
+            <input type="file" id="book-file-input" accept=".pdf" />
+            <span class="import-icon">📖</span>
+            <span class="import-label">Click to choose a PDF book</span>
+            <span id="book-filename" class="import-filename"></span>
+          </label>
+          <div class="book-meta-row">
+            <label class="book-meta-label" for="book-collection-name">Collection name</label>
+            <input id="book-collection-name" class="book-meta-input" type="text" placeholder="e.g. Tina Jordan Rees" />
+          </div>
+          <div class="import-actions" style="gap:.5rem">
+            <button id="book-scan-btn" class="btn-primary" disabled>Scan →</button>
+            <button id="book-next-btn" class="btn-secondary btn-sm" disabled>Enter manually →</button>
+          </div>
+        </div>
+
+        <!-- Step 2: TOC table (page-slice import) -->
+        <div class="book-step hidden" id="book-step2">
+          <div class="book-toc-header">
+            <h3 class="book-toc-title" id="book-toc-heading">Table of contents</h3>
+            <button id="book-add-row-btn" class="btn-secondary btn-sm">+ Add tune</button>
+          </div>
+          <p id="book-scan-msg" class="import-desc book-scan-msg" style="margin-top:0;display:none"></p>
+          <p class="import-desc" style="margin-top:0">Start and end page numbers are inclusive. Each tune will be saved as a PDF page slice.</p>
+          <table class="pdf-preview-table" id="book-toc-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Tune title</th>
+                <th>Start page</th>
+                <th>End page</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="book-toc-body"></tbody>
+          </table>
+          <div class="book-paste-row">
+            <button id="book-paste-btn" class="btn-secondary btn-sm">Paste from clipboard</button>
+            <span class="book-paste-hint">One tune per line: <em>Title, page</em> or <em>Title page</em></span>
+          </div>
+          <div class="import-actions" style="gap:.5rem">
+            <button id="book-back-btn" class="btn-secondary">← Back</button>
+            <button id="book-import-btn" class="btn-primary">Import book</button>
+          </div>
+        </div>
+
+        <!-- Step 3: ABC tunes preview (direct import from embedded ABC text) -->
+        <div class="book-step hidden" id="book-step3">
+          <div class="book-toc-header">
+            <h3 class="book-toc-title" id="book-abc-heading">Tunes detected in PDF</h3>
+            <span id="book-abc-count" class="text-muted"></span>
+          </div>
+          <p class="import-desc" style="margin-top:0">ABC notation was found in this PDF. Tick the tunes you want to import. All selected tunes will be added to the collection.</p>
+          <table class="pdf-preview-table" id="book-abc-table">
+            <thead>
+              <tr>
+                <th style="width:2rem"><input type="checkbox" id="book-abc-select-all" checked /></th>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Key</th>
+              </tr>
+            </thead>
+            <tbody id="book-abc-body"></tbody>
+          </table>
+          <div class="import-actions" style="gap:.5rem">
+            <button id="book-abc-back-btn" class="btn-secondary">← Back</button>
+            <button id="book-abc-import-btn" class="btn-primary">Import tunes</button>
+          </div>
+        </div>
+
+        <div id="book-result" class="import-result hidden"></div>
+      </div>
+
+      <!-- Photos tab -->
+      <div id="import-tab-photos" class="tab-panel hidden">
+        <p class="import-desc">Import photos or scans of sheet music (JPEG or PNG). Each image is automatically converted to greyscale, contrast-enhanced, straightened, and sharpened. All tunes are grouped into a Collection.</p>
+        <label class="import-drop" id="photos-drop-zone">
+          <input type="file" id="photos-file-input" accept=".jpg,.jpeg,.png" multiple />
+          <span class="import-icon">📷</span>
+          <span class="import-label">Click to choose images, or drag and drop</span>
+          <span id="photos-file-count" class="import-filename"></span>
+        </label>
+        <div id="photos-preview-area" class="hidden">
+          <div class="book-meta-row">
+            <label class="book-meta-label" for="photos-collection-name">Collection name</label>
+            <input id="photos-collection-name" class="book-meta-input" type="text" placeholder="e.g. Diggers Part 5" />
+          </div>
+          <table class="pdf-preview-table">
+            <thead>
+              <tr>
+                <th style="width:64px">Photo</th>
+                <th>Tune title</th>
+              </tr>
+            </thead>
+            <tbody id="photos-preview-body"></tbody>
+          </table>
+          <div class="import-actions">
+            <button id="photos-ocr-btn" class="btn-secondary" title="Use OCR to detect tune titles from the photos">🔍 Detect titles</button>
+            <button id="photos-import-btn" class="btn-primary">Import &amp; enhance</button>
+          </div>
+        </div>
+        <div id="photos-result" class="import-result hidden"></div>
+      </div>
+
+      <!-- YouTube import tab -->
+      <div id="import-tab-youtube" class="tab-panel hidden">
+        <p class="import-desc">Paste a YouTube URL to create a tune entry with the video linked in notes. You can optionally rename it and group it as a version of an existing tune.</p>
+        <div class="yt-import-form">
+          <div class="yt-import-row">
+            <label class="yt-import-label" for="yt-url-input">YouTube URL</label>
+            <input id="yt-url-input" type="url" class="ff-url-input" placeholder="https://www.youtube.com/watch?v=…" />
+          </div>
+          <div class="yt-import-row">
+            <label class="yt-import-label" for="yt-title-input">Title <span class="text-muted">(optional — fetched from YouTube if blank)</span></label>
+            <input id="yt-title-input" type="text" class="ff-url-input" placeholder="Leave blank to use video title" />
+          </div>
+          <div class="yt-import-row">
+            <label class="yt-import-label" for="yt-parent-input">Group as version of <span class="text-muted">(optional tune ID)</span></label>
+            <input id="yt-parent-input" type="number" class="book-meta-input" placeholder="Tune ID" min="1" />
+            <input id="yt-version-label-input" type="text" class="book-meta-input" placeholder="Version label" style="margin-left:.5rem" />
+          </div>
+        </div>
+        <div id="yt-import-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="yt-import-btn" class="btn-import">Import YouTube video</button>
+        </div>
+      </div>
+
+      <!-- Ceol file (merge) tab -->
+      <div id="import-tab-ceol" class="tab-panel hidden">
+        <p class="import-desc">Import a <strong>.ceol.json</strong> file exported from another Ceol library. Tunes are merged — duplicates are skipped. The collection, its tunes, and any sets are recreated in this library.</p>
+        <label class="import-drop" id="ceol-drop-zone">
+          <input id="ceol-file-input" type="file" accept=".json,.ceol.json" style="display:none">
+          <span class="import-drop-label">Drop a <code>.ceol.json</code> file here, or click to choose</span>
+        </label>
+        <div id="ceol-import-result" class="import-result hidden"></div>
+        <div class="import-actions">
+          <button id="ceol-import-btn" class="btn-import" disabled>Merge into library</button>
+        </div>
+      </div>
+
+      <!-- Music Scanner (.msca) tab -->
+      <div id="import-tab-msca" class="tab-panel hidden">
+        <p class="import-desc">Import one or more <strong>.msca</strong> files from the Music Scanner app. Files are processed one at a time. Multi-tune files (scanned books) are grouped as a collection.</p>
+        <!-- Hidden file input — no accept filter so Mac shows all files -->
+        <input id="msca-file-input" type="file" multiple style="position:absolute;left:-9999px;opacity:0">
+        <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.75rem;flex-wrap:wrap">
+          <button id="msca-browse-btn" class="btn-secondary">📂 Choose files…</button>
+          <span id="msca-file-label" style="font-size:.85rem;color:var(--text-muted)">No files selected</span>
+        </div>
+        <div id="msca-drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius);padding:1rem;text-align:center;font-size:.85rem;color:var(--text-muted);margin-bottom:.75rem;cursor:default">
+          Or drag &amp; drop <code>.msca</code> files here
+        </div>
+        <div id="msca-progress-wrap" class="import-progress-wrap hidden">
+          <div class="import-progress-label" id="msca-progress-label">Processing…</div>
+          <div class="import-progress-bar-outer">
+            <div class="import-progress-bar-inner" id="msca-progress-bar"></div>
+          </div>
+        </div>
+        <div id="msca-import-result" class="import-result hidden"></div>
+        <div id="msca-diagnose-result" style="font-size:.78rem;color:var(--text-muted);background:var(--surface2);border-radius:var(--radius);padding:.5rem .7rem;margin-bottom:.5rem;white-space:pre-wrap;word-break:break-all;display:none"></div>
+        <div class="import-actions" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem">
+            <input type="checkbox" id="msca-as-collection" checked> Group multi-tune files as a collection
+          </label>
+          <button id="msca-diagnose-btn" class="btn-secondary btn-sm" disabled>Diagnose format</button>
+          <button id="msca-diagnose-ocr-btn" class="btn-secondary btn-sm" disabled>Diagnose OCR</button>
+          <button id="msca-import-btn" class="btn-import" disabled>Import tunes</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -643,7 +951,7 @@
 
   <script src="/static/abcjs-basic-min.js"></script>
   <script src="/static/app.js?v=270"></script>
-  <script src="/static/mobile.js?v=14"></script>
+  <script src="/static/mobile.js?v=15"></script>
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").then(reg => {
