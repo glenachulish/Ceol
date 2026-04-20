@@ -3983,15 +3983,16 @@ function openAbcFullscreen(abc, title, opts = {}) {
   // Landscape More toggle: inject a ⋯ button into the FS header if not already there
     // Wire the static ⋯ More button in FS header
     // Wire static ⋯ More button in FS header
+    // Wire static ⋯ More button — toggle playback controls
     const _fsMB = document.getElementById("abc-fs-more-btn");
     if (_fsMB && !_fsMB.dataset.wired) {
       _fsMB.dataset.wired = "1";
       _fsMB.addEventListener("click", () => {
-        // Target the whole controls section
-        const ctrlSection = _abcFsOverlay.querySelector(".abc-fullscreen-controls");
-        if (!ctrlSection) return;
-        const isHidden = ctrlSection.style.display === "none";
-        ctrlSection.style.display = isHidden ? "" : "none";
+        // Try fullscreen-controls wrapper first, fall back to abc-fs-audio
+        const ctrl = _abcFsOverlay.querySelector(".abc-fullscreen-controls")
+                  || document.getElementById("abc-fs-audio");
+        if (!ctrl) return;
+        ctrl.style.display = ctrl.style.display === "none" ? "" : "none";
       });
     }
 
