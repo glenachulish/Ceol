@@ -3981,27 +3981,23 @@ function openAbcFullscreen(abc, title, opts = {}) {
   window.addEventListener('resize', _fsResizeHandler);
   document.body.style.overflow = "hidden";
   // Landscape More toggle: inject a ⋯ button into the FS header if not already there
-  (() => {
-    const _fsHeader = _abcFsOverlay.querySelector(".abc-fullscreen-header");
-    if (!_fsHeader) return;
-    if (_fsHeader.querySelector(".fs-more-btn")) return; // already added
-    const _moreBtn = document.createElement("button");
-    _moreBtn.className = "fs-more-btn btn-secondary btn-sm";
-    _moreBtn.title = "Show / hide controls";
-    _moreBtn.dataset.open = '1'; // controls visible initially
-    _moreBtn.addEventListener('click', () => {
-      const opening = _moreBtn.dataset.open !== '1';
-      const targets = [
-        _abcFsOverlay.querySelector('.abcjs-midi-wrap'),
-        _abcFsOverlay.querySelector('.abc-fs-controls'),
-        document.getElementById('abc-fs-audio'),
-        document.getElementById('abc-fs-bar-info'),
-      ].filter(Boolean);
-      targets.forEach(el => { el.style.display = opening ? '' : 'none'; });
-      _moreBtn.dataset.open = opening ? '1' : '0';
-    });
-    _fsHeader.appendChild(_moreBtn);
-  })();
+    // Wire the static ⋯ More button in FS header
+    const _fsMB = document.getElementById("abc-fs-more-btn");
+    if (_fsMB && !_fsMB.dataset.wired) {
+      _fsMB.dataset.wired = "1";
+      _fsMB.dataset.open = "1";
+      _fsMB.addEventListener("click", () => {
+        const opening = _fsMB.dataset.open !== "1";
+        const targets = [
+          _abcFsOverlay.querySelector(".abcjs-midi-wrap"),
+          _abcFsOverlay.querySelector(".abc-fs-controls"),
+          document.getElementById("abc-fs-audio"),
+          document.getElementById("abc-fs-bar-info"),
+        ].filter(Boolean);
+        targets.forEach(el => { el.style.display = opening ? "" : "none"; });
+        _fsMB.dataset.open = opening ? "1" : "0";
+      });
+    }
 
   // Reset fullscreen bar-selection state
   _fsBarSel = { start: null, end: null };
