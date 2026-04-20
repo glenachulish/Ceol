@@ -7318,7 +7318,7 @@ tuneList.addEventListener("click", async e => {
     // Auto-open the first version with a switcher strip for the others
     const { versions } = await apiFetch(`/api/tunes/${card.dataset.id}/versions`);
     if (versions.length > 0) {
-      await Promise.all([fetchSets(), fetchCollections()]);
+      fetchSets(); fetchCollections(); // background refresh
       const defaultVer = versions.find(v => v.is_default) || versions[0];
       const firstTune = await fetchTune(defaultVer.id);
       const parentId = Number(card.dataset.id);
@@ -7331,7 +7331,8 @@ tuneList.addEventListener("click", async e => {
     }
     return;
   }
-  await Promise.all([fetchSets(), fetchCollections()]); // ensure fresh data for modal dropdowns
+  // Refresh sets/collections in background — don't block modal open
+  fetchSets(); fetchCollections();
   const tune = await fetchTune(card.dataset.id);
   renderModal(tune);
   modalOverlay.classList.remove("hidden");
