@@ -3829,3 +3829,28 @@ a.bandcamp-link:hover { opacity: .85; }
   flex: 0 0 auto;
   white-space: nowrap;
 }
+
+/* ── Import tabs: scrollable on mobile ────────────────────────── */
+.modal-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  gap: .25rem;
+  padding-bottom: .25rem;
+  scrollbar-width: none;
+}
+.modal-tabs::-webkit-scrollbar { display: none; }
+.modal-tabs .tab-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+/* import-tab-scroll marker */
+
+/* ── Set PDF print: page break between tunes ──────────────────── */
+@media print {
+  .set-tune-vis-render { page-break-after: always; break-after: page; }
+  .set-tune-vis-render:last-child { page-break-after: avoid; break-after: avoid; }
+  .set-tune-section-hd { page-break-after: avoid; break-after: avoid; }
+  svg { display: block; max-width: 100%; }
+}

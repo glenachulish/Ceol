@@ -4984,15 +4984,15 @@ function openFullSetModal(setData, opts = {}) {
     const _setMoreBtn = modalContent.querySelector('.set-more-btn');
     if (_setMoreBtn) {
       _setMoreBtn.addEventListener('click', () => {
+        const open = _setMoreBtn.dataset.open !== '1';
         const targets = [
           document.getElementById('set-full-audio'),
           document.getElementById('metronome-row'),
           document.querySelector('.set-bot-controls'),
         ].filter(Boolean);
-        if (!targets.length) return;
-        const isHidden = targets[0].style.display === 'none';
-        targets.forEach(el => { el.style.display = isHidden ? '' : 'none'; });
-        _setMoreBtn.textContent = isHidden ? '\u2715 Less' : '\u22ef More';
+        targets.forEach(el => { el.style.display = open ? '' : 'none'; });
+        _setMoreBtn.textContent = open ? '\u2715 Less' : '\u22ef More';
+        _setMoreBtn.dataset.open = open ? '1' : '0';
       });
     }
 
@@ -5032,7 +5032,7 @@ function openFullSetModal(setData, opts = {}) {
         const parts = Array.from(sections).map((el, i) => {
           const color = TUNE_COLORS[i % TUNE_COLORS.length];
           const title = tunesWithAbc[i] ? tunesWithAbc[i].title : '';
-          return '<h2 style="font-size:12pt;margin:1.5em 0 .3em;color:' + color + '">' + title.replace(/</g,'&lt;') + '</h2>' + el.innerHTML;
+          return '<div style="page-break-after:always;margin-bottom:2em"><h2 style="font-size:12pt;margin:1.5em 0 .3em;color:' + color + '">' + title.replace(/</g,'&lt;') + '</h2>' + el.innerHTML + '</div>';
         }).join('');
         win.document.write('<!DOCTYPE html><html><head><title>' + escHtml(setData.name) + '</title>'
           + '<style>body{margin:1.5cm;font-family:sans-serif}svg{max-width:100%;display:block}'
