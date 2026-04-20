@@ -4983,6 +4983,7 @@ function openFullSetModal(setData, opts = {}) {
     // ⋯ More button — toggles playback controls in set detail
     const _setMoreBtn = modalContent.querySelector('.set-more-btn');
     if (_setMoreBtn) {
+      _setMoreBtn.dataset.open = '1'; // controls start visible
       _setMoreBtn.addEventListener('click', () => {
         const open = _setMoreBtn.dataset.open !== '1';
         const targets = [
@@ -5032,7 +5033,12 @@ function openFullSetModal(setData, opts = {}) {
         const parts = Array.from(sections).map((el, i) => {
           const color = TUNE_COLORS[i % TUNE_COLORS.length];
           const title = tunesWithAbc[i] ? tunesWithAbc[i].title : '';
-          return '<div style="page-break-after:always;margin-bottom:2em"><h2 style="font-size:12pt;margin:1.5em 0 .3em;color:' + color + '">' + title.replace(/</g,'&lt;') + '</h2>' + el.innerHTML + '</div>';
+          const clone = el.cloneNode(true);
+            clone.querySelectorAll('svg').forEach(s => { s.style.position='relative'; s.style.display='block'; s.style.maxWidth='100%'; });
+            const isLast = i === sections.length - 1;
+            return '<div style="' + (isLast ? '' : 'page-break-after:always;') + 'margin-bottom:2em;position:relative">'
+              + '<h2 style="font-size:12pt;margin:.5em 0 .3em;color:' + color + '">' + title.replace(/</g,'&lt;') + '</h2>'
+              + clone.innerHTML + '</div>';
         }).join('');
         win.document.write('<!DOCTYPE html><html><head><title>' + escHtml(setData.name) + '</title>'
           + '<style>body{margin:1.5cm;font-family:sans-serif}svg{max-width:100%;display:block}'

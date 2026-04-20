@@ -3854,3 +3854,21 @@ a.bandcamp-link:hover { opacity: .85; }
   .set-tune-section-hd { page-break-after: avoid; break-after: avoid; }
   svg { display: block; max-width: 100%; }
 }
+
+/* ── Set PDF print improvements ───────────────────────────────── */
+@media print {
+  body { margin: 1cm; }
+  .set-tune-vis-render, .set-tune-section {
+    position: relative !important;
+    overflow: visible !important;
+    page-break-after: always;
+    break-after: page;
+  }
+  .set-tune-vis-render:last-child,
+  .set-tune-section:last-child { page-break-after: avoid; break-after: avoid; }
+  svg {
+    position: relative !important;
+    display: block !important;
+    max-width: 100% !important;
+  }
+}
