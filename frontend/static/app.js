@@ -2409,7 +2409,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     tuneMoreBtn.addEventListener("click", () => {
       const opening = tuneOptionsPanel.classList.contains("hidden");
       tuneOptionsPanel.classList.toggle("hidden");
-      tuneMoreBtn.textContent = opening ? "✕ Less" : "⋯ More";
+
     });
   }
 
@@ -2418,7 +2418,7 @@ function renderModal(tune, onBack = null, siblings = null) {
   if (optionsCloseBtn) {
     optionsCloseBtn.addEventListener("click", () => {
       tuneOptionsPanel?.classList.add("hidden");
-      if (tuneMoreBtn) tuneMoreBtn.textContent = "⋯ More";
+
     });
   }
 
@@ -2794,7 +2794,10 @@ function renderModal(tune, onBack = null, siblings = null) {
   // Full-screen button
   const abcFsBtn = document.getElementById("abc-fs-btn");
   if (abcFsBtn) {
-    abcFsBtn.addEventListener("click", () => openAbcFullscreen(tune.abc, tune.title));
+    abcFsBtn.addEventListener("click", () => {
+      if (_synthController) { try { _synthController.pause(); } catch {} }
+      openAbcFullscreen(tune.abc, tune.title);
+    });
   }
 }
 
@@ -3962,18 +3965,17 @@ function openAbcFullscreen(abc, title, opts = {}) {
     const _moreBtn = document.createElement("button");
     _moreBtn.className = "fs-more-btn btn-secondary btn-sm";
     _moreBtn.title = "Show / hide controls";
-    _moreBtn.textContent = "⋯ More";
+    _moreBtn.dataset.open = '1'; // controls visible initially
     _moreBtn.addEventListener('click', () => {
+      const opening = _moreBtn.dataset.open !== '1';
       const targets = [
         _abcFsOverlay.querySelector('.abcjs-midi-wrap'),
         _abcFsOverlay.querySelector('.abc-fs-controls'),
         document.getElementById('abc-fs-audio'),
         document.getElementById('abc-fs-bar-info'),
       ].filter(Boolean);
-      if (!targets.length) return;
-      const hidden = targets[0].style.display === 'none';
-      targets.forEach(el => { el.style.display = hidden ? '' : 'none'; });
-      _moreBtn.textContent = hidden ? '\u2715 Less' : '\u22ef More';
+      targets.forEach(el => { el.style.display = opening ? '' : 'none'; });
+      _moreBtn.dataset.open = opening ? '1' : '0';
     });
     _fsHeader.appendChild(_moreBtn);
   })();
@@ -4992,7 +4994,7 @@ function openFullSetModal(setData, opts = {}) {
           document.querySelector('.set-bot-controls'),
         ].filter(Boolean);
         targets.forEach(el => { el.style.display = open ? '' : 'none'; });
-        _setMoreBtn.textContent = open ? '\u2715 Less' : '\u22ef More';
+
         _setMoreBtn.dataset.open = open ? '1' : '0';
       });
     }
@@ -6089,9 +6091,18 @@ function renderCollections(collections) {
   
   // Wire collection name click → view
   collectionsList.querySelectorAll(".col-name-link").forEach(link => {
-    link.addEventListener("click", () => {
-        const id = link.dataset.colId;
-        collectionsList.dispatchEvent(new CustomEvent("ceol-col-open", { detail: { id } }));
+    link.addEventListener("click", async () => {
+      const id = link.dataset.colId;
+      const colDetailView = document.getElementById("col-detail-view");
+      const colDetailContent = document.getElementById("col-detail-content");
+      const colViewHeader = document.getElementById("view-collections")?.querySelector(".view-header");
+      const newColForm = document.getElementById("new-collection-form");
+      collectionsList.classList.add("hidden");
+      document.getElementById("recent-imports-card")?.classList.add("hidden");
+      if (colViewHeader) colViewHeader.classList.add("hidden");
+      if (newColForm) newColForm?.classList.add("hidden");
+      if (colDetailContent) colDetailContent.innerHTML = '<p class="loading">Loading…</p>';
+      if (colDetailView) colDetailView.classList.remove("hidden");
     });
   });
   
