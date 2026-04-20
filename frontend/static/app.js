@@ -4255,6 +4255,10 @@ function closeAbcFullscreen() {
     try { _abcFsSynthCtrl.pause(); } catch {}
     _abcFsSynthCtrl = null;
   }
+  // Also stop the modal synth so it doesn't resume after FS closes
+  if (_synthController) {
+    try { _synthController.pause(); } catch {}
+  }
   _abcFsVisualObj = null;
   _fsLastHighlighted.forEach(el => { el.style.fill = ''; });
   _fsLastHighlighted = [];

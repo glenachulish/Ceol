@@ -46,6 +46,22 @@
       if (btn.id === "m-more-btn") {
         btn.classList.toggle("active", moreViews.has(view));
       } else {
+        // Collapse any open detail sub-views
+        const colDetail = document.getElementById('col-detail-view');
+        const colList = document.getElementById('collections-list');
+        const colHeader = document.getElementById('view-collections')?.querySelector('.view-header');
+        if (colDetail && !colDetail.classList.contains('hidden')) {
+          colDetail.classList.add('hidden');
+          if (colList) colList.classList.remove('hidden');
+          document.getElementById('recent-imports-card')?.classList.remove('hidden');
+          if (colHeader) colHeader.classList.remove('hidden');
+        }
+        const setDetail = document.getElementById('set-detail-view');
+        if (setDetail && !setDetail.classList.contains('hidden')) {
+          setDetail.classList.add('hidden');
+          document.getElementById('sets-list')?.classList.remove('hidden');
+        }
+
         btn.classList.toggle("active", btn.dataset.view === view);
       }
     });
@@ -267,12 +283,18 @@
   // Import nav button → open the tune import overlay directly
   const _importNavBtn = document.getElementById("import-nav-btn");
   if (_importNavBtn) {
-    _importNavBtn.addEventListener("click", () => {
-      if (typeof openImport === "function") {
+    _importNavBtn.addEventListener('click', () => {
+      const overlay = document.getElementById('import-overlay');
+      if (overlay && !overlay.classList.contains('hidden')) {
+        // Already open — close and go to library
+        overlay.classList.add('hidden');
+        if (typeof switchView === 'function') switchView('library');
+        return;
+      }
+      if (typeof openImport === 'function') {
         openImport();
-      } else {
-        const overlay = document.getElementById("import-overlay");
-        if (overlay) overlay.classList.remove("hidden");
+      } else if (overlay) {
+        overlay.classList.remove('hidden');
       }
     });
   }
