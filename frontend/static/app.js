@@ -4751,6 +4751,7 @@ function openFullSetModal(setData, opts = {}) {
         <button class="btn-secondary btn-sm" id="set-bot-restart-btn">⟳ Restart</button>
       </div>
     ` : '<p class="modal-hint" style="margin-top:.75rem">No ABC notation available for tunes in this set.</p>'}`;
+      <div class="set-modal-footer-row" style="margin-top:1.5rem;padding:.75rem 0 .25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end">${setData.id ? `<div style="position:relative;display:inline-block"><button class="btn-secondary set-export-menu-btn">&#11015; Export &#9660;</button><div class="set-export-menu hidden" style="position:absolute;bottom:2.6rem;right:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:200px;overflow:hidden"><a class="library-menu-item" href="/api/export/set/${setData.id}" download style="display:block;padding:.55rem .9rem;text-decoration:none;color:var(--text)">&#128196; Ceòl JSON (.ceol.json)</a><button class="library-menu-item set-export-abc-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">&#127925; ABC for TheCraic (.abc)</button><button class="library-menu-item set-export-pdf-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">&#9113; Print / PDF</button></div></div>` : ""}</div>
 
   modalOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -11401,4 +11402,3 @@ document.addEventListener("click", function(e) {
   const modal = document.getElementById("collectionExportModal");
   if (modal && e.target === modal) closeCollectionExportModal();
 });
-
