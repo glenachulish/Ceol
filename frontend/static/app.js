@@ -6069,6 +6069,7 @@ function renderCollections(collections) {
       <div class="set-card-header">
         <div class="set-card-info">
           <span class="set-name col-name-link" data-col-id="${c.id}" style="cursor:pointer;text-decoration:underline dotted">${escHtml(c.name)}</span>
+            <button class="col-expand-btn" data-col-id="${c.id}" style="display:none" aria-hidden="true"></button>
           <span class="set-count">${countLabel}</span>
         </div>
         <div class="set-card-actions">
@@ -6091,18 +6092,9 @@ function renderCollections(collections) {
   
   // Wire collection name click → view
   collectionsList.querySelectorAll(".col-name-link").forEach(link => {
-    link.addEventListener("click", async () => {
-      const id = link.dataset.colId;
-      const colDetailView = document.getElementById("col-detail-view");
-      const colDetailContent = document.getElementById("col-detail-content");
-      const colViewHeader = document.getElementById("view-collections")?.querySelector(".view-header");
-      const newColForm = document.getElementById("new-collection-form");
-      collectionsList.classList.add("hidden");
-      document.getElementById("recent-imports-card")?.classList.add("hidden");
-      if (colViewHeader) colViewHeader.classList.add("hidden");
-      if (newColForm) newColForm?.classList.add("hidden");
-      if (colDetailContent) colDetailContent.innerHTML = '<p class="loading">Loading…</p>';
-      if (colDetailView) colDetailView.classList.remove("hidden");
+    link.addEventListener("click", () => {
+      const btn = link.parentElement?.querySelector(".col-expand-btn");
+      if (btn) btn.click();
     });
   });
   
