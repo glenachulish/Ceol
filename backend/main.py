@@ -25,7 +25,7 @@ from typing import List, Optional
 import httpx
 import PyPDF2
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import RedirectResponse,  FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -6760,11 +6760,8 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/")
-def serve_index():
-    return FileResponse(
-        str(FRONTEND_DIR / "index.html"),
-        headers={"Cache-Control": "no-store, must-revalidate"},
-    )
+def root_redirect():
+    return RedirectResponse(url="/mobile")
 
 
 @app.get("/mobile")
