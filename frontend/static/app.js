@@ -7475,16 +7475,10 @@ modalOverlay.addEventListener("click", e => {
   const colId = link.dataset.colId;
   closeModal();
   if (setId) {
-    switchView("sets");
-    // Wait for loadSets to finish before opening detail view
-    setTimeout(() => {
-      if (window._openSetDetail) window._openSetDetail(setId);
-    }, 250);
-  } else if (colId) {
-    switchView("collections");
-    setTimeout(() => {
-      document.querySelector(`.col-expand-btn[data-col-id="${colId}"]`)?.click();
-    }, 250);
+    // Open set detail directly
+    apiGetSet(Number(setId)).then(setData => {
+      if (setData) openFullSetModal(setData, { onBack: null });
+    }).catch(() => {});
   }
 });
 
