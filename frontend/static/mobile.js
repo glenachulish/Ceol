@@ -263,6 +263,23 @@
   _menuDelegate("m-info-btn",       "info-btn");
   _menuDelegate("m-help-btn",       "help-btn");
   _menuDelegate("m-backup-btn",     "library-backup-btn");
+  
+  // Import nav button → open import overlay
+  const _importNavBtn = document.getElementById("import-nav-btn");
+  if (_importNavBtn) {
+    _importNavBtn.addEventListener("click", () => {
+      // Delegate to the desktop import button which opens the import overlay
+      const desktopImport = document.getElementById("library-import-btn")
+                         || document.getElementById("open-import-btn");
+      if (desktopImport) {
+        desktopImport.click();
+      } else {
+        // Try opening directly via openImport if available
+        if (typeof openImport === "function") openImport();
+      }
+    });
+  }
+
   _menuDelegate("m-lib-import-btn", "library-import-btn");
   _menuDelegate("m-lib-delete-btn", "library-delete-btn");
 

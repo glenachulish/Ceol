@@ -17,7 +17,7 @@
   </script>
   <link rel="stylesheet" href="/static/style.css?v=102" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=23" />
+  <link rel="stylesheet" href="/static/mobile.css?v=24" />
 </head>
 <body class="mobile-body">
 
@@ -29,7 +29,6 @@
       <span class="m-title-sub">Mobile</span>
     </div>
     <button id="theme-toggle-btn" class="m-header-btn" aria-label="Toggle theme">🌙</button>
-    <button id="import-btn" class="m-header-btn m-import-icon" aria-label="Import tunes">＋</button>
   </header>
 
   <!-- ── Main content ──────────────────────────────────────── -->
@@ -276,10 +275,6 @@
     <button id="import-nav-btn" class="m-nav-btn" aria-label="Import tunes" data-action="import">
       <span class="m-nav-icon">＋</span>
       <span class="m-nav-label">Import</span>
-    </button>
-    <button id="m-more-btn" class="m-nav-btn" aria-label="More">
-      <span class="m-nav-icon">···</span>
-      <span class="m-nav-label">More</span>
     </button>
   </nav>
 
@@ -646,7 +641,7 @@
 
   <script src="/static/abcjs-basic-min.js"></script>
   <script src="/static/app.js?v=270"></script>
-  <script src="/static/mobile.js?v=9"></script>
+  <script src="/static/mobile.js?v=10"></script>
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").then(reg => {
