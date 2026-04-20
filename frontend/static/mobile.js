@@ -46,16 +46,6 @@
       if (btn.id === "m-more-btn") {
         btn.classList.toggle("active", moreViews.has(view));
       } else {
-        // Collapse any open detail sub-views
-        const colDetail = document.getElementById('col-detail-view');
-        const colList = document.getElementById('collections-list');
-        const colHeader = document.getElementById('view-collections')?.querySelector('.view-header');
-        if (colDetail && !colDetail.classList.contains('hidden')) {
-          colDetail.classList.add('hidden');
-          if (colList) colList.classList.remove('hidden');
-          document.getElementById('recent-imports-card')?.classList.remove('hidden');
-          if (colHeader) colHeader.classList.remove('hidden');
-        }
         const setDetail = document.getElementById('set-detail-view');
         if (setDetail && !setDetail.classList.contains('hidden')) {
           setDetail.classList.add('hidden');
@@ -76,7 +66,17 @@
   };
 
   mNavBtns.forEach(btn => {
-    btn.addEventListener("click", () => switchView(btn.dataset.view));
+    btn.addEventListener("click", () => {
+      // Collapse detail sub-views when switching main sections
+      const colDetail = document.getElementById("col-detail-view");
+      if (colDetail && !colDetail.classList.contains("hidden")) {
+        colDetail.classList.add("hidden");
+        document.getElementById("collections-list")?.classList.remove("hidden");
+        document.getElementById("recent-imports-card")?.classList.remove("hidden");
+        document.getElementById("view-collections")?.querySelector(".view-header")?.classList.remove("hidden");
+      }
+      switchView(btn.dataset.view);
+    });
   });
 
   // Sync on page load (library is active by default)
