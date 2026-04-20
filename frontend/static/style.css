@@ -1327,6 +1327,10 @@ button.set-tune-title:hover { text-decoration: underline; }
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow: visible;
 }
 .abc-fullscreen-title-text {
   font-weight: 600;
@@ -3871,4 +3875,11 @@ a.bandcamp-link:hover { opacity: .85; }
     display: block !important;
     max-width: 100% !important;
   }
+}
+
+/* ── Fullscreen More button ───────────────────────────────────── */
+.fs-more-btn {
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
 }
