@@ -1306,6 +1306,13 @@ function renderModal(tune, onBack = null, siblings = null) {
         <button id="attach-audio-btn" class="btn-secondary">🎧 Add audio link</button>
         <button id="attach-video-btn" class="btn-secondary">📹 Add video</button>
       </div>
+        <div style="padding:.5rem .75rem .75rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.3rem;margin-top:.25rem">
+          <a class="library-menu-item" href="/api/export/tune/${tune.id}" download style="display:block;text-decoration:none;color:var(--text);padding:.4rem .5rem;border-radius:6px">&#128196; Export Ceòl JSON</a>
+          ${tune.abc ? `<button class="library-menu-item" id="tune-export-abc-btn" style="text-align:left;background:none;border:none;width:100%;padding:.4rem .5rem;cursor:pointer;color:var(--text);border-radius:6px">&#127925; Export TheCraic ABC</button>` : ""}
+          ${tune.abc ? `<button class="library-menu-item" id="print-tune-pdf-btn" style="text-align:left;background:none;border:none;width:100%;padding:.4rem .5rem;cursor:pointer;color:var(--text);border-radius:6px">&#9113; Print / PDF</button>` : ""}
+          <hr style="margin:.2rem 0;border:none;border-top:1px solid var(--border)">
+          <button class="library-menu-item library-menu-danger" id="delete-tune-modal-btn" data-tune-id="${tune.id}" style="text-align:left;background:none;border:none;width:100%;padding:.4rem .5rem;cursor:pointer;border-radius:6px">&#128465; ${tune.parent_id ? "Delete this version" : "Delete from Library"}</button>
+        </div>
       </div><!-- end sheet-music-options-panel -->
       <div id="bar-selection-info" class="bar-selection-info hidden"></div>
       <div id="attach-video-panel" class="attach-audio-panel hidden">
