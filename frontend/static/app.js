@@ -8026,7 +8026,7 @@ createSetBtn.addEventListener("click", async () => {
 newSetName.addEventListener("keydown", e => { if (e.key === "Enter") createSetBtn.click(); });
 
 // ── Collections form ──────────────────────────────────────────────────────────
-newCollectionBtn.addEventListener("click", () => {
+newCollectionBtn?.addEventListener("click", () => {
   newCollectionForm.classList.remove("hidden");
   newCollectionName.focus();
 });
@@ -8066,13 +8066,13 @@ newCollectionName.addEventListener("keydown", e => { if (e.key === "Enter") crea
   const discogStatus  = document.getElementById("discog-status");
 
   if (discogBtn) {
-    discogBtn.addEventListener("click", () => {
+    discogBtn?.addEventListener("click", () => {
       discogPanel.classList.toggle("hidden");
       if (!discogPanel.classList.contains("hidden")) discogArtist.focus();
     });
   }
   if (discogCancel) {
-    discogCancel.addEventListener("click", () => {
+    discogCancel?.addEventListener("click", () => {
       discogPanel.classList.add("hidden");
       discogArtist.value = "";
       discogColName.value = "";
@@ -8089,7 +8089,7 @@ newCollectionName.addEventListener("keydown", e => { if (e.key === "Enter") crea
   });
 
   if (discogScanBtn) {
-    discogScanBtn.addEventListener("click", async () => {
+    discogScanBtn?.addEventListener("click", async () => {
       const artist = discogArtist.value.trim();
       if (!artist) { discogArtist.focus(); return; }
       discogScanBtn.disabled = true;
