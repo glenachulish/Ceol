@@ -3883,3 +3883,11 @@ a.bandcamp-link:hover { opacity: .85; }
   z-index: 10;
   flex-shrink: 0;
 }
+
+/* ── Force FS More button visible ─────────────────────────────── */
+#abc-fs-more-btn,
+.fs-more-btn {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
