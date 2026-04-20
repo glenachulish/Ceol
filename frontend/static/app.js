@@ -6603,7 +6603,7 @@ function renderCollections(collections) {
       rangeButtons.forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       const days = Number(btn.dataset.days);
-      daysInput.value = days;
+      if (daysInput) daysInput.value = days;
       loadRecent(days);
     });
   });
@@ -8027,33 +8027,33 @@ newSetName.addEventListener("keydown", e => { if (e.key === "Enter") createSetBt
 
 // ── Collections form ──────────────────────────────────────────────────────────
 newCollectionBtn?.addEventListener("click", () => {
-  newCollectionForm.classList.remove("hidden");
-  newCollectionName.focus();
+  newCollectionForm?.classList.remove("hidden");
+  newCollectionName?.focus();
 });
 
-cancelCollectionBtn.addEventListener("click", () => {
-  newCollectionForm.classList.add("hidden");
-  newCollectionName.value = "";
+cancelCollectionBtn?.addEventListener("click", () => {
+  newCollectionForm?.classList.add("hidden");
+  if (newCollectionName) newCollectionName.value = "";
   newCollectionDesc.value = "";
 });
 
-createCollectionBtn.addEventListener("click", async () => {
+createCollectionBtn?.addEventListener("click", async () => {
   const name = newCollectionName.value.trim();
-  if (!name) { newCollectionName.focus(); return; }
-  createCollectionBtn.disabled = true;
+  if (!name) { newCollectionName?.focus(); return; }
+  if (createCollectionBtn) createCollectionBtn.disabled = true;
   try {
     const col = await apiCreateCollection(name, newCollectionDesc.value.trim());
     state.collections.push({ ...col, tune_count: 0 });
-    newCollectionForm.classList.add("hidden");
-    newCollectionName.value = "";
+    newCollectionForm?.classList.add("hidden");
+    if (newCollectionName) newCollectionName.value = "";
     newCollectionDesc.value = "";
     loadCollections();
   } finally {
-    createCollectionBtn.disabled = false;
+    if (createCollectionBtn) createCollectionBtn.disabled = false;
   }
 });
 
-newCollectionName.addEventListener("keydown", e => { if (e.key === "Enter") createCollectionBtn.click(); });
+newCollectionName?.addEventListener("keydown", e => { if (e.key === "Enter") createCollectionBtn?.click(); });
 
 // ── Discography scanner ───────────────────────────────────────────────────────
 {
@@ -8067,34 +8067,34 @@ newCollectionName.addEventListener("keydown", e => { if (e.key === "Enter") crea
 
   if (discogBtn) {
     discogBtn?.addEventListener("click", () => {
-      discogPanel.classList.toggle("hidden");
-      if (!discogPanel.classList.contains("hidden")) discogArtist.focus();
+      discogPanel?.classList.toggle("hidden");
+      if (!discogPanel?.classList.contains("hidden")) discogArtist?.focus();
     });
   }
   if (discogCancel) {
     discogCancel?.addEventListener("click", () => {
-      discogPanel.classList.add("hidden");
-      discogArtist.value = "";
-      discogColName.value = "";
-      discogStatus.classList.add("hidden");
+      discogPanel?.classList.add("hidden");
+      if (discogArtist) discogArtist.value = "";
+      if (discogColName) discogColName.value = "";
+      discogStatus?.classList.add("hidden");
     });
   }
 
   // Quick-pick artist buttons
   document.querySelectorAll(".discog-artist-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      discogArtist.value = btn.dataset.artist;
-      discogColName.value = `${btn.dataset.artist} Repertoire`;
+      if (discogArtist) discogArtist.value = btn.dataset.artist;
+      if (discogColName) discogColName.value = `${btn.dataset.artist} Repertoire`;
     });
   });
 
   if (discogScanBtn) {
     discogScanBtn?.addEventListener("click", async () => {
       const artist = discogArtist.value.trim();
-      if (!artist) { discogArtist.focus(); return; }
+      if (!artist) { discogArtist?.focus(); return; }
       discogScanBtn.disabled = true;
-      discogStatus.textContent = `Searching TheSession.org for "${artist}" recordings…`;
-      discogStatus.className = "discog-status";
+      if (discogStatus) discogStatus.textContent = `Searching TheSession.org for "${artist}" recordings…`;
+      if (discogStatus) discogStatus.className = "discog-status";
       try {
         const result = await apiFetch("/api/discography/scan", {
           method: "POST",
@@ -8104,15 +8104,15 @@ newCollectionName.addEventListener("keydown", e => { if (e.key === "Enter") crea
             collection_name: discogColName.value.trim() || null,
           }),
         });
-        discogStatus.textContent =
+        if (discogStatus) discogStatus.textContent =
           `Done! Found ${result.session_tunes_found} tunes on TheSession, `
           + `matched ${result.matched_in_library} in your library. `
           + `Collection "${result.collection_name}" ${result.matched_in_library > 0 ? "created/updated." : "is empty."}`;
-        discogStatus.classList.add("discog-ok");
+        discogStatus?.classList.add("discog-ok");
         loadCollections();
       } catch (err) {
-        discogStatus.textContent = `Error: ${err.message || "scan failed"}`;
-        discogStatus.classList.add("discog-err");
+        if (discogStatus) discogStatus.textContent = `Error: ${err.message || "scan failed"}`;
+        discogStatus?.classList.add("discog-err");
       } finally {
         discogScanBtn.disabled = false;
       }
