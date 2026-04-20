@@ -4716,9 +4716,8 @@ function openFullSetModal(setData, opts = {}) {
   }
 
   modalContent.innerHTML = `
-    ${_fullSetOnBack ? '<button class="modal-back-btn" id="full-set-back-btn">← Back</button>' : ""}
+    <button class="modal-back-btn" id="full-set-back-btn">✕ Close</button>
     <h2 class="modal-title">${escHtml(setData.name)}
-      ${setData.id ? `<span class="set-export-wrap" style="position:relative;display:inline-block;vertical-align:middle"><button class="btn-secondary btn-sm set-export-menu-btn">⬇ Export ▾</button><div class="set-export-menu hidden" style="position:absolute;right:0;top:2.1rem;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:185px;overflow:hidden"><a class="library-menu-item" href="/api/export/set/${setData.id}" download style="display:block;padding:.55rem .9rem;text-decoration:none;color:var(--text)">📄 Ceòl JSON (.ceol.json)</a><button class="library-menu-item set-export-abc-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">🎵 ABC for TheCraic (.abc)</button><button class="library-menu-item set-export-pdf-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">⎙ Print / PDF</button></div></span>` : ""}
     </h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
     ${transRows.length ? `
@@ -4729,7 +4728,6 @@ function openFullSetModal(setData, opts = {}) {
       <div class="set-full-hd-row" style="margin-top:1rem">
         <h3 class="set-music-section-hd">Sheet music &amp; playback</h3>
         <button class="btn-secondary btn-sm" id="set-full-fs-btn" title="Full screen sheet music">⛶ Full screen</button>
-        <button class="btn-secondary btn-sm" id="set-full-print-btn" title="Print full set sheet music">⎙ Print</button>
       </div>
       ${timelineHtml}
       <div id="set-full-audio" style="margin-top:.5rem"></div>
@@ -4912,13 +4910,11 @@ function openFullSetModal(setData, opts = {}) {
     }
   }
 
-  if (_fullSetOnBack) {
-    const _backBtn = document.getElementById("full-set-back-btn");
-    if (_backBtn) _backBtn.addEventListener("click", () => {
-      if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
-      _fullSetOnBack();
-    });
-  }
+  const _setBackBtn = document.getElementById("full-set-back-btn");
+  if (_setBackBtn) _setBackBtn.addEventListener("click", () => {
+    if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
+    if (_fullSetOnBack) _fullSetOnBack(); else closeModal();
+  });
 
   modalContent.querySelectorAll(".set-trans-play-btn, .set-trans-music-btn").forEach(btn => {
     btn.addEventListener("click", () => {
