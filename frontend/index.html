@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=104" />
+  <link rel="stylesheet" href="/static/style.css?v=105" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body data-view="library">
@@ -235,31 +235,7 @@
       <div class="view-header">
         <h2 class="section-title">Collections</h2>
         <input id="collections-search" type="search" class="view-search-input" placeholder="Search collections…" autocomplete="off">
-        <button id="new-collection-btn" class="btn-collection">+ New Collection</button>
-        <button id="discography-btn" class="btn-secondary">🎵 Build from Discography</button>
       </div>
-      <!-- Discography scanner panel -->
-      <div id="discography-panel" class="discography-panel hidden">
-        <h3 class="discography-title">Build a Collection from an Artist's Discography</h3>
-        <p class="discography-hint">Searches TheSession.org recordings and matches tunes already in your library.</p>
-        <div class="discography-artists">
-          <span class="discography-artists-label">Quick-pick:</span>
-          <button class="discog-artist-btn" data-artist="Michael McGoldrick">Michael McGoldrick</button>
-          <button class="discog-artist-btn" data-artist="Lúnasa">Lúnasa</button>
-          <button class="discog-artist-btn" data-artist="Ian and Allan MacDonald">Ian &amp; Allan MacDonald</button>
-          <button class="discog-artist-btn" data-artist="Alasdair Fraser">Alasdair Fraser</button>
-          <button class="discog-artist-btn" data-artist="Matt Molloy">Matt Molloy</button>
-          <button class="discog-artist-btn" data-artist="Altan">Altan</button>
-          <button class="discog-artist-btn" data-artist="Dervish">Dervish</button>
-        </div>
-        <div class="discography-form">
-          <input id="discog-artist-input" type="text" placeholder="Artist name (as on TheSession.org)…" maxlength="120" />
-          <input id="discog-col-name-input" type="text" placeholder="Collection name (optional — defaults to 'Artist Repertoire')…" maxlength="120" />
-          <div class="form-actions">
-            <button id="discog-scan-btn" class="btn-primary">🔍 Scan &amp; Build Collection</button>
-            <button id="discog-cancel-btn" class="btn-secondary">Cancel</button>
-          </div>
-        </div>
         <div id="discog-status" class="discog-status hidden"></div>
       </div>
       <div id="new-collection-form" class="new-set-form hidden">
@@ -279,9 +255,6 @@
             <button class="smart-range-btn active" data-days="1">Today</button>
             <button class="smart-range-btn" data-days="7">This week</button>
             <button class="smart-range-btn" data-days="30">This month</button>
-            <span class="smart-range-custom">
-              or last <input id="recent-days-input" type="number" min="1" max="365" value="7" />
-              <span>days</span>
             </span>
           </div>
           <span id="recent-imports-count" class="smart-col-count"></span>
@@ -1049,7 +1022,7 @@
   <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
   <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=261"></script>
+  <script src="/static/app.js?v=262"></script>
 
 <!-- Collection Export Modal -->
 <div id="collectionExportModal" class="modal" style="display:none;">

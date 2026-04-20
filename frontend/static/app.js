@@ -6060,7 +6060,7 @@ function renderCollections(collections) {
           <span class="set-count">${countLabel}</span>
         </div>
         <div class="set-card-actions">
-          <button class="btn-secondary col-expand-btn" data-col-id="${c.id}">View</button>
+
           <div class="library-menu-wrap">
             <button class="btn-icon col-menu-btn" data-col-id="${c.id}" title="Options">⋯</button>
             <div class="library-menu hidden col-options-menu" id="col-menu-${c.id}">
@@ -6108,6 +6108,7 @@ function renderCollections(collections) {
 
       // Switch to focused view
       collectionsList.classList.add("hidden");
+        document.getElementById('recent-imports-card')?.classList.add('hidden');
       if (colViewHeader) colViewHeader.classList.add("hidden");
       if (newColForm) newColForm.classList.add("hidden");
       if (colDetailContent) colDetailContent.innerHTML = '<p class="loading">Loading…</p>';
@@ -6310,6 +6311,7 @@ function renderCollections(collections) {
       document.getElementById("col-detail-view").classList.add("hidden");
       document.getElementById("col-detail-content").innerHTML = "";
       collectionsList.classList.remove("hidden");
+      document.getElementById('recent-imports-card')?.classList.remove('hidden');
       const colViewHeader = document.getElementById("view-collections").querySelector(".view-header");
       if (colViewHeader) colViewHeader.classList.remove("hidden");
       const newColForm = document.getElementById("new-collection-form");
@@ -7479,6 +7481,14 @@ modalOverlay.addEventListener("click", e => {
     apiGetSet(Number(setId)).then(setData => {
       if (setData) openFullSetModal(setData, { onBack: null });
     }).catch(() => {});
+  }
+  if (colId) {
+    // Navigate to collection detail
+    switchView('collections');
+    setTimeout(() => {
+      const btn = document.querySelector(`.col-expand-btn[data-col-id="${colId}"]`);
+      if (btn) btn.click();
+    }, 300);
   }
 });
 
