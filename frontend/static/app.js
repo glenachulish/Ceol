@@ -2401,9 +2401,15 @@ function renderModal(tune, onBack = null, siblings = null) {
   if (tuneMoreBtn && tuneMoreMenu) {
     tuneMoreBtn.addEventListener("click", e => {
       e.stopPropagation();
+      const opening = tuneMoreMenu.classList.contains("hidden");
       tuneMoreMenu.classList.toggle("hidden");
+      if (opening) {
+        // Add close-on-outside-click only AFTER this event finishes bubbling
+        setTimeout(() => {
+          document.addEventListener("click", () => tuneMoreMenu.classList.add("hidden"), { once: true });
+        }, 0);
+      }
     });
-    document.addEventListener("click", () => tuneMoreMenu?.classList.add("hidden"), { once: true });
   }
 
   // TheCraic ABC export from More menu
