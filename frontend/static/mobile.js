@@ -223,7 +223,7 @@
   }
 
   mMenuBtn.addEventListener("click", openMobileMenu);
-  document.getElementById("m-more-btn").addEventListener("click", openMobileMenu);
+  document.getElementById("m-more-btn")?.addEventListener("click", openMobileMenu);
   mMenuClose.addEventListener("click", closeMobileMenu);
 
   // Close when tapping the dark overlay (outside the drawer)
