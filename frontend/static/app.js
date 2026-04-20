@@ -1188,9 +1188,9 @@ function renderModal(tune, onBack = null, siblings = null) {
       ${tune.abc ? `<button class="tab-btn" data-tab="practice">Practice</button>` : ""}
     </div>
 
-    <div id="tab-music" class="tab-panel">
-      <div class="sheet-music-wrap">
-        ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
+          <div id="tab-music" class="tab-panel">
+        ${tune.abc ? `<div style="display:flex;justify-content:flex-end;margin-bottom:.3rem"><button id="abc-fs-btn" class="btn-secondary btn-sm" title="Full screen sheet music">⛶ Full screen</button></div>` : ""}
+        <div class="sheet-music-wrap">
         <div id="sheet-music-render"></div>
         <div id="sheet-music-render-hidden" style="display:none;height:0;overflow:hidden"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
@@ -2395,20 +2395,23 @@ function renderModal(tune, onBack = null, siblings = null) {
   }
 
 
-  // ⋯ More dropdown in tune footer
-  const tuneMoreBtn  = document.getElementById("tune-more-btn");
-  const tuneMoreMenu = document.getElementById("tune-more-menu");
-  if (tuneMoreBtn && tuneMoreMenu) {
-    tuneMoreBtn.addEventListener("click", e => {
-      e.stopPropagation();
-      const opening = tuneMoreMenu.classList.contains("hidden");
-      tuneMoreMenu.classList.toggle("hidden");
-      if (opening) {
-        // Add close-on-outside-click only AFTER this event finishes bubbling
-        setTimeout(() => {
-          document.addEventListener("click", () => tuneMoreMenu.classList.add("hidden"), { once: true });
-        }, 0);
-      }
+  // ⋯ More button — toggles sheet-music-options-panel (speed, chords, instrument, export, delete)
+  const tuneMoreBtn = document.getElementById("tune-more-btn");
+  const tuneOptionsPanel = document.getElementById("sheet-music-options-panel");
+  if (tuneMoreBtn && tuneOptionsPanel) {
+    tuneMoreBtn.addEventListener("click", () => {
+      const opening = tuneOptionsPanel.classList.contains("hidden");
+      tuneOptionsPanel.classList.toggle("hidden");
+      tuneMoreBtn.textContent = opening ? "✕ Less" : "⋯ More";
+    });
+  }
+
+  // Options panel ✕ close button
+  const optionsCloseBtn = document.getElementById("sheet-music-options-close");
+  if (optionsCloseBtn) {
+    optionsCloseBtn.addEventListener("click", () => {
+      tuneOptionsPanel?.classList.add("hidden");
+      if (tuneMoreBtn) tuneMoreBtn.textContent = "⋯ More";
     });
   }
 
