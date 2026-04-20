@@ -1191,7 +1191,6 @@ function renderModal(tune, onBack = null, siblings = null) {
     <div id="tab-music" class="tab-panel">
       <div class="sheet-music-wrap">
         ${tune.abc ? `<button id="abc-fs-btn" class="abc-fs-btn" title="Full screen sheet music">⛶ Full screen</button>` : ""}
-        ${tune.abc ? `<button id="sheet-music-menu-btn" class="abc-fs-btn sheet-music-menu-btn" title="Sheet music options" style="right:7.5rem">⚙</button>` : ""}
         <div id="sheet-music-render"></div>
         <div id="sheet-music-render-hidden" style="display:none;height:0;overflow:hidden"></div>
         ${imageUrl ? `<img id="image-embed" class="sheet-music-image" src="${escHtml(imageUrl)}" alt="Sheet music photo" />` : ""}
@@ -2277,20 +2276,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     }
   }
 
-  // ── Sheet music options panel (mobile hamburger) ───────────────────────────
-  const sheetMenuBtn   = document.getElementById("sheet-music-menu-btn");
-  const sheetMenuPanel = document.getElementById("sheet-music-options-panel");
-  const sheetMenuClose = document.getElementById("sheet-music-options-close");
-  if (sheetMenuBtn && sheetMenuPanel) {
-    sheetMenuBtn.addEventListener("click", () => {
-      sheetMenuPanel.classList.toggle("hidden");
-    });
-    if (sheetMenuClose) {
-      sheetMenuClose.addEventListener("click", () => {
-        sheetMenuPanel.classList.add("hidden");
-      });
-    }
-  }
+
 
   // ── Tempo control ──────────────────────────────────────────────────────────
   const tempoDecBtn   = document.getElementById("tempo-dec");
