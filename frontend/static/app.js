@@ -2773,6 +2773,24 @@ function renderModal(tune, onBack = null, siblings = null) {
       if (rows.length) el.innerHTML = rows.join("");
   }).catch(() => {});
 
+    // Print / PDF — tune sheet music
+    const _printTunePdfBtn = document.getElementById('print-tune-pdf-btn');
+    if (_printTunePdfBtn) {
+      _printTunePdfBtn.addEventListener('click', () => {
+        const render = document.getElementById('sheet-music-render');
+        if (!render || !render.querySelector('svg')) { alert('No sheet music rendered yet.'); return; }
+        const win = window.open('', '_blank');
+        if (!win) { alert('Please allow popups for this page to use Print.'); return; }
+        win.document.write('<!DOCTYPE html><html><head><title>' + escHtml(tune.title) + '</title>'
+          + '<style>body{margin:1.5cm;font-family:sans-serif}h2{font-size:14pt}'
+          + 'svg{max-width:100%;display:block}@media print{button{display:none}}</style></head><body>'
+          + '<h2>' + escHtml(tune.title) + '</h2>'
+          + render.innerHTML
+          + '<scr' + 'ipt>window.onload=()=>window.print();</scr' + 'ipt></body></html>');
+        win.document.close();
+      });
+    }
+
   // Full-screen button
   const abcFsBtn = document.getElementById("abc-fs-btn");
   if (abcFsBtn) {
@@ -4958,6 +4976,22 @@ function openFullSetModal(setData, opts = {}) {
   const _setCombined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
 
   // Wire fullscreen button (uses combined ABC with per-tune colour highlights)
+    // ⋯ More button — toggles playback controls in set detail
+    const _setMoreBtn = modalContent.querySelector('.set-more-btn');
+    if (_setMoreBtn) {
+      _setMoreBtn.addEventListener('click', () => {
+        const targets = [
+          document.getElementById('set-full-audio'),
+          document.getElementById('metronome-row'),
+          document.querySelector('.set-bot-controls'),
+        ].filter(Boolean);
+        if (!targets.length) return;
+        const isHidden = targets[0].style.display === 'none';
+        targets.forEach(el => { el.style.display = isHidden ? '' : 'none'; });
+        _setMoreBtn.textContent = isHidden ? '\u2715 Less' : '\u22ef More';
+      });
+    }
+
   const _setExportMenuBtn = modalContent.querySelector(".set-export-menu-btn");
   if (_setExportMenuBtn) {
     const _setExportMenu = _setExportMenuBtn.nextElementSibling;
@@ -4983,6 +5017,27 @@ function openFullSetModal(setData, opts = {}) {
       _setExportMenuBtn?.nextElementSibling?.classList.add("hidden");
     });
   }
+    // Print / PDF — set sheet music
+    const _setExportPdfBtn = modalContent.querySelector('.set-export-pdf-btn');
+    if (_setExportPdfBtn) {
+      _setExportPdfBtn.addEventListener('click', () => {
+        const sections = document.querySelectorAll('.set-tune-vis-render');
+        if (!sections.length) { alert('No sheet music rendered yet.'); return; }
+        const win = window.open('', '_blank');
+        if (!win) { alert('Please allow popups for this page to use Print.'); return; }
+        const parts = Array.from(sections).map((el, i) => {
+          const color = TUNE_COLORS[i % TUNE_COLORS.length];
+          const title = tunesWithAbc[i] ? tunesWithAbc[i].title : '';
+          return '<h2 style="font-size:12pt;margin:1.5em 0 .3em;color:' + color + '">' + title.replace(/</g,'&lt;') + '</h2>' + el.innerHTML;
+        }).join('');
+        win.document.write('<!DOCTYPE html><html><head><title>' + escHtml(setData.name) + '</title>'
+          + '<style>body{margin:1.5cm;font-family:sans-serif}svg{max-width:100%;display:block}'
+          + '@media print{button{display:none}}</style></head><body>' + parts
+          + '<scr' + 'ipt>window.onload=()=>window.print();</scr' + 'ipt></body></html>');
+        win.document.close();
+      });
+    }
+
   const setFsBtn = document.getElementById("set-full-fs-btn");
   if (setFsBtn && _setCombined) {
     setFsBtn.addEventListener("click", () => {
