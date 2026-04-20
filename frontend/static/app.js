@@ -6610,7 +6610,7 @@ function renderCollections(collections) {
 
   // Custom days input
   let _debounce;
-  daysInput.addEventListener("input", () => {
+  daysInput?.addEventListener("input", () => {
     const days = Math.max(1, Math.min(365, Number(daysInput.value) || 1));
     rangeButtons.forEach(b => b.classList.remove("active"));
     clearTimeout(_debounce);
