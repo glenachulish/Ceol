@@ -17,7 +17,7 @@
   </script>
   <link rel="stylesheet" href="/static/style.css?v=102" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=24" />
+  <link rel="stylesheet" href="/static/mobile.css?v=25" />
 </head>
 <body class="mobile-body">
 
@@ -178,10 +178,10 @@
         </div>
       </div>
       <!-- Smart collection: recently imported -->
-      <div class="smart-col-card" id="recent-imports-card">
-        <div class="smart-col-header">
-          <span class="smart-col-icon">📥</span>
-          <span class="smart-col-title">Recently Imported</span>
+      <div class="set-card" id="recent-imports-card">
+        <div class="set-card-header">
+          <span 📥</span>
+          <span class="set-name" style="font-weight:600">📥 Recently Imported</span>
           <div class="smart-col-ranges">
             <button class="smart-range-btn active" data-days="1">Today</button>
             <button class="smart-range-btn" data-days="7">This week</button>
@@ -192,7 +192,7 @@
             </span>
           </div>
           <span id="recent-imports-count" class="smart-col-count"></span>
-          <button id="recent-imports-hide-btn" class="btn-secondary btn-sm" style="margin-left:auto">Show</button>
+          
         </div>
         <div id="recent-imports-toolbar" class="recent-imports-toolbar hidden">
           <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;cursor:pointer">
@@ -222,6 +222,7 @@
       <div class="notes-layout">
         <aside class="notes-sidebar">
           <div class="notes-sidebar-header">
+            <button id="notes-back-btn" class="modal-back-btn" style="margin-bottom:.5rem">✕ Close</button>
             <h2 class="section-title">Notes</h2>
             <button id="new-doc-btn" class="btn-primary">+ New</button>
           </div>
@@ -241,7 +242,8 @@
     <div id="view-achievements" class="m-view hidden">
       <div class="achievements-layout">
         <div class="achievements-header">
-          <h2 class="section-title">Achievements</h2>
+          <button id="achievements-back-btn" class="modal-back-btn" style="margin-bottom:.5rem">✕ Close</button>
+            <h2 class="section-title">Achievements</h2>
           <p class="achievements-hint">Your progress log.</p>
         </div>
         <div class="achievements-add">
@@ -641,7 +643,7 @@
 
   <script src="/static/abcjs-basic-min.js"></script>
   <script src="/static/app.js?v=270"></script>
-  <script src="/static/mobile.js?v=13"></script>
+  <script src="/static/mobile.js?v=14"></script>
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").then(reg => {

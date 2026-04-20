@@ -280,7 +280,14 @@
   _menuDelegate("m-lib-import-btn", "library-import-btn");
   _menuDelegate("m-lib-delete-btn", "library-delete-btn");
 
-  // TheCraic export is already handled by app.js via #thecraic-export-btn
+  
+  // Notes × back button
+  document.getElementById("notes-back-btn")?.addEventListener("click", () => switchView("library"));
+
+  // Achievements × back button
+  document.getElementById("achievements-back-btn")?.addEventListener("click", () => switchView("library"));
+
+// TheCraic export is already handled by app.js via #thecraic-export-btn
   // (which exists in the mobile.html hamburger menu directly).
 
   // ── Scroll to top on view change ─────────────────────────────────────────────
