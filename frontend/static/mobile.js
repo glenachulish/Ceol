@@ -264,18 +264,15 @@
   _menuDelegate("m-help-btn",       "help-btn");
   _menuDelegate("m-backup-btn",     "library-backup-btn");
   
-  // Import nav button → open import overlay
+  // Import nav button → open the tune import overlay directly
   const _importNavBtn = document.getElementById("import-nav-btn");
   if (_importNavBtn) {
     _importNavBtn.addEventListener("click", () => {
-      // Delegate to the desktop import button which opens the import overlay
-      const desktopImport = document.getElementById("library-import-btn")
-                         || document.getElementById("open-import-btn");
-      if (desktopImport) {
-        desktopImport.click();
+      if (typeof openImport === "function") {
+        openImport();
       } else {
-        // Try opening directly via openImport if available
-        if (typeof openImport === "function") openImport();
+        const overlay = document.getElementById("import-overlay");
+        if (overlay) overlay.classList.remove("hidden");
       }
     });
   }
