@@ -4741,6 +4741,7 @@ function openFullSetModal(setData, opts = {}) {
       <span class="set-track-title">${escHtml(t.title)}</span>
       <span class="set-track-meta">${[t.type, t.key].filter(Boolean).map(escHtml).join(" · ") || ""}</span>
       ${setData.id ? `<button class="set-track-remove btn-sm" data-tune-id="${t.id}" style="margin-left:auto;flex-shrink:0" title="Remove from set">✕</button>` : ""}
+      ${setData.id ? `<button class="set-track-remove btn-sm" data-tune-id="${t.id}" style="margin-left:auto;flex-shrink:0" title="Remove from set">✕</button>` : ""}
     </div>`).join("");
 
   const tunesWithAbc = tunes.filter(t => t.abc);
@@ -5003,6 +5004,88 @@ function openFullSetModal(setData, opts = {}) {
       });
     });
   });
+
+  // Wire track-list remove buttons
+  if (setData.id) {
+    modalContent.querySelectorAll(".set-track-remove").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const tuneId = btn.dataset.tuneId;
+        if (!confirm("Remove this tune from the set?")) return;
+        btn.disabled = true;
+        try {
+          await apiRemoveTuneFromSet(setData.id, tuneId);
+          const fresh = await apiGetSet(setData.id);
+          openFullSetModal(fresh);
+        } catch {
+          alert("Failed to remove tune.");
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // "+ Add tune" panel below track list
+    const _trackList = modalContent.querySelector(".set-track-list");
+    if (_trackList) {
+      const _addRow = document.createElement("div");
+      _addRow.className = "set-track-add-row";
+      _addRow.innerHTML = `
+        <button class="btn-secondary btn-sm set-track-add-btn" style="margin:.5rem 0">+ Add tune to set…</button>
+        <div class="set-track-add-panel hidden" style="margin:.4rem 0">
+          <input type="text" class="set-track-add-input ff-url-input" placeholder="Search tunes to add…" style="width:100%;margin-bottom:.3rem" />
+          <div class="set-track-add-results"></div>
+        </div>`;
+      _trackList.after(_addRow);
+
+      const _addBtn   = _addRow.querySelector(".set-track-add-btn");
+      const _addPanel = _addRow.querySelector(".set-track-add-panel");
+      const _addInput = _addRow.querySelector(".set-track-add-input");
+      const _addRes   = _addRow.querySelector(".set-track-add-results");
+      let _addDebounce = null;
+
+      _addBtn.addEventListener("click", () => {
+        _addPanel.classList.toggle("hidden");
+        if (!_addPanel.classList.contains("hidden")) _addInput.focus();
+      });
+
+      const _doAddToModal = async (tuneId) => {
+        await apiFetch(`/api/sets/${setData.id}/tunes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tune_id: Number(tuneId) }),
+        });
+        const fresh = await apiGetSet(setData.id);
+        openFullSetModal(fresh);
+      };
+
+      const _runAddSearch = async (q) => {
+        if (!q) { _addRes.innerHTML = ""; return; }
+        const data = await apiFetch(`/api/tunes?q=${encodeURIComponent(q)}&page_size=8`);
+        const list = data.tunes || data;
+        if (!list.length) {
+          _addRes.innerHTML = '<p class="set-add-tune-none">No tunes found.</p>';
+          return;
+        }
+        _addRes.innerHTML = list.map(t =>
+          `<button class="set-add-tune-result" data-tune-id="${t.id}">
+            ${escHtml(t.title)}
+            <span class="badge ${typeBadgeClass(t.type)}" style="margin-left:.3rem">${escHtml(t.type || "")}</span>
+           </button>`
+        ).join("");
+        _addRes.querySelectorAll(".set-add-tune-result").forEach(rb => {
+          rb.addEventListener("click", async () => {
+            rb.disabled = true; rb.textContent = "Adding…";
+            try { await _doAddToModal(rb.dataset.tuneId); }
+            catch { rb.disabled = false; rb.textContent = rb.dataset.origText || "Retry"; }
+          });
+        });
+      };
+
+      _addInput.addEventListener("input", () => {
+        clearTimeout(_addDebounce);
+        _addDebounce = setTimeout(() => _runAddSearch(_addInput.value.trim()), 250);
+      });
+    }
+  }
 
   // Wire track-list remove buttons
   if (setData.id) {
