@@ -947,7 +947,7 @@ function renderTunes(data) {
         <div class="card-title${t.on_hitlist ? " hitlist-title" : ""}">${escHtml(t.title)}</div>
         <div class="card-meta">${typeLabel}${keyLabel}${versionBadge}</div>
         <div class="card-stars">${stars}</div>
-        <button class="tune-delete-btn" data-id="${t.id}" title="Delete tune" aria-label="Delete ${escHtml(t.title)}">🗑</button>
+
       </article>`;
   }).join("");
 
@@ -11491,8 +11491,8 @@ function openCollectionExportModal(id, name) {
 }
 
 function closeCollectionExportModal() {
-  const modal = document.getElementById("collectionExportModal");
-  if (modal) modal.style.display = "none";
+  modalOverlay.classList.add("hidden");
+  document.body.style.overflow = "";
   _exportCollectionId = null;
 }
 
