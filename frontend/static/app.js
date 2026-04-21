@@ -11692,3 +11692,156 @@ document.addEventListener("click", function(e) {
   const modal = document.getElementById("collectionExportModal");
   if (modal && e.target === modal) closeCollectionExportModal();
 });
+
+// ── Chromatic Tuner ───────────────────────────────────────────────────────────
+(function() {
+  const NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+  let _tunerStream = null;
+  let _tunerCtx    = null;
+  let _tunerAnalyser = null;
+  let _tunerRunning  = false;
+  let _tunerRaf      = null;
+
+  function _hzToNote(freq) {
+    if (freq <= 0) return null;
+    const semitones = 12 * Math.log2(freq / 440);
+    const rounded   = Math.round(semitones);
+    const cents     = Math.round((semitones - rounded) * 100);
+    const noteIdx   = ((rounded % 12) + 12 + 9) % 12; // A is semitone 0
+    const octave    = Math.floor((rounded + 9) / 12) + 4;
+    return { note: NOTES[noteIdx], octave, cents, freq: Math.round(freq * 10) / 10 };
+  }
+
+  function _autocorrelate(buf, sampleRate) {
+    const SIZE = buf.length;
+    let rms = 0;
+    for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / SIZE);
+    if (rms < 0.008) return -1; // too quiet
+
+    // Autocorrelation
+    const corr = new Float32Array(SIZE);
+    for (let lag = 0; lag < SIZE; lag++) {
+      let s = 0;
+      for (let i = 0; i < SIZE - lag; i++) s += buf[i] * buf[i + lag];
+      corr[lag] = s;
+    }
+
+    // Find first trough then first peak after it
+    let d = 0;
+    while (d < SIZE && corr[d] > corr[d + 1]) d++;
+    let maxVal = -1, maxPos = -1;
+    for (let i = d; i < SIZE; i++) {
+      if (corr[i] > maxVal) { maxVal = corr[i]; maxPos = i; }
+    }
+    if (maxPos < 0 || maxVal / corr[0] < 0.5) return -1;
+
+    // Parabolic interpolation for sub-sample accuracy
+    let t0 = maxPos;
+    if (t0 > 0 && t0 < SIZE - 1) {
+      const x1 = corr[t0 - 1], x2 = corr[t0], x3 = corr[t0 + 1];
+      t0 = t0 + (x3 - x1) / (2 * (2 * x2 - x1 - x3));
+    }
+    return sampleRate / t0;
+  }
+
+  function _updateUI(info) {
+    const noteEl   = document.getElementById("ceol-tuner-note");
+    const octaveEl = document.getElementById("ceol-tuner-octave");
+    const centsEl  = document.getElementById("ceol-tuner-cents-val");
+    const freqEl   = document.getElementById("ceol-tuner-freq");
+    const needle   = document.getElementById("ceol-tuner-needle");
+    const status   = document.getElementById("ceol-tuner-status");
+    if (!noteEl) return;
+
+    if (!info) {
+      noteEl.textContent   = "–";
+      octaveEl.textContent = "";
+      centsEl.textContent  = "– ¢";
+      freqEl.textContent   = "";
+      if (needle) needle.style.left = "50%";
+      noteEl.className = "ceol-tuner-note";
+      if (status) status.textContent = "Listening…";
+      return;
+    }
+
+    noteEl.textContent   = info.note;
+    octaveEl.textContent = info.octave;
+    centsEl.textContent  = (info.cents >= 0 ? "+" : "") + info.cents + " ¢";
+    freqEl.textContent   = info.freq + " Hz";
+
+    // Needle: centre = 50%, ±50 cents = ±45%
+    const pct = 50 + (info.cents / 50) * 45;
+    if (needle) needle.style.left = Math.max(2, Math.min(98, pct)) + "%";
+
+    // In-tune indicator
+    const inTune = Math.abs(info.cents) <= 5;
+    noteEl.className = "ceol-tuner-note" + (inTune ? " in-tune" : "");
+    if (status) status.textContent = inTune ? "✓ In tune" : (info.cents > 0 ? "Sharp ↑" : "Flat ↓");
+  }
+
+  function _tick() {
+    if (!_tunerRunning || !_tunerAnalyser) return;
+    const buf = new Float32Array(_tunerAnalyser.fftSize);
+    _tunerAnalyser.getFloatTimeDomainData(buf);
+    const freq = _autocorrelate(buf, _tunerCtx.sampleRate);
+    _updateUI(freq > 0 ? _hzToNote(freq) : null);
+    _tunerRaf = requestAnimationFrame(_tick);
+  }
+
+  async function _startTuner() {
+    try {
+      _tunerStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      _tunerCtx    = new (window.AudioContext || window.webkitAudioContext)();
+      _tunerAnalyser = _tunerCtx.createAnalyser();
+      _tunerAnalyser.fftSize = 2048;
+      const src = _tunerCtx.createMediaStreamSource(_tunerStream);
+      src.connect(_tunerAnalyser);
+      _tunerRunning = true;
+      const btn = document.getElementById("ceol-tuner-toggle");
+      if (btn) btn.textContent = "⏹ Stop";
+      _tick();
+    } catch (e) {
+      const status = document.getElementById("ceol-tuner-status");
+      if (status) status.textContent = "Mic access denied — check browser permissions";
+    }
+  }
+
+  function _stopTuner() {
+    _tunerRunning = false;
+    if (_tunerRaf) cancelAnimationFrame(_tunerRaf);
+    if (_tunerStream) { _tunerStream.getTracks().forEach(t => t.stop()); _tunerStream = null; }
+    if (_tunerCtx) { _tunerCtx.close().catch(() => {}); _tunerCtx = null; }
+    _tunerAnalyser = null;
+    _updateUI(null);
+    const btn = document.getElementById("ceol-tuner-toggle");
+    if (btn) { btn.textContent = "▶ Start"; }
+    const status = document.getElementById("ceol-tuner-status");
+    if (status) status.textContent = "Tap Start to begin";
+  }
+
+  window._openTuner = function() {
+    const panel = document.getElementById("ceol-tuner-panel");
+    if (panel) panel.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  };
+
+  window._closeTuner = function() {
+    _stopTuner();
+    const panel = document.getElementById("ceol-tuner-panel");
+    if (panel) panel.classList.add("hidden");
+    document.body.style.overflow = "";
+  };
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const closeBtn  = document.getElementById("ceol-tuner-close");
+    const toggleBtn = document.getElementById("ceol-tuner-toggle");
+    const tunerBtn  = document.getElementById("m-tuner-btn");
+
+    closeBtn?.addEventListener("click",  () => window._closeTuner());
+    toggleBtn?.addEventListener("click", () => {
+      if (_tunerRunning) _stopTuner(); else _startTuner();
+    });
+    tunerBtn?.addEventListener("click", () => window._openTuner());
+  });
+})();

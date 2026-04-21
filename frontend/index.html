@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ceòl – Trad Music [r5]</title>
-  <link rel="stylesheet" href="/static/style.css?v=120" />
+  <link rel="stylesheet" href="/static/style.css?v=121" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
 </head>
 <body data-view="library">
@@ -52,6 +52,7 @@
         <div class="library-menu-wrap" style="display:none">
             <button id="nav-more-btn" class="btn-secondary" data-tooltip-left data-tooltip="Notes, Achievements &amp; Help">More ▾</button>
           <div id="nav-more-menu" class="library-menu hidden">
+            <button id="nav-tuner-btn" class="library-menu-item" onclick="window._openTuner && window._openTuner()">♩ Tuner</button>
             <button id="nav-notes" class="library-menu-item">📝 Notes</button>
             <button id="nav-achievements" class="library-menu-item">⭐ Achievements</button>
             <button id="nav-practice" class="library-menu-item">🎯 Practice Targets</button>
@@ -1022,7 +1023,7 @@
   <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
   <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=292"></script>
+  <script src="/static/app.js?v=294"></script>
 
 <!-- Collection Export Modal -->
 <div id="collectionExportModal" class="modal" style="display:none;">
@@ -1047,6 +1048,36 @@
     </div>
   </div>
 </div>
+
+
+  <!-- ── Chromatic Tuner Panel ── -->
+  <div id="ceol-tuner-panel" class="ceol-tuner-panel hidden" role="dialog" aria-label="Chromatic tuner">
+    <div class="ceol-tuner-header">
+      <span class="ceol-tuner-title">♩ Tuner</span>
+      <button id="ceol-tuner-close" class="ceol-tuner-close" aria-label="Close tuner">✕</button>
+    </div>
+    <div class="ceol-tuner-body">
+      <div class="ceol-tuner-note-display">
+        <span id="ceol-tuner-note" class="ceol-tuner-note">–</span>
+        <span id="ceol-tuner-octave" class="ceol-tuner-octave"></span>
+      </div>
+      <div class="ceol-tuner-cents-wrap">
+        <span class="ceol-tuner-cents-label">♭</span>
+        <div class="ceol-tuner-meter">
+          <div class="ceol-tuner-meter-bg"></div>
+          <div id="ceol-tuner-needle" class="ceol-tuner-needle"></div>
+          <div class="ceol-tuner-center-mark"></div>
+        </div>
+        <span class="ceol-tuner-cents-label">♯</span>
+      </div>
+      <div id="ceol-tuner-cents-val" class="ceol-tuner-cents-val">– ¢</div>
+      <div id="ceol-tuner-freq" class="ceol-tuner-freq"></div>
+      <div id="ceol-tuner-status" class="ceol-tuner-status">Tap Start to begin</div>
+    </div>
+    <div class="ceol-tuner-footer">
+      <button id="ceol-tuner-toggle" class="btn-primary">▶ Start</button>
+    </div>
+  </div>
 
 </body>
 </html>

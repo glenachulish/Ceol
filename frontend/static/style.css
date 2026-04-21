@@ -3963,3 +3963,129 @@ a.bandcamp-link:hover { opacity: .85; }
   max-height: 200px;
   overflow-y: auto;
 }
+
+/* ── Chromatic Tuner Panel ───────────────────────────────── */
+.ceol-tuner-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(4px);
+}
+.ceol-tuner-panel.hidden { display: none !important; }
+
+.ceol-tuner-panel > * {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: min(340px, 92vw);
+  box-shadow: 0 8px 32px rgba(0,0,0,.35);
+  display: flex;
+  flex-direction: column;
+}
+.ceol-tuner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .85rem 1rem .75rem;
+  border-bottom: 1px solid var(--border);
+}
+.ceol-tuner-title { font-weight: 700; font-size: 1rem; }
+.ceol-tuner-close {
+  background: none; border: none; cursor: pointer;
+  font-size: 1.1rem; color: var(--text-muted); padding: .1rem .3rem;
+}
+.ceol-tuner-body {
+  padding: 1.5rem 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .75rem;
+}
+.ceol-tuner-note-display {
+  display: flex;
+  align-items: baseline;
+  gap: .3rem;
+}
+.ceol-tuner-note {
+  font-size: 4.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+  transition: color .15s;
+  min-width: 2.5rem;
+  text-align: center;
+}
+.ceol-tuner-note.in-tune { color: #16a34a; }
+.ceol-tuner-octave {
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.ceol-tuner-cents-wrap {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  width: 100%;
+}
+.ceol-tuner-cents-label {
+  font-size: 1rem;
+  color: var(--text-muted);
+  width: 1.2rem;
+  text-align: center;
+}
+.ceol-tuner-meter {
+  flex: 1;
+  height: 16px;
+  background: var(--surface2, #f1f5f9);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.ceol-tuner-meter-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, #3b82f6 0%, #16a34a 45%, #16a34a 55%, #ef4444 100%);
+  opacity: .15;
+}
+.ceol-tuner-needle {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 3px;
+  background: var(--accent, #2d6a4f);
+  border-radius: 2px;
+  transform: translateX(-50%);
+  transition: left .08s;
+  left: 50%;
+}
+.ceol-tuner-center-mark {
+  position: absolute;
+  top: 2px; bottom: 2px;
+  left: 50%;
+  width: 1px;
+  background: var(--border);
+  transform: translateX(-50%);
+}
+.ceol-tuner-cents-val {
+  font-size: .95rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ceol-tuner-freq {
+  font-size: .8rem;
+  color: var(--text-muted);
+}
+.ceol-tuner-status {
+  font-size: .85rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.ceol-tuner-footer {
+  padding: .75rem 1.25rem 1.25rem;
+  display: flex;
+  justify-content: center;
+}

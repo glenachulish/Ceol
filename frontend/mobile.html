@@ -15,7 +15,7 @@
   <script>
     (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);})();
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=120" />
+  <link rel="stylesheet" href="/static/style.css?v=121" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
   <link rel="stylesheet" href="/static/mobile.css?v=33" />
 </head>
@@ -950,8 +950,8 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=293"></script>
-  <script src="/static/mobile.js?v=35"></script>
+  <script src="/static/app.js?v=294"></script>
+  <script src="/static/mobile.js?v=36"></script>
     <script>
     // Unregister any existing service workers (they caused stale cache issues)
     if ("serviceWorker" in navigator) {
@@ -961,5 +961,35 @@
       caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
     }
   </script>
+
+  <!-- ── Chromatic Tuner Panel ── -->
+  <div id="ceol-tuner-panel" class="ceol-tuner-panel hidden" role="dialog" aria-label="Chromatic tuner">
+    <div class="ceol-tuner-header">
+      <span class="ceol-tuner-title">♩ Tuner</span>
+      <button id="ceol-tuner-close" class="ceol-tuner-close" aria-label="Close tuner">✕</button>
+    </div>
+    <div class="ceol-tuner-body">
+      <div class="ceol-tuner-note-display">
+        <span id="ceol-tuner-note" class="ceol-tuner-note">–</span>
+        <span id="ceol-tuner-octave" class="ceol-tuner-octave"></span>
+      </div>
+      <div class="ceol-tuner-cents-wrap">
+        <span class="ceol-tuner-cents-label">♭</span>
+        <div class="ceol-tuner-meter">
+          <div class="ceol-tuner-meter-bg"></div>
+          <div id="ceol-tuner-needle" class="ceol-tuner-needle"></div>
+          <div class="ceol-tuner-center-mark"></div>
+        </div>
+        <span class="ceol-tuner-cents-label">♯</span>
+      </div>
+      <div id="ceol-tuner-cents-val" class="ceol-tuner-cents-val">– ¢</div>
+      <div id="ceol-tuner-freq" class="ceol-tuner-freq"></div>
+      <div id="ceol-tuner-status" class="ceol-tuner-status">Tap Start to begin</div>
+    </div>
+    <div class="ceol-tuner-footer">
+      <button id="ceol-tuner-toggle" class="btn-primary">▶ Start</button>
+    </div>
+  </div>
+
 </body>
 </html>
