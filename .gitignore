@@ -8,3 +8,13 @@ data/*.db.bak*
 data/app_info.txt
 *.abc
 .env
+
+
+# User data — uploads and SQLite WAL files (local only)
+data/uploads/
+data/*.db-shm
+data/*.db-wal
+
+# macOS
+.DS_Store
+**/.DS_Store
