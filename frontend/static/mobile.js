@@ -397,39 +397,44 @@
     }, { passive: false });
   })();
 
-  // ── Fullscreen More button: clone to strip app.js click listener ───────────
-  // iOS PWA fires click AFTER touchend even with e.preventDefault(), so app.js's
-  // click handler undoes our touchend toggle. Cloning removes all existing listeners.
+  // ── Fullscreen More button: pointerdown + CSS class toggle ────────────────
+  // pointerdown fires on first finger contact — no double-tap suppression,
+  // no 300ms delay. CSS class toggle is more reliable than inline cssText on iOS.
   (function _fsFastTap() {
     const _fsOld = document.getElementById("abc-fs-more-btn");
     if (!_fsOld) return;
 
-    // Clone strips all existing event listeners
+    // Clone strips all existing event listeners from app.js
     const _fsNew = _fsOld.cloneNode(true);
     _fsOld.parentNode.replaceChild(_fsNew, _fsOld);
-    // Prevent app.js re-wiring on subsequent openAbcFullscreen calls
-    _fsNew.dataset.wired = "1";
+    _fsNew.dataset.wired = "1";  // prevent app.js re-wiring
 
     function _toggleFsControls() {
       const overlay = document.getElementById("abc-fullscreen-overlay");
-      const ctrl = overlay && overlay.querySelector(".abc-fullscreen-controls");
-      if (!ctrl) return;
-      const shown = window.getComputedStyle(ctrl).display !== "none";
-      ctrl.style.cssText = shown
-        ? "display:none!important"
-        : "display:flex!important;flex-direction:column";
+      if (!overlay) return;
+      overlay.classList.toggle("fs-ctrl-hidden");
     }
 
-    _fsNew.addEventListener("touchend", e => {
+    // pointerdown: fires immediately on contact, no iOS double-tap issues
+    _fsNew.addEventListener("pointerdown", e => {
       e.preventDefault();
-      e.stopPropagation();
+      _toggleFsControls();
+    });
+
+    // touchend + click as fallbacks
+    let _pdFired = false;
+    _fsNew.addEventListener("touchend", e => {
+      if (_pdFired) { _pdFired = false; return; }
+      e.preventDefault();
       _toggleFsControls();
     }, { passive: false });
+    _fsNew.addEventListener("click", () => {
+      if (!_pdFired) _toggleFsControls();
+      _pdFired = false;
+    });
+    _fsNew.addEventListener("pointerup", () => { _pdFired = true; setTimeout(() => { _pdFired = false; }, 300); });
 
-    // click handler for desktop / non-PWA fallback
-    _fsNew.addEventListener("click", _toggleFsControls);
-
-    // Also wire fast-tap on other fullscreen buttons (Exit, bar controls)
+    // Fast-tap for other fullscreen buttons (Exit, bar controls)
     const _fs = document.getElementById("abc-fullscreen-overlay");
     if (!_fs) return;
     let _fy = 0, _fm = false;
@@ -442,7 +447,7 @@
     _fs.addEventListener("touchend", e => {
       if (_fm) return;
       const btn = e.target.closest("button:not([disabled])");
-      if (!btn || btn.id === "abc-fs-more-btn") return; // More handled above
+      if (!btn || btn.id === "abc-fs-more-btn") return;
       e.preventDefault();
       btn.click();
     }, { passive: false });

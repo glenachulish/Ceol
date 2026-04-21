@@ -3900,3 +3900,8 @@ a.bandcamp-link:hover { opacity: .85; }
 #abc-fs-more-btn {
   touch-action: manipulation;
 }
+
+/* Fullscreen More button: hide controls via class toggle (mobile.js) */
+.abc-fullscreen-overlay.fs-ctrl-hidden .abc-fullscreen-controls {
+  display: none !important;
+}
