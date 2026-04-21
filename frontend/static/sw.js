@@ -5,7 +5,7 @@
    Only truly static assets (abcjs bundle, icons) are cached.
    ---------------------------------------------------------------- */
 
-const CACHE = "ceol-v5";
+const CACHE = "ceol-v6";
 
 const STATIC_ONLY = [
   "/static/abcjs-basic-min.js",
