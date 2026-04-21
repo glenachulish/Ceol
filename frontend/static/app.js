@@ -6224,14 +6224,18 @@ function renderCollections(collections) {
             } catch { rb.disabled = false; }
           });
         });
-        // Set name links — navigate to the set in the Sets view
+        // Set name links — open full set modal inline (no navigation away)
         itemsEl.querySelectorAll(".col-set-link").forEach(btn => {
-          btn.addEventListener("click", () => {
+          btn.addEventListener("click", async () => {
             const sid = btn.dataset.setId;
-            switchView("sets");
-            setTimeout(() => {
-              if (window._openSetDetail) window._openSetDetail(sid);
-            }, 250);
+            try {
+              const setData = await apiGetSet(sid);
+              openFullSetModal(setData);
+            } catch (e) {
+              // Fallback: navigate to Sets tab if modal fails
+              switchView("sets");
+              setTimeout(() => { if (window._openSetDetail) window._openSetDetail(sid); }, 250);
+            }
           });
         });
       }
