@@ -373,22 +373,25 @@
     }, { passive: false });
   })();
 
-  // ── Fullscreen More button: mobile touch fix ────────────────────────────────
-  // app.js wires this with click-only, which has PWA tap delay.
-  // We use touchend delegation on the overlay instead.
+  // ── Fullscreen More button: direct touch handler ───────────────────────────
+  // Directly attached to the button so it fires instantly on touchend.
   (function _fsMoreBtn() {
-    const _fsOvl = document.getElementById("abc-fullscreen-overlay");
-    if (!_fsOvl) return;
-    _fsOvl.addEventListener("touchend", e => {
-      const btn = e.target.closest("#abc-fs-more-btn");
-      if (!btn) return;
+    const _btn = document.getElementById("abc-fs-more-btn");
+    if (!_btn) return;
+    function _toggle(e) {
       e.preventDefault();
-      const ctrl = _fsOvl.querySelector(".abc-fullscreen-controls");
+      e.stopPropagation();
+      const overlay = document.getElementById("abc-fullscreen-overlay");
+      const ctrl = overlay && overlay.querySelector(".abc-fullscreen-controls");
       if (!ctrl) return;
-      // getComputedStyle works in both portrait (CSS shows) and landscape (CSS hides)
       const shown = window.getComputedStyle(ctrl).display !== "none";
-      ctrl.style.setProperty("display", shown ? "none" : "flex", "important");
-    }, { passive: false });
+      // cssText with !important reliably overrides any CSS media query
+      ctrl.style.cssText = shown
+        ? "display:none!important"
+        : "display:flex!important;flex-direction:column";
+    }
+    _btn.addEventListener("touchend", _toggle, { passive: false });
+    _btn.addEventListener("click",    _toggle);  // desktop fallback
   })();
 
 })();
