@@ -349,4 +349,28 @@
     }
   });
 
+  // ── Instant tune card tap (PWA mode) ────────────────────────────────────────
+  // touchend fires immediately when finger lifts; click has up to 300ms delay.
+  // Scroll guard: if finger moved >8px vertically, treat as scroll not tap.
+  (function _fastTap() {
+    const _list = document.getElementById("tune-list");
+    if (!_list) return;
+    let _startY = 0, _moved = false;
+    _list.addEventListener("touchstart", e => {
+      _startY = e.touches[0].clientY;
+      _moved  = false;
+    }, { passive: true });
+    _list.addEventListener("touchmove", e => {
+      if (Math.abs(e.touches[0].clientY - _startY) > 8) _moved = true;
+    }, { passive: true });
+    _list.addEventListener("touchend", e => {
+      if (_moved) return;
+      const card = e.target.closest(".tune-card");
+      if (!card) return;
+      if (e.target.closest("button")) return;  // let button handlers fire normally
+      e.preventDefault();
+      card.click();
+    }, { passive: false });
+  })();
+
 })();

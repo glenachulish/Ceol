@@ -3995,7 +3995,10 @@ function openAbcFullscreen(abc, title, opts = {}) {
         const ctrl = _abcFsOverlay.querySelector(".abc-fullscreen-controls")
                   || document.getElementById("abc-fs-audio");
         if (!ctrl) return;
-        ctrl.style.display = ctrl.style.display === "none" ? "" : "none";
+        // Use getComputedStyle so this works in both portrait (CSS shows controls)
+        // and landscape (CSS hides controls via media query, inline style is empty)
+        const shown = window.getComputedStyle(ctrl).display !== "none";
+        ctrl.style.setProperty("display", shown ? "none" : "block", "important");
       });
     }
 
