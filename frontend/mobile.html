@@ -950,20 +950,15 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=290"></script>
-  <script src="/static/mobile.js?v=34"></script>
-  <script>
+  <script src="/static/app.js?v=291"></script>
+  <script src="/static/mobile.js?v=35"></script>
+    <script>
+    // Unregister any existing service workers (they caused stale cache issues)
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").then(reg => {
-        // When a new SW activates (e.g. after a code update), reload so the
-        // fresh HTML/JS/CSS is fetched instead of any stale cached version.
-        reg.addEventListener("updatefound", () => {
-          const sw = reg.installing;
-          sw.addEventListener("statechange", () => {
-            if (sw.state === "activated") window.location.reload();
-          });
-        });
-      }).catch(() => {});
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(r => r.unregister());
+      });
+      caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
     }
   </script>
 </body>
