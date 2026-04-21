@@ -3956,6 +3956,13 @@ function _fsMeasureClickHandler(e) {
 let _fsCurrentOpts = null;
 let _fsResizeHandler = null;
 
+
+// Global fullscreen More button toggle — called from HTML onclick + ontouchstart
+window._ceolMoreToggle = function(e) {
+  if (e) { e.stopPropagation(); }
+  const overlay = document.getElementById("abc-fullscreen-overlay");
+  if (overlay) overlay.classList.toggle("fs-ctrl-hidden");
+};
 function openAbcFullscreen(abc, title, opts = {}) {
   _fsCurrentOpts = arguments[0];  // store for resize re-render
   const { tuneRanges = null, tuneColors = null, tuneNames = null, tuneAbcs = null, initialWarp = null, pracSettings = null } = opts;
