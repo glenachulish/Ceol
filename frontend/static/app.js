@@ -2762,7 +2762,7 @@ function renderModal(tune, onBack = null, siblings = null) {
       renderSheetMusic(tune.abc);
 
   // ── Transpose controls ────────────────────────────────────────────────
-  let _transposeSteps = 0;
+  let _transposeSteps = tune.transpose || 0;
   const _transposeLabel = document.getElementById("transpose-label");
   const _transposeUp    = document.getElementById("transpose-up-btn");
   const _transposeDown  = document.getElementById("transpose-down-btn");
@@ -2771,9 +2771,24 @@ function renderModal(tune, onBack = null, siblings = null) {
     if (_transposeLabel) _transposeLabel.textContent = _transposeSteps > 0 ? "+" + _transposeSteps : String(_transposeSteps);
     if (tune.abc) renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
   }
-  _transposeUp?.addEventListener("click",    () => { _transposeSteps++; _applyTranspose(); });
-  _transposeDown?.addEventListener("click",  () => { _transposeSteps--; _applyTranspose(); });
-  _transposeReset?.addEventListener("click", () => { _transposeSteps = 0; _applyTranspose(); });
+  async function _saveTranspose() {
+    try {
+      await apiFetch(`/api/tunes/${tune.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transpose: _transposeSteps }),
+      });
+      // Update local state so it persists in current session
+      if (state.tunes) {
+        const t = state.tunes.find(t => String(t.id) === String(tune.id));
+        if (t) t.transpose = _transposeSteps;
+      }
+    } catch { /* ignore save failures */ }
+  }
+
+  _transposeUp?.addEventListener("click",    () => { _transposeSteps++; _applyTranspose(); _saveTranspose(); });
+  _transposeDown?.addEventListener("click",  () => { _transposeSteps--; _applyTranspose(); _saveTranspose(); });
+  _transposeReset?.addEventListener("click", () => { _transposeSteps = 0; _applyTranspose(); _saveTranspose(); });
 
     }
   });
