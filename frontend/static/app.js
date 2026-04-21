@@ -935,6 +935,8 @@ function renderTunes(data) {
     const stars = [1,2,3,4,5].map(n =>
       `<button class="star-btn${rating >= n ? " filled" : ""}" data-n="${n}" tabindex="-1">★</button>`
     ).join("");
+    const _cardMasteryLabels = ["","Just starting","Getting there","Almost there","Know it well","Nailed it!"];
+    const masteryText = rating ? `${"★".repeat(rating)} <span class="card-mastery-label">${_cardMasteryLabels[rating]}</span>` : "";
     const isFav = t.is_favourite || 0;
     return `
       <article class="tune-card${t.on_hitlist ? " on-hitlist" : ""}" data-id="${t.id}" data-versions="${vCount}"
@@ -946,6 +948,7 @@ function renderTunes(data) {
                 title="${isFav ? "Remove from favourites" : "Add to favourites"}">👍</button>
         <div class="card-title${t.on_hitlist ? " hitlist-title" : ""}">${escHtml(t.title)}</div>
         <div class="card-meta">${typeLabel}${keyLabel}${versionBadge}</div>
+        <div class="card-mastery">${masteryText}</div>
         <div class="card-stars">${stars}</div>
 
       </article>`;

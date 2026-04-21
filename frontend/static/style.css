@@ -362,6 +362,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .star-btn:hover { color: #f59e0b; transform: scale(1.2); }
 .tune-card:hover .star-btn { color: var(--text-muted); }
 .tune-card:hover .star-btn.filled { color: #f59e0b; }
+/* ── Card mastery label (shown on mobile only, replaces star buttons) ── */
+.card-mastery { display: none; }
+
 
 /* ── Hitlist button (cards) ───────────────────────────────── */
 .hitlist-btn {

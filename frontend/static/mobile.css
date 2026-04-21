@@ -245,14 +245,24 @@
   /* larger tap target */
 }
 
-/* Star buttons: always visible on mobile (no hover) */
-.mobile-body .star-btn { color: var(--border); }
-.mobile-body .star-btn.filled { color: #f59e0b; }
+/* Star buttons: hidden on mobile — mastery label shown instead */
+.mobile-body .card-stars { display: none; }
+.mobile-body .card-mastery {
+  display: block;
+  font-size: .82rem;
+  color: var(--text-muted);
+  margin-top: .3rem;
+  min-height: 1.1em;
+  letter-spacing: .02em;
+}
+.mobile-body .card-mastery-label {
+  font-style: italic;
+  margin-left: .1em;
+}
+/* Hitlist button: hidden until active on mobile */
 .mobile-body .hitlist-btn { opacity: 0; transition: opacity .15s; }
 .mobile-body .hitlist-btn.active { opacity: 1; }
 .mobile-body .tune-card:active .hitlist-btn { opacity: .5; }
-.mobile-body .tune-delete-btn { opacity: 0; }
-.mobile-body .tune-card:active .tune-delete-btn { opacity: 1; }
 
 /* ── Modals: full-screen on mobile ─────────────────────────── */
 .mobile-body .modal-overlay {
