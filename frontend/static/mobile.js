@@ -397,20 +397,9 @@
     }, { passive: false });
   })();
 
-  // ── Fullscreen More button: inline onclick (most reliable on iOS) ──────────
-  // setAttribute("onclick") bypasses all event listener machinery.
-  // Clone first to strip app.js's addEventListener click handler.
+  // ── Fullscreen overlay: fast-tap for buttons (Exit, bar controls, etc.) ────
+  // More button is handled via onclick in HTML — no JS needed there.
   (function _fsFastTap() {
-    const _fsOld = document.getElementById("abc-fs-more-btn");
-    if (!_fsOld) return;
-    const _fsNew = _fsOld.cloneNode(true);
-    _fsOld.parentNode.replaceChild(_fsNew, _fsOld);
-    _fsNew.dataset.wired = "1";
-    // Inline onclick — fires directly, no listener chain
-    _fsNew.setAttribute("onclick",
-      "document.getElementById('abc-fullscreen-overlay').classList.toggle('fs-ctrl-hidden')");
-
-    // Fast-tap for other fullscreen buttons (Exit, bar controls, etc.)
     const _fs = document.getElementById("abc-fullscreen-overlay");
     if (!_fs) return;
     let _fy = 0, _fm = false;
@@ -423,7 +412,7 @@
     _fs.addEventListener("touchend", e => {
       if (_fm) return;
       const btn = e.target.closest("button:not([disabled])");
-      if (!btn || btn.id === "abc-fs-more-btn") return;
+      if (!btn || btn.id === "abc-fs-more-btn") return; // More has its own onclick
       e.preventDefault();
       btn.click();
     }, { passive: false });
