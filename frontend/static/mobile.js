@@ -397,8 +397,39 @@
     }, { passive: false });
   })();
 
-  // ── Fullscreen overlay: instant button taps (More, Exit, bar controls) ──────
+  // ── Fullscreen More button: clone to strip app.js click listener ───────────
+  // iOS PWA fires click AFTER touchend even with e.preventDefault(), so app.js's
+  // click handler undoes our touchend toggle. Cloning removes all existing listeners.
   (function _fsFastTap() {
+    const _fsOld = document.getElementById("abc-fs-more-btn");
+    if (!_fsOld) return;
+
+    // Clone strips all existing event listeners
+    const _fsNew = _fsOld.cloneNode(true);
+    _fsOld.parentNode.replaceChild(_fsNew, _fsOld);
+    // Prevent app.js re-wiring on subsequent openAbcFullscreen calls
+    _fsNew.dataset.wired = "1";
+
+    function _toggleFsControls() {
+      const overlay = document.getElementById("abc-fullscreen-overlay");
+      const ctrl = overlay && overlay.querySelector(".abc-fullscreen-controls");
+      if (!ctrl) return;
+      const shown = window.getComputedStyle(ctrl).display !== "none";
+      ctrl.style.cssText = shown
+        ? "display:none!important"
+        : "display:flex!important;flex-direction:column";
+    }
+
+    _fsNew.addEventListener("touchend", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      _toggleFsControls();
+    }, { passive: false });
+
+    // click handler for desktop / non-PWA fallback
+    _fsNew.addEventListener("click", _toggleFsControls);
+
+    // Also wire fast-tap on other fullscreen buttons (Exit, bar controls)
     const _fs = document.getElementById("abc-fullscreen-overlay");
     if (!_fs) return;
     let _fy = 0, _fm = false;
@@ -411,18 +442,7 @@
     _fs.addEventListener("touchend", e => {
       if (_fm) return;
       const btn = e.target.closest("button:not([disabled])");
-      if (!btn) return;
-      // More button: handle toggle directly (getComputedStyle)
-      if (btn.id === "abc-fs-more-btn") {
-        e.preventDefault();
-        const ctrl = _fs.querySelector(".abc-fullscreen-controls");
-        if (!ctrl) return;
-        const shown = window.getComputedStyle(ctrl).display !== "none";
-        ctrl.style.cssText = shown
-          ? "display:none!important"
-          : "display:flex!important;flex-direction:column";
-        return;
-      }
+      if (!btn || btn.id === "abc-fs-more-btn") return; // More handled above
       e.preventDefault();
       btn.click();
     }, { passive: false });
