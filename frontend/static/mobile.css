@@ -778,3 +778,10 @@
     display: block !important;
   }
 }
+
+/* Instant tap: no long-press callout, no text selection on tune cards */
+.mobile-body .tune-card {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
