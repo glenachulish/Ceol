@@ -373,25 +373,59 @@
     }, { passive: false });
   })();
 
-  // ── Fullscreen More button: direct touch handler ───────────────────────────
-  // Directly attached to the button so it fires instantly on touchend.
-  (function _fsMoreBtn() {
-    const _btn = document.getElementById("abc-fs-more-btn");
-    if (!_btn) return;
-    function _toggle(e) {
+
+
+  // ── Modal overlay: instant button taps ──────────────────────────────────────
+  // All buttons inside modals get touchend→click forwarding so PWA tap delay
+  // doesn't affect set More, export buttons, etc.
+  (function _modalFastTap() {
+    const _ovl = document.getElementById("modal-overlay");
+    if (!_ovl) return;
+    let _my = 0, _mm = false;
+    _ovl.addEventListener("touchstart", e => {
+      _my = e.touches[0].clientY; _mm = false;
+    }, { passive: true });
+    _ovl.addEventListener("touchmove", e => {
+      if (Math.abs(e.touches[0].clientY - _my) > 8) _mm = true;
+    }, { passive: true });
+    _ovl.addEventListener("touchend", e => {
+      if (_mm) return;
+      const btn = e.target.closest("button:not([disabled])");
+      if (!btn) return;
       e.preventDefault();
-      e.stopPropagation();
-      const overlay = document.getElementById("abc-fullscreen-overlay");
-      const ctrl = overlay && overlay.querySelector(".abc-fullscreen-controls");
-      if (!ctrl) return;
-      const shown = window.getComputedStyle(ctrl).display !== "none";
-      // cssText with !important reliably overrides any CSS media query
-      ctrl.style.cssText = shown
-        ? "display:none!important"
-        : "display:flex!important;flex-direction:column";
-    }
-    _btn.addEventListener("touchend", _toggle, { passive: false });
-    _btn.addEventListener("click",    _toggle);  // desktop fallback
+      btn.click();
+    }, { passive: false });
+  })();
+
+  // ── Fullscreen overlay: instant button taps (More, Exit, bar controls) ──────
+  (function _fsFastTap() {
+    const _fs = document.getElementById("abc-fullscreen-overlay");
+    if (!_fs) return;
+    let _fy = 0, _fm = false;
+    _fs.addEventListener("touchstart", e => {
+      _fy = e.touches[0].clientY; _fm = false;
+    }, { passive: true });
+    _fs.addEventListener("touchmove", e => {
+      if (Math.abs(e.touches[0].clientY - _fy) > 8) _fm = true;
+    }, { passive: true });
+    _fs.addEventListener("touchend", e => {
+      if (_fm) return;
+      const btn = e.target.closest("button:not([disabled])");
+      if (!btn) return;
+      // More button: handle toggle directly (getComputedStyle)
+      if (btn.id === "abc-fs-more-btn") {
+        e.preventDefault();
+        const ctrl = _fs.querySelector(".abc-fullscreen-controls");
+        if (!ctrl) return;
+        const shown = window.getComputedStyle(ctrl).display !== "none";
+        ctrl.style.cssText = shown
+          ? "display:none!important"
+          : "display:flex!important;flex-direction:column";
+        return;
+      }
+      e.preventDefault();
+      btn.click();
+    }, { passive: false });
   })();
 
 })();
