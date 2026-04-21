@@ -3991,14 +3991,8 @@ function openAbcFullscreen(abc, title, opts = {}) {
     if (_fsMB && !_fsMB.dataset.wired) {
       _fsMB.dataset.wired = "1";
       _fsMB.addEventListener("click", () => {
-        // Try fullscreen-controls wrapper first, fall back to abc-fs-audio
-        const ctrl = _abcFsOverlay.querySelector(".abc-fullscreen-controls")
-                  || document.getElementById("abc-fs-audio");
-        if (!ctrl) return;
-        // Use getComputedStyle so this works in both portrait (CSS shows controls)
-        // and landscape (CSS hides controls via media query, inline style is empty)
-        const shown = window.getComputedStyle(ctrl).display !== "none";
-        ctrl.style.setProperty("display", shown ? "none" : "block", "important");
+        // CSS class toggle — also handled by inline onclick for iOS reliability
+        _abcFsOverlay.classList.toggle("fs-ctrl-hidden");
       });
     }
 
