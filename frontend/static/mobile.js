@@ -373,4 +373,22 @@
     }, { passive: false });
   })();
 
+  // ── Fullscreen More button: mobile touch fix ────────────────────────────────
+  // app.js wires this with click-only, which has PWA tap delay.
+  // We use touchend delegation on the overlay instead.
+  (function _fsMoreBtn() {
+    const _fsOvl = document.getElementById("abc-fullscreen-overlay");
+    if (!_fsOvl) return;
+    _fsOvl.addEventListener("touchend", e => {
+      const btn = e.target.closest("#abc-fs-more-btn");
+      if (!btn) return;
+      e.preventDefault();
+      const ctrl = _fsOvl.querySelector(".abc-fullscreen-controls");
+      if (!ctrl) return;
+      // getComputedStyle works in both portrait (CSS shows) and landscape (CSS hides)
+      const shown = window.getComputedStyle(ctrl).display !== "none";
+      ctrl.style.setProperty("display", shown ? "none" : "flex", "important");
+    }, { passive: false });
+  })();
+
 })();
