@@ -3894,3 +3894,9 @@ a.bandcamp-link:hover { opacity: .85; }
   visibility: visible !important;
   opacity: 1 !important;
 }
+
+/* Prevent iOS double-tap zoom on fullscreen header buttons */
+.abc-fullscreen-overlay button,
+#abc-fs-more-btn {
+  touch-action: manipulation;
+}
