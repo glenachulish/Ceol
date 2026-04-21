@@ -3905,3 +3905,61 @@ a.bandcamp-link:hover { opacity: .85; }
 .abc-fullscreen-overlay.fs-ctrl-hidden .abc-fullscreen-controls {
   display: none !important;
 }
+
+/* ── Set tune list: title as hyperlink ─────────────────── */
+.set-tune-title.tune-open-btn {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 .2rem;
+  text-align: left;
+}
+.set-tune-title.tune-open-btn:hover { opacity: .75; }
+
+/* ── Set tune list: mastery label ──────────────────────── */
+.tune-mastery-label {
+  font-size: .72rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-left: .25rem;
+  white-space: nowrap;
+}
+
+/* ── Set tune list: visible remove button ──────────────── */
+.remove-from-set {
+  color: var(--danger, #dc2626);
+  border-color: var(--danger, #dc2626);
+  opacity: .7;
+  font-size: .78rem;
+  padding: .15rem .4rem;
+}
+.remove-from-set:hover { opacity: 1; }
+
+/* ── Full set modal: track item remove button ───────────── */
+.set-track-item {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: nowrap;
+}
+.set-track-remove {
+  color: var(--danger, #dc2626);
+  border-color: var(--danger, #dc2626);
+  opacity: .6;
+  font-size: .78rem;
+  padding: .1rem .3rem;
+}
+.set-track-remove:hover { opacity: 1; }
+
+/* ── Full set modal: add tune panel ─────────────────────── */
+.set-track-add-results {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
