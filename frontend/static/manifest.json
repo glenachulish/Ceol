@@ -1,24 +1,25 @@
 {
-  "name": "Ceòl – Trad Music",
+  "name": "Ceòl Traidiseanta",
   "short_name": "Ceòl",
-  "description": "Your personal trad music library — tunes, sets, and sheet music.",
+  "description": "Traditional Irish & Scottish music library",
   "start_url": "/mobile",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0f0f13",
-  "theme_color": "#0f0f13",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "background_color": "#1a1a2e",
+  "theme_color": "#2d6a4f",
   "icons": [
     {
-      "src": "/static/icons/icon-192.png",
-      "sizes": "192x192",
+      "src": "/static/apple-touch-icon.png",
+      "sizes": "180x180",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/static/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }
