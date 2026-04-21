@@ -807,6 +807,8 @@ class TuneUpdate(BaseModel):
     composer: Optional[str] = None
     transcribed_by: Optional[str] = None
     session_id: Optional[str] = None
+    transpose:    Optional[int]   = None
+
 
 
 @app.patch("/api/tunes/{tune_id}")
