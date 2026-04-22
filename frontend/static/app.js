@@ -2793,35 +2793,12 @@ function renderModal(tune, onBack = null, siblings = null) {
   }
 
   function _applyTransposeOnly() {
-    // Re-render visual only, then update existing synth with new visualObj
-    // This avoids destroying/recreating the AudioContext on every transpose press
+    // Update label, then do a full renderSheetMusic so BOTH visual AND audio
+    // are transposed. abcjs visualTranspose only affects the display when passed
+    // to renderAbc — a full re-render with synth reinit is required for audio.
+    // This is safe because patch 9p fixed the _modalFastTap double-fire issue.
     if (_transposeLabel) _transposeLabel.textContent = _transposeSteps > 0 ? "+" + _transposeSteps : String(_transposeSteps);
-    if (!tune.abc) return;
-    const container = document.getElementById("sheet-music-render");
-    if (!container || typeof ABCJS === "undefined") return;
-    const _processedAbc = expandAbcRepeats(_injectChordProg(tune.abc));
-    const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
-      responsive: "resize",
-      visualTranspose: _transposeSteps,
-      wrap: { preferredMeasuresPerLine: 4 },
-      add_classes: true,
-      paddingbottom: 10, paddingleft: 15, paddingright: 15, paddingtop: 10,
-      selectTypes: false,
-      foregroundColor: "#000000",
-    });
-    _patchSvgViewBox("sheet-music-render");
-    _visualObj = visualObjs?.[0];
-    requestAnimationFrame(() => { _barMap = _buildBarMap(); _applyHighlights(); });
-    // Update synth with new visual object if it exists, else do full reinit
-    if (_synthController && _visualObj) {
-      const _setTuneOpts = { program: _melodyProgram, chordsOff: _chordsOff };
-      _synthController.setTune(_visualObj, false, _setTuneOpts).catch(() => {
-        // Fallback: full reinit if setTune fails
-        renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
-      });
-    } else {
-      renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
-    }
+    if (tune.abc) renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
   }
 
   _transposeUp?.addEventListener("click",    () => { _transposeSteps++; _applyTransposeOnly(); _saveTranspose(); });
