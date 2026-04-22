@@ -414,6 +414,7 @@
       if (_fm) return;
       const btn = e.target.closest("button:not([disabled])");
       if (!btn || btn.id === "abc-fs-more-btn") return; // More has its own onclick
+      if (btn.closest(".abcjs-inline-audio")) return; // let abcjs handle its own buttons
       e.preventDefault();
       btn.click();
     }, { passive: false });
