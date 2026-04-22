@@ -392,6 +392,7 @@
       if (_mm) return;
       const btn = e.target.closest("button:not([disabled])");
       if (!btn) return;
+      if (btn.closest(".abcjs-inline-audio")) return; // let abcjs handle its own buttons
       e.preventDefault();
       btn.click();
     }, { passive: false });
