@@ -1195,10 +1195,11 @@ function renderModal(tune, onBack = null, siblings = null) {
         ${tune.abc ? `<div class="sheet-music-toolbar">
           <button id="abc-fs-btn" class="btn-secondary btn-sm" title="Full screen sheet music">⛶ Full screen</button>
           <span class="transpose-inline-row">
-            <button id="transpose-down-btn" class="btn-secondary btn-sm" title="Down 1 semitone">♭−</button>
+            <span class="transpose-inline-title">Transpose:</span>
+            <button id="transpose-down-btn" class="btn-secondary btn-sm" title="Down 1 semitone">▼ Down</button>
             <span id="transpose-label" class="transpose-inline-label">0</span>
-            <button id="transpose-up-btn" class="btn-secondary btn-sm" title="Up 1 semitone">♯+</button>
-            <button id="transpose-reset-btn" class="btn-secondary btn-sm transpose-reset-btn" title="Reset transpose">↺</button>
+            <button id="transpose-up-btn" class="btn-secondary btn-sm" title="Up 1 semitone">▲ Up</button>
+            <button id="transpose-reset-btn" class="btn-secondary btn-sm transpose-reset-btn" title="Reset to original key">Reset</button>
           </span>
         </div>` : ""}
         <div class="sheet-music-wrap">
@@ -2773,7 +2774,8 @@ function renderModal(tune, onBack = null, siblings = null) {
   const _transposeDown  = document.getElementById("transpose-down-btn");
   const _transposeReset = document.getElementById("transpose-reset-btn");
   function _applyTranspose() {
-    if (_transposeLabel) _transposeLabel.textContent = _transposeSteps > 0 ? "+" + _transposeSteps : String(_transposeSteps);
+    _applyTransposeOnly();
+    return; // handled by _applyTransposeOnly
     if (tune.abc) renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
   }
   async function _saveTranspose() {
@@ -2783,7 +2785,6 @@ function renderModal(tune, onBack = null, siblings = null) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transpose: _transposeSteps }),
       });
-      // Update local state so it persists in current session
       if (state.tunes) {
         const t = state.tunes.find(t => String(t.id) === String(tune.id));
         if (t) t.transpose = _transposeSteps;
@@ -2791,9 +2792,41 @@ function renderModal(tune, onBack = null, siblings = null) {
     } catch { /* ignore save failures */ }
   }
 
-  _transposeUp?.addEventListener("click",    () => { _transposeSteps++; _applyTranspose(); _saveTranspose(); });
-  _transposeDown?.addEventListener("click",  () => { _transposeSteps--; _applyTranspose(); _saveTranspose(); });
-  _transposeReset?.addEventListener("click", () => { _transposeSteps = 0; _applyTranspose(); _saveTranspose(); });
+  function _applyTransposeOnly() {
+    // Re-render visual only, then update existing synth with new visualObj
+    // This avoids destroying/recreating the AudioContext on every transpose press
+    if (_transposeLabel) _transposeLabel.textContent = _transposeSteps > 0 ? "+" + _transposeSteps : String(_transposeSteps);
+    if (!tune.abc) return;
+    const container = document.getElementById("sheet-music-render");
+    if (!container || typeof ABCJS === "undefined") return;
+    const _processedAbc = expandAbcRepeats(_injectChordProg(tune.abc));
+    const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
+      responsive: "resize",
+      visualTranspose: _transposeSteps,
+      wrap: { preferredMeasuresPerLine: 4 },
+      add_classes: true,
+      paddingbottom: 10, paddingleft: 15, paddingright: 15, paddingtop: 10,
+      selectTypes: false,
+      foregroundColor: "#000000",
+    });
+    _patchSvgViewBox("sheet-music-render");
+    _visualObj = visualObjs?.[0];
+    requestAnimationFrame(() => { _barMap = _buildBarMap(); _applyHighlights(); });
+    // Update synth with new visual object if it exists, else do full reinit
+    if (_synthController && _visualObj) {
+      const _setTuneOpts = { program: _melodyProgram, chordsOff: _chordsOff };
+      _synthController.setTune(_visualObj, false, _setTuneOpts).catch(() => {
+        // Fallback: full reinit if setTune fails
+        renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
+      });
+    } else {
+      renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
+    }
+  }
+
+  _transposeUp?.addEventListener("click",    () => { _transposeSteps++; _applyTransposeOnly(); _saveTranspose(); });
+  _transposeDown?.addEventListener("click",  () => { _transposeSteps--; _applyTransposeOnly(); _saveTranspose(); });
+  _transposeReset?.addEventListener("click", () => { _transposeSteps = 0; _applyTransposeOnly(); _saveTranspose(); });
 
     }
   });
