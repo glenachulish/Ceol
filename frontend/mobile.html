@@ -15,7 +15,7 @@
   <script>
     (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);})();
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=122" />
+  <link rel="stylesheet" href="/static/style.css?v=123" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
   <link rel="stylesheet" href="/static/mobile.css?v=33" />
 </head>
@@ -45,7 +45,11 @@
                   aria-label="Toggle filters" title="Filters">⚙</button>
         </div>
 
-        <div id="m-filter-drawer" class="m-filter-drawer">
+          <div class="m-quick-filters">
+    <button id="quick-fav-btn" class="btn-secondary btn-sm quick-filter-btn" data-filter="fav" title="Show favourites">👍 Favs</button>
+    <button id="quick-hitlist-btn" class="btn-secondary btn-sm quick-filter-btn" data-filter="hitlist" title="Show hitlist">📌 Hitlist</button>
+  </div>
+  <div id="m-filter-drawer" class="m-filter-drawer">
           <div class="m-filter-grid">
             <select id="filter-type"><option value="">All types</option></select>
             <select id="filter-key"><option value="">All keys</option></select>
@@ -951,8 +955,8 @@
   </div>
 
   <script src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=297"></script>
-  <script src="/static/mobile.js?v=40"></script>
+  <script src="/static/app.js?v=298"></script>
+  <script src="/static/mobile.js?v=41"></script>
     <script>
     // Unregister any existing service workers (they caused stale cache issues)
     if ("serviceWorker" in navigator) {

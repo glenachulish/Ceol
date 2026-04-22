@@ -1192,7 +1192,15 @@ function renderModal(tune, onBack = null, siblings = null) {
     </div>
 
           <div id="tab-music" class="tab-panel">
-        ${tune.abc ? `<div style="display:flex;justify-content:flex-end;margin-bottom:.3rem"><button id="abc-fs-btn" class="btn-secondary btn-sm" title="Full screen sheet music">⛶ Full screen</button></div>` : ""}
+        ${tune.abc ? `<div class="sheet-music-toolbar">
+          <button id="abc-fs-btn" class="btn-secondary btn-sm" title="Full screen sheet music">⛶ Full screen</button>
+          <span class="transpose-inline-row">
+            <button id="transpose-down-btn" class="btn-secondary btn-sm" title="Down 1 semitone">♭−</button>
+            <span id="transpose-label" class="transpose-inline-label">0</span>
+            <button id="transpose-up-btn" class="btn-secondary btn-sm" title="Up 1 semitone">♯+</button>
+            <button id="transpose-reset-btn" class="btn-secondary btn-sm transpose-reset-btn" title="Reset transpose">↺</button>
+          </span>
+        </div>` : ""}
         <div class="sheet-music-wrap">
         <div id="sheet-music-render"></div>
         <div id="sheet-music-render-hidden" style="display:none;height:0;overflow:hidden"></div>
@@ -1256,10 +1264,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         </div>
         <div class="transpose-row" style="display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border-bottom:1px solid var(--border)">
           <span style="font-size:.8rem;color:var(--text-muted);flex:1">Transpose</span>
-          <button id="transpose-down-btn" class="btn-secondary btn-sm" title="Down 1 semitone">♭ −</button>
-          <span id="transpose-label" style="min-width:2.5rem;text-align:center;font-size:.85rem;font-weight:600">0</span>
-          <button id="transpose-up-btn" class="btn-secondary btn-sm" title="Up 1 semitone">♯ +</button>
-          <button id="transpose-reset-btn" class="btn-secondary btn-sm" title="Reset">Reset</button>
+          <!-- transpose controls moved to sheet music toolbar above -->
         </div>
       ${tune.abc ? `<div class="instrument-controls-row">
         <div id="melody-controls" class="chord-controls">
@@ -11859,4 +11864,31 @@ document.addEventListener("click", function(e) {
     });
     tunerBtn?.addEventListener("click", () => window._openTuner());
   });
+})();
+
+// Quick Favourites / Hitlist buttons in library header
+(function _wireQuickFilters() {
+  const favBtn     = document.getElementById("quick-fav-btn");
+  const hitlistBtn = document.getElementById("quick-hitlist-btn");
+  if (!favBtn && !hitlistBtn) return;
+
+  function _syncQuickBtns() {
+    const favActive     = filterFavouriteBtn?.classList.contains("active");
+    const hitlistActive = filterHitlistBtn?.classList.contains("active");
+    favBtn?.classList.toggle("active", !!favActive);
+    hitlistBtn?.classList.toggle("active", !!hitlistActive);
+  }
+
+  favBtn?.addEventListener("click", () => {
+    filterFavouriteBtn?.click();
+    setTimeout(_syncQuickBtns, 50);
+  });
+  hitlistBtn?.addEventListener("click", () => {
+    filterHitlistBtn?.click();
+    setTimeout(_syncQuickBtns, 50);
+  });
+
+  // Keep in sync when main filter buttons are clicked
+  filterFavouriteBtn?.addEventListener("click", () => setTimeout(_syncQuickBtns, 50));
+  filterHitlistBtn?.addEventListener("click",   () => setTimeout(_syncQuickBtns, 50));
 })();
