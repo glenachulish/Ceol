@@ -2765,7 +2765,7 @@ function renderModal(tune, onBack = null, siblings = null) {
   // Render sheet music after paint (skip if no ABC — PDF or empty)
   requestAnimationFrame(() => {
     if (tune.abc) {
-      renderSheetMusic(tune.abc);
+      renderSheetMusic(tune.abc, { visualTranspose: tune.transpose || 0 });
 
   // ── Transpose controls ────────────────────────────────────────────────
   let _transposeSteps = tune.transpose || 0;
@@ -2851,7 +2851,7 @@ function renderModal(tune, onBack = null, siblings = null) {
   if (abcFsBtn) {
     abcFsBtn.addEventListener("click", () => {
       if (_synthController) { try { _synthController.pause(); } catch {} }
-      openAbcFullscreen(tune.abc, tune.title);
+      openAbcFullscreen(tune.abc, tune.title, { transposeSteps: _transposeSteps });
     });
   }
 }
@@ -3645,13 +3645,33 @@ function renderSheetMusic(abc, opts = {}) {
     // Inject %%chordprog (header) for chord instrument; melody program is passed
     // via setTune program: option so no ABC injection is needed for melody.
     const _processedAbc = expandAbcRepeats(_injectChordProg(abc));
+    const _xposeN = opts.visualTranspose || 0;
+    // _synthAbc: same as _processedAbc but with %%MIDI transpose injected so the
+    // synth plays at the correct transposed pitch (visualTranspose is display-only).
+    const _synthAbc = (() => {
+      if (!_xposeN) return _processedAbc;
+      if (/^X:[^\n]*\n/m.test(_processedAbc))
+        return _processedAbc.replace(/^(X:[^\n]*\n)/m, `$1%%MIDI transpose ${_xposeN}\n`);
+      return `%%MIDI transpose ${_xposeN}\n` + _processedAbc;
+    })();
+    // Hidden render: used solely to give the synth a visual object with correct MIDI pitch.
+    let _hiddenDiv = document.getElementById("sheet-music-render-hidden");
+    if (!_hiddenDiv) {
+      _hiddenDiv = document.createElement("div");
+      _hiddenDiv.id = "sheet-music-render-hidden";
+      _hiddenDiv.style.cssText = "position:absolute;left:-9999px;width:800px;height:1px;overflow:hidden;pointer-events:none;";
+      document.body.appendChild(_hiddenDiv);
+    }
+    const _hiddenObjs = ABCJS.renderAbc("sheet-music-render-hidden", _synthAbc, { add_classes: true, staffwidth: 800 });
+    if (!_hiddenObjs?.length) return;
+    _visualObj = _hiddenObjs[0];
     // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
     // when called from inside a modal (ResizeObserver quirk).
     // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
     // Fallback to 600 so narrow/unmeasured containers still render full staves.
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
       responsive: "resize",
-        visualTranspose: opts.visualTranspose || 0,
+      visualTranspose: _xposeN,
       wrap: { preferredMeasuresPerLine: 4 },
       add_classes: true,
       paddingbottom: 10,
@@ -3667,8 +3687,6 @@ function renderSheetMusic(abc, opts = {}) {
       _barMap = _buildBarMap();
       _applyHighlights();
     });
-
-    _visualObj = visualObjs[0];
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
       ? _visualObj.millisecondsPerMeasure()
       : null;
@@ -3994,6 +4012,7 @@ window._ceolMoreToggle = function(e) {
   if (overlay) overlay.classList.toggle("fs-ctrl-hidden");
 };
 function openAbcFullscreen(abc, title, opts = {}) {
+  const transposeSteps = opts.transposeSteps || 0;
   _fsCurrentOpts = arguments[0];  // store for resize re-render
   const { tuneRanges = null, tuneColors = null, tuneNames = null, tuneAbcs = null, initialWarp = null, pracSettings = null } = opts;
   _abcFsTitleEl.textContent = title || "";
@@ -4102,7 +4121,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
         hiddenDiv.style.cssText = "position:absolute;left:-9999px;width:600px;height:1px;overflow:hidden;pointer-events:none;";
         document.body.appendChild(hiddenDiv);
       }
-      const hiddenVisuals = ABCJS.renderAbc("abc-fs-hidden-render", abcToRender, { add_classes: true, staffwidth: 600 });
+      const hiddenVisuals = ABCJS.renderAbc("abc-fs-hidden-render", abcToRender, { add_classes: true, staffwidth: 600, visualTranspose: transposeSteps });
       _abcFsVisualObj = hiddenVisuals && hiddenVisuals[0] ? hiddenVisuals[0] : null;
       // Build hidden→visible note map (by index) for cursor highlighting
       const hiddenNotes = [...document.querySelectorAll("#abc-fs-hidden-render .abcjs-note")];
@@ -4129,6 +4148,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
         wrap: { preferredMeasuresPerLine: measuresPerLine },
         add_classes: true,
         paddingbottom: 10, paddingleft: 10, paddingright: 10, paddingtop: 10,
+        visualTranspose: transposeSteps,
         staffwidth: staffWidth,
         selectTypes: false,
         foregroundColor: "#000000",
