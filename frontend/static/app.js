@@ -36,8 +36,8 @@ const filterKey        = document.getElementById("filter-key");
 const filterMode       = document.getElementById("filter-mode");
 const filterComposer   = document.getElementById("filter-composer");
 const filterRating     = document.getElementById("filter-rating");
-const filterHitlistBtn   = document.getElementById("filter-hitlist-btn");
-const filterFavouriteBtn = document.getElementById("filter-favourite-btn");
+const filterHitlistBtn   = document.getElementById("quick-hitlist-btn");
+const filterFavouriteBtn = document.getElementById("quick-fav-btn");
 const clearBtn           = document.getElementById("clear-btn");
 const selectModeBtn    = document.getElementById("select-mode-btn");
 const bulkBar          = document.getElementById("bulk-bar");
@@ -11955,29 +11955,4 @@ document.addEventListener("click", function(e) {
   });
 })();
 
-// Quick Favourites / Hitlist buttons in library header
-(function _wireQuickFilters() {
-  const favBtn     = document.getElementById("quick-fav-btn");
-  const hitlistBtn = document.getElementById("quick-hitlist-btn");
-  if (!favBtn && !hitlistBtn) return;
 
-  function _syncQuickBtns() {
-    const favActive     = filterFavouriteBtn?.classList.contains("active");
-    const hitlistActive = filterHitlistBtn?.classList.contains("active");
-    favBtn?.classList.toggle("active", !!favActive);
-    hitlistBtn?.classList.toggle("active", !!hitlistActive);
-  }
-
-  favBtn?.addEventListener("click", () => {
-    filterFavouriteBtn?.click();
-    setTimeout(_syncQuickBtns, 50);
-  });
-  hitlistBtn?.addEventListener("click", () => {
-    filterHitlistBtn?.click();
-    setTimeout(_syncQuickBtns, 50);
-  });
-
-  // Keep in sync when main filter buttons are clicked
-  filterFavouriteBtn?.addEventListener("click", () => setTimeout(_syncQuickBtns, 50));
-  filterHitlistBtn?.addEventListener("click",   () => setTimeout(_syncQuickBtns, 50));
-})();

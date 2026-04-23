@@ -102,9 +102,9 @@
     const hasFilter =
       document.getElementById("filter-type").value ||
       document.getElementById("filter-key").value ||
-      document.getElementById("filter-mode").value ||
+      document.getElementById("filter-mode")?.value ||
       document.getElementById("filter-rating").value ||
-      document.getElementById("filter-hitlist-btn").classList.contains("active");
+      document.getElementById("quick-hitlist-btn").classList.contains("active");
     mFilterToggle.style.borderColor = hasFilter ? "var(--accent)" : "";
     mFilterToggle.style.color      = hasFilter ? "var(--accent)" : "";
   }
@@ -112,7 +112,7 @@
   ["filter-type", "filter-key", "filter-mode", "filter-rating"].forEach(id => {
     document.getElementById(id)?.addEventListener("change", _updateFilterIndicator);
   });
-  document.getElementById("filter-hitlist-btn")?.addEventListener("click", () => {
+  document.getElementById("quick-hitlist-btn")?.addEventListener("click", () => {
     // slight delay so app.js's handler runs first
     setTimeout(_updateFilterIndicator, 50);
   });
