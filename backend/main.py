@@ -25,7 +25,7 @@ from typing import List, Optional
 import httpx
 import PyPDF2
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import RedirectResponse,  FileResponse, StreamingResponse
+from fastapi.responses import RedirectResponse,  FileResponse, StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
@@ -6762,6 +6762,23 @@ async def confirm_audio_imports(
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+def _auto_version_html(html_path: Path) -> str:
+    """Read an HTML file and replace every ?v=N asset stamp with the
+    file's actual mtime, so browsers always fetch the latest version
+    without any manual bumping."""
+    text = html_path.read_text(encoding="utf-8")
+    def _stamp(m):
+        fname = m.group(1)
+        fpath = STATIC_DIR / Path(fname).name
+        try:
+            v = int(fpath.stat().st_mtime)
+        except OSError:
+            v = 0
+        return f'{fname}?v={v}'
+    return re.sub(r'([\w./:-]+\.(?:js|css))\?v=\d+', _stamp, text)
+
+
+
 
 @app.get("/")
 def root_redirect():
@@ -6770,10 +6787,8 @@ def root_redirect():
 
 @app.get("/mobile")
 def serve_mobile():
-    return FileResponse(
-        str(FRONTEND_DIR / "mobile.html"),
-        headers={"Cache-Control": "no-store, must-revalidate"},
-    )
+    html = _auto_version_html(FRONTEND_DIR / "mobile.html")
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 @app.get("/sw.js")

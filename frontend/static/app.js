@@ -2787,6 +2787,8 @@ function renderModal(tune, onBack = null, siblings = null) {
   requestAnimationFrame(() => {
     if (tune.abc) {
       renderSheetMusic(tune.abc, { visualTranspose: tune.transpose || 0 });
+    }
+  });
 
   // ── Transpose controls ────────────────────────────────────────────────
   let _transposeSteps = tune.transpose || 0;
@@ -2869,8 +2871,6 @@ function renderModal(tune, onBack = null, siblings = null) {
     });
   }
 
-    }
-  });
 
   // Populate membership line asynchronously
   _fetchTuneMemberships(tune.id).then(({ collections, sets }) => {
