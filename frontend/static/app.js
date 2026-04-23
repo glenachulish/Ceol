@@ -1200,6 +1200,7 @@ function renderModal(tune, onBack = null, siblings = null) {
             <span id="transpose-label" class="transpose-inline-label">0</span>
             <button id="transpose-up-btn" class="btn-secondary btn-sm" title="Up 1 semitone">▲ Up</button>
             <button id="transpose-reset-btn" class="btn-secondary btn-sm transpose-reset-btn" title="Reset to original key">Reset</button>
+            <button id="save-transposed-btn" class="btn-secondary btn-sm" style="display:none">💾 Save version</button>
           </span>
         </div>` : ""}
         <div class="sheet-music-wrap">
@@ -1263,10 +1264,7 @@ function renderModal(tune, onBack = null, siblings = null) {
           <span class="sheet-music-options-title">Sheet Music Options</span>
           <button id="sheet-music-options-close" class="btn-icon">✕</button>
         </div>
-        <div class="transpose-row" style="display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border-bottom:1px solid var(--border)">
-          <span style="font-size:.8rem;color:var(--text-muted);flex:1">Transpose</span>
-          <!-- transpose controls moved to sheet music toolbar above -->
-        </div>
+
       ${tune.abc ? `<div class="instrument-controls-row">
         <div id="melody-controls" class="chord-controls">
           <label class="chord-ctrl-label">Melody:</label>
@@ -1326,6 +1324,7 @@ function renderModal(tune, onBack = null, siblings = null) {
           <a class="library-menu-item" href="/api/export/tune/${tune.id}" download style="display:block;text-decoration:none;color:var(--text);padding:.4rem .5rem;border-radius:6px">&#128196; Export Ceòl JSON</a>
           ${tune.abc ? `<button class="library-menu-item" id="tune-export-abc-btn" style="text-align:left;background:none;border:none;width:100%;padding:.4rem .5rem;cursor:pointer;color:var(--text);border-radius:6px">&#127925; Export TheCraic ABC</button>` : ""}
           ${tune.abc ? `<button class="library-menu-item" id="print-tune-pdf-btn" style="text-align:left;background:none;border:none;width:100%;padding:.4rem .5rem;cursor:pointer;color:var(--text);border-radius:6px">&#9113; Print / PDF</button>` : ""}
+          ${tune.abc ? `<button class="library-menu-item" id="strip-chords-panel-btn" style="text-align:left;background:none;border:none;width:100%;padding:.4rem .5rem;cursor:pointer;color:var(--text);border-radius:6px">✂ Strip chords</button>` : ""}
           <hr style="margin:.2rem 0;border:none;border-top:1px solid var(--border)">
           <button class="library-menu-item library-menu-danger" id="delete-tune-modal-btn" data-tune-id="${tune.id}" style="text-align:left;background:none;border:none;width:100%;padding:.4rem .5rem;cursor:pointer;border-radius:6px">&#128465; ${tune.parent_id ? "Delete this version" : "Delete from Library"}</button>
         </div>
@@ -1499,7 +1498,15 @@ function renderModal(tune, onBack = null, siblings = null) {
         <div class="tune-more-wrap" style="position:relative;display:inline-block">
           <button id="tune-more-btn" class="btn-secondary">⋯ More</button>
           <div id="tune-more-menu" class="library-menu hidden" style="position:absolute;bottom:2.6rem;right:0;z-index:300;min-width:210px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:hidden">
-            ${tune.abc ? `<button class="library-menu-item" id="strip-chords-btn">✂ Strip chords</button>` : ""}
+            ${tune.abc ? `
+            <div class="library-menu-transpose-row">
+              <span class="library-menu-transpose-label">Transpose</span>
+              <button id="transpose-down-btn" class="btn-icon library-menu-transpose-btn" title="Down 1 semitone">▼</button>
+              <span id="transpose-label" class="library-menu-transpose-val">0</span>
+              <button id="transpose-up-btn" class="btn-icon library-menu-transpose-btn" title="Up 1 semitone">▲</button>
+              <button id="transpose-reset-btn" class="btn-secondary btn-sm library-menu-transpose-reset" title="Reset">↺</button>
+            </div>
+            <button class="library-menu-item" id="strip-chords-btn">✂ Strip chords</button>` : ""}
             <hr class="library-menu-divider" style="margin:.25rem 0"/>
             <a class="library-menu-item" href="/api/export/tune/${tune.id}" download style="display:block;text-decoration:none;color:var(--text);padding:.5rem .9rem">📄 Export Ceòl JSON</a>
             ${tune.abc ? `<button class="library-menu-item" id="tune-export-abc-btn">🎵 Export TheCraic ABC</button>` : ""}
@@ -2455,8 +2462,9 @@ function renderModal(tune, onBack = null, siblings = null) {
   }
 
   // Strip chords button (when tune has ABC)
-  const stripChordsBtn = document.getElementById("strip-chords-btn");
-  if (stripChordsBtn) {
+  ["strip-chords-btn", "strip-chords-panel-btn"].forEach(btnId => {
+    const stripChordsBtn = document.getElementById(btnId);
+    if (!stripChordsBtn) return;
     stripChordsBtn.addEventListener("click", async () => {
       stripChordsBtn.disabled = true;
       stripChordsBtn.textContent = "Stripping…";
@@ -2472,7 +2480,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         stripChordsBtn.disabled = false;
       }
     });
-  }
+  });
 
   // Clear ABC button
   const clearAbcBtn = document.getElementById("clear-abc-btn");
@@ -2801,9 +2809,52 @@ function renderModal(tune, onBack = null, siblings = null) {
     if (tune.abc) renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
   }
 
-  _transposeUp?.addEventListener("click",    () => { _transposeSteps++; _applyTransposeOnly(); _saveTranspose(); });
-  _transposeDown?.addEventListener("click",  () => { _transposeSteps--; _applyTransposeOnly(); _saveTranspose(); });
-  _transposeReset?.addEventListener("click", () => { _transposeSteps = 0; _applyTransposeOnly(); _saveTranspose(); });
+  function _updateSaveTransposedBtn() {
+    const btn = document.getElementById("save-transposed-btn");
+    if (btn) btn.style.display = _transposeSteps !== 0 ? "" : "none";
+  }
+  _updateSaveTransposedBtn();
+
+  _transposeUp?.addEventListener("click",    () => { _transposeSteps++; _applyTransposeOnly(); _saveTranspose(); _updateSaveTransposedBtn(); });
+  _transposeDown?.addEventListener("click",  () => { _transposeSteps--; _applyTransposeOnly(); _saveTranspose(); _updateSaveTransposedBtn(); });
+  _transposeReset?.addEventListener("click", () => { _transposeSteps = 0; _applyTransposeOnly(); _saveTranspose(); _updateSaveTransposedBtn(); });
+
+  const _saveTransposedBtn = document.getElementById("save-transposed-btn");
+  if (_saveTransposedBtn) {
+    _saveTransposedBtn.addEventListener("click", async () => {
+      if (!_transposeSteps || !tune.abc) return;
+      const absSteps = Math.abs(_transposeSteps);
+      const dir = _transposeSteps > 0 ? "up" : "down";
+      const label = `Transposed ${dir} ${absSteps} step${absSteps === 1 ? "" : "s"}`;
+      _saveTransposedBtn.disabled = true;
+      _saveTransposedBtn.textContent = "Saving…";
+      try {
+        // Inject %%MIDI transpose into ABC so it plays + displays transposed
+        const transposedAbc = tune.abc.replace(/^(X:[^\n]*\n)/m, `$1%%MIDI transpose ${_transposeSteps}\n`);
+        const res = await apiFetch("/api/tunes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: tune.title,
+            type: tune.type || "",
+            key: tune.key || "",
+            abc: transposedAbc,
+            parent_id: tune.parent_id || tune.id,
+            version_label: label,
+            transpose: _transposeSteps,
+          }),
+        });
+        _saveTransposedBtn.textContent = "✓ Saved as new version";
+        setTimeout(() => {
+          _saveTransposedBtn.textContent = "💾 Save as new version";
+          _saveTransposedBtn.disabled = false;
+        }, 2500);
+      } catch {
+        _saveTransposedBtn.textContent = "💾 Save as new version";
+        _saveTransposedBtn.disabled = false;
+      }
+    });
+  }
 
     }
   });
@@ -4194,7 +4245,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
                 if (sc >= tuneRanges[i].start && sc <= tuneRanges[i].end) { tuneIdx = i; break; }
               }
               const color = tuneColors[tuneIdx % tuneColors.length];
-              const brightColor = "#ff6b35"; // distinct highlight colour
+              const brightColor = "#ff9900"; // distinct highlight colour
               if (window._fsHiddenToVis) {
                 // Set mode: highlight in visible renders via the map
                 ev.elements.forEach(grp => {
