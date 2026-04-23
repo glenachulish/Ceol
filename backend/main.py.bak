@@ -27,7 +27,6 @@ import PyPDF2
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import RedirectResponse,  FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 
 import time as _time
@@ -45,7 +44,6 @@ from backend.abc_parser import (
 from backend.database import DB_PATH, get_connection, init_db
 
 app = FastAPI(title="Ceol", version="0.1.0")
-app.add_middleware(GZipMiddleware, minimum_size=1000)
 init_db()
 
 # Auto-classify any tunes that have no type or key yet

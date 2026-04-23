@@ -204,6 +204,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE tunes ADD COLUMN transcribed_by TEXT NOT NULL DEFAULT ''")
     if "highlights" not in existing_cols:
         conn.execute("ALTER TABLE tunes ADD COLUMN highlights TEXT NOT NULL DEFAULT '[]'")
+        except Exception: pass
+        try:
+            conn.execute("ALTER TABLE tunes ADD COLUMN transpose INTEGER NOT NULL DEFAULT 0")
 
     # sets table migrations
     existing_set_cols = {row[1] for row in conn.execute("PRAGMA table_info(sets)").fetchall()}

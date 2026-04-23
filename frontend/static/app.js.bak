@@ -633,19 +633,6 @@ function keyBadgeClass(key) {
   return map[upper[0]] || "badge-key";
 }
 
-// setHandler — safely attach a single event listener to a persistent DOM element.
-// Clones the element (stripping existing listeners) before attaching the new one.
-// Use instead of getElementById(id).addEventListener() on elements that persist
-// across multiple render calls (modals, overlays, fixed buttons) to prevent
-// listener accumulation and double-fire bugs.
-function setHandler(id, event, fn) {
-  const el = document.getElementById(id);
-  if (!el) return null;
-  const clone = el.cloneNode(true);
-  el.parentNode.replaceChild(clone, el);
-  clone.addEventListener(event, fn);
-  return clone;
-}
 function escHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -4070,12 +4057,8 @@ let _fsResizeHandler = null;
 
 
 // Global fullscreen More button toggle — called from HTML onclick + ontouchstart
-let _ceolMoreLastFire = 0;
 window._ceolMoreToggle = function(e) {
   if (e) { e.stopPropagation(); }
-  const now = Date.now();
-  if (now - _ceolMoreLastFire < 300) return; // drop double-fire (iOS PWA touchend+click)
-  _ceolMoreLastFire = now;
   const overlay = document.getElementById("abc-fullscreen-overlay");
   if (overlay) overlay.classList.toggle("fs-ctrl-hidden");
 };
@@ -4109,7 +4092,16 @@ function openAbcFullscreen(abc, title, opts = {}) {
   document.body.style.overflow = "hidden";
   // Landscape More toggle: inject a ⋯ button into the FS header if not already there
     // Wire the static ⋯ More button in FS header
-
+    // Wire static ⋯ More button in FS header
+    // Wire static ⋯ More button — toggle playback controls
+    const _fsMB = document.getElementById("abc-fs-more-btn");
+    if (_fsMB && !_fsMB.dataset.wired) {
+      _fsMB.dataset.wired = "1";
+      _fsMB.addEventListener("click", () => {
+        // CSS class toggle — also handled by inline onclick for iOS reliability
+        _abcFsOverlay.classList.toggle("fs-ctrl-hidden");
+      });
+    }
 
   // Reset fullscreen bar-selection state
   _fsBarSel = { start: null, end: null };

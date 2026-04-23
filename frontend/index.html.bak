@@ -2,89 +2,159 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Ceòl" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#0f0f13" />
-  <title>Ceòl Mobile – Trad Music</title>
-  <link rel="manifest" href="/static/manifest.json" />
-  <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
-  <!-- Apply saved theme before paint to avoid flash -->
-  <script>
-    (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);})();
-  </script>
-  <link rel="stylesheet" href="/static/style.css?v=126" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ceòl – Trad Music [r5]</title>
+  <link rel="stylesheet" href="/static/style.css?v=125" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
-  <link rel="stylesheet" href="/static/mobile.css?v=33" />
 </head>
-<body class="mobile-body">
-
-  <!-- ── Mobile Header ─────────────────────────────────────── -->
-  <header class="m-header">
-    <button id="m-menu-btn" class="m-header-btn" aria-label="Menu">☰</button>
-    <div class="m-header-title">
-      <span class="m-title-text">Ceòl</span>
-      <span class="m-title-sub">Mobile</span>
+<body data-view="library">
+  <header>
+    <div class="header-inner">
+      <div class="header-top-row">
+        <div class="header-brand">
+          <span class="brand-icon">♩</span>
+          <h1>Ceòl <span class="version-tag">v3</span></h1>
+          <span class="subtitle">Your trad music library</span>
+        </div>
+        <button id="info-btn" class="help-btn" aria-label="Help" data-tooltip="User guide &amp; help">?</button>
+        <button id="theme-toggle-btn" class="help-btn" aria-label="Toggle theme" data-tooltip="Toggle light/dark/auto theme">🌙</button>
+      </div>
+      <nav class="header-nav">
+        <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
+        <button id="nav-sets" class="nav-btn" data-tooltip="Group tunes into practice sets">Sets</button>
+        <button id="nav-collections" class="nav-btn" data-tooltip="Organise tunes into themed collections">Collections</button>
+        <button id="nav-todo" class="nav-btn todo-nav-btn" data-tooltip="Tasks needing your attention">
+          To Do <span id="todo-badge" class="todo-badge hidden">0</span>
+        </button>
+      </nav>
+      <div class="header-actions">
+        <a href="https://folkfriend.app/" target="_blank" rel="noopener"
+           class="btn-secondary"
+           data-tooltip-left
+           data-tooltip="FolkFriend: hum or play a tune into your mic and it identifies it — like TunePal for trad music">🎙 FolkFriend</a>
+        <div class="library-menu-wrap">
+          <button id="nav-links-btn" class="btn-secondary" data-tooltip-left data-tooltip="Useful external links">Links ▾</button>
+          <div id="nav-links-menu" class="library-menu hidden">
+            <a href="https://michaeleskin.com/abctools/abctools.html" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 Michael Eskin's ABC Tools</a>
+            <a href="https://www.nigelgatherer.com/tunes.html" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 Nigel Gatherer</a>
+            <a href="https://flutefling.scot/" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 FlutefFling.scot</a>
+            <hr class="library-menu-divider" />
+            <a href="https://projects.handsupfortrad.scot/handsupfortrad/" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 Hands Up for Trad</a>
+            <a href="https://www.youtube.com/@handsupfortrad" target="_blank" rel="noopener" class="library-menu-item library-menu-link">▶ Hands Up for Trad (YouTube)</a>
+            <a href="https://www.lafferty.ca/music/irish/flute-geezers/" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 Flute Geezers</a>
+            <hr class="library-menu-divider" />
+            <a href="https://thesession.org/" target="_blank" rel="noopener" class="library-menu-item library-menu-link">🎵 TheSession.org</a>
+            <div id="user-links-section"></div>
+            <hr class="library-menu-divider" />
+            <button id="add-link-btn" class="library-menu-item" style="font-size:.85rem;color:var(--accent)">+ Add link…</button>
+          </div>
+        </div>
+        <div class="library-menu-wrap" style="display:none">
+            <button id="nav-more-btn" class="btn-secondary" data-tooltip-left data-tooltip="Notes, Achievements &amp; Help">More ▾</button>
+          <div id="nav-more-menu" class="library-menu hidden">
+            <button id="nav-tuner-btn" class="library-menu-item" onclick="window._openTuner && window._openTuner()">♩ Tuner</button>
+            <button id="nav-notes" class="library-menu-item">📝 Notes</button>
+            <button id="nav-achievements" class="library-menu-item">⭐ Achievements</button>
+            <button id="nav-practice" class="library-menu-item">🎯 Practice Targets</button>
+            <hr class="library-menu-divider" />
+            <a href="/mobile" target="_blank" rel="noopener" class="library-menu-item library-menu-link">📱 Mobile view</a>
+            <hr class="library-menu-divider" />
+            <button id="help-btn" class="library-menu-item">? Help</button>
+          </div>
+        </div>
+        <div class="library-menu-wrap">
+          <button id="library-menu-btn" class="btn-secondary" data-tooltip-left data-tooltip="Backup, restore or delete your library">Database ▾</button>
+          <div id="library-menu" class="library-menu hidden">
+            <button id="library-backup-btn" class="library-menu-item">📤 Export Library</button>
+            <button id="library-import-btn" class="library-menu-item">📂 Import Library</button>
+            <button id="library-merge-btn" class="library-menu-item">🔀 Merge Library</button>
+            <button id="thecraic-export-btn" class="library-menu-item">📱 Export for TheCraic</button>
+            <hr class="library-menu-divider" />
+            <button id="auto-group-btn" class="library-menu-item">🔗 Auto-group by name</button>
+            <button id="dedup-versions-btn" class="library-menu-item">🧹 Remove duplicate versions</button>
+            <button id="strip-track-numbers-btn" class="library-menu-item">🔢 Strip track numbers from titles</button>
+            <button id="rationalise-btn" class="library-menu-item">♻️ Rationalise Library</button>
+            <hr class="library-menu-divider" />
+            <button id="library-delete-btn" class="library-menu-item library-menu-danger">🗑 Delete Library</button>
+          </div>
+        </div>
+        <button id="import-btn" class="nav-btn" data-tooltip-left data-tooltip="Add tunes from a file, website or Dropbox">Import Tunes</button>
+      </div>
     </div>
-    <button id="m-tuner-btn" class="m-header-btn" aria-label="Open tuner" title="Chromatic tuner">♩</button>
-    <button id="theme-toggle-btn" class="m-header-btn" aria-label="Toggle theme">🌙</button>
   </header>
 
-  <!-- ── Main content ──────────────────────────────────────── -->
-  <main class="m-main">
+  <main>
+    <!-- Stats bar -->
+    <div id="stats-bar" class="stats-bar hidden">
+      <span id="stats-text"></span>
+    </div>
 
     <!-- ── Library view ── -->
-    <div id="view-library" class="m-view">
-      <section class="m-filters">
-        <div class="m-search-row">
-          <input id="search" type="search" placeholder="Search tunes…"
-                 autocomplete="off" spellcheck="false" />
-          <button id="m-filter-toggle" class="m-filter-toggle-btn btn-secondary"
-                  aria-label="Toggle filters" title="Filters">⚙</button>
+    <div id="view-library" class="hidden">
+      <section class="filters">
+        <div class="filter-row">
+          <input
+            id="search"
+            type="search"
+            placeholder="Search by title…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <select id="filter-type"><option value="">All types</option></select>
+          <select id="filter-key"><option value="">All keys</option></select>
+          <select id="filter-mode"><option value="">All modes</option></select>
+          <select id="filter-composer"><option value="">All composers</option></select>
+          <select id="filter-rating">
+            <option value="">Any mastery</option>
+            <option value="1">★ + mastery</option>
+            <option value="2">★★ + mastery</option>
+            <option value="3">★★★ + mastery</option>
+            <option value="4">★★★★ + mastery</option>
+            <option value="5">★★★★★ mastered</option>
+          </select>
+          <button id="filter-hitlist-btn" class="btn-secondary" data-tooltip="Show only tunes you&#39;ve flagged to learn">📌 Hitlist</button>
+          <button id="filter-favourite-btn" class="btn-secondary" data-tooltip="Show only your favourite tunes">👍 Favourites</button>
+          <button id="clear-btn" class="btn-secondary" data-tooltip="Clear all filters and search">Clear</button>
+          <button id="quick-fav-btn" class="btn-secondary btn-sm quick-filter-btn" title="Show favourites">👍 Favs</button>
+          <button id="quick-hitlist-btn" class="btn-secondary btn-sm quick-filter-btn" title="Show hitlist">📌 Hitlist</button>
         </div>
-
-          <div class="m-quick-filters">
-    <button id="quick-fav-btn" class="btn-secondary btn-sm quick-filter-btn" data-filter="fav" title="Show favourites">👍 Favs</button>
-    <button id="quick-hitlist-btn" class="btn-secondary btn-sm quick-filter-btn" data-filter="hitlist" title="Show hitlist">📌 Hitlist</button>
-  </div>
-  <div id="m-filter-drawer" class="m-filter-drawer">
-          <div class="m-filter-grid">
-            <select id="filter-type"><option value="">All types</option></select>
-            <select id="filter-key"><option value="">All keys</option></select>
-
-            <select id="filter-rating">
-              <option value="">Any rating</option>
-              <option value="1">★ +</option>
-              <option value="2">★★ +</option>
-              <option value="3">★★★ +</option>
-              <option value="4">★★★★ +</option>
-              <option value="5">★★★★★</option>
-            </select>
-          </div>
-          <div class="m-filter-actions">
-            <button id="clear-btn" class="btn-secondary btn-sm">Clear</button>
-            <button id="select-mode-btn" class="btn-secondary btn-sm">Select</button>
-          </div>
-
+        <div class="filter-row filter-row-content">
+          <span class="filter-label-sm">Has:</span>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="abc" data-tooltip="Tunes with ABC notation">ABC</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="sheet" data-tooltip="Tunes with PDF or photo sheet music">Sheet music</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="pdf" data-tooltip="Tunes with a PDF">PDF</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="photo" data-tooltip="Tunes with a photo">Photo</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="mp3" data-tooltip="Tunes with an MP3 attached">MP3</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="video" data-tooltip="Tunes with a YouTube or video link">Video</button>
+          <button class="content-filter-btn btn-secondary btn-sm" data-content="no_abc" data-tooltip="Tunes with no ABC notation — good candidates to find on TheSession">No ABC</button>
         </div>
-
+        <div class="filter-row">
+          <button id="print-btn" class="btn-secondary" data-tooltip="Print the current tune list">Print list</button>
+          <button id="select-mode-btn" class="btn-secondary" data-tooltip="Select multiple tunes to group or delete">Select</button>
+        </div>
         <div class="result-count" id="result-count"></div>
       </section>
+
+      <!-- Pending membership transfer banner -->
+      <div id="pending-transfer-banner" class="pending-transfer-banner hidden">
+        <span id="pending-transfer-msg"></span>
+        <button id="pending-transfer-dismiss" class="btn-secondary btn-sm">Dismiss</button>
+      </div>
 
       <!-- Bulk-action bar — visible only in select mode -->
       <div id="bulk-bar" class="bulk-bar hidden">
         <span id="bulk-count" class="bulk-count">0 selected</span>
         <button id="bulk-select-all-btn" class="btn-secondary btn-sm">Select all</button>
-        <button id="bulk-merge-btn" class="btn-secondary btn-sm" disabled>Group versions</button>
-        <button id="bulk-add-set-btn" class="btn-secondary btn-sm" disabled>Add to set</button>
-        <button id="bulk-add-collection-btn" class="btn-secondary btn-sm" disabled>Collection</button>
-        <button id="bulk-delete-btn" class="btn-danger btn-sm" disabled>Delete</button>
+        <button id="bulk-merge-btn" class="btn-secondary btn-sm" disabled title="Select 2 or more tunes to group as versions">Group as versions</button>
+        <button id="bulk-add-set-btn" class="btn-set btn-sm" disabled>Add to set</button>
+        <button id="bulk-add-collection-btn" class="btn-collection btn-sm" disabled>Add to collection</button>
+        <button id="bulk-delete-btn" class="btn-danger btn-sm" disabled>Delete selected</button>
         <button id="bulk-cancel-btn" class="btn-secondary btn-sm">Cancel</button>
       </div>
 
-      <!-- Alphabet slider top -->
+      <div id="version-suggestion-banner" class="version-suggestion-banner hidden"></div>
+
+      <!-- Alphabet slider navigation -->
       <div id="alpha-nav" class="alpha-nav">
         <button id="alpha-all-btn" class="alpha-all-btn active" title="Show all tunes">All</button>
         <div class="alpha-slider-wrap">
@@ -95,14 +165,13 @@
         </div>
         <span id="alpha-current" class="alpha-current"></span>
       </div>
-      <div class="pagination pagination-top" id="pagination-top"></div>
 
+      <div class="pagination pagination-top" id="pagination-top"></div>
       <section class="tune-list" id="tune-list">
         <p class="loading">Loading tunes…</p>
       </section>
       <div class="pagination" id="pagination"></div>
-
-      <!-- Alphabet slider bottom -->
+      <!-- Bottom alphabet slider — mirrors the one at the top -->
       <div id="alpha-nav-bottom" class="alpha-nav alpha-nav-bottom">
         <button id="alpha-all-btn-bot" class="alpha-all-btn active" title="Show all tunes">All</button>
         <div class="alpha-slider-wrap">
@@ -115,13 +184,36 @@
       </div>
     </div>
 
+    <!-- ── Notes view ── -->
+    <div id="view-notes" class="hidden">
+      <div class="notes-layout">
+        <!-- Sidebar: document list -->
+        <aside class="notes-sidebar">
+          <div class="notes-sidebar-header">
+            <h2 class="section-title">Notes</h2>
+            <button id="new-doc-btn" class="btn-primary">+ New</button>
+          </div>
+          <div id="notes-doc-list" class="notes-doc-list">
+            <p class="loading">Loading…</p>
+          </div>
+        </aside>
+
+        <!-- Editor panel -->
+        <div id="notes-editor" class="notes-editor">
+          <div class="notes-empty-state">
+            <p>Select a document or create a new one.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Sets view ── -->
-    <div id="view-sets" class="m-view hidden">
+    <div id="view-sets" class="hidden">
       <div class="view-header">
         <h2 class="section-title">Sets</h2>
         <input id="sets-search" type="search" class="view-search-input" placeholder="Search sets…" autocomplete="off">
         <button id="new-set-btn" class="btn-set">+ New Set</button>
-        <button id="build-set-btn" class="btn-set" title="Build a set using Circle of Fifths, compatible keys, or other templates to find tunes that flow well together">🎵 Build a Set</button>
+        <button id="build-set-btn" class="btn-set">🎵 Build a Set</button>
       </div>
       <div id="new-set-form" class="new-set-form hidden">
         <input id="new-set-name" type="text" placeholder="Set name…" maxlength="120" />
@@ -131,7 +223,7 @@
           <button id="cancel-set-btn" class="btn-secondary">Cancel</button>
         </div>
       </div>
-      <div id="sets-list" class="sets-list m-sets-list">
+      <div id="sets-list" class="sets-list">
         <p class="loading">Loading sets…</p>
       </div>
       <!-- Focused single-set view -->
@@ -142,35 +234,11 @@
     </div>
 
     <!-- ── Collections view ── -->
-    <div id="view-collections" class="m-view hidden">
+    <div id="view-collections">
       <div class="view-header">
         <h2 class="section-title">Collections</h2>
         <input id="collections-search" type="search" class="view-search-input" placeholder="Search collections…" autocomplete="off">
-        <button id="new-collection-btn" class="btn-collection">+ New Collection</button>
-        <button id="discography-btn" class="btn-secondary">🎵 Build from Discography</button>
       </div>
-      <!-- Discography scanner panel -->
-      <div id="discography-panel" class="discography-panel hidden">
-        <h3 class="discography-title">Build a Collection from an Artist's Discography</h3>
-        <p class="discography-hint">Searches TheSession.org recordings and matches tunes already in your library.</p>
-        <div class="discography-artists">
-          <span class="discography-artists-label">Quick-pick:</span>
-          <button class="discog-artist-btn" data-artist="Michael McGoldrick">Michael McGoldrick</button>
-          <button class="discog-artist-btn" data-artist="Lúnasa">Lúnasa</button>
-          <button class="discog-artist-btn" data-artist="Ian and Allan MacDonald">Ian &amp; Allan MacDonald</button>
-          <button class="discog-artist-btn" data-artist="Alasdair Fraser">Alasdair Fraser</button>
-          <button class="discog-artist-btn" data-artist="Matt Molloy">Matt Molloy</button>
-          <button class="discog-artist-btn" data-artist="Altan">Altan</button>
-          <button class="discog-artist-btn" data-artist="Dervish">Dervish</button>
-        </div>
-        <div class="discography-form">
-          <input id="discog-artist-input" type="text" placeholder="Artist name (as on TheSession.org)…" maxlength="120" />
-          <input id="discog-col-name-input" type="text" placeholder="Collection name (optional — defaults to 'Artist Repertoire')…" maxlength="120" />
-          <div class="form-actions">
-            <button id="discog-scan-btn" class="btn-primary">🔍 Scan &amp; Build Collection</button>
-            <button id="discog-cancel-btn" class="btn-secondary">Cancel</button>
-          </div>
-        </div>
         <div id="discog-status" class="discog-status hidden"></div>
       </div>
       <div id="new-collection-form" class="new-set-form hidden">
@@ -182,21 +250,18 @@
         </div>
       </div>
       <!-- Smart collection: recently imported -->
-      <div class="set-card" id="recent-imports-card">
-        <div class="set-card-header">
-          <span 📥</span>
-          <span class="set-name" style="font-weight:600">📥 Recently Imported</span>
+      <div class="smart-col-card" id="recent-imports-card">
+        <div class="smart-col-header">
+          <span class="smart-col-icon">📥</span>
+          <span class="smart-col-title">Recently Imported</span>
           <div class="smart-col-ranges">
             <button class="smart-range-btn active" data-days="1">Today</button>
             <button class="smart-range-btn" data-days="7">This week</button>
             <button class="smart-range-btn" data-days="30">This month</button>
-            <span class="smart-range-custom">
-              or last <input id="recent-days-input" type="number" min="1" max="365" value="7" />
-              <span>days</span>
             </span>
           </div>
           <span id="recent-imports-count" class="smart-col-count"></span>
-          
+          <button id="recent-imports-hide-btn" class="btn-secondary btn-sm" style="margin-left:auto">Show</button>
         </div>
         <div id="recent-imports-toolbar" class="recent-imports-toolbar hidden">
           <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;cursor:pointer">
@@ -219,41 +284,47 @@
       </div>
     </div>
 
-
-
-    <!-- ── Notes view ── -->
-    <div id="view-notes" class="m-view hidden">
-      <div class="notes-layout">
-        <aside class="notes-sidebar">
-          <div class="notes-sidebar-header">
-            <button id="notes-back-btn" class="modal-back-btn" style="margin-bottom:.5rem">✕ Close</button>
-            <h2 class="section-title">Notes</h2>
-            <button id="new-doc-btn" class="btn-primary">+ New</button>
-          </div>
-          <div id="notes-doc-list" class="notes-doc-list">
-            <p class="loading">Loading…</p>
-          </div>
-        </aside>
-        <div id="notes-editor" class="notes-editor">
-          <div class="notes-empty-state">
-            <p>Select a document or create a new one.</p>
-          </div>
+    <!-- ── Practice Targets view ── -->
+    <div id="view-practice" class="hidden">
+      <div class="practice-layout">
+        <div class="practice-header">
+          <h2 class="section-title">Practice Targets</h2>
+          <p class="practice-hint">Find the highest-impact tunes to work on next, based on your ratings.</p>
+        </div>
+        <div class="practice-settings">
+          <label class="practice-settings-label">Target for sets:</label>
+          <select id="practice-set-stars" class="practice-star-select">
+            <option value="2">2 stars (Getting there)</option>
+            <option value="3" selected>3 stars (Almost there)</option>
+            <option value="4">4 stars (Know it well)</option>
+            <option value="5">5 stars (Nailed it!)</option>
+          </select>
+          <label class="practice-settings-label" style="margin-left:.75rem">Target for tunes:</label>
+          <select id="practice-tune-stars" class="practice-star-select">
+            <option value="2">2 stars (Getting there)</option>
+            <option value="3" selected>3 stars (Almost there)</option>
+            <option value="4">4 stars (Know it well)</option>
+            <option value="5">5 stars (Nailed it!)</option>
+          </select>
+          <button id="practice-run-btn" class="btn-primary btn-sm">Analyse</button>
+        </div>
+        <div id="practice-results">
+          <p class="practice-hint" id="practice-empty-hint">Select thresholds above and click Analyse.</p>
         </div>
       </div>
     </div>
 
     <!-- ── Achievements view ── -->
-    <div id="view-achievements" class="m-view hidden">
+    <div id="view-achievements" class="hidden">
       <div class="achievements-layout">
         <div class="achievements-header">
-          <button id="achievements-back-btn" class="modal-back-btn" style="margin-bottom:.5rem">✕ Close</button>
-            <h2 class="section-title">Achievements</h2>
-          <p class="achievements-hint">Your progress log.</p>
+          <h2 class="section-title">Achievements</h2>
+          <p class="achievements-hint">Your progress log — improvements, new tunes learned, and your own notes.</p>
         </div>
         <div class="achievements-add">
           <textarea id="ach-textarea" class="notes-textarea" rows="2"
-            placeholder="Write your own achievement…"></textarea>
-          <button id="ach-add-btn" class="btn-primary">Add</button>
+            placeholder="Write your own achievement or note…"></textarea>
+          <button id="ach-add-btn" class="btn-primary">Add entry</button>
           <span id="ach-status" class="notes-status"></span>
         </div>
         <div id="achievements-list" class="achievements-list">
@@ -261,74 +332,40 @@
         </div>
       </div>
     </div>
-
-  </main>
-
-  <!-- ── Bottom Navigation ──────────────────────────────────── -->
-  <nav class="m-bottom-nav" aria-label="Main navigation">
-    <button class="m-nav-btn active" data-view="library" aria-label="Library">
-      <span class="m-nav-icon">♪</span>
-      <span class="m-nav-label">Library</span>
-    </button>
-    <button class="m-nav-btn" data-view="sets" aria-label="Sets">
-      <span class="m-nav-icon">≡</span>
-      <span class="m-nav-label">Sets</span>
-    </button>
-    <button class="m-nav-btn" data-view="collections" aria-label="Collections">
-      <span class="m-nav-icon">📁</span>
-      <span class="m-nav-label">Collections</span>
-    </button>
-    <button id="import-nav-btn" class="m-nav-btn" aria-label="Import tunes" data-action="import">
-      <span class="m-nav-icon">＋</span>
-      <span class="m-nav-label">Import</span>
-    </button>
-  </nav>
-
-  <!-- ── Hamburger menu drawer ────────────────────────────── -->
-  <div id="m-menu-overlay" class="m-menu-overlay hidden" role="dialog" aria-modal="true">
-    <div class="m-menu-drawer">
-      <div class="m-menu-header">
-        <span class="m-menu-title">Menu</span>
-        <button id="m-menu-close" class="m-header-btn" aria-label="Close menu">✕</button>
-      </div>
-      <nav class="m-menu-items">
-        <button id="m-nav-notes-btn" class="m-menu-item m-menu-view-btn" data-view="notes">📝 Notes</button>
-        <button id="m-nav-achievements-btn" class="m-menu-item m-menu-view-btn" data-view="achievements">⭐ Achievements</button>
-        <hr class="m-menu-divider" />
-        <button id="m-help-btn" class="m-menu-item">? Help</button>
-        <hr class="m-menu-divider" />
-        <span class="m-menu-section-label">Database</span>
-        <button id="m-backup-btn" class="m-menu-item">📤 Export</button>
-        <button id="m-lib-import-btn" class="m-menu-item">📂 Import</button>
-        <button id="thecraic-export-btn" class="m-menu-item">📱 Export for TheCraic</button>
-        <button id="rationalise-btn" class="m-menu-item">♻️ Rationalise Library</button>
-        <hr class="m-menu-divider" />
-        <button id="m-lib-delete-btn" class="m-menu-item m-menu-danger">🗑 Delete Library</button>
-        <hr class="m-menu-divider" />
-        <div class="m-menu-theme-row">
-          <span class="m-menu-theme-label">Appearance</span>
-          <div class="m-theme-seg" role="group" aria-label="Colour theme">
-            <button class="m-theme-btn" data-theme="auto"  aria-pressed="false">Auto</button>
-            <button class="m-theme-btn" data-theme="light" aria-pressed="false">Light</button>
-            <button class="m-theme-btn" data-theme="dark"  aria-pressed="false">Dark</button>
-          </div>
+    <!-- ── To Do view ── -->
+    <div id="view-todo" class="hidden">
+      <div class="view-header">
+        <div>
+          <h2 class="section-title">To Do</h2>
+          <p class="todo-hint">Tasks the app has identified that need your attention.</p>
         </div>
-      </nav>
-      <div class="m-menu-footer">
-        <a href="/" class="m-menu-item m-menu-link">Switch to desktop version →</a>
+        <button id="todo-back-btn" class="btn-secondary">← Back to Library</button>
+      </div>
+      <div id="todo-sections">
+        <!-- Version matching section -->
+        <div id="todo-section-matching" class="todo-section hidden">
+          <h3 class="todo-section-title">🔗 Possible duplicate tunes</h3>
+          <p class="todo-section-hint">These tunes have similar names. Group them as versions of the same tune, or mark them as different.</p>
+          <div id="todo-matching-list"></div>
+        </div>
+        <!-- Empty state -->
+        <div id="todo-empty" class="todo-empty hidden">
+          <p>Nothing to do right now — your library is all tidied up.</p>
+        </div>
       </div>
     </div>
-  </div>
+  </main>
 
-  <!-- ── Tune detail modal ──────────────────────────────────── -->
+  <!-- ── Tune detail modal ── -->
   <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
-    <div class="modal modal-wide m-modal-fullscreen" style="padding:1.25rem;width:100%;max-width:100%;box-sizing:border-box">
+    <div class="modal modal-wide">
+      <button class="modal-fullscreen" id="modal-fullscreen" aria-label="Full screen">⛶</button>
       <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
       <div id="modal-content"></div>
     </div>
   </div>
 
-  <!-- ── Import modal ───────────────────────────────────────── -->
+  <!-- ── Import modal ── -->
   <div id="import-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal modal-wide">
       <button class="modal-close" id="import-close" aria-label="Close">✕</button>
@@ -816,13 +853,13 @@
     <div class="modal modal-narrow">
       <button class="modal-close" id="backup-close" aria-label="Close">✕</button>
       <h2 class="modal-title">📤 Export Library</h2>
-      <p class="library-dialog-desc">Save your entire library as a .zip file.</p>
+      <p class="library-dialog-desc">Save your entire library — tunes, sets, notes, and attachments — as a single .zip file.</p>
       <div class="library-field">
         <label class="library-label" for="backup-filename">File name</label>
         <input id="backup-filename" type="text" class="ff-url-input" autocomplete="off" spellcheck="false" />
       </div>
       <div class="library-actions">
-        <button id="backup-save-btn" class="btn-primary">Choose location &amp; save</button>
+        <button id="backup-save-btn" class="btn-primary">Download backup</button>
         <button id="backup-cancel-btn" class="btn-secondary">Cancel</button>
       </div>
     </div>
@@ -833,11 +870,11 @@
     <div class="modal modal-narrow">
       <button class="modal-close" id="lib-import-close" aria-label="Close">✕</button>
       <h2 class="modal-title">📂 Import Library</h2>
-      <p class="library-dialog-desc">Load a Ceol backup file. <strong>This will replace your current library.</strong></p>
+      <p class="library-dialog-desc">Load a Ceol backup file. <strong>This will replace your current library.</strong> Export a backup first if you want to keep your existing data.</p>
       <label class="import-drop" style="margin-top:1rem">
         <input type="file" id="lib-import-file" accept=".zip" />
         <span class="import-icon">📁</span>
-        <span class="import-label">Tap to choose a .zip backup file</span>
+        <span class="import-label">Click to choose a .zip backup file</span>
         <span id="lib-import-filename" class="import-filename"></span>
       </label>
       <div id="lib-import-result" class="import-result hidden"></div>
@@ -848,12 +885,33 @@
     </div>
   </div>
 
+  <!-- ── Library Merge dialog ── -->
+  <div id="lib-merge-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal modal-narrow">
+      <button class="modal-close" id="lib-merge-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">🔀 Merge Library</h2>
+      <p class="library-dialog-desc">Merge a backup into your existing library. Your current data is kept — new tunes are added, duplicates are combined as versions, collections are merged.</p>
+      <label class="import-drop" style="margin-top:1rem">
+        <input type="file" id="lib-merge-file" accept=".zip" />
+        <span class="import-icon">📁</span>
+        <span class="import-label">Click to choose a .zip backup file</span>
+        <span id="lib-merge-filename" class="import-filename"></span>
+      </label>
+      <div id="lib-merge-result" class="import-result hidden"></div>
+      <div class="library-actions">
+        <button id="lib-merge-submit" class="btn-primary" disabled>Merge</button>
+        <button id="lib-merge-cancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Library Delete dialog ── -->
   <div id="lib-delete-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal modal-narrow">
       <button class="modal-close" id="lib-delete-close" aria-label="Close">✕</button>
       <h2 class="modal-title">🗑 Delete Library</h2>
       <p class="library-dialog-desc">This will permanently delete <strong>all tunes, sets, notes, and attachments</strong>. This cannot be undone.</p>
+      <p class="library-dialog-desc" style="margin-top:.5rem">Export a backup first if you want to keep your data.</p>
       <div class="library-actions">
         <button id="lib-delete-confirm" class="btn-danger">Yes, delete everything</button>
         <button id="lib-delete-cancel" class="btn-secondary">Cancel</button>
@@ -862,79 +920,87 @@
   </div>
 
   <!-- ── Help guide modal ── -->
-  <div id="help-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div id="help-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="modal help-modal">
       <button class="modal-close" id="help-close" aria-label="Close">✕</button>
-      <h2 class="modal-title">Ceòl Mobile – Guide</h2>
-      <p class="help-intro">Your personal trad music library, optimised for mobile.</p>
+      <h2 class="modal-title" id="help-title">Ceòl – User Guide</h2>
+      <p class="help-intro">Click a section to expand it.</p>
 
-      <div class="help-section">
-        <h3>Navigation</h3>
-        <div class="help-row"><span class="help-label">♪ Library</span><span class="help-desc">Browse, search and filter all your tunes. Tap any tune to open it.</span></div>
-        <div class="help-row"><span class="help-label">≡ Sets</span><span class="help-desc">Group tunes into named sets for a session or practice run.</span></div>
-        <div class="help-row"><span class="help-label">📁 Collections</span><span class="help-desc">Thematic groupings — a tune can belong to multiple collections.</span></div>
-        <div class="help-row"><span class="help-label">📝 Notes</span><span class="help-desc">Freeform documents — ideas, practice notes, links, attachments.</span></div>
-        <div class="help-row"><span class="help-label">⭐ Progress</span><span class="help-desc">Auto-logged achievements plus your own notes.</span></div>
-        <div class="help-row"><span class="help-label">☰ Menu</span><span class="help-desc">Import tunes, export/import library backup, help.</span></div>
-      </div>
+      <details class="help-section" open>
+        <summary><h3>Getting around</h3></summary>
+        <div class="help-row"><span class="help-label">Library</span><span class="help-desc">Browse all your tunes. Search by title, filter by type, key, mode, rating, hitlist, or collection. Click any tune card to open it.</span></div>
+        <div class="help-row"><span class="help-label">Sets</span><span class="help-desc">Group tunes into named practice sets. Reorder with ↑↓, play a <strong>Transition</strong> between tunes, or click <strong>Music</strong> to open a tune's sheet music.</span></div>
+        <div class="help-row"><span class="help-label">Collections</span><span class="help-desc">Themed groups of tunes and sets (e.g. "Scottish Session"). Export as a .ceol.json to share with other Ceòl users.</span></div>
+        <div class="help-row"><span class="help-label">More menu</span><span class="help-desc">Notes documents, Achievements timeline, and a mobile link to open Ceòl on your phone over Wi-Fi.</span></div>
+        <div class="help-row"><span class="help-label">🎙 FolkFriend</span><span class="help-desc">Opens FolkFriend.app — hum or play a tune into your mic to identify it, like TunePal.</span></div>
+        <div class="help-row"><span class="help-label">Links menu</span><span class="help-desc">Quick links to TheSession.org, FlutefFling.scot, Nigel Gatherer, Hands Up for Trad, Flute Geezers, and Michael Eskin's ABC Tools.</span></div>
+      </details>
 
-      <div class="help-section">
-        <h3>Adding tunes</h3>
-        <div class="help-row"><span class="help-label">＋ button</span><span class="help-desc">Opens the Import dialog. Choose from ABC file, TheSession.org, FlutefFling, Dropbox, or paste ABC notation.</span></div>
-      </div>
+      <details class="help-section">
+        <summary><h3>Adding tunes</h3></summary>
+        <div class="help-row"><span class="help-label">TheSession.org</span><span class="help-desc">Search the world's largest trad database, preview the sheet music, choose a setting, and save to your library.</span></div>
+        <div class="help-row"><span class="help-label">FlutefFling.scot</span><span class="help-desc">Browse the FlutefFling catalogue and import tunes with one click — PDF and MP3 links included.</span></div>
+        <div class="help-row"><span class="help-label">ABC File</span><span class="help-desc">Upload a <code>.abc</code> file to bulk-import many tunes at once.</span></div>
+        <div class="help-row"><span class="help-label">Paste ABC</span><span class="help-desc">Paste raw ABC notation directly. Each tune must start with <code>X:</code>.</span></div>
+        <div class="help-row"><span class="help-label">Folder</span><span class="help-desc">Drop a folder of <code>.abc</code>, MP3, and PDF files — Ceòl matches and imports everything together.</span></div>
+        <div class="help-row"><span class="help-label">YouTube</span><span class="help-desc">Paste a YouTube URL to create a tune entry with the video in notes. Title fetched automatically.</span></div>
+        <div class="help-row"><span class="help-label">PDF / Photos</span><span class="help-desc">Attach PDF sheet music to existing tunes, or import photos of handwritten music (auto-enhanced).</span></div>
+        <div class="help-row"><span class="help-label">Ceol file</span><span class="help-desc">Import a <code>.ceol.json</code> from another Ceòl library — tunes are merged, duplicates skipped, collection recreated.</span></div>
+        <div class="help-row"><span class="help-label">Music Scanner</span><span class="help-desc">Import a <code>.msca</code> file from the Music Scanner app — tune titles and ABC are extracted and added to your library.</span></div>
+      </details>
 
-      <div class="help-section">
-        <h3>Library features</h3>
-        <div class="help-row"><span class="help-label">⚙ Filter</span><span class="help-desc">Tap the gear icon to expand filters: type, key, mode, star rating.</span></div>
-        <div class="help-row"><span class="help-label">⭐ Star rating</span><span class="help-desc">Rate tunes 1–5 stars. Tap a star inside any tune to update.</span></div>
-        <div class="help-row"><span class="help-label">📌 Hitlist</span><span class="help-desc">Flag tunes you want to learn. Filter to hitlist only via ⚙ Filters.</span></div>
-      </div>
+      <details class="help-section">
+        <summary><h3>Inside a tune</h3></summary>
+        <div class="help-row"><span class="help-label">Sheet Music tab</span><span class="help-desc">Renders ABC notation. For FlutefFling tunes without ABC, shows the original PDF instead.</span></div>
+        <div class="help-row"><span class="help-label">Audio playback</span><span class="help-desc">Play as MIDI (flute sound). Set a start and end bar to loop just that section.</span></div>
+        <div class="help-row"><span class="help-label">🖊 Highlight</span><span class="help-desc">Toggle Highlight mode then click any bar to mark it amber for difficult passages. Saved permanently. Click ✕ Clear to remove all.</span></div>
+        <div class="help-row"><span class="help-label">ABC Text tab</span><span class="help-desc">Edit the raw ABC notation and Save &amp; Re-render to update the sheet music.</span></div>
+        <div class="help-row"><span class="help-label">Notes tab</span><span class="help-desc">Free-text notes with auto-linked URLs — MP3s and YouTube play inline. Use 🎧 Attach audio or 📹 Attach video to upload media files.</span></div>
+        <div class="help-row"><span class="help-label">Practice tab</span><span class="help-desc">Phrase Builder: choose a bar range, rest bars, and tempo ramp (e.g. 60%→100% in 5% steps). Builds a looping practice sequence.</span></div>
+        <div class="help-row"><span class="help-label">⭐ Rating</span><span class="help-desc">Rate 1–5 stars on the card or in the modal. Improvements are auto-logged in Achievements.</span></div>
+        <div class="help-row"><span class="help-label">📌 Hitlist</span><span class="help-desc">Flag tunes you're working on. Filter to Hitlist-only from the Library toolbar.</span></div>
+        <div class="help-row"><span class="help-label">Versions</span><span class="help-desc">Group different settings of the same tune. Click a parent to see all versions.</span></div>
+      </details>
 
-      <div class="help-section">
-        <h3>Inside a tune</h3>
-        <div class="help-row"><span class="help-label">Sheet Music</span><span class="help-desc">Renders ABC notation. Tap bars to set a practice loop range.</span></div>
-        <div class="help-row"><span class="help-label">Notes tab</span><span class="help-desc">Add free text notes. Paste an MP3 or YouTube link for inline playback.</span></div>
-        <div class="help-row"><span class="help-label">Versions</span><span class="help-desc">Different settings of the same tune, grouped together.</span></div>
-      </div>
+      <details class="help-section">
+        <summary><h3>Library &amp; Collections</h3></summary>
+        <div class="help-row"><span class="help-label">Search</span><span class="help-desc">Accent- and case-insensitive — searching "ceol" finds "Ceòl". Also searches alternate tune names.</span></div>
+        <div class="help-row"><span class="help-label">Filters</span><span class="help-desc">Filter by type, key, mode, rating, hitlist, favourites, composer, or collection.</span></div>
+        <div class="help-row"><span class="help-label">Select mode</span><span class="help-desc">Click Select then tick 2+ tunes to group as versions or delete in bulk.</span></div>
+        <div class="help-row"><span class="help-label">Export collection</span><span class="help-desc">Collections → ⬇ Export saves a <code>.ceol.json</code> with all tunes (ABC, notes, ratings) and sets.</span></div>
+        <div class="help-row"><span class="help-label">Import collection</span><span class="help-desc">Import Tunes → <strong>Ceol file</strong> tab → drop in the <code>.ceol.json</code> → Merge into library.</span></div>
+      </details>
+
+      <details class="help-section">
+        <summary><h3>Backup &amp; management</h3></summary>
+        <div class="help-row"><span class="help-label">💾 Export Library</span><span class="help-desc">Downloads a ZIP of everything — tunes, sets, collections, notes, uploads. Do this before any major change.</span></div>
+        <div class="help-row"><span class="help-label">📂 Import Library</span><span class="help-desc">Restores from a ZIP backup. <strong>Replaces</strong> everything — backup first!</span></div>
+        <div class="help-row"><span class="help-label">🔀 Merge Library</span><span class="help-desc">Merges another library's tunes in without replacing existing data.</span></div>
+        <div class="help-row"><span class="help-label">iCloud / Dropbox</span><span class="help-desc">Store your library in iCloud Drive or Dropbox so it syncs across Macs. Edit <code>.env</code> in the Ceol folder and set <code>CEOL_DATA_DIR</code> to your cloud folder path, then restart. To move an existing library, copy <code>data/ceol.db</code> and <code>data/uploads/</code> to the new folder first. Don't run two instances pointing at the same folder simultaneously.</span></div>
+        <div class="help-row"><span class="help-label">Current data folder</span><span class="help-desc"><code id="help-data-dir">loading…</code></span></div>
+        <div class="help-row"><span class="help-label">File paths &amp; tools</span><span class="help-desc">See database location, backups, and auto-classify tools:</span></div>
+        <div style="margin-top:.3rem"><button id="help-open-info-btn" class="btn-secondary btn-sm">ℹ Open App Info</button></div>
+      </details>
     </div>
   </div>
 
-  <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
-  <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
-
-  <!-- ── Desktop compatibility shim ────────────────────────────
-       app.js expects these IDs to exist. They are hidden on mobile;
-       the mobile UI (bottom nav, hamburger) delegates to them.
-       ─────────────────────────────────────────────────────── -->
-  <div id="m-compat" style="display:none" aria-hidden="true">
-    <!-- Desktop nav buttons (switchView uses these to mark .active) -->
-    <!-- Desktop nav buttons (switchView uses these to mark .active) -->
-    <button id="nav-library">Library</button>
-    <button id="nav-sets">Sets</button>
-    <button id="nav-collections">Collections</button>
-    <button id="nav-notes">Notes</button>
-    <button id="nav-achievements">Achievements</button>
-    <button id="nav-todo">To Do</button>
-    <button id="nav-practice">Practice</button>
-    <!-- Views referenced in switchView array -->
-    <div id="view-practice"></div>
-    <div id="view-todo"></div>
-    <!-- Todo badge -->
-    <span id="todo-badge"></span>
-    <!-- More menu (null-guarded in app.js but included for completeness) -->
-    <button id="nav-more-btn"></button>
-    <div id="nav-more-menu" class="hidden"></div>
-    <!-- Stats bar -->
-    <div id="stats-bar"><span id="stats-text"></span></div>
-    <!-- Header action buttons -->
-    <button id="info-btn">Info</button>
-    <button id="help-btn">Help</button>
-    <!-- Library management menu -->
-    <button id="library-menu-btn">Library</button>
-    <div id="library-menu" class="library-menu hidden">
-      <button id="library-backup-btn">Export Library</button>
-      <button id="library-import-btn">Import Library</button>
-      <button id="library-delete-btn">Delete Library</button>
+  <!-- ── Add link modal ── -->
+  <div id="add-link-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="add-link-title">
+    <div class="modal" style="max-width:420px">
+      <button class="modal-close" id="add-link-close" aria-label="Close">✕</button>
+      <h2 id="add-link-title" style="margin-bottom:1rem">Add a link</h2>
+      <div style="display:flex;flex-direction:column;gap:.6rem">
+        <label style="font-size:.85rem;font-weight:600">Label</label>
+        <input id="add-link-label" type="text" class="search-input" placeholder="e.g. My YouTube Channel" style="width:100%;box-sizing:border-box"/>
+        <label style="font-size:.85rem;font-weight:600">URL</label>
+        <input id="add-link-url" type="url" class="search-input" placeholder="https://..." style="width:100%;box-sizing:border-box"/>
+        <label style="font-size:.85rem;font-weight:600">Emoji (optional)</label>
+        <input id="add-link-emoji" type="text" class="search-input" placeholder="🔗" maxlength="4" style="width:5rem"/>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:.5rem;justify-content:flex-end">
+        <button id="add-link-cancel" class="btn-secondary">Cancel</button>
+        <button id="add-link-save" class="btn-primary">Save</button>
+      </div>
     </div>
   </div>
 
@@ -953,18 +1019,38 @@
     </div>
   </div>
 
-  <script defer src="/static/abcjs-basic-min.js"></script>
-  <script defer src="/static/app.js?v=310"></script>
-  <script defer src="/static/mobile.js?v=43"></script>
-    <script>
-    // Unregister any existing service workers (they caused stale cache issues)
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(r => r.unregister());
-      });
-      caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
-    }
-  </script>
+  <!-- Off-screen element ABCJS renders expanded ABC into for synth timing -->
+  <div id="abcjs-synth-buf" style="position:absolute;left:-9999px;width:300px;height:1px;overflow:hidden;pointer-events:none;"></div>
+  <!-- Audio file inputs at body level so Safari opens file pickers reliably from modal labels -->
+  <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
+  <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
+  <script src="/static/abcjs-basic-min.js"></script>
+  <script src="/static/app.js?v=308"></script>
+
+<!-- Collection Export Modal -->
+<div id="collectionExportModal" class="modal" style="display:none;">
+  <div class="modal-content" style="max-width:420px;">
+    <div class="modal-header">
+      <h2>Export Collection</h2>
+      <button class="modal-close" onclick="closeCollectionExportModal()">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:1.5rem;">
+      <p id="collectionExportName" style="font-weight:600;margin-bottom:1.2rem;font-size:1.05rem;"></p>
+      <p style="margin-bottom:1.4rem;color:var(--text-secondary);font-size:0.93rem;">
+        Personal data (ratings, hitlist, notes) is not included in the export.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:0.85rem;">
+        <button class="btn btn-primary" onclick="doExportCollection('ceol')" style="justify-content:center;">
+          ⬇ Ceòl JSON (.ceol.json)
+        </button>
+        <button class="btn btn-secondary" onclick="doExportCollection('thecraic')" style="justify-content:center;">
+          ⬇ TheCraic ABC (.abc)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
   <!-- ── Chromatic Tuner Panel ── -->
   <div id="ceol-tuner-panel" class="ceol-tuner-panel hidden" role="dialog" aria-label="Chromatic tuner">
