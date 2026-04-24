@@ -3671,7 +3671,7 @@ function renderSheetMusicAudioOnly(abc) {
       displayLoop: false, displayRestart: true, displayPlay: true,
       displayProgress: true, displayWarp: true,
     });
-    _synthController.setTune(_visualObj, false, { program: _melodyProgram, chordsOff: _chordsOff, visualTranspose: _xposeN })
+    _synthController.setTune(_visualObj, false, { program: _melodyProgram, chordsOff: _chordsOff })
       .catch(() => {});
     _initMetronomeUI(_extractAbcBpm(abc));
     _initMelodyControls();
@@ -3726,7 +3726,7 @@ function renderSheetMusic(abc, opts = {}) {
       _hiddenDiv.style.cssText = "position:absolute;left:-9999px;width:800px;height:1px;overflow:hidden;pointer-events:none;";
       document.body.appendChild(_hiddenDiv);
     }
-    const _hiddenObjs = ABCJS.renderAbc("sheet-music-render-hidden", _processedAbc, { add_classes: true, staffwidth: 800, visualTranspose: _xposeN });
+    const _hiddenObjs = ABCJS.renderAbc("sheet-music-render-hidden", _synthAbc, { add_classes: true, staffwidth: 800 });
     if (!_hiddenObjs?.length) return;
     _visualObj = _hiddenObjs[0];
     // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
@@ -3778,23 +3778,11 @@ function renderSheetMusic(abc, opts = {}) {
           _startMetronome();
         }
       },
-      onEvent(ev) {
-        document.querySelectorAll("#sheet-music-render .abcjs-highlight")
+      onEvent(ev) {        document.querySelectorAll("#sheet-music-render .abcjs-highlight")
           .forEach(el => el.classList.remove("abcjs-highlight"));
         if (ev && ev.elements) {
           ev.elements.forEach(grp => {
-            if (!grp) return;
-            grp.forEach(hiddenEl => {
-              // ev.elements references hidden-render DOM elements (the synth is
-              // loaded with _visualObj from sheet-music-render-hidden for reliable
-              // MIDI timing). Mirror the highlight to the *visible* render by
-              // matching on abcjs-nN — the note's global index, unique within the tune.
-              const noteClass = [...hiddenEl.classList].find(c => /^abcjs-n\d+$/.test(c));
-              if (noteClass) {
-                document.querySelectorAll(`#sheet-music-render .${noteClass}`)
-                  .forEach(el => el.classList.add("abcjs-highlight"));
-              }
-            });
+            if (grp) grp.forEach(el => el.classList.add("abcjs-highlight"));
           });
         }
         // Bar-range loop: controlled by our own _barLooping toggle (not the

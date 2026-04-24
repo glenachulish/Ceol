@@ -17,7 +17,7 @@
           <span class="subtitle">Your trad music library</span>
         </div>
         <button id="info-btn" class="help-btn" aria-label="Help" data-tooltip="User guide &amp; help">?</button>
-
+        <button id="theme-toggle-btn" class="help-btn" aria-label="Toggle theme" data-tooltip="Toggle light/dark/auto theme">🌙</button>
       </div>
       <nav class="header-nav">
         <button id="nav-library" class="nav-btn active" data-tooltip="Browse &amp; search your tune collection">Library</button>
@@ -49,8 +49,8 @@
             <button id="add-link-btn" class="library-menu-item" style="font-size:.85rem;color:var(--accent)">+ Add link…</button>
           </div>
         </div>
-        <div class="library-menu-wrap">
-          <button id="nav-more-btn" class="btn-secondary" data-tooltip-left data-tooltip="Notes, Achievements &amp; Help">More ▾</button>
+        <div class="library-menu-wrap" style="display:none">
+            <button id="nav-more-btn" class="btn-secondary" data-tooltip-left data-tooltip="Notes, Achievements &amp; Help">More ▾</button>
           <div id="nav-more-menu" class="library-menu hidden">
             <button id="nav-tuner-btn" class="library-menu-item" onclick="window._openTuner && window._openTuner()">♩ Tuner</button>
             <button id="nav-notes" class="library-menu-item">📝 Notes</button>
@@ -60,8 +60,6 @@
             <a href="/mobile" target="_blank" rel="noopener" class="library-menu-item library-menu-link">📱 Mobile view</a>
             <hr class="library-menu-divider" />
             <button id="help-btn" class="library-menu-item">? Help</button>
-            <hr class="library-menu-divider" />
-            <button id="theme-toggle-btn" class="library-menu-item" aria-label="Toggle theme">🌙 Toggle theme</button>
           </div>
         </div>
         <div class="library-menu-wrap">
@@ -1027,7 +1025,7 @@
   <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" multiple style="display:none">
   <input type="file" id="audio-folder-input" webkitdirectory style="display:none">
   <script defer src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=313"></script>
+  <script src="/static/app.js?v=312"></script>
 
 <!-- Collection Export Modal -->
 <div id="collectionExportModal" class="modal" style="display:none;">
