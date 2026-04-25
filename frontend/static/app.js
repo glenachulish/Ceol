@@ -3746,6 +3746,15 @@ function renderSheetMusic(abc, opts = {}) {
       foregroundColor: "#000000",
     });
     _patchSvgViewBox("sheet-music-render");
+    // Build hidden→visible note index map for accurate cursor highlighting.
+    // Same approach as fullscreen: match notes by sequential position so
+    // exactly one note lights up at a time, even with repeated sections.
+    const _hiddenNotes = [...document.querySelectorAll("#sheet-music-render-hidden .abcjs-note")];
+    const _visibleNotes = [...document.querySelectorAll("#sheet-music-render .abcjs-note")];
+    const _hiddenToVis = new Map();
+    for (let _i = 0; _i < Math.min(_hiddenNotes.length, _visibleNotes.length); _i++) {
+      _hiddenToVis.set(_hiddenNotes[_i], _visibleNotes[_i]);
+    }
     // Re-apply persistent highlights after render
     requestAnimationFrame(() => {
       _barMap = _buildBarMap();
@@ -3785,15 +3794,11 @@ function renderSheetMusic(abc, opts = {}) {
           ev.elements.forEach(grp => {
             if (!grp) return;
             grp.forEach(hiddenEl => {
-              // ev.elements references hidden-render DOM elements (the synth is
-              // loaded with _visualObj from sheet-music-render-hidden for reliable
-              // MIDI timing). Mirror the highlight to the *visible* render by
-              // matching on abcjs-nN — the note's global index, unique within the tune.
-              const noteClass = [...hiddenEl.classList].find(c => /^abcjs-n\d+$/.test(c));
-              if (noteClass) {
-                document.querySelectorAll(`#sheet-music-render .${noteClass}`)
-                  .forEach(el => el.classList.add("abcjs-highlight"));
-              }
+              // Look up the exact visible-render element by index-based map
+              // (built after both renders above). This highlights precisely one
+              // note at a time, correctly tracking position through repeats.
+              const visEl = _hiddenToVis.get(hiddenEl);
+              if (visEl) visEl.classList.add("abcjs-highlight");
             });
           });
         }
@@ -4859,9 +4864,8 @@ function openFullSetModal(setData, opts = {}) {
     <div class="set-track-item" draggable="true" data-tune-id="${t.id}">
       <span class="set-track-drag" title="Drag to reorder">⠿</span>
       <span class="set-track-num">${i + 1}</span>
-      <span class="set-track-title">${escHtml(t.title)}</span>
+      <button class="set-track-title set-track-open-tune" data-tune-id="${t.id}" title="Open tune in library">${escHtml(t.title)}</button>
       <span class="set-track-meta">${[t.type, t.key].filter(Boolean).map(escHtml).join(" · ") || ""}</span>
-      ${setData.id ? `<button class="set-track-remove btn-sm" data-tune-id="${t.id}" style="margin-left:auto;flex-shrink:0" title="Remove from set">✕</button>` : ""}
       ${setData.id ? `<button class="set-track-remove btn-sm" data-tune-id="${t.id}" style="margin-left:auto;flex-shrink:0" title="Remove from set">✕</button>` : ""}
     </div>`).join("");
 
@@ -5105,6 +5109,20 @@ function openFullSetModal(setData, opts = {}) {
     }
   }
 
+  // Wire tune title buttons → open tune modal with back-to-set navigation
+  {
+    const _tuneTitleBtns = modalContent.querySelectorAll(".set-track-open-tune");
+    _tuneTitleBtns.forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const tuneId = parseInt(btn.dataset.tuneId, 10);
+        try {
+          const tuneData = await apiFetch(`/api/tunes/${tuneId}`);
+          renderModal(tuneData, () => openFullSetModal(setData));
+        } catch (e) { console.warn("Failed to open tune from set", e); }
+      });
+    });
+  }
+
   const _setBackBtn = document.getElementById("full-set-back-btn");
   if (_setBackBtn) _setBackBtn.addEventListener("click", () => {
     if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
@@ -5125,88 +5143,6 @@ function openFullSetModal(setData, opts = {}) {
       });
     });
   });
-
-  // Wire track-list remove buttons
-  if (setData.id) {
-    modalContent.querySelectorAll(".set-track-remove").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const tuneId = btn.dataset.tuneId;
-        if (!confirm("Remove this tune from the set?")) return;
-        btn.disabled = true;
-        try {
-          await apiRemoveTuneFromSet(setData.id, tuneId);
-          const fresh = await apiGetSet(setData.id);
-          openFullSetModal(fresh);
-        } catch {
-          alert("Failed to remove tune.");
-          btn.disabled = false;
-        }
-      });
-    });
-
-    // "+ Add tune" panel below track list
-    const _trackList = modalContent.querySelector(".set-track-list");
-    if (_trackList) {
-      const _addRow = document.createElement("div");
-      _addRow.className = "set-track-add-row";
-      _addRow.innerHTML = `
-        <button class="btn-secondary btn-sm set-track-add-btn" style="margin:.5rem 0">+ Add tune to set…</button>
-        <div class="set-track-add-panel hidden" style="margin:.4rem 0">
-          <input type="text" class="set-track-add-input ff-url-input" placeholder="Search tunes to add…" style="width:100%;margin-bottom:.3rem" />
-          <div class="set-track-add-results"></div>
-        </div>`;
-      _trackList.after(_addRow);
-
-      const _addBtn   = _addRow.querySelector(".set-track-add-btn");
-      const _addPanel = _addRow.querySelector(".set-track-add-panel");
-      const _addInput = _addRow.querySelector(".set-track-add-input");
-      const _addRes   = _addRow.querySelector(".set-track-add-results");
-      let _addDebounce = null;
-
-      _addBtn.addEventListener("click", () => {
-        _addPanel.classList.toggle("hidden");
-        if (!_addPanel.classList.contains("hidden")) _addInput.focus();
-      });
-
-      const _doAddToModal = async (tuneId) => {
-        await apiFetch(`/api/sets/${setData.id}/tunes`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tune_id: Number(tuneId) }),
-        });
-        const fresh = await apiGetSet(setData.id);
-        openFullSetModal(fresh);
-      };
-
-      const _runAddSearch = async (q) => {
-        if (!q) { _addRes.innerHTML = ""; return; }
-        const data = await apiFetch(`/api/tunes?q=${encodeURIComponent(q)}&page_size=8`);
-        const list = data.tunes || data;
-        if (!list.length) {
-          _addRes.innerHTML = '<p class="set-add-tune-none">No tunes found.</p>';
-          return;
-        }
-        _addRes.innerHTML = list.map(t =>
-          `<button class="set-add-tune-result" data-tune-id="${t.id}">
-            ${escHtml(t.title)}
-            <span class="badge ${typeBadgeClass(t.type)}" style="margin-left:.3rem">${escHtml(t.type || "")}</span>
-           </button>`
-        ).join("");
-        _addRes.querySelectorAll(".set-add-tune-result").forEach(rb => {
-          rb.addEventListener("click", async () => {
-            rb.disabled = true; rb.textContent = "Adding…";
-            try { await _doAddToModal(rb.dataset.tuneId); }
-            catch { rb.disabled = false; rb.textContent = rb.dataset.origText || "Retry"; }
-          });
-        });
-      };
-
-      _addInput.addEventListener("input", () => {
-        clearTimeout(_addDebounce);
-        _addDebounce = setTimeout(() => _runAddSearch(_addInput.value.trim()), 250);
-      });
-    }
-  }
 
   // Wire track-list remove buttons
   if (setData.id) {
