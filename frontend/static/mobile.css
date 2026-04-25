@@ -754,9 +754,9 @@
   .mobile-body .chord-controls         { display: none !important; }
 
   /* Audio / video players */
-  .mobile-body .audio-player-wrap      { display: none !important; }
   .mobile-body .inline-mp3-player      { display: none !important; }
   .mobile-body #audio-player-container { display: none !important; }
+  .mobile-body #prac-player-container   { display: block !important; }
 
   /* Session ABC search row */
   .mobile-body .session-abc-section    { display: none !important; }
