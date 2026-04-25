@@ -1330,7 +1330,7 @@ function renderModal(tune, onBack = null, siblings = null) {
         Audio playback is not supported in this browser.
       </p>
       <div class="attach-audio-row" style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="attach-audio-btn" class="btn-secondary">🎧 Add audio link</button>
+        <button id="attach-audio-btn" class="btn-secondary">🎧 Add audio</button>
         <button id="attach-video-btn" class="btn-secondary">📹 Add video</button>
       </div>
         <div style="padding:.5rem .75rem .75rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:.3rem;margin-top:.25rem">
@@ -1370,7 +1370,7 @@ function renderModal(tune, onBack = null, siblings = null) {
           <button class="attach-tab-btn" data-tab="dropbox">Dropbox</button>
         </div>
         <div id="attach-tab-upload" class="attach-tab-panel">
-          <input id="attach-audio-file" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" class="attach-file-input" style="display:none">
+          <input id="attach-audio-file" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" class="attach-file-input" style="position:absolute;opacity:0;width:1px;height:1px">
           <button id="attach-audio-choose-btn" class="btn-secondary">📂 Choose audio file…</button>
           <span id="attach-audio-chosen" class="attach-file-hint" style="margin-left:.5rem"></span>
           <p id="attach-upload-status" class="ff-cat-hint"></p>
@@ -1749,34 +1749,37 @@ function renderModal(tune, onBack = null, siblings = null) {
     embedDiv.classList.remove("hidden");
   });
 
-  // Remove audio/video attachment — attach directly to each button to avoid
-  // stale-closure bugs from multiple renderModal calls accumulating on modalContent.
-  modalContent.querySelectorAll(".media-remove-btn").forEach(removeBtn => {
-    removeBtn.addEventListener("click", async () => {
-      const urlToRemove = removeBtn.dataset.url;
-      if (!confirm("Remove this media attachment from the tune's notes?")) return;
-      removeBtn.disabled = true;
-      try {
-        // Remove the URL line (with any audio:/video: prefix) then collapse blank lines
-        const escaped = urlToRemove.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const re = new RegExp(`(?:audio:|video:|\\n?)\\s*${escaped}\\s*\\n?`, "g");
-        let newNotes = (tune.notes || "").replace(re, "");
-        newNotes = newNotes.replace(urlToRemove, "").replace(/\n{3,}/g, "\n\n").trim();
-        await apiFetch(`/api/tunes/${tune.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ notes: newNotes }),
-        });
-        tune.notes = newNotes;
-        removeBtn.closest(".media-attachment-row")?.remove();
-        const embedEl = document.getElementById("embed-" + urlToRemove.replace(/[^a-z0-9]/gi, "_").slice(0, 30));
-        if (embedEl) embedEl.remove();
-      } catch {
-        removeBtn.disabled = false;
-        alert("Failed to remove attachment.");
-      }
+  // Remove audio/video attachment — uses :not([data-rw]) so this can be called
+  // again safely after _refreshSheetMusicMediaButtons adds new buttons.
+  function _wireMediaRemoveBtns() {
+    modalContent.querySelectorAll(".media-remove-btn:not([data-rw])").forEach(btn => {
+      btn.dataset.rw = "1";
+      btn.addEventListener("click", async () => {
+        const urlToRemove = btn.dataset.url;
+        if (!confirm("Remove this media attachment from the tune's notes?")) return;
+        btn.disabled = true;
+        try {
+          const escaped = urlToRemove.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const re = new RegExp(`(?:audio:|video:|\\n?)\\s*${escaped}\\s*\\n?`, "g");
+          let newNotes = (tune.notes || "").replace(re, "");
+          newNotes = newNotes.replace(urlToRemove, "").replace(/\n{3,}/g, "\n\n").trim();
+          await apiFetch(`/api/tunes/${tune.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ notes: newNotes }),
+          });
+          tune.notes = newNotes;
+          btn.closest(".media-attachment-row")?.remove();
+          const embedEl = document.getElementById("embed-" + urlToRemove.replace(/[^a-z0-9]/gi, "_").slice(0, 30));
+          if (embedEl) embedEl.remove();
+        } catch {
+          btn.disabled = false;
+          alert("Failed to remove attachment.");
+        }
+      });
     });
-  });
+  }
+  _wireMediaRemoveBtns();
 
   // Tab switching
   modalContent.querySelectorAll(".tab-btn").forEach(btn => {
@@ -2630,6 +2633,7 @@ function renderModal(tune, onBack = null, siblings = null) {
       frag.appendChild(embedDiv);
     });
     anchor.before(frag);
+    _wireMediaRemoveBtns();
   }
 
   async function _appendUrlToNotes(url, statusEl) {
@@ -8435,6 +8439,11 @@ function _resetImportTabs() {
 
   // Reset file inputs so the same file can be re-selected
   ["audio-file-input", "audio-folder-input", "pdf-file-input"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = "";
+  });
+
+  // Clear text search fields so re-opening shows a clean state
+  ["session-search-input"].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
 }
