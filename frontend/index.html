@@ -1056,30 +1056,32 @@
 
   <!-- ── Chromatic Tuner Panel ── -->
   <div id="ceol-tuner-panel" class="ceol-tuner-panel hidden" role="dialog" aria-label="Chromatic tuner">
-    <div class="ceol-tuner-body">
-      <div class="ceol-tuner-note-display">
-        <span id="ceol-tuner-note" class="ceol-tuner-note">–</span>
-        <span id="ceol-tuner-octave" class="ceol-tuner-octave"></span>
-      </div>
-      <div class="ceol-tuner-cents-wrap">
-        <span class="ceol-tuner-cents-label">♭</span>
-        <div class="ceol-tuner-meter">
-          <div class="ceol-tuner-meter-bg"></div>
-          <div id="ceol-tuner-needle" class="ceol-tuner-needle"></div>
-          <div class="ceol-tuner-center-mark"></div>
+    <div class="ceol-tuner-card">
+      <div class="ceol-tuner-footer">
+        <div class="ceol-tuner-footer-id">
+          <span class="ceol-tuner-title">♪ Tuner</span>
+          <button id="ceol-tuner-close" class="ceol-tuner-close" aria-label="Close tuner">✕ Exit</button>
         </div>
-        <span class="ceol-tuner-cents-label">♯</span>
+        <button id="ceol-tuner-toggle" class="btn-primary">▶ Start</button>
       </div>
-      <div id="ceol-tuner-cents-val" class="ceol-tuner-cents-val">– ¢</div>
-      <div id="ceol-tuner-freq" class="ceol-tuner-freq"></div>
-      <div id="ceol-tuner-status" class="ceol-tuner-status">Tap Start to begin</div>
-    </div>
-    <div class="ceol-tuner-footer">
-      <div class="ceol-tuner-footer-id">
-        <span class="ceol-tuner-title">♪ Tuner</span>
-        <button id="ceol-tuner-close" class="ceol-tuner-close" aria-label="Close tuner">✕ Exit</button>
+      <div class="ceol-tuner-body">
+        <div class="ceol-tuner-note-display">
+          <span id="ceol-tuner-note" class="ceol-tuner-note">–</span>
+          <span id="ceol-tuner-octave" class="ceol-tuner-octave"></span>
+        </div>
+        <div class="ceol-tuner-cents-wrap">
+          <span class="ceol-tuner-cents-label">♭</span>
+          <div class="ceol-tuner-meter">
+            <div class="ceol-tuner-meter-bg"></div>
+            <div id="ceol-tuner-needle" class="ceol-tuner-needle"></div>
+            <div class="ceol-tuner-center-mark"></div>
+          </div>
+          <span class="ceol-tuner-cents-label">♯</span>
+        </div>
+        <div id="ceol-tuner-cents-val" class="ceol-tuner-cents-val">– ¢</div>
+        <div id="ceol-tuner-freq" class="ceol-tuner-freq"></div>
+        <div id="ceol-tuner-status" class="ceol-tuner-status">Tap Start to begin</div>
       </div>
-      <button id="ceol-tuner-toggle" class="btn-primary">▶ Start</button>
     </div>
   </div>
 
