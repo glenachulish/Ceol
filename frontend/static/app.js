@@ -1523,7 +1523,8 @@ function renderModal(tune, onBack = null, siblings = null) {
             <hr class="library-menu-divider" style="margin:.25rem 0"/>
             <a class="library-menu-item" href="/api/export/tune/${tune.id}" download style="display:block;text-decoration:none;color:var(--text);padding:.5rem .9rem">📄 Export Ceòl JSON</a>
             ${tune.abc ? `<button class="library-menu-item" id="tune-export-abc-btn">🎵 Export TheCraic ABC</button>` : ""}
-            ${tune.abc ? `<button class="library-menu-item" id="print-tune-pdf-btn">⎙ Print / PDF</button>` : ""}
+            ${tune.abc ? `<button class="library-menu-item" id="print-tune-btn">🖨 Print</button>` : ""}
+            ${tune.abc ? `<button class="library-menu-item" id="save-pdf-btn">📄 Save as PDF</button>` : ""}
             <hr class="library-menu-divider" style="margin:.25rem 0"/>
             <button class="library-menu-item library-menu-danger" id="delete-tune-modal-btn" data-tune-id="${tune.id}">
               🗑 ${tune.parent_id ? "Delete this version" : "Delete from Library"}
@@ -2903,9 +2904,9 @@ function renderModal(tune, onBack = null, siblings = null) {
   }).catch(() => {});
 
     // Print / PDF — tune sheet music
-    const _printTunePdfBtn = document.getElementById('print-tune-pdf-btn');
-    if (_printTunePdfBtn) {
-      _printTunePdfBtn.addEventListener('click', () => {
+    ['print-tune-pdf-btn','print-tune-btn','save-pdf-btn'].forEach(bid => {
+      const _printTunePdfBtn = document.getElementById(bid);
+      if (_printTunePdfBtn) _printTunePdfBtn.addEventListener('click', () => {
         const render = document.getElementById('sheet-music-render');
         if (!render || !render.querySelector('svg')) { alert('No sheet music rendered yet.'); return; }
         const win = window.open('', '_blank');
@@ -2918,7 +2919,7 @@ function renderModal(tune, onBack = null, siblings = null) {
           + '<scr' + 'ipt>window.onload=()=>window.print();</scr' + 'ipt></body></html>');
         win.document.close();
       });
-    }
+    })
 
   // Full-screen button
   const abcFsBtn = document.getElementById("abc-fs-btn");
