@@ -917,11 +917,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
   background: none; border: none; cursor: pointer;
   color: var(--text-muted); font-size: 1.1rem;
   padding: .1rem .35rem; border-radius: 4px;
-  opacity: 0; transition: opacity .15s;
+  opacity: 0.5; transition: opacity .15s;
 }
-.set-card:hover .set-rename-btn { opacity: .7; }
 .set-rename-btn:hover { opacity: 1 !important; color: var(--accent); }
-.set-name-input {
+.set-name-input,
+.set-rename-input {
   font-weight: 600; font-size: .95rem;
   background: var(--surface2); color: var(--text);
   border: 1px solid var(--accent); border-radius: 4px;
