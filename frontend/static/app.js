@@ -2574,8 +2574,14 @@ function renderModal(tune, onBack = null, siblings = null) {
   const attachAudioPanel  = document.getElementById("attach-audio-panel");
 
   attachAudioBtn.addEventListener("click", () => {
+    const opening = attachAudioPanel.classList.contains("hidden");
     attachAudioPanel.classList.toggle("hidden");
     attachVideoPanel.classList.add("hidden");
+    // Close the More options panel so the audio panel isn't hidden behind it
+    if (opening) {
+      tuneOptionsPanel?.classList.add("hidden");
+      setTimeout(() => attachAudioPanel.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+    }
   });
 
   // Tab switching
@@ -8443,7 +8449,7 @@ function _resetImportTabs() {
   });
 
   // Clear text search fields so re-opening shows a clean state
-  ["session-search-input"].forEach(id => {
+  ["session-search-input", "ff-cat-search", "ff-abc-url", "ff-mp3-url", "ff-title-input"].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = "";
   });
 }

@@ -574,6 +574,8 @@
           <div class="import-drop-btns">
             <label class="btn-secondary audio-pick-label" for="audio-file-input">Choose files…</label>
             <label class="btn-secondary audio-pick-label" for="audio-folder-input">Choose folder…</label>
+            <input type="file" id="audio-file-input" accept=".mp3,.m4a,.wav,.ogg,.aac,.flac,audio/*" multiple style="display:none">
+            <input type="file" id="audio-folder-input" accept=".mp3,.m4a,.wav,.ogg,.aac,.flac,audio/*" multiple webkitdirectory style="display:none">
           </div>
           <span id="audio-file-count" class="import-filename"></span>
         </div>

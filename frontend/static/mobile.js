@@ -341,8 +341,8 @@
 
   window.addEventListener("popstate", e => {
     if (!_importOverlay.classList.contains("hidden")) {
-      _importOverlay.classList.add("hidden");
-      document.body.style.overflow = "";
+      if (typeof closeImport === "function") closeImport();
+      else { _importOverlay.classList.add("hidden"); document.body.style.overflow = ""; }
     } else if (!_modalOverlay.classList.contains("hidden")) {
       // app.js's closeModal()
       if (typeof closeModal === "function") closeModal();
