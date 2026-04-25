@@ -6466,13 +6466,44 @@ function renderCollections(collections) {
         itemsEl.querySelectorAll(".col-set-link").forEach(btn => {
           btn.addEventListener("click", async () => {
             const sid = btn.dataset.setId;
+            const row = btn.closest(".col-set-row");
+            const existing = row.nextElementSibling;
+            if (existing && existing.classList.contains("col-set-inline-tunes")) {
+              existing.remove();
+              btn.classList.remove("col-set-link-open");
+              return;
+            }
+            itemsEl.querySelectorAll(".col-set-inline-tunes").forEach(el => el.remove());
+            itemsEl.querySelectorAll(".col-set-link-open").forEach(el => el.classList.remove("col-set-link-open"));
+            const expand = document.createElement("div");
+            expand.className = "col-set-inline-tunes";
+            expand.innerHTML = `<p class="loading" style="padding:.4rem .75rem">Loading…</p>`;
+            row.after(expand);
+            btn.classList.add("col-set-link-open");
             try {
               const setData = await apiGetSet(sid);
-              openFullSetModal(setData);
-            } catch (e) {
-              // Fallback: navigate to Sets tab if modal fails
-              switchView("sets");
-              setTimeout(() => { if (window._openSetDetail) window._openSetDetail(sid); }, 250);
+              const tunes = setData.tunes || [];
+              if (!tunes.length) {
+                expand.innerHTML = `<p class="set-empty" style="padding:.4rem .75rem">No tunes in this set.</p>`;
+                return;
+              }
+              expand.innerHTML = tunes.map((t, i) => `
+                <div class="col-set-inline-tune" data-tune-id="${t.id}">
+                  <span class="col-set-inline-num">${i + 1}</span>
+                  <button class="set-tune-title tune-open-btn col-set-tune-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
+                  <span class="badge ${typeBadgeClass(t.type || "")}">${escHtml(t.type || "")}</span>
+                  <span class="badge badge-key">${escHtml(t.key || "")}</span>
+                </div>`).join("");
+              expand.querySelectorAll(".col-set-tune-btn").forEach(tb => {
+                tb.addEventListener("click", async () => {
+                  try {
+                    const tuneData = await apiGetTune(tb.dataset.tuneId);
+                    renderModal(tuneData);
+                  } catch {}
+                });
+              });
+            } catch {
+              expand.innerHTML = `<p class="set-empty" style="padding:.4rem .75rem">Failed to load set.</p>`;
             }
           });
         });
