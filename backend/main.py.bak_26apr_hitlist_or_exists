@@ -438,10 +438,10 @@ def list_tunes(
         params.append(mode.lower())
 
     if hitlist:
-        conditions.append("(t.on_hitlist = 1 OR EXISTS (SELECT 1 FROM tunes v WHERE v.parent_id = t.id AND v.on_hitlist = 1))")
+        conditions.append("t.on_hitlist = 1")
 
     if favourite:
-        conditions.append("(t.is_favourite = 1 OR EXISTS (SELECT 1 FROM tunes v WHERE v.parent_id = t.id AND v.is_favourite = 1))")
+        conditions.append("t.is_favourite = 1")
 
 
     if min_rating is not None:

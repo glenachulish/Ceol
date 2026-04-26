@@ -1,0 +1,14 @@
+
+[notice] A new release of pip is available: 25.3 -> 26.0.1
+[notice] To update, run: pip3 install --upgrade pip
+Starting Ceol on http://0.0.0.0:8001
+  → Local:   http://localhost:8001
+  → Network: http://192.168.178.178:8001
+INFO:     Will watch for changes in these directories: ['/Users/callummaclellan/Ceol/v3']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [15613] using WatchFiles
+INFO:     Started server process [15620]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Database initialised at /Users/callummaclellan/Ceol/v3/data/ceol.db
+INFO:     127.0.0.1:62776 - "GET /api/tunes?hitlist=1&limit=1 HTTP/1.1" 200 OK

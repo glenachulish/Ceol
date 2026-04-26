@@ -4370,28 +4370,13 @@ function openAbcFullscreen(abc, title, opts = {}) {
               loopCount++;
               if (loopCount >= tempoLoops && curWarp < tempoFinal) {
                 curWarp = Math.min(tempoFinal, curWarp + tempoInc);
+                _abcFsSynthCtrl.setWarp(curWarp);
+                // Update warp display in the fullscreen player
+                const warpEl = document.querySelector("#abc-fs-audio .abcjs-midi-warp input");
+                if (warpEl) { warpEl.value = curWarp; warpEl.dispatchEvent(new Event("input")); }
                 loopCount = 0;
               }
-              // BUG 4 fix: apply setWarp AFTER play() resolves (race condition)
-              const applyWarp = () => {
-                try { _abcFsSynthCtrl.setWarp(curWarp); } catch(_e) {}
-                try {
-                  const warpEl = document.querySelector("#abc-fs-audio .abcjs-midi-warp input");
-                  if (warpEl) {
-                    warpEl.value = curWarp;
-                    warpEl.dispatchEvent(new Event("input",  { bubbles: true }));
-                    warpEl.dispatchEvent(new Event("change", { bubbles: true }));
-                  }
-                } catch(_e) {}
-              };
-              try {
-                const playResult = _abcFsSynthCtrl.play();
-                if (playResult && typeof playResult.then === 'function') {
-                  playResult.then(applyWarp).catch(() => applyWarp());
-                } else {
-                  applyWarp();
-                }
-              } catch(_e) {}
+              try { _abcFsSynthCtrl.play(); } catch {}
             };
           }
         })
@@ -7432,24 +7417,19 @@ filterRating?.addEventListener("change", () => {
   loadTunes();
 });
 
-// BUG 1 fix: wire BOTH the quick (#quick-*) and filter-panel (#filter-*) buttons.
-// The prominent #filter-hitlist-btn / #filter-favourite-btn used to be dead UI.
-const _allHitlistBtns   = document.querySelectorAll("#quick-hitlist-btn, #filter-hitlist-btn");
-const _allFavouriteBtns = document.querySelectorAll("#quick-fav-btn, #filter-favourite-btn");
-
-_allHitlistBtns.forEach(btn => btn.addEventListener("click", () => {
+filterHitlistBtn?.addEventListener("click", () => {
   state.hitlist = !state.hitlist;
-  _allHitlistBtns.forEach(b => b.classList.toggle("active", state.hitlist));
+  filterHitlistBtn.classList.toggle("active", state.hitlist);
   state.page = 1;
   loadTunes();
-}));
+});
 
-_allFavouriteBtns.forEach(btn => btn.addEventListener("click", () => {
+filterFavouriteBtn?.addEventListener("click", () => {
   state.favourite = !state.favourite;
-  _allFavouriteBtns.forEach(b => b.classList.toggle("active", state.favourite));
+  filterFavouriteBtn.classList.toggle("active", state.favourite);
   state.page = 1;
   loadTunes();
-}));
+});
 
 // ── Print list ────────────────────────────────────────────────────────────────
 document.getElementById("print-btn")?.addEventListener("click", async () => {
@@ -7534,9 +7514,8 @@ clearBtn.addEventListener("click", () => {
   searchEl.value = "";
   filterType.value = filterKey.value = filterMode.value = filterRating.value = "";
   if (filterComposer) filterComposer.value = "";
-  // BUG 1 fix: clear BOTH quick + filter-panel buttons
-  _allHitlistBtns.forEach(b => b.classList.remove("active"));
-  _allFavouriteBtns.forEach(b => b.classList.remove("active"));
+  filterHitlistBtn.classList.remove("active");
+  filterFavouriteBtn?.classList.remove("active");
   document.querySelectorAll(".content-filter-btn").forEach(b => b.classList.remove("active"));
   window._alphaReset?.();
   Object.assign(state, { page: 1, q: "", type: "", key: "", mode: "", composer: "", hitlist: false, favourite: false, min_rating: 0, has_content: "", starts_with: "" });
@@ -11623,51 +11602,18 @@ function _renderPracticeMusic(pracAbc) {
         _pracUpdatePhraseIndicator(_pracMeasureFromEvent(ev));
       },
       onFinished() {
-        // Clear note highlights from previous loop
-        try {
-          document.querySelectorAll("#prac-sheet-render .abcjs-highlight")
-            .forEach(el => el.classList.remove("abcjs-highlight"));
-        } catch(_) {}
-
+        document.querySelectorAll("#prac-sheet-render .abcjs-highlight")
+          .forEach(el => el.classList.remove("abcjs-highlight"));
         _pracLoopCount++;
-
         // Tempo step: increment warp after N loops, up to final %
-        // BUG 2 fix: use _pracSettings (was incorrectly using _pracFinalWarp etc.)
-        try {
-          const { final: finalWarp, inc, loopsPerStep } = _pracSettings;
-          if (_pracCurWarp < finalWarp && _pracLoopCount % loopsPerStep === 0) {
-            _pracCurWarp = Math.min(finalWarp, _pracCurWarp + inc);
-          }
-        } catch(_) {}
-
-        _updatePracTempoDisplay();
-
-        // Loop: restart, then apply new warp AFTER play() resolves
-        // (setWarp before play() was being ignored — race condition)
-        if (_pracSynthCtrl) {
-          try {
-            const applyWarp = () => {
-              try { _pracSynthCtrl.setWarp(_pracCurWarp); } catch(_) {}
-              // Also nudge the warp slider so abcjs picks up the value
-              try {
-                const warpEl = document.querySelector(
-                  '#prac-player-container .abcjs-midi-warp input'
-                );
-                if (warpEl) {
-                  warpEl.value = _pracCurWarp;
-                  warpEl.dispatchEvent(new Event('input',  { bubbles: true }));
-                  warpEl.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-              } catch(_) {}
-            };
-            const playResult = _pracSynthCtrl.play();
-            if (playResult && typeof playResult.then === 'function') {
-              playResult.then(applyWarp).catch(() => applyWarp());
-            } else {
-              applyWarp();
-            }
-          } catch(_) {}
+        const { final: finalWarp, inc, loopsPerStep } = _pracSettings;
+        if (_pracCurWarp < finalWarp && _pracLoopCount % loopsPerStep === 0) {
+          _pracCurWarp = Math.min(finalWarp, _pracCurWarp + inc);
+          if (_pracSynthCtrl) _pracSynthCtrl.setWarp(_pracCurWarp);
         }
+        _updatePracTempoDisplay();
+        // Loop: restart from top
+        if (_pracSynthCtrl) { try { _pracSynthCtrl.play(); } catch {} }
       },
     };
 

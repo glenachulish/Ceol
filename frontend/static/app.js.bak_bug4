@@ -4370,28 +4370,13 @@ function openAbcFullscreen(abc, title, opts = {}) {
               loopCount++;
               if (loopCount >= tempoLoops && curWarp < tempoFinal) {
                 curWarp = Math.min(tempoFinal, curWarp + tempoInc);
+                _abcFsSynthCtrl.setWarp(curWarp);
+                // Update warp display in the fullscreen player
+                const warpEl = document.querySelector("#abc-fs-audio .abcjs-midi-warp input");
+                if (warpEl) { warpEl.value = curWarp; warpEl.dispatchEvent(new Event("input")); }
                 loopCount = 0;
               }
-              // BUG 4 fix: apply setWarp AFTER play() resolves (race condition)
-              const applyWarp = () => {
-                try { _abcFsSynthCtrl.setWarp(curWarp); } catch(_e) {}
-                try {
-                  const warpEl = document.querySelector("#abc-fs-audio .abcjs-midi-warp input");
-                  if (warpEl) {
-                    warpEl.value = curWarp;
-                    warpEl.dispatchEvent(new Event("input",  { bubbles: true }));
-                    warpEl.dispatchEvent(new Event("change", { bubbles: true }));
-                  }
-                } catch(_e) {}
-              };
-              try {
-                const playResult = _abcFsSynthCtrl.play();
-                if (playResult && typeof playResult.then === 'function') {
-                  playResult.then(applyWarp).catch(() => applyWarp());
-                } else {
-                  applyWarp();
-                }
-              } catch(_e) {}
+              try { _abcFsSynthCtrl.play(); } catch {}
             };
           }
         })
