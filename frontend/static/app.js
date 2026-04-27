@@ -4317,7 +4317,11 @@ function openAbcFullscreen(abc, title, opts = {}) {
             }
           }
 
-          // Bar-range loop: controlled by _fsLooping (not ABCJS loop button)
+          // Bar-range loop: controlled by _fsLooping (not ABCJS loop button).
+          // Mirrors the modal pattern (L3818): wrap the seek in a 30ms timer so
+          // ABCJS can settle internal state before seeking, and reset
+          // _fsLoopSeeking AFTER the seek inside a nested timer.  Without this,
+          // ABCJS sometimes silenced onEvent on the second pass — BUG 3.
           if (!_fsLoopSeeking && _fsLooping
               && _fsBarSel.start !== null && _fsBarSel.end !== null && ev) {
             const endMs = Object.prototype.hasOwnProperty.call(_fsBarFirstMs, _fsBarSel.end + 1)
@@ -4325,8 +4329,13 @@ function openAbcFullscreen(abc, title, opts = {}) {
               : _fsBarMs(_fsBarSel.end) + (_fsMsPerMeasure || 0);
             if (ev.milliseconds >= endMs) {
               _fsLoopSeeking = true;
-              _fsSeekToBar(_fsBarSel.start);
-              setTimeout(() => { _fsLoopSeeking = false; }, 300);
+              const _fsLoopStart = _fsBarSel.start;
+              setTimeout(() => {
+                if (_fsLooping && _fsBarSel.start !== null) {
+                  _fsSeekToBar(_fsLoopStart);
+                }
+                setTimeout(() => { _fsLoopSeeking = false; }, 250);
+              }, 30);
             }
           }
         },
@@ -4338,8 +4347,15 @@ function openAbcFullscreen(abc, title, opts = {}) {
             document.querySelectorAll("#abc-fullscreen-render .abcjs-highlight")
               .forEach(el => el.classList.remove("abcjs-highlight"));
           }
-          // If looping, restart from selection start
-          if (_fsLooping && _fsBarSel.start !== null && _abcFsSynthCtrl) {
+          // If looping, restart from selection start.  Guard !_fsLoopSeeking so a
+          // seek already in flight (loop endpoint detected in onEvent, tune still
+          // ended before seek took effect) doesn't double-fire play().  Pre-seek
+          // BEFORE play() so ABCJS doesn't briefly play from bar 0 while waiting
+          // for onStart to fire — without this, loops near the end of the tune
+          // produced highlight glitches because the cursor would emit events for
+          // bar 0 before snapping back.  BUG 5.
+          if (_fsLooping && _fsBarSel.start !== null && _abcFsSynthCtrl && !_fsLoopSeeking) {
+            _fsSeekToBar(_fsBarSel.start);
             _fsBarSeekPending = true;
             try { _abcFsSynthCtrl.play(); } catch {}
           }
