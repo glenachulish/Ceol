@@ -8131,7 +8131,7 @@ async function _bldrPickFirst(filters) {
   let keyFilter = "";
   let tunes = [];
 
-  async function loadTunes() {
+  async function _bldrLoadCandidateTunes() {
     const p = new URLSearchParams({ page_size: 500 });
     if (filters.type) p.set("type", filters.type);
     if (filters.minRating) p.set("min_rating", filters.minRating);
@@ -8188,12 +8188,12 @@ async function _bldrPickFirst(filters) {
   document.getElementById("bldr-back").addEventListener("click", _bldrHome);
   document.getElementById("bldr-key-filter").addEventListener("change", e => {
     keyFilter = e.target.value;
-    loadTunes();
+    _bldrLoadCandidateTunes();
   });
   const _firstSearch = document.getElementById("bldr-first-search");
   _firstSearch.addEventListener("input", () => { searchQ = _firstSearch.value.trim(); renderList(); });
   _firstSearch.focus();
-  loadTunes();
+  _bldrLoadCandidateTunes();
 }
 
 async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
