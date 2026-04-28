@@ -835,8 +835,11 @@ const _NAV_COLOURS = {
   todo:        { el: () => navTodo,        bg: "#ef4444" },
 };
 function _applyNavColour(view) {
+  // Decoupled from legacy desktop nav: silently skip if the element is null
+  // (it lives in m-compat which may have been removed).
   Object.values(_NAV_COLOURS).forEach(({ el }) => {
     const n = el();
+    if (!n) return;
     n.style.removeProperty("background-color");
     n.style.removeProperty("border-color");
     n.style.removeProperty("color");
@@ -844,6 +847,7 @@ function _applyNavColour(view) {
   const c = _NAV_COLOURS[view];
   if (c) {
     const n = c.el();
+    if (!n) return;
     n.style.setProperty("background-color", c.bg, "important");
     n.style.setProperty("border-color", c.bg, "important");
     n.style.setProperty("color", "#fff", "important");
@@ -855,38 +859,40 @@ function switchView(view) {
   document.body.dataset.view = view;
   _applyNavColour(view);
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
-  [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements, viewPractice, viewTodo].forEach(v => v.classList.add("hidden"));
-  [navLibrary, navSets, navCollections, navTodo].forEach(n => n.classList.remove("active"));
+  // Hide every view container.  Some refs may be null if m-compat is gone.
+  [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements, viewPractice, viewTodo]
+    .forEach(v => v && v.classList.add("hidden"));
+  [navLibrary, navSets, navCollections, navTodo].forEach(n => n && n.classList.remove("active"));
   if (navMoreMenu) navMoreMenu.classList.add("hidden");
 
   if (view === "library") {
-    viewLibrary.classList.remove("hidden");
-    navLibrary.classList.add("active");
+    if (viewLibrary) viewLibrary.classList.remove("hidden");
+    if (navLibrary) navLibrary.classList.add("active");
   } else {
     if (_selectMode) _exitSelectMode();
   }
   if (view === "sets") {
-    viewSets.classList.remove("hidden");
-    navSets.classList.add("active");
+    if (viewSets) viewSets.classList.remove("hidden");
+    if (navSets) navSets.classList.add("active");
     loadSets();
   } else if (view === "collections") {
-    viewCollections.classList.remove("hidden");
-    navCollections.classList.add("active");
+    if (viewCollections) viewCollections.classList.remove("hidden");
+    if (navCollections) navCollections.classList.add("active");
     loadCollections();
   } else if (view === "notes") {
-    viewNotes.classList.remove("hidden");
-    navNotes.classList.add("active");
+    if (viewNotes) viewNotes.classList.remove("hidden");
+    if (navNotes) navNotes.classList.add("active");
     loadNoteDocuments();
   } else if (view === "achievements") {
-    viewAchievements.classList.remove("hidden");
-    navAchievements.classList.add("active");
+    if (viewAchievements) viewAchievements.classList.remove("hidden");
+    if (navAchievements) navAchievements.classList.add("active");
     loadAchievements();
   } else if (view === "practice") {
-    viewPractice.classList.remove("hidden");
+    if (viewPractice) viewPractice.classList.remove("hidden");
     if (navPractice) navPractice.classList.add("active");
   } else if (view === "todo") {
-    viewTodo.classList.remove("hidden");
-    navTodo.classList.add("active");
+    if (viewTodo) viewTodo.classList.remove("hidden");
+    if (navTodo) navTodo.classList.add("active");
     loadTodoView();
   }
 }
@@ -7103,8 +7109,8 @@ async function loadStats() {
         .slice(0, 4)
         .map(b => `${b.type}: ${b.count.toLocaleString()}`)
         .join("  ·  ");
-      statsText.textContent = `${stats.total_tunes.toLocaleString()} tunes  ·  ${byType}`;
-      statsBar.classList.remove("hidden");
+      if (statsText) statsText.textContent = `${stats.total_tunes.toLocaleString()} tunes  ·  ${byType}`;
+      if (statsBar) statsBar.classList.remove("hidden");
     }
   } catch (_) { /* non-critical */ }
 }
@@ -7139,11 +7145,13 @@ async function _refreshTodoBadge() {
       !_todoSkipped.has(`${Math.min(tune_a.id, tune_b.id)}-${Math.max(tune_a.id, tune_b.id)}`)
     );
     const count = _todoSuggestions.length;
-    if (count > 0) {
-      todoBadge.textContent = count;
-      todoBadge.classList.remove("hidden");
-    } else {
-      todoBadge.classList.add("hidden");
+    if (todoBadge) {
+      if (count > 0) {
+        todoBadge.textContent = count;
+        todoBadge.classList.remove("hidden");
+      } else {
+        todoBadge.classList.add("hidden");
+      }
     }
     // If To Do view is currently open, refresh it
     if (state.view === "todo") loadTodoView();
@@ -7878,13 +7886,16 @@ modalOverlay.addEventListener("click", e => {
 // Note: bar-selection click listener is attached inside renderSheetMusic (capture phase).
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
-navLibrary.addEventListener("click",      () => switchView("library"));
-navSets.addEventListener("click",         () => switchView("sets"));
-navCollections.addEventListener("click",  () => switchView("collections"));
-navNotes.addEventListener("click",        () => switchView("notes"));
-navAchievements.addEventListener("click", () => switchView("achievements"));
-if (navPractice) navPractice.addEventListener("click", () => switchView("practice"));
-navTodo.addEventListener("click",         () => switchView("todo"));
+// Legacy desktop nav click handlers — null-guarded so this works whether
+// or not the m-compat DOM is still present.  Mobile bottom-nav clicks also
+// route through switchView (via mobile.js's wrapper).
+if (navLibrary)      navLibrary.addEventListener("click",      () => switchView("library"));
+if (navSets)         navSets.addEventListener("click",         () => switchView("sets"));
+if (navCollections)  navCollections.addEventListener("click",  () => switchView("collections"));
+if (navNotes)        navNotes.addEventListener("click",        () => switchView("notes"));
+if (navAchievements) navAchievements.addEventListener("click", () => switchView("achievements"));
+if (navPractice)     navPractice.addEventListener("click",     () => switchView("practice"));
+if (navTodo)         navTodo.addEventListener("click",         () => switchView("todo"));
 document.getElementById("todo-back-btn")?.addEventListener("click", () => switchView("library"));
 
 // Links ▾ dropdown
