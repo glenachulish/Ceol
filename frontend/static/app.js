@@ -12098,6 +12098,17 @@ function _staffwidthFor(elementId) {
   function init() {
     var btns = document.querySelectorAll(".m-size-btn");
     if (!btns.length) return; // legacy index.html or buttons not yet rendered
+    // Wrap renderModal once to capture its args for live re-render.
+    // At module scope window.renderModal aliases the bare-name binding,
+    // so other call sites in app.js go through this wrapper too.
+    if (typeof window.renderModal === "function" && !window._ceolWrappedRenderModal) {
+      var _origRM = window.renderModal;
+      window.renderModal = function () {
+        window._ceolLastModalArgs = Array.prototype.slice.call(arguments);
+        return _origRM.apply(this, arguments);
+      };
+      window._ceolWrappedRenderModal = true;
+    }
     var current = String(_activeSize());
     btns.forEach(function (b) {
       b.setAttribute("aria-pressed",
@@ -12111,12 +12122,14 @@ function _staffwidthFor(elementId) {
           other.setAttribute("aria-pressed",
             other.getAttribute("data-size") === size ? "true" : "false");
         });
-        // Best-effort live music re-render. If these globals don't exist,
-        // music will update on next tune-modal navigation. UI text scaling
-        // is CSS-driven and updates instantly regardless.
+        // Live music re-render: replay the last renderModal call so the
+        // sheet music re-renders with the new measures-per-line.
+        // UI text scaling is CSS-driven and updates instantly regardless.
         try {
-          if (typeof window.openTune === "function" && window._currentTuneId) {
-            window.openTune(window._currentTuneId);
+          if (window._ceolLastModalArgs && typeof renderModal === "function" &&
+              document.getElementById("sheet-music-render") &&
+              document.getElementById("sheet-music-render").children.length) {
+            renderModal.apply(null, window._ceolLastModalArgs);
           }
         } catch (e) { /* swallow — patch must not break navigation */ }
       });
