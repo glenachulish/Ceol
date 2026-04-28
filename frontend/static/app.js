@@ -1218,6 +1218,8 @@ function renderModal(tune, onBack = null, siblings = null) {
             <button id="transpose-down-btn" class="btn-secondary btn-sm" title="Down 1 semitone">▼ Down</button>
             <span id="transpose-label" class="transpose-inline-label">0</span>
             <button id="transpose-up-btn" class="btn-secondary btn-sm" title="Up 1 semitone">▲ Up</button>
+            <button id="tune-size-down-btn" class="btn-secondary btn-sm tune-size-btn" title="Smaller">A&minus;</button>
+            <button id="tune-size-up-btn" class="btn-secondary btn-sm tune-size-btn" title="Larger">A&plus;</button>
             <button id="transpose-reset-btn" class="btn-secondary btn-sm transpose-reset-btn" title="Reset to original key">Reset</button>
             <button id="save-transposed-btn" class="btn-secondary btn-sm" style="display:none">💾 Save version</button>
           </span>
@@ -12108,6 +12110,24 @@ function _staffwidthFor(elementId) {
         return _origRM.apply(this, arguments);
       };
       window._ceolWrappedRenderModal = true;
+    }
+    // Per-tune A-/A+ buttons (live in transpose-inline-row, re-rendered
+    // each modal open). One delegated listener at document level handles
+    // them — simulates a click on the matching .m-size-btn so all menu
+    // logic (data-size, localStorage, aria-pressed, renderModal replay)
+    // runs unchanged.
+    if (!window._ceolTuneSizeDelegated) {
+      document.addEventListener('click', function (e) {
+        var down = e.target.closest && e.target.closest('#tune-size-down-btn');
+        var up   = e.target.closest && e.target.closest('#tune-size-up-btn');
+        if (!down && !up) return;
+        var cur = _activeSize();
+        var next = down ? Math.max(1, cur - 1) : Math.min(3, cur + 1);
+        if (next === cur) return;
+        var btn = document.querySelector('.m-size-btn[data-size="' + next + '"]');
+        if (btn) btn.click();
+      });
+      window._ceolTuneSizeDelegated = true;
     }
     var current = String(_activeSize());
     btns.forEach(function (b) {
