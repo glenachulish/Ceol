@@ -1076,7 +1076,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     ? `<span class="badge ${keyBadgeClass(tune.key)} badge-editable" data-field="key">${escHtml(tune.key)}</span>`
     : `<button class="badge-add-field" data-field="key">+ key</button>`;
   const backBtn = onBack
-    ? `<button id="modal-back-btn" class="modal-back-btn btn-secondary btn-sm">← Back</button>`
+    ? `<button id="modal-back-btn" class="modal-back-btn btn-secondary btn-sm btn-nav-back">← Back</button>`
     : "";
   const versionLine = tune.version_label
     ? `<p class="modal-version-label">${escHtml(tune.version_label)}</p>`
@@ -2012,7 +2012,7 @@ function renderModal(tune, onBack = null, siblings = null) {
        </label>`;
     }).join("");
     modalContent.innerHTML = `
-      <button class="modal-back-btn" id="tune-col-modal-back">← Back</button>
+      <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="tune-col-modal-back">← Back</button>
       <h2 class="modal-title">Add to Collections</h2>
       <div class="bulk-col-list">${existingOptions || '<p class="set-add-tune-none">No collections yet.</p>'}</div>
       <div class="multi-col-new-row">
@@ -4836,7 +4836,7 @@ function openSetMusicModal(title, abc, opts = {}) {
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
 
   modalContent.innerHTML = `
-    ${onBack ? '<button class="modal-back-btn" id="set-music-back-btn">← Back</button>' : ""}
+    ${onBack ? '<button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="set-music-back-btn">← Back</button>' : ""}
     <h2 class="modal-title">${escHtml(title)}</h2>
     <div id="set-music-render" style="margin-top:.75rem"></div>
     <div id="set-music-audio" style="margin-top:.75rem"></div>`;
@@ -5554,7 +5554,7 @@ async function showSetPickerPanel(tune, onBack, siblings) {
   }).join("");
 
   modalContent.innerHTML = `
-    <button class="modal-back-btn" id="modal-back-btn">← Back</button>
+    <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="modal-back-btn">← Back</button>
     <h2 class="modal-title">Add to a set</h2>
     <p class="modal-hint">Choose a set to preview where <strong>${escHtml(tune.title)}</strong> will sit.</p>
     <div class="set-picker-list">${rows || '<p class="modal-hint">No sets yet — use "Create new set" instead.</p>'}</div>
@@ -5594,7 +5594,7 @@ function showSetPreviewPanel(tune, setData, onBack, siblings) {
       </div>`).join("");
 
     modalContent.innerHTML = `
-      <button class="modal-back-btn" id="modal-back-btn">← Back</button>
+      <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="modal-back-btn">← Back</button>
       <h2 class="modal-title">Add to "${escHtml(setData.name)}"</h2>
       <p class="modal-hint">Drag <strong>${escHtml(tune.title)}</strong> into position, preview the set, then confirm.</p>
       <div class="set-preview-list" id="set-preview-list">${rows}</div>
@@ -5664,7 +5664,7 @@ function showCreateSetPanel(tune, onBack, siblings) {
   const defaultName = `${tune.title} Set`;
 
   modalContent.innerHTML = `
-    <button class="modal-back-btn" id="modal-back-btn">← Back</button>
+    <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="modal-back-btn">← Back</button>
     <h2 class="modal-title">Create new set</h2>
     <p class="modal-hint"><strong>${escHtml(tune.title)}</strong> will be added as the first tune.</p>
     <div class="create-set-form">
@@ -7957,7 +7957,7 @@ async function _bldrHome() {
   ).join("");
 
   modalContent.innerHTML = `
-    <button class="modal-back-btn" id="bldr-back">← Close</button>
+    <button class="modal-back-btn" id="bldr-back">✕ Close</button>
     <h2 class="modal-title">Build a Set</h2>
     <p class="modal-hint">Start from a template or pick tunes step by step using the Circle of Fifths.</p>
 
@@ -8103,7 +8103,7 @@ async function _bldrTemplateMode(template, filters) {
 
     const chosen = selections.filter(Boolean);
     modalContent.innerHTML = `
-      <button class="modal-back-btn" id="bldr-back">← Back</button>
+      <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="bldr-back">← Back</button>
       <h2 class="modal-title">${escHtml(template.name)}</h2>
       <p class="modal-hint">${escHtml(template.description)}</p>
       ${_bldrFilterSummary(filters)}
@@ -8187,7 +8187,7 @@ async function _bldrPickFirst(filters) {
 
   const keyOpts = keys.map(k => `<option value="${k}">${escHtml(k)}</option>`).join("");
   modalContent.innerHTML = `
-    <button class="modal-back-btn" id="bldr-back">← Back</button>
+    <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="bldr-back">← Back</button>
     <h2 class="modal-title">Choose your first tune</h2>
     ${_bldrFilterSummary(filters)}
     <div class="bldr-filter-row">
@@ -8249,7 +8249,7 @@ async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
     }).join("");
 
     modalContent.innerHTML = `
-      <button class="modal-back-btn" id="bldr-back">← Back</button>
+      <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="bldr-back">← Back</button>
       <h2 class="modal-title">What comes next?</h2>
       <p class="modal-hint">Last tune: <span class="badge ${keyBadgeClass(lastTune.key)}">${escHtml(lastTune.key || "?")}</span> <strong>${escHtml(lastTune.title)}</strong></p>
       <div class="bldr-filter-bar bldr-filter-bar--compact">
@@ -8333,7 +8333,7 @@ async function _bldrStepMode(selectedTunes, filters, onFirstBack = null) {
 
 function _bldrSave(tunes, defaultName, onBack) {
   modalContent.innerHTML = `
-    <button class="modal-back-btn" id="bldr-back">← Back</button>
+    <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="bldr-back">← Back</button>
     <h2 class="modal-title">Save set</h2>
     <div class="bldr-save-preview">
       ${tunes.map((t, i) => `

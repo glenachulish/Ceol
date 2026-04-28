@@ -17,7 +17,7 @@
   <script>
     (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);var s=localStorage.getItem("ceol-size");document.documentElement.setAttribute("data-size",(s==="1"||s==="2"||s==="3")?s:"2");})();
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=132" />
+  <link rel="stylesheet" href="/static/style.css?v=133" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
   <link rel="stylesheet" href="/static/mobile.css?v=1" />
 </head>
@@ -138,7 +138,7 @@
       </div>
       <!-- Focused single-set view -->
       <div id="set-detail-view" class="hidden">
-        <button id="set-detail-back" class="modal-back-btn" style="margin-bottom:.75rem">← All Sets</button>
+        <button id="set-detail-back" class="modal-back-btn btn-nav-back" style="margin-bottom:.75rem">← All Sets</button>
         <div id="set-detail-content"></div>
       </div>
     </div>
@@ -216,7 +216,7 @@
       </div>
       <!-- Focused single-collection view -->
       <div id="col-detail-view" class="hidden">
-        <button id="col-detail-back" class="modal-back-btn" style="margin-bottom:.75rem">← All Collections</button>
+        <button id="col-detail-back" class="modal-back-btn btn-nav-back" style="margin-bottom:.75rem">← All Collections</button>
         <div id="col-detail-content"></div>
       </div>
     </div>
@@ -452,7 +452,7 @@
         <!-- Preview panel (hidden until a result is clicked) -->
         <div id="session-preview" class="session-preview hidden">
           <div class="session-preview-header">
-            <button id="session-preview-back" class="btn-secondary btn-sm">← Back</button>
+            <button id="session-preview-back" class="btn-secondary btn-sm btn-nav-back">← Back</button>
             <span id="session-preview-title" class="session-preview-title-text"></span>
             <span id="session-preview-badges"></span>
             <span id="session-preview-submitter" class="session-preview-submitter"></span>
@@ -681,7 +681,7 @@
             <span class="book-paste-hint">One tune per line: <em>Title, page</em> or <em>Title page</em></span>
           </div>
           <div class="import-actions" style="gap:.5rem">
-            <button id="book-back-btn" class="btn-secondary">← Back</button>
+            <button id="book-back-btn" class="btn-secondary btn-nav-back">← Back</button>
             <button id="book-import-btn" class="btn-primary">Import book</button>
           </div>
         </div>
@@ -705,7 +705,7 @@
             <tbody id="book-abc-body"></tbody>
           </table>
           <div class="import-actions" style="gap:.5rem">
-            <button id="book-abc-back-btn" class="btn-secondary">← Back</button>
+            <button id="book-abc-back-btn" class="btn-secondary btn-nav-back">← Back</button>
             <button id="book-abc-import-btn" class="btn-primary">Import tunes</button>
           </div>
         </div>
@@ -922,7 +922,7 @@
   <div id="abc-fullscreen-overlay" class="abc-fullscreen-overlay hidden" role="dialog" aria-modal="true" aria-label="Full screen sheet music">
     <div class="abc-fullscreen-header">
       <span id="abc-fullscreen-title" class="abc-fullscreen-title-text"></span>
-      <button id="abc-fs-more-btn" class="btn-secondary btn-sm fs-more-btn" style="display:inline-block!important;margin-right:.4rem;touch-action:manipulation" data-wired="1" onclick="_ceolMoreToggle(event)">⋯ More</button><button id="abc-fullscreen-close" class="abc-fullscreen-close" aria-label="Exit full screen">✕ Exit</button>
+      <button id="abc-fs-more-btn" class="btn-secondary btn-sm fs-more-btn" style="display:inline-block!important;margin-right:.4rem;touch-action:manipulation" data-wired="1" onclick="_ceolMoreToggle(event)">⋯ More</button><button id="abc-fullscreen-close" class="abc-fullscreen-close" aria-label="Close full screen">✕ Close</button>
     </div>
     <div class="abc-fullscreen-body">
       <div id="abc-fullscreen-render"></div>
@@ -934,7 +934,7 @@
   </div>
 
   <script defer src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=324"></script>
+  <script src="/static/app.js?v=325"></script>
   <script src="/static/mobile.js?v=0"></script>
     <script>
     // Unregister any existing service workers (they caused stale cache issues)
@@ -952,7 +952,7 @@
       <div class="ceol-tuner-footer">
         <div class="ceol-tuner-footer-id">
           <span class="ceol-tuner-title">♪ Tuner</span>
-          <button id="ceol-tuner-close" class="ceol-tuner-close" aria-label="Close tuner">✕ Exit</button>
+          <button id="ceol-tuner-close" class="ceol-tuner-close" aria-label="Close tuner">✕ Close</button>
         </div>
         <button id="ceol-tuner-toggle" class="btn-primary">▶ Start</button>
       </div>

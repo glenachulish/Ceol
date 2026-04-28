@@ -4236,3 +4236,84 @@ a.bandcamp-link:hover { opacity: .85; }
    regardless of px vs rem. Verified in Chrome that modals still position
    correctly at all zoom levels on the supported browsers. */
 :root[data-size] body { zoom: var(--ui-scale); }
+
+/* ── Action-category tints ─────────────────────────────────────
+   Distinguish controls by what they do, not just how they look:
+     view  (cool sky blue)  → changes how you see the music, not the music itself
+     transpose (violet)     → modifies the actual pitch
+     back  (info blue)      → navigate up one step in a parent/child stack
+     close-all (amber)      → escape every stacked overlay back to the library
+*/
+:root {
+  --view-tint:      #7dd3fc;  /* sky-300 */
+  --transpose-tint: #a78bfa;  /* violet-400 */
+  --back-tint:      #60a5fa;  /* blue-400 */
+  --closeall-tint:  #fbbf24;  /* amber-400 */
+}
+:root[data-theme="light"] {
+  --view-tint:      #0284c7;  /* sky-600 — darker for contrast on light bg */
+  --transpose-tint: #7c3aed;  /* violet-600 */
+  --back-tint:      #2563eb;  /* blue-600 */
+  --closeall-tint:  #d97706;  /* amber-600 */
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    --view-tint:      #0284c7;
+    --transpose-tint: #7c3aed;
+    --back-tint:      #2563eb;
+    --closeall-tint:  #d97706;
+  }
+}
+
+/* Size scaler buttons — A−/A+ on tune view */
+.tune-size-btn {
+  border-color: var(--view-tint);
+  color: var(--view-tint);
+}
+.tune-size-btn:hover {
+  border-color: var(--view-tint);
+  color: var(--view-tint);
+  background: color-mix(in srgb, var(--view-tint) 14%, transparent);
+}
+/* Active size in mobile Appearance menu — overrides generic accent fill
+   from mobile.css via higher specificity (two classes + attr selector). */
+.m-theme-btn.m-size-btn[aria-pressed="true"] {
+  background: var(--view-tint);
+  color: #fff;
+}
+
+/* Transpose buttons — catches all 3 IDs (down/up/reset) in both the
+   tune-view inline row and the library-menu transpose row. */
+[id^="transpose-"] {
+  border-color: var(--transpose-tint);
+  color: var(--transpose-tint);
+}
+[id^="transpose-"]:hover {
+  border-color: var(--transpose-tint);
+  color: var(--transpose-tint);
+  background: color-mix(in srgb, var(--transpose-tint) 14%, transparent);
+}
+
+/* Navigation back — applied via .btn-nav-back to genuine "go up one step"
+   buttons. Plain modal-close buttons keep neutral grey. */
+.btn-nav-back {
+  border-color: var(--back-tint);
+  color: var(--back-tint);
+}
+.btn-nav-back:hover {
+  border-color: var(--back-tint);
+  color: var(--back-tint);
+  background: color-mix(in srgb, var(--back-tint) 14%, transparent);
+}
+
+/* Close-all — defined now; no instances yet. Wire .btn-close-all to a button
+   when we want a "get me out of every stacked overlay" escape hatch. */
+.btn-close-all {
+  border-color: var(--closeall-tint);
+  color: var(--closeall-tint);
+}
+.btn-close-all:hover {
+  border-color: var(--closeall-tint);
+  color: var(--closeall-tint);
+  background: color-mix(in srgb, var(--closeall-tint) 14%, transparent);
+}
