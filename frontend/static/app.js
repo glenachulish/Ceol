@@ -3748,11 +3748,12 @@ function renderSheetMusic(abc, opts = {}) {
     _visualObj = _hiddenObjs[0];
     // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
     // when called from inside a modal (ResizeObserver quirk).
-    // NOTE: abcjs ignores staffwidth when `wrap` is also set, so do NOT pass wrap here.
+    // NOTE: abcjs needs BOTH staffwidth AND wrap together for line breaks to work;
     // Fallback to 600 so narrow/unmeasured containers still render full staves.
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
       responsive: "resize",
       visualTranspose: _xposeN,
+      staffwidth: (typeof _staffwidthFor === 'function' ? _staffwidthFor("sheet-music-render") : 700),
       wrap: { preferredMeasuresPerLine: (typeof _measuresPerLineForSize === 'function' ? _measuresPerLineForSize() : 4) },
       add_classes: true,
       paddingbottom: 10,
@@ -4542,6 +4543,7 @@ function renderPreviewMusic(abc) {
   try {
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
       responsive: "resize",
+      staffwidth: (typeof _staffwidthFor === 'function' ? _staffwidthFor("preview-sheet-render") : 700),
       wrap: { preferredMeasuresPerLine: (typeof _measuresPerLineForSize === 'function' ? _measuresPerLineForSize() : 4) },
       add_classes: true,
       paddingbottom: 10,
@@ -11631,6 +11633,7 @@ function _renderPracticeMusic(pracAbc) {
     const processed = expandAbcRepeats(pracAbc);
     const visualObjs = ABCJS.renderAbc("prac-sheet-render", processed, {
       responsive: "resize",
+      staffwidth: (typeof _staffwidthFor === 'function' ? _staffwidthFor("prac-sheet-render") : 700),
       wrap: { preferredMeasuresPerLine: (typeof _measuresPerLineForSize === 'function' ? _measuresPerLineForSize() : 4) },
       add_classes: true,
       paddingbottom: 10, paddingleft: 15, paddingright: 15, paddingtop: 10,
@@ -12084,6 +12087,11 @@ function _activeSize() {
 function _measuresPerLineForSize() {
   var n = _activeSize();
   return n === 1 ? 6 : n === 3 ? 2 : 4;
+}
+function _staffwidthFor(elementId) {
+  var el = document.getElementById(elementId);
+  var w = (el && el.clientWidth) ? el.clientWidth : 700;
+  return Math.max(300, w - 30);
 }
 
 (function _wireSizeButtons() {
