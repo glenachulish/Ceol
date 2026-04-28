@@ -10205,7 +10205,7 @@ document.getElementById("thecraic-export-btn").addEventListener("click", () => {
   a.download = `ceol-export-${today}.abc`;
   a.click();
   // Close the menu
-  document.getElementById("library-menu").classList.add("hidden");
+  document.getElementById("library-menu")?.classList.add("hidden");
 });
 
 // ── TheSession.org search + import ───────────────────────────────────────────
@@ -11035,13 +11035,15 @@ const libraryImportBtn  = document.getElementById("library-import-btn");
 const libraryDeleteBtn  = document.getElementById("library-delete-btn");
 const autoGroupBtn      = document.getElementById("auto-group-btn");
 
-// Dropdown toggle
-libraryMenuBtn.addEventListener("click", e => {
-  e.stopPropagation();
-  libraryMenu.classList.toggle("hidden");
-});
-document.addEventListener("click", () => libraryMenu.classList.add("hidden"));
-libraryMenu.addEventListener("click", e => e.stopPropagation());
+// Dropdown toggle (legacy desktop UI — null-guarded; m-compat removed in Phase 1b)
+if (libraryMenuBtn && libraryMenu) {
+  libraryMenuBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    libraryMenu.classList.toggle("hidden");
+  });
+  document.addEventListener("click", () => libraryMenu.classList.add("hidden"));
+  libraryMenu.addEventListener("click", e => e.stopPropagation());
+}
 
 // ── Backup dialog ─────────────────────────────────────────────────────────────
 const backupOverlay    = document.getElementById("backup-overlay");
@@ -11102,7 +11104,7 @@ if (_rationaliseBtn) {
   });
 }
 
-libraryBackupBtn.addEventListener("click", () => {
+libraryBackupBtn?.addEventListener("click", () => {
   libraryMenu.classList.add("hidden");
   backupFilename.value = `ceol-backup-${_todayISO()}.zip`;
   backupOverlay.classList.remove("hidden");
@@ -11144,7 +11146,7 @@ const libImportSubmit   = document.getElementById("lib-import-submit");
 const libImportCancel   = document.getElementById("lib-import-cancel");
 const libImportResult   = document.getElementById("lib-import-result");
 
-libraryImportBtn.addEventListener("click", () => {
+libraryImportBtn?.addEventListener("click", () => {
   libraryMenu.classList.add("hidden");
   libImportFile.value = "";
   libImportFilename.textContent = "";
@@ -11267,7 +11269,7 @@ const libDeleteClose    = document.getElementById("lib-delete-close");
 const libDeleteConfirm  = document.getElementById("lib-delete-confirm");
 const libDeleteCancel   = document.getElementById("lib-delete-cancel");
 
-libraryDeleteBtn.addEventListener("click", () => {
+libraryDeleteBtn?.addEventListener("click", () => {
   libraryMenu.classList.add("hidden");
   libDeleteOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -11335,20 +11337,22 @@ const helpOverlay = document.getElementById("help-overlay");
 const helpClose   = document.getElementById("help-close");
 
 function _openHelp() {
+  if (!helpOverlay) return;
   helpOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 }
 function _closeHelp() {
+  if (!helpOverlay) return;
   helpOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }
-helpBtn.addEventListener("click", _openHelp);
-helpClose.addEventListener("click", _closeHelp);
+helpBtn?.addEventListener("click", _openHelp);
+helpClose?.addEventListener("click", _closeHelp);
 helpOverlay.addEventListener("click", e => { if (e.target === helpOverlay) _closeHelp(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !helpOverlay.classList.contains("hidden")) _closeHelp(); });
 
 // ? button in header also opens help
-document.getElementById("info-btn").addEventListener("click", _openHelp);
+document.getElementById("info-btn")?.addEventListener("click", _openHelp);
 
 // "Open App Info" button inside the help modal opens the info modal
 helpOverlay.addEventListener("click", e => {

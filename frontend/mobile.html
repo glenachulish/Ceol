@@ -910,37 +910,7 @@
        app.js expects these IDs to exist. They are hidden on mobile;
        the mobile UI (bottom nav, hamburger) delegates to them.
        ─────────────────────────────────────────────────────── -->
-  <div id="m-compat" style="display:none" aria-hidden="true">
-    <!-- Desktop nav buttons (switchView uses these to mark .active) -->
-    <!-- Desktop nav buttons (switchView uses these to mark .active) -->
-    <button id="nav-library">Library</button>
-    <button id="nav-sets">Sets</button>
-    <button id="nav-collections">Collections</button>
-    <button id="nav-notes">Notes</button>
-    <button id="nav-achievements">Achievements</button>
-    <button id="nav-todo">To Do</button>
-    <button id="nav-practice">Practice</button>
-    <!-- Views referenced in switchView array -->
-    <div id="view-practice"></div>
-    <div id="view-todo"></div>
-    <!-- Todo badge -->
-    <span id="todo-badge"></span>
-    <!-- More menu (null-guarded in app.js but included for completeness) -->
-    <button id="nav-more-btn"></button>
-    <div id="nav-more-menu" class="hidden"></div>
-    <!-- Stats bar -->
-    <div id="stats-bar"><span id="stats-text"></span></div>
-    <!-- Header action buttons -->
-    <button id="info-btn">Info</button>
-    <button id="help-btn">Help</button>
-    <!-- Library management menu -->
-    <button id="library-menu-btn">Library</button>
-    <div id="library-menu" class="library-menu hidden">
-      <button id="library-backup-btn">Export Library</button>
-      <button id="library-import-btn">Import Library</button>
-      <button id="library-delete-btn">Delete Library</button>
-    </div>
-  </div>
+  <!-- m-compat graveyard removed in Phase 1b — see Phase 1a/1b commits -->
 
   <!-- ── ABC full-screen overlay ── -->
   <div id="abc-fullscreen-overlay" class="abc-fullscreen-overlay hidden" role="dialog" aria-modal="true" aria-label="Full screen sheet music">
