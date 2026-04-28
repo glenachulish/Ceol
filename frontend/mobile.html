@@ -15,9 +15,9 @@
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
   <!-- Apply saved theme before paint to avoid flash -->
   <script>
-    (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);})();
+    (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);var s=localStorage.getItem("ceol-size");document.documentElement.setAttribute("data-size",(s==="1"||s==="2"||s==="3")?s:"2");})();
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=130" />
+  <link rel="stylesheet" href="/static/style.css?v=131" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
   <link rel="stylesheet" href="/static/mobile.css?v=1" />
 </head>
@@ -313,6 +313,12 @@
             <button class="m-theme-btn" data-theme="auto"  aria-pressed="false">Auto</button>
             <button class="m-theme-btn" data-theme="light" aria-pressed="false">Light</button>
             <button class="m-theme-btn" data-theme="dark"  aria-pressed="false">Dark</button>
+          </div>
+          <span class="m-menu-theme-label" style="margin-top:10px;">Size</span>
+          <div class="m-menu-theme-row">
+            <button class="m-theme-btn m-size-btn" data-size="1" aria-pressed="false" title="Small"><span style="font-size:13px;line-height:1;">A</span></button>
+            <button class="m-theme-btn m-size-btn" data-size="2" aria-pressed="true"  title="Medium"><span style="font-size:16px;line-height:1;">A</span></button>
+            <button class="m-theme-btn m-size-btn" data-size="3" aria-pressed="false" title="Large"><span style="font-size:20px;line-height:1;">A</span></button>
           </div>
         </div>
       </nav>
@@ -928,7 +934,7 @@
   </div>
 
   <script defer src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=320"></script>
+  <script src="/static/app.js?v=321"></script>
   <script src="/static/mobile.js?v=0"></script>
     <script>
     // Unregister any existing service workers (they caused stale cache issues)

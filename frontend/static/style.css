@@ -4225,3 +4225,12 @@ a.bandcamp-link:hover { opacity: .85; }
   opacity: 0.5; flex-shrink: 0;
 }
 .m-set-rename-btn:hover { opacity: 1; color: var(--accent); }
+
+
+/* Size scaler */
+:root { --ui-scale: 1; }
+:root[data-size="1"] { --ui-scale: 0.88; }
+:root[data-size="2"] { --ui-scale: 1.00; }
+:root[data-size="3"] { --ui-scale: 1.15; }
+/* Scales rem-based UI text. px-defined elements stay put — by design. */
+:root[data-size] body { font-size: calc(16px * var(--ui-scale)); }

@@ -3753,7 +3753,7 @@ function renderSheetMusic(abc, opts = {}) {
     const visualObjs = ABCJS.renderAbc("sheet-music-render", _processedAbc, {
       responsive: "resize",
       visualTranspose: _xposeN,
-      wrap: { preferredMeasuresPerLine: 4 },
+      wrap: { preferredMeasuresPerLine: (typeof _measuresPerLineForSize === 'function' ? _measuresPerLineForSize() : 4) },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -4542,7 +4542,7 @@ function renderPreviewMusic(abc) {
   try {
     const visualObjs = ABCJS.renderAbc("preview-sheet-render", expandAbcRepeats(abc), {
       responsive: "resize",
-      wrap: { preferredMeasuresPerLine: 4 },
+      wrap: { preferredMeasuresPerLine: (typeof _measuresPerLineForSize === 'function' ? _measuresPerLineForSize() : 4) },
       add_classes: true,
       paddingbottom: 10,
       paddingleft: 15,
@@ -11631,7 +11631,7 @@ function _renderPracticeMusic(pracAbc) {
     const processed = expandAbcRepeats(pracAbc);
     const visualObjs = ABCJS.renderAbc("prac-sheet-render", processed, {
       responsive: "resize",
-      wrap: { preferredMeasuresPerLine: 4 },
+      wrap: { preferredMeasuresPerLine: (typeof _measuresPerLineForSize === 'function' ? _measuresPerLineForSize() : 4) },
       add_classes: true,
       paddingbottom: 10, paddingleft: 15, paddingright: 15, paddingtop: 10,
       foregroundColor: "#000000",
@@ -12071,3 +12071,52 @@ document.addEventListener("click", function(e) {
 })();
 
 
+
+
+/* === Size scaler ==========================================================
+   Reads :root[data-size]. Hoisted function declarations are visible to the
+   render call sites above. Live re-render is best-effort.
+   ========================================================================= */
+function _activeSize() {
+  var s = document.documentElement.getAttribute("data-size") || "2";
+  return (s === "1" || s === "2" || s === "3") ? parseInt(s, 10) : 2;
+}
+function _measuresPerLineForSize() {
+  var n = _activeSize();
+  return n === 1 ? 6 : n === 3 ? 2 : 4;
+}
+
+(function _wireSizeButtons() {
+  function init() {
+    var btns = document.querySelectorAll(".m-size-btn");
+    if (!btns.length) return; // legacy index.html or buttons not yet rendered
+    var current = String(_activeSize());
+    btns.forEach(function (b) {
+      b.setAttribute("aria-pressed",
+        b.getAttribute("data-size") === current ? "true" : "false");
+      b.addEventListener("click", function () {
+        var size = b.getAttribute("data-size");
+        if (size !== "1" && size !== "2" && size !== "3") return;
+        document.documentElement.setAttribute("data-size", size);
+        try { localStorage.setItem("ceol-size", size); } catch (e) { /* private mode */ }
+        document.querySelectorAll(".m-size-btn").forEach(function (other) {
+          other.setAttribute("aria-pressed",
+            other.getAttribute("data-size") === size ? "true" : "false");
+        });
+        // Best-effort live music re-render. If these globals don't exist,
+        // music will update on next tune-modal navigation. UI text scaling
+        // is CSS-driven and updates instantly regardless.
+        try {
+          if (typeof window.openTune === "function" && window._currentTuneId) {
+            window.openTune(window._currentTuneId);
+          }
+        } catch (e) { /* swallow — patch must not break navigation */ }
+      });
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
