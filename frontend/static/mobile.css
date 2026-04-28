@@ -785,3 +785,15 @@
   user-select: none;
   -webkit-user-select: none;
 }
+
+/* ── Sheet music options panel: undo style.css's desktop auto-show ────
+   At ≥600px viewport, style.css force-shows the panel (display: block !important)
+   and hides its header (with the ✕ close). On the mobile route we don't want
+   that — the user needs the panel hidden by default and dismissible.
+   Scoped to .mobile-body so the desktop route (index.html) is unaffected. */
+.mobile-body .sheet-music-options-panel.hidden {
+  display: none !important;
+}
+.mobile-body .sheet-music-options-header {
+  display: flex !important;
+}
