@@ -8824,21 +8824,28 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     _audioPreview = data.files;
 
     previewBody.innerHTML = data.files.map((item, i) => {
-      const actionSel = item.action === "attach"
-        ? `<select class="audio-action-sel" data-idx="${i}">
-             <option value="attach" selected>📎 Attach to "${escHtml(item.existing_title)}"</option>
-             <option value="create">➕ Create new tune</option>
-           </select>`
-        : `<select class="audio-action-sel" data-idx="${i}">
-             <option value="create" selected>➕ Create new tune</option>
-             <option value="attach" disabled>(no match found)</option>
-           </select>`;
-      return `<tr>
+      const attachOpt = item.action === "attach"
+        ? `<option value="attach" selected>📎 Attach to "${escHtml(item.existing_title)}"</option>`
+        : `<option value="attach" disabled>📎 Attach (no match)</option>`;
+      const actionSel = `<select class="audio-action-sel" data-idx="${i}">
+        <option value="create"${item.action !== "attach" ? " selected" : ""}>➕ Create new tune</option>
+        ${attachOpt}
+        <option value="skip">⏭ Skip</option>
+      </select>`;
+      return `<tr class="audio-preview-row" data-idx="${i}">
         <td class="pdf-col-file" title="${escHtml(item.filename)}">${escHtml(item.filename)}</td>
         <td class="pdf-col-title"><input class="pdf-title-input audio-title-input" data-idx="${i}" value="${escHtml(item.title)}" /></td>
         <td class="pdf-col-action">${actionSel}</td>
       </tr>`;
     }).join("");
+
+    // Grey out skipped rows live
+    previewBody.addEventListener("change", e => {
+      const sel = e.target.closest(".audio-action-sel");
+      if (!sel) return;
+      const row = sel.closest(".audio-preview-row");
+      if (row) row.style.opacity = sel.value === "skip" ? "0.4" : "";
+    });
   }
 
   dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drop-hover"); });
@@ -8853,16 +8860,29 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
 
   importBtn?.addEventListener("click", async () => {
     if (!_audioFiles.length) return;
-    const titles     = Array.from(previewBody.querySelectorAll(".audio-title-input")).map(el => el.value.trim());
-    const actions    = Array.from(previewBody.querySelectorAll(".audio-action-sel")).map(el => el.value);
-    const existingIds = _audioPreview.map((item, i) => actions[i] === "attach" ? item.existing_id : null);
+    const allTitles   = Array.from(previewBody.querySelectorAll(".audio-title-input")).map(el => el.value.trim());
+    const allActions  = Array.from(previewBody.querySelectorAll(".audio-action-sel")).map(el => el.value);
+    const allExisting = _audioPreview.map((item, i) => allActions[i] === "attach" ? item.existing_id : null);
+
+    // Filter out skipped rows — backend doesn't know about "skip"
+    const keepIdx = allActions.map((a, i) => a !== "skip" ? i : -1).filter(i => i >= 0);
+    if (!keepIdx.length) {
+      resultDiv.textContent = "Nothing to import — all files are set to Skip.";
+      resultDiv.className = "import-result import-error";
+      resultDiv.classList.remove("hidden");
+      return;
+    }
+    const titles      = keepIdx.map(i => allTitles[i]);
+    const actions     = keepIdx.map(i => allActions[i]);
+    const existingIds = keepIdx.map(i => allExisting[i]);
+    const filesToSend = keepIdx.map(i => _audioFiles[i]);
 
     importBtn.disabled = true;
     importBtn.textContent = "Importing…";
     resultDiv.classList.add("hidden");
 
     const fd = new FormData();
-    _audioFiles.forEach(f => fd.append("files", f));
+    filesToSend.forEach(f => fd.append("files", f));
     const params = new URLSearchParams({
       titles: JSON.stringify(titles),
       actions: JSON.stringify(actions),
@@ -8881,19 +8901,44 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
       return;
     }
 
+    // Build a result message with links to each created/attached tune
     const parts = [];
     if (data.attached) parts.push(`${data.attached} attached to existing tune${data.attached !== 1 ? "s" : ""}`);
     if (data.created)  parts.push(`${data.created} new tune${data.created !== 1 ? "s" : ""} created`);
-    resultDiv.textContent = `Done — ${parts.join(", ")}.`;
+    const skippedCount = allActions.filter(a => a === "skip").length;
+    if (skippedCount)  parts.push(`${skippedCount} skipped`);
+
+    resultDiv.innerHTML = `<strong>Done — ${escHtml(parts.join(", "))}.</strong>`;
+    if (data.results && data.results.length) {
+      const links = data.results
+        .filter(r => r.tune_id)
+        .map(r => `<a class="audio-result-link" data-tune-id="${r.tune_id}" href="#">${escHtml(r.title)}</a>`)
+        .join("  ·  ");
+      if (links) resultDiv.innerHTML += `<p class="audio-result-links">${links}</p>`;
+    }
     resultDiv.className = "import-result import-success";
     resultDiv.classList.remove("hidden");
+
+    // Wire tune links
+    resultDiv.querySelectorAll(".audio-result-link").forEach(a => {
+      a.addEventListener("click", async e => {
+        e.preventDefault();
+        const tuneId = Number(a.dataset.tuneId);
+        closeImport();
+        switchView("library");
+        await new Promise(r => setTimeout(r, 350));
+        try { const t = await apiFetch(`/api/tunes/${tuneId}`); openModal(t); } catch {}
+      });
+    });
+
     _audioFiles = [];
     fileInput.value = "";
     fileCount.textContent = "";
     previewArea.classList.add("hidden");
     importBtn.disabled = false;
     importBtn.textContent = "Import audio files";
-    _afterImportSuccess(data.tune_id || null);
+    await Promise.all([loadStats(), loadFilters(), loadTunes()]);
+    window._loadRecentImports?.();
   });
 })();
 

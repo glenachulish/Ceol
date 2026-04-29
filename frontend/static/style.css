@@ -2369,6 +2369,15 @@ button.set-tune-title:hover { text-decoration: underline; }
   color: var(--danger);
   border: 1px solid rgba(239,68,68,.3);
 }
+.audio-result-links {
+  margin: .4rem 0 0 0;
+  font-size: .85rem;
+}
+.audio-result-link {
+  color: var(--reel);
+  text-decoration: underline;
+  cursor: pointer;
+}
 
 /* Folder import preview */
 .folder-preview {
