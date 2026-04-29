@@ -17,7 +17,7 @@
   <script>
     (function(){var t=localStorage.getItem("ceol-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);var s=localStorage.getItem("ceol-size");document.documentElement.setAttribute("data-size",(s==="1"||s==="2"||s==="3")?s:"2");})();
   </script>
-  <link rel="stylesheet" href="/static/style.css?v=133" />
+  <link rel="stylesheet" href="/static/style.css?v=134" />
   <link rel="stylesheet" href="/static/abcjs-audio.css" />
   <link rel="stylesheet" href="/static/mobile.css?v=2" />
 </head>
@@ -153,7 +153,10 @@
       </div>
       <!-- Discography scanner panel -->
       <div id="discography-panel" class="discography-panel hidden">
-        <h3 class="discography-title">Build a Collection from an Artist's Discography</h3>
+        <div class="discography-panel-header">
+          <h3 class="discography-title">Build a Collection from an Artist's Discography</h3>
+          <button id="discog-close-btn" class="modal-close" aria-label="Close">✕</button>
+        </div>
         <p class="discography-hint">Searches TheSession.org recordings and matches tunes already in your library.</p>
         <div class="discography-artists">
           <span class="discography-artists-label">Quick-pick:</span>
@@ -934,7 +937,7 @@
   </div>
 
   <script defer src="/static/abcjs-basic-min.js"></script>
-  <script src="/static/app.js?v=325"></script>
+  <script src="/static/app.js?v=326"></script>
   <script src="/static/mobile.js?v=0"></script>
     <script>
     // Unregister any existing service workers (they caused stale cache issues)

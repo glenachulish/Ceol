@@ -1218,10 +1218,11 @@ function renderModal(tune, onBack = null, siblings = null) {
             <button id="transpose-down-btn" class="btn-secondary btn-sm" title="Down 1 semitone">▼ Down</button>
             <span id="transpose-label" class="transpose-inline-label">0</span>
             <button id="transpose-up-btn" class="btn-secondary btn-sm" title="Up 1 semitone">▲ Up</button>
-            <button id="tune-size-down-btn" class="btn-secondary btn-sm tune-size-btn" title="Smaller">A&minus;</button>
-            <button id="tune-size-up-btn" class="btn-secondary btn-sm tune-size-btn" title="Larger">A&plus;</button>
             <button id="transpose-reset-btn" class="btn-secondary btn-sm transpose-reset-btn" title="Reset to original key">Reset</button>
             <button id="save-transposed-btn" class="btn-secondary btn-sm" style="display:none">💾 Save version</button>
+            <span class="toolbar-group-sep" aria-hidden="true"></span>
+            <button id="tune-size-down-btn" class="btn-secondary btn-sm tune-size-btn" title="Smaller">A&minus;</button>
+            <button id="tune-size-up-btn" class="btn-secondary btn-sm tune-size-btn" title="Larger">A&plus;</button>
           </span>
         </div>` : ""}
         <div class="sheet-music-wrap">
@@ -8461,6 +8462,7 @@ newCollectionName?.addEventListener("keydown", e => { if (e.key === "Enter") cre
   const discogColName = document.getElementById("discog-col-name-input");
   const discogScanBtn = document.getElementById("discog-scan-btn");
   const discogCancel  = document.getElementById("discog-cancel-btn");
+  const discogCloseX  = document.getElementById("discog-close-btn");
   const discogStatus  = document.getElementById("discog-status");
 
   if (discogBtn) {
@@ -8469,14 +8471,14 @@ newCollectionName?.addEventListener("keydown", e => { if (e.key === "Enter") cre
       if (!discogPanel?.classList.contains("hidden")) discogArtist?.focus();
     });
   }
-  if (discogCancel) {
-    discogCancel?.addEventListener("click", () => {
-      discogPanel?.classList.add("hidden");
-      if (discogArtist) discogArtist.value = "";
-      if (discogColName) discogColName.value = "";
-      discogStatus?.classList.add("hidden");
-    });
-  }
+  const _dismissDiscog = () => {
+    discogPanel?.classList.add("hidden");
+    if (discogArtist) discogArtist.value = "";
+    if (discogColName) discogColName.value = "";
+    discogStatus?.classList.add("hidden");
+  };
+  if (discogCancel) discogCancel.addEventListener("click", _dismissDiscog);
+  if (discogCloseX) discogCloseX.addEventListener("click", _dismissDiscog);
 
   // Quick-pick artist buttons
   document.querySelectorAll(".discog-artist-btn").forEach(btn => {

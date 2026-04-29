@@ -3401,6 +3401,16 @@ button.set-tune-title:hover { text-decoration: underline; }
   border-radius: 10px;
   padding: 1rem 1.25rem;
   margin: .75rem 0 1rem;
+  position: relative;
+}
+.discography-panel-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: .5rem; margin-bottom: .25rem;
+}
+.discography-panel-header .discography-title { margin: 0; flex: 1; }
+.discography-panel-header .modal-close {
+  position: static;
+  flex-shrink: 0;
 }
 .discography-title { font-size: .95rem; font-weight: 700; margin: 0 0 .25rem; }
 .discography-hint  { font-size: .82rem; color: var(--text-muted); margin: 0 0 .75rem; }
@@ -4168,6 +4178,17 @@ a.bandcamp-link:hover { opacity: .85; }
   opacity: .75;
 }
 .transpose-reset-btn:hover { opacity: 1; }
+
+/* Visual separator between toolbar groups (e.g. transpose vs size) so the
+   user can see at a glance that A−/A+ aren't part of the transpose row. */
+.toolbar-group-sep {
+  display: inline-block;
+  width: 1px;
+  height: 1.1rem;
+  background: var(--border);
+  margin: 0 .3rem;
+  flex-shrink: 0;
+}
 
 /* ── Quick filter buttons (Favs / Hitlist) ──────────────── */
 .quick-filter-btn {
