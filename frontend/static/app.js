@@ -1117,9 +1117,6 @@ function renderModal(tune, onBack = null, siblings = null) {
     : "";
   const _sessionUrlMatch = tune.source_url && tune.source_url.match(/thesession\.org\/tunes\/(\d+)/);
   const _sessionId = tune.session_id || (_sessionUrlMatch && _sessionUrlMatch[1]);
-  const importedLine = tune.imported_at
-    ? `<p class="modal-imported">Imported: ${new Date(tune.imported_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</p>`
-    : "";
   // TheSession.org button — direct link if we have a session ID, search otherwise
   const sessionHref = _sessionId
     ? `https://thesession.org/tunes/${_sessionId}`
@@ -1184,11 +1181,30 @@ function renderModal(tune, onBack = null, siblings = null) {
     </div>
   </div>`;
 
-  const composerLine = (tune.composer || tune.transcribed_by) ? `
-    <div class="tune-composer-line">
-      ${tune.composer ? `<span class="tune-composer">♪ ${escHtml(tune.composer)}</span>` : ""}
-      ${tune.transcribed_by ? `<span class="tune-transcriber">ABC: ${escHtml(tune.transcribed_by)}</span>` : ""}
-    </div>` : "";
+  // Provenance block — moved out of the modal header into the Notes tab.
+  // Surfaces composer, ABC transcriber, import date, and source URL together
+  // so the header stays focused on identity (title, key/type, rating, aliases).
+  const provenanceBlock = (() => {
+    const rows = [];
+    if (tune.composer) {
+      rows.push(`<div class="tune-prov-row"><span class="tune-prov-label">Composer</span><span class="tune-prov-value">${escHtml(tune.composer)}</span></div>`);
+    }
+    if (tune.transcribed_by) {
+      rows.push(`<div class="tune-prov-row"><span class="tune-prov-label">ABC by</span><span class="tune-prov-value">${escHtml(tune.transcribed_by)}</span></div>`);
+    }
+    if (tune.imported_at) {
+      const d = new Date(tune.imported_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      rows.push(`<div class="tune-prov-row"><span class="tune-prov-label">Imported</span><span class="tune-prov-value">${escHtml(d)}</span></div>`);
+    }
+    if (tune.source_url) {
+      rows.push(`<div class="tune-prov-row"><span class="tune-prov-label">Source</span><span class="tune-prov-value"><a href="${escHtml(tune.source_url)}" target="_blank" rel="noopener">${escHtml(tune.source_url)} ↗</a></span></div>`);
+    }
+    if (!rows.length) return "";
+    return `<div class="tune-provenance">
+      <p class="tune-prov-heading">Provenance</p>
+      ${rows.join("")}
+    </div>`;
+  })();
 
   modalContent.innerHTML = `
     ${backBtn}
@@ -1196,10 +1212,8 @@ function renderModal(tune, onBack = null, siblings = null) {
     ${versionLine}
     ${siblingsStrip}
     <div class="modal-meta" id="modal-typkey-meta">${typeBadge}${keyBadge}</div>
-    ${composerLine}
     ${ratingRow}
     ${aliasLine}
-    ${importedLine}
     ${tagLine}
     <div id="modal-membership" class="modal-membership"></div>
 
@@ -1416,6 +1430,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     </div>
 
     <div id="tab-notes" class="tab-panel hidden">
+      ${provenanceBlock}
       ${tune.notes ? `<div class="notes-rendered">${renderNotesHtml(tune.notes)}</div><hr class="notes-divider">` : ""}
       <p class="modal-abc-label">Edit Notes</p>
       <textarea id="notes-textarea" class="notes-textarea"

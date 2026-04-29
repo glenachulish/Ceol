@@ -1185,11 +1185,6 @@ button.set-tune-title:hover { text-decoration: underline; }
   margin-bottom: .35rem;
   font-style: italic;
 }
-.modal-imported {
-  font-size: .78rem;
-  color: var(--text-muted);
-  margin-bottom: .75rem;
-}
 .modal-session-link {
   color: var(--accent);
   text-decoration: none;
@@ -3378,14 +3373,40 @@ button.set-tune-title:hover { text-decoration: underline; }
   .modal-wide { max-width: 100%; }
 }
 
-/* ── Composer / transcriber line in tune modal ───────────────────────────── */
-.tune-composer-line {
-  display: flex; gap: .75rem; flex-wrap: wrap;
-  font-size: .8rem; color: var(--text-muted);
-  margin: .15rem 0 .4rem;
+/* ── Provenance section in tune Notes tab (composer / ABC by / imported / source) ── */
+.tune-provenance {
+  background: var(--bg-subtle, #f8fafc);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .6rem .8rem;
+  margin-bottom: .9rem;
 }
-.tune-composer { font-style: italic; }
-.tune-transcriber { font-style: italic; }
+.tune-prov-heading {
+  margin: 0 0 .4rem 0;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+}
+.tune-prov-row {
+  display: flex;
+  gap: .6rem;
+  align-items: baseline;
+  font-size: .85rem;
+  padding: .12rem 0;
+}
+.tune-prov-label {
+  flex: 0 0 5.5rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.tune-prov-value {
+  flex: 1 1 auto;
+  color: var(--text);
+  word-break: break-word;
+}
+.tune-prov-value a { color: var(--reel); }
 
 /* ── Modal export button (inline in h2) ──────────────────────────────────── */
 .modal-export-btn {
