@@ -4462,6 +4462,35 @@ function closeAbcFullscreen() {
 }
 
 _abcFsCloseBtn.addEventListener("click", closeAbcFullscreen);
+
+// "Close all" — for the stacked case where fullscreen sits on top of the tune
+// modal. Closes fullscreen, then dismisses the modal beneath, returning the
+// user straight to whatever view they were in (library / sets / collections).
+// Hidden if the modal isn't actually open beneath (e.g. set-fullscreen on its
+// own, where there's nothing to close beyond fullscreen).
+const _abcFsCloseAllBtn = document.getElementById("abc-fullscreen-close-all");
+function _updateFsCloseAllVisibility() {
+  if (!_abcFsCloseAllBtn) return;
+  const modalOpen = modalOverlay && !modalOverlay.classList.contains("hidden");
+  _abcFsCloseAllBtn.style.display = modalOpen ? "" : "none";
+}
+if (_abcFsCloseAllBtn) {
+  _abcFsCloseAllBtn.addEventListener("click", () => {
+    closeAbcFullscreen();
+    if (modalOverlay) modalOverlay.classList.add("hidden");
+    document.body.style.overflow = "";
+  });
+}
+// Refresh visibility whenever fullscreen opens (covers all entry points).
+const _origOpenFs = window.openAbcFullscreen;
+if (typeof _origOpenFs === "function") {
+  window.openAbcFullscreen = function (...args) {
+    const r = _origOpenFs.apply(this, args);
+    _updateFsCloseAllVisibility();
+    return r;
+  };
+}
+
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && !_abcFsOverlay.classList.contains("hidden")) {
     closeAbcFullscreen();

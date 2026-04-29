@@ -4338,3 +4338,47 @@ a.bandcamp-link:hover { opacity: .85; }
   color: var(--closeall-tint);
   background: color-mix(in srgb, var(--closeall-tint) 14%, transparent);
 }
+
+/* ── Remove buttons — red-tint ────────────────────────────────────────────
+   Icon-style "remove from list" buttons across the app share the same
+   semantic — destructive but scoped to a single item. Tinting them red
+   makes them visually distinct from neutral close buttons (✕ Close) and
+   nav back buttons (← Back). The big confirm-dialog Delete buttons keep
+   .btn-danger (already red); this rule covers the small icon variants. */
+.btn-icon.media-remove-btn,
+.btn-icon.note-att-del,
+.modal-ver-del,
+.set-track-remove,
+.version-del-btn {
+  color: var(--danger);
+  opacity: .55;
+  transition: opacity .15s, background .15s;
+}
+.btn-icon.media-remove-btn:hover,
+.btn-icon.note-att-del:hover,
+.modal-ver-del:hover,
+.set-track-remove:hover,
+.version-del-btn:hover {
+  opacity: 1;
+  background: rgba(239, 68, 68, .14);
+}
+
+/* Fullscreen ✕ Close all — sits next to ✕ Close in the fullscreen header.
+   Inherits the amber treatment from .btn-close-all but preserves the
+   fullscreen-specific layout (no border in stock state, only on hover). */
+.abc-fullscreen-close-all {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--closeall-tint);
+  font-size: .85rem;
+  cursor: pointer;
+  padding: .3rem .6rem;
+  border-radius: 4px;
+  margin-right: .3rem;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.abc-fullscreen-close-all:hover {
+  border-color: var(--closeall-tint);
+  background: color-mix(in srgb, var(--closeall-tint) 14%, transparent);
+}
