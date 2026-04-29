@@ -1225,6 +1225,10 @@ function renderModal(tune, onBack = null, siblings = null) {
             <button id="tune-size-up-btn" class="btn-secondary btn-sm tune-size-btn" title="Larger">A&plus;</button>
           </span>
         </div>` : ""}
+        ${tune.abc ? `<div class="sheet-music-play-row sheet-music-play-row-top">
+          <button id="sheet-top-play-btn" class="btn-secondary btn-sm" title="Play / Pause">▶ Play</button>
+          <button id="sheet-top-restart-btn" class="btn-secondary btn-sm" title="Restart from beginning">⟳ Restart</button>
+        </div>` : ""}
         <div class="sheet-music-wrap">
         <div id="sheet-music-render"></div>
         <div id="sheet-music-render-hidden" style="display:none;height:0;overflow:hidden"></div>
@@ -3872,6 +3876,46 @@ function renderSheetMusic(abc, opts = {}) {
       displayWarp: true,
     });
 
+    // ── Top play/restart row: forwards clicks to abcjs's bottom buttons.
+    //    A MutationObserver watches `.abcjs-pushed` on the bottom Play button
+    //    so the top label stays in sync with abcjs's own state, regardless of
+    //    which button was clicked or whether playback ended on its own.
+    {
+      const topPlay    = document.getElementById("sheet-top-play-btn");
+      const topRestart = document.getElementById("sheet-top-restart-btn");
+      const botPlay    = document.querySelector("#audio-player-container .abcjs-midi-start");
+      const botReset   = document.querySelector("#audio-player-container .abcjs-midi-reset");
+      if (topPlay && botPlay) {
+        topPlay.onclick = () => botPlay.click();
+        const sync = () => {
+          const playing = botPlay.classList.contains("abcjs-pushed");
+          topPlay.textContent = playing ? "⏸ Pause" : "▶ Play";
+        };
+        sync();
+        if (_modalPlayObserver) { try { _modalPlayObserver.disconnect(); } catch {} }
+        _modalPlayObserver = new MutationObserver(sync);
+        _modalPlayObserver.observe(botPlay, { attributes: true, attributeFilter: ["class"] });
+      }
+      if (topRestart && botReset) {
+        topRestart.onclick = () => botReset.click();
+      }
+    }
+
+    // ── Rotate / resize re-render so portrait↔landscape always fits.
+    //    Debounced 220ms because iOS fires orientationchange before the
+    //    viewport actually changes width. Tear-down lives in closeModal().
+    if (_modalResizeHandler) {
+      window.removeEventListener('resize', _modalResizeHandler);
+      window.removeEventListener('orientationchange', _modalResizeHandler);
+    }
+    _modalResizeHandler = debounce(() => {
+      const stillOpen = !modalOverlay.classList.contains('hidden')
+                     && document.getElementById('sheet-music-render');
+      if (stillOpen && _currentTuneAbc) renderSheetMusic(_currentTuneAbc, opts);
+    }, 220);
+    window.addEventListener('resize', _modalResizeHandler);
+    window.addEventListener('orientationchange', _modalResizeHandler);
+
     // Melody: program: option.  Chord instrument: baked into ABC via %%chordprog.
     // chordsOff: passed as option (ABCJS honours it even when %%chordprog is present).
     const _setTuneOpts = { program: _melodyProgram, chordsOff: _chordsOff };
@@ -4105,6 +4149,9 @@ function _fsMeasureClickHandler(e) {
 
 let _fsCurrentOpts = null;
 let _fsResizeHandler = null;
+let _modalResizeHandler = null;
+let _modalPlayObserver = null;
+let _fsPlayObserver = null;
 
 
 // Global fullscreen More button toggle — called from HTML onclick + ontouchstart
@@ -4119,7 +4166,7 @@ window._ceolMoreToggle = function(e) {
 };
 function openAbcFullscreen(abc, title, opts = {}) {
   const transposeSteps = opts.transposeSteps || 0;
-  _fsCurrentOpts = arguments[0];  // store for resize re-render
+  _fsCurrentOpts = { abc, title, opts };  // capture full args for resize re-render
   const { tuneRanges = null, tuneColors = null, tuneNames = null, tuneAbcs = null, initialWarp = null, pracSettings = null } = opts;
   _abcFsTitleEl.textContent = title || "";
   // Show coloured tune name pills for sets
@@ -4140,10 +4187,20 @@ function openAbcFullscreen(abc, title, opts = {}) {
   window._fsDebugLogged = false;
   _abcFsOverlay.classList.remove("hidden");
 
-  // Re-render on rotate / resize so portrait↔landscape always fits
-  if (_fsResizeHandler) window.removeEventListener('resize', _fsResizeHandler);
-  _fsResizeHandler = () => { if (_fsCurrentOpts) openAbcFullscreen(_fsCurrentOpts); };
+  // Re-render on rotate / resize so portrait↔landscape always fits.
+  // Debounced (220ms) because iOS fires orientationchange before viewport
+  // dimensions actually update — re-rendering immediately would use stale width.
+  if (_fsResizeHandler) {
+    window.removeEventListener('resize', _fsResizeHandler);
+    window.removeEventListener('orientationchange', _fsResizeHandler);
+  }
+  _fsResizeHandler = debounce(() => {
+    if (_fsCurrentOpts && !_abcFsOverlay.classList.contains('hidden')) {
+      openAbcFullscreen(_fsCurrentOpts.abc, _fsCurrentOpts.title, _fsCurrentOpts.opts);
+    }
+  }, 220);
   window.addEventListener('resize', _fsResizeHandler);
+  window.addEventListener('orientationchange', _fsResizeHandler);
   document.body.style.overflow = "hidden";
   // Landscape More toggle: inject a ⋯ button into the FS header if not already there
     // Wire the static ⋯ More button in FS header
@@ -4380,6 +4437,29 @@ function openAbcFullscreen(abc, title, opts = {}) {
         displayProgress: true,
         displayWarp: true,
       });
+
+      // ── Top play/restart row: forwards to abcjs bottom buttons + observer
+      //    keeps the top label in sync with abcjs's own .abcjs-pushed state.
+      {
+        const topPlay    = document.getElementById("abc-fs-top-play-btn");
+        const topRestart = document.getElementById("abc-fs-top-restart-btn");
+        const botPlay    = document.querySelector("#abc-fs-audio .abcjs-midi-start");
+        const botReset   = document.querySelector("#abc-fs-audio .abcjs-midi-reset");
+        if (topPlay && botPlay) {
+          topPlay.onclick = () => botPlay.click();
+          const sync = () => {
+            const playing = botPlay.classList.contains("abcjs-pushed");
+            topPlay.textContent = playing ? "⏸ Pause" : "▶ Play";
+          };
+          sync();
+          if (_fsPlayObserver) { try { _fsPlayObserver.disconnect(); } catch {} }
+          _fsPlayObserver = new MutationObserver(sync);
+          _fsPlayObserver.observe(botPlay, { attributes: true, attributeFilter: ["class"] });
+        }
+        if (topRestart && botReset) {
+          topRestart.onclick = () => botReset.click();
+        }
+      }
       _abcFsSynthCtrl.setTune(_abcFsVisualObj, false, { program: _melodyProgram, chordsOff: _chordsOff })
         .then(() => {
           // Apply practice tempo progression if opened from Practice tab
@@ -4457,8 +4537,11 @@ function closeAbcFullscreen() {
   // Clean up resize listener
   if (_fsResizeHandler) {
     window.removeEventListener('resize', _fsResizeHandler);
+    window.removeEventListener('orientationchange', _fsResizeHandler);
     _fsResizeHandler = null;
   }
+  if (_fsPlayObserver) { try { _fsPlayObserver.disconnect(); } catch {} _fsPlayObserver = null; }
+  _fsCurrentOpts = null;
 }
 
 _abcFsCloseBtn.addEventListener("click", closeAbcFullscreen);
@@ -7883,6 +7966,13 @@ function closeModal() {
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   _stopPracticeAudio();
   _stopMetronome();
+  // Tear down modal rotate-rerender listener + play-state observer
+  if (_modalResizeHandler) {
+    window.removeEventListener('resize', _modalResizeHandler);
+    window.removeEventListener('orientationchange', _modalResizeHandler);
+    _modalResizeHandler = null;
+  }
+  if (_modalPlayObserver) { try { _modalPlayObserver.disconnect(); } catch {} _modalPlayObserver = null; }
   const inlineMp3 = document.getElementById("inline-mp3-player");
   if (inlineMp3) { inlineMp3.pause(); inlineMp3.src = ""; }
   // Stop any inline video embeds inside the modal (YouTube iframes + <video> elements)
