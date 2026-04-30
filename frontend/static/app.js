@@ -8799,14 +8799,15 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   const AUDIO_RE = /\.(mp3|m4a|wav|ogg|aac|flac)$/i;
 
   let _audioFiles = [];
-  let _audioPreview = [];  // [{filename, title, action, existing_id, existing_title}]
+  let _audioPreview = [];   // [{filename, title, action, existing_id, existing_title}]
+  let _audioManualMatch = {}; // { rowIdx: {id, title} } — set when user picks via search
 
-  // Labels wrap the inputs natively — just listen for change
   fileInput.addEventListener("change",   () => loadAudioPreview(Array.from(fileInput.files).filter(f => AUDIO_RE.test(f.name))));
   folderInput.addEventListener("change", () => loadAudioPreview(Array.from(folderInput.files).filter(f => AUDIO_RE.test(f.name))));
 
   async function loadAudioPreview(files) {
     _audioFiles = files;
+    _audioManualMatch = {};
     if (!files.length) return;
     fileCount.textContent = `${files.length} file${files.length !== 1 ? "s" : ""} selected`;
     previewBody.innerHTML = `<tr><td colspan="3" style="color:var(--text-muted);padding:.4rem 0">Matching against library…</td></tr>`;
@@ -8824,28 +8825,140 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     _audioPreview = data.files;
 
     previewBody.innerHTML = data.files.map((item, i) => {
-      const attachOpt = item.action === "attach"
+      const hasAutoMatch = item.action === "attach";
+      // For auto-matched rows include the attach option pre-selected.
+      // For no-match rows we omit a usable attach option — manual search handles it.
+      const attachOpt = hasAutoMatch
         ? `<option value="attach" selected>📎 Attach to "${escHtml(item.existing_title)}"</option>`
-        : `<option value="attach" disabled>📎 Attach (no match)</option>`;
+        : "";
       const actionSel = `<select class="audio-action-sel" data-idx="${i}">
-        <option value="create"${item.action !== "attach" ? " selected" : ""}>➕ Create new tune</option>
+        <option value="create"${!hasAutoMatch ? " selected" : ""}>➕ Create new tune</option>
         ${attachOpt}
+        <option value="search">🔍 Search library…</option>
         <option value="skip">⏭ Skip</option>
       </select>`;
       return `<tr class="audio-preview-row" data-idx="${i}">
         <td class="pdf-col-file" title="${escHtml(item.filename)}">${escHtml(item.filename)}</td>
         <td class="pdf-col-title"><input class="pdf-title-input audio-title-input" data-idx="${i}" value="${escHtml(item.title)}" /></td>
-        <td class="pdf-col-action">${actionSel}</td>
+        <td class="audio-action-cell">
+          ${actionSel}
+          <div class="audio-search-widget hidden" data-idx="${i}">
+            <input class="audio-search-input" placeholder="Search tunes…" autocomplete="off" spellcheck="false" />
+            <div class="audio-search-results hidden"></div>
+          </div>
+          <div class="audio-manual-pill hidden" data-idx="${i}">
+            <span class="audio-manual-label">📎 Attach to "<span class="audio-manual-title"></span>"</span>
+            <button type="button" class="audio-manual-clear" title="Clear — choose differently">✕</button>
+          </div>
+        </td>
       </tr>`;
     }).join("");
 
-    // Grey out skipped rows live
+    // ── Event delegation for the whole preview table ─────────────────────────
+
+    // 1. Select changes: skip-fade, enter search mode, clear manual match
     previewBody.addEventListener("change", e => {
       const sel = e.target.closest(".audio-action-sel");
       if (!sel) return;
-      const row = sel.closest(".audio-preview-row");
-      if (row) row.style.opacity = sel.value === "skip" ? "0.4" : "";
+      const idx = Number(sel.dataset.idx);
+      const row    = sel.closest(".audio-preview-row");
+      const widget = row.querySelector(".audio-search-widget");
+      row.style.opacity = sel.value === "skip" ? "0.4" : "";
+      if (sel.value === "search") {
+        sel.classList.add("hidden");
+        widget.classList.remove("hidden");
+        widget.querySelector(".audio-search-input").focus();
+        // Revert select value so it doesn't persist "search" if widget is dismissed
+        sel.value = "create";
+      } else if (sel.value !== "attach") {
+        // Cleared to create / skip — remove any manual match for this row
+        delete _audioManualMatch[idx];
+        row.querySelector(".audio-manual-pill").classList.add("hidden");
+      }
     });
+
+    // 2. Search input: debounced live search
+    previewBody.addEventListener("input", debounce(async e => {
+      const inp = e.target.closest(".audio-search-input");
+      if (!inp) return;
+      const widget  = inp.closest(".audio-search-widget");
+      const results = widget.querySelector(".audio-search-results");
+      const q = inp.value.trim();
+      if (!q) { results.classList.add("hidden"); results.innerHTML = ""; return; }
+      results.innerHTML = `<div class="audio-search-hint">Searching…</div>`;
+      results.classList.remove("hidden");
+      try {
+        const d = await apiFetch(`/api/tunes?q=${encodeURIComponent(q)}&page_size=8`);
+        const tunes = Array.isArray(d) ? d : (d.tunes || []);
+        if (!tunes.length) {
+          results.innerHTML = `<div class="audio-search-hint">No tunes found</div>`;
+          return;
+        }
+        results.innerHTML = tunes.map(t =>
+          `<div class="audio-search-result" data-id="${t.id}" data-title="${escHtml(t.title)}">
+            ${escHtml(t.title)}${t.type ? ` <span class="audio-result-type">${escHtml(t.type)}</span>` : ""}
+          </div>`
+        ).join("");
+      } catch {
+        results.innerHTML = `<div class="audio-search-hint">Search failed</div>`;
+      }
+    }, 250));
+
+    // 3. Click a search result: confirm manual match, show pill
+    previewBody.addEventListener("click", e => {
+      const item = e.target.closest(".audio-search-result");
+      if (item) {
+        const widget = item.closest(".audio-search-widget");
+        const idx    = Number(widget.dataset.idx);
+        const row    = widget.closest(".audio-preview-row");
+        const sel    = row.querySelector(".audio-action-sel");
+        const pill   = row.querySelector(".audio-manual-pill");
+        const id     = Number(item.dataset.id);
+        const title  = item.dataset.title;
+        _audioManualMatch[idx] = { id, title };
+        // Add/select the attach option in the hidden select so confirm handler sees "attach"
+        let attachOpt = Array.from(sel.options).find(o => o.value === "attach");
+        if (!attachOpt) {
+          attachOpt = new Option("", "attach");
+          sel.add(attachOpt);
+        }
+        attachOpt.selected = true;
+        // Show pill, hide search widget
+        pill.querySelector(".audio-manual-title").textContent = title;
+        pill.classList.remove("hidden");
+        widget.classList.add("hidden");
+        widget.querySelector(".audio-search-input").value = "";
+        widget.querySelector(".audio-search-results").classList.add("hidden");
+        row.style.opacity = "";
+        return;
+      }
+
+      // 4. Click ✕ on pill: clear manual match, restore select
+      const clearBtn = e.target.closest(".audio-manual-clear");
+      if (clearBtn) {
+        const pill = clearBtn.closest(".audio-manual-pill");
+        const row  = pill.closest(".audio-preview-row");
+        const idx  = Number(pill.dataset.idx);
+        const sel  = row.querySelector(".audio-action-sel");
+        delete _audioManualMatch[idx];
+        // Remove the dynamically-added attach option (no auto-match rows shouldn't have one)
+        const attachOpt = Array.from(sel.options).find(o => o.value === "attach");
+        if (attachOpt) attachOpt.remove();
+        sel.value = "create";
+        sel.classList.remove("hidden");
+        pill.classList.add("hidden");
+        row.style.opacity = "";
+      }
+    });
+
+    // 5. Close search dropdown when clicking outside
+    document.addEventListener("click", e => {
+      if (!e.target.closest(".audio-search-widget")) {
+        previewBody.querySelectorAll(".audio-search-results").forEach(r => {
+          r.classList.add("hidden");
+        });
+      }
+    }, true);
   }
 
   dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drop-hover"); });
@@ -8862,7 +8975,11 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     if (!_audioFiles.length) return;
     const allTitles   = Array.from(previewBody.querySelectorAll(".audio-title-input")).map(el => el.value.trim());
     const allActions  = Array.from(previewBody.querySelectorAll(".audio-action-sel")).map(el => el.value);
-    const allExisting = _audioPreview.map((item, i) => allActions[i] === "attach" ? item.existing_id : null);
+    // Prefer manual match ID over auto-match ID
+    const allExisting = _audioPreview.map((item, i) => {
+      if (allActions[i] !== "attach") return null;
+      return _audioManualMatch[i]?.id ?? item.existing_id ?? null;
+    });
 
     // Filter out skipped rows — backend doesn't know about "skip"
     const keepIdx = allActions.map((a, i) => a !== "skip" ? i : -1).filter(i => i >= 0);
@@ -8901,7 +9018,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
       return;
     }
 
-    // Build a result message with links to each created/attached tune
+    // Build result message with links to each created/attached tune
     const parts = [];
     if (data.attached) parts.push(`${data.attached} attached to existing tune${data.attached !== 1 ? "s" : ""}`);
     if (data.created)  parts.push(`${data.created} new tune${data.created !== 1 ? "s" : ""} created`);
@@ -8932,6 +9049,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
     });
 
     _audioFiles = [];
+    _audioManualMatch = {};
     fileInput.value = "";
     fileCount.textContent = "";
     previewArea.classList.add("hidden");
