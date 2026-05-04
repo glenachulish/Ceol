@@ -882,6 +882,7 @@ async def upload_tune_audio(tune_id: int, file: UploadFile = File(...)):
     ext = Path(file.filename).suffix if file.filename else ".mp3"
     stored_name = f"{uuid.uuid4().hex}{ext}"
     (UPLOADS_DIR / stored_name).write_bytes(content)
+    stored_name = _compress_to_mp3(UPLOADS_DIR / stored_name).name
     return {"url": f"/api/uploads/{stored_name}"}
 
 
@@ -896,6 +897,7 @@ async def upload_tune_video(tune_id: int, file: UploadFile = File(...)):
     ext = Path(file.filename).suffix if file.filename else ".mp4"
     stored_name = f"{uuid.uuid4().hex}{ext}"
     (UPLOADS_DIR / stored_name).write_bytes(content)
+    stored_name = _compress_to_mp3(UPLOADS_DIR / stored_name).name
     return {"url": f"/api/uploads/{stored_name}"}
 
 
@@ -1996,6 +1998,7 @@ async def import_folder(
     def _store_file(content: bytes, ext: str) -> str:
         stored_name = f"{uuid.uuid4().hex}{ext}"
         (UPLOADS_DIR / stored_name).write_bytes(content)
+        stored_name = _compress_to_mp3(UPLOADS_DIR / stored_name).name
         return f"/api/uploads/{stored_name}"
 
     def _append_note(tune_id: int, note_line: str):
@@ -6631,6 +6634,7 @@ async def confirm_pdf_imports(
             ext = Path(f.filename).suffix if f.filename else ".pdf"
             stored_name = f"{uuid.uuid4().hex}{ext}"
             (UPLOADS_DIR / stored_name).write_bytes(content)
+            stored_name = _compress_to_mp3(UPLOADS_DIR / stored_name).name
             pdf_url = f"/api/uploads/{stored_name}"
             pdf_note = f"sheet music (PDF): {pdf_url}"
 
@@ -6732,6 +6736,7 @@ async def confirm_audio_imports(
             ext = Path(f.filename).suffix.lower() if f.filename else ".mp3"
             stored_name = f"{uuid.uuid4().hex}{ext}"
             (UPLOADS_DIR / stored_name).write_bytes(content)
+            stored_name = _compress_to_mp3(UPLOADS_DIR / stored_name).name
             audio_url = f"/api/uploads/{stored_name}"
             audio_note = f"audio: {audio_url}"
 
@@ -6761,6 +6766,42 @@ async def confirm_audio_imports(
 # ---------------------------------------------------------------------------
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+def _compress_to_mp3(save_path: "Path") -> "Path":
+    """
+    If save_path is a WAV / AIFF / FLAC, transcode it to MP3 (128 kbps, mono)
+    using ffmpeg and replace the original file.
+    Returns the (possibly new) path; caller should update any filename/URL variable.
+    Falls back silently if ffmpeg is absent or transcoding fails.
+    """
+    COMPRESSIBLE = {".wav", ".aif", ".aiff", ".flac"}
+    if save_path.suffix.lower() not in COMPRESSIBLE:
+        return save_path
+    try:
+        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True, timeout=5)
+    except Exception:
+        return save_path  # ffmpeg not available — skip silently
+    mp3_path = save_path.with_suffix(".mp3")
+    result = subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-i", str(save_path),
+            "-codec:a", "libmp3lame",
+            "-b:a", "128k",
+            "-ac", "1",
+            str(mp3_path),
+        ],
+        capture_output=True,
+        timeout=120,
+    )
+    if result.returncode != 0:
+        return save_path  # transcoding failed — keep original
+    try:
+        save_path.unlink()  # delete original WAV/AIFF/FLAC
+    except OSError:
+        pass
+    return mp3_path
+
 
 def _auto_version_html(html_path: Path) -> str:
     """Read an HTML file and replace every ?v=N asset stamp with the
