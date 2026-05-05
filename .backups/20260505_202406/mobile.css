@@ -1,0 +1,809 @@
+/* ── Ceòl Mobile – mobile-specific CSS ──────────────────────
+   Loaded in addition to style.css.
+   Targets mobile layout: bottom nav, compact header, full-screen modals.
+   ─────────────────────────────────────────────────────────── */
+
+/* ── Safe area + base ──────────────────────────────────────── */
+:root {
+  --m-header-h:    52px;
+  --m-nav-h:       56px;
+  --safe-top:      env(safe-area-inset-top, 0px);
+  --safe-bottom:   env(safe-area-inset-bottom, 0px);
+}
+
+.mobile-body {
+  /* Push content clear of header and bottom nav */
+  padding-top:    calc(var(--m-header-h) + var(--safe-top));
+  padding-bottom: calc(var(--m-nav-h) + var(--safe-bottom));
+  overflow-x: hidden; /* prevent any child from causing horizontal scroll */
+}
+
+/* ── Override desktop header ───────────────────────────────── */
+.mobile-body > header:not(.m-header) { display: none; }
+
+/* ── Mobile header ─────────────────────────────────────────── */
+.m-header {
+  position: fixed;
+  top:  0;
+  left: 0;
+  right: 0;
+  height: calc(var(--m-header-h) + var(--safe-top));
+  padding-top: var(--safe-top);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left:  .75rem;
+  padding-right: .75rem;
+  z-index: 100;
+  gap: .5rem;
+}
+
+.m-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: .35rem;
+}
+
+.m-title-text {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.m-title-sub {
+  font-size: .7rem;
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  background: rgba(124,106,247,.15);
+  padding: .1em .4em;
+  border-radius: 4px;
+}
+
+.m-header-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius);
+  width: 2.2rem;
+  height: 2.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: color .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.m-header-btn:hover { color: var(--text); border-color: var(--accent); }
+
+.m-import-icon {
+  font-size: 1.3rem;
+  font-weight: 400;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.m-import-icon:hover { background: rgba(124,106,247,.12); }
+
+/* ── Main content ─────────────────────────────────────────── */
+.m-main {
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  padding: .75rem .75rem 1rem;
+}
+
+.m-view { display: block; width: 100%; box-sizing: border-box; }
+.m-view.hidden { display: none !important; }
+
+/* ── Bottom navigation ─────────────────────────────────────── */
+.m-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--m-nav-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: stretch;
+  z-index: 100;
+}
+
+.m-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .15rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: .4rem .2rem;
+  font-size: inherit;
+  transition: color .15s;
+  min-height: 44px; /* accessibility minimum tap target */
+}
+
+.m-nav-btn.active {
+  color: var(--accent);
+}
+/* Per-view active colours to match the desktop nav */
+.m-nav-btn[data-view="sets"].active     { color: #0d9488; }
+.m-nav-btn[data-view="collections"].active { color: #d97706; }
+
+/* Dim emoji icons when inactive so only the active tab stands out */
+.m-nav-btn:not(.active) .m-nav-icon { opacity: 0.35; }
+.m-nav-btn.active .m-nav-icon       { opacity: 1; }
+
+.m-nav-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.m-nav-label {
+  font-size: .6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  line-height: 1;
+}
+
+/* ── Filter bar (mobile) ────────────────────────────────────── */
+.m-filters { margin-bottom: .75rem; }
+
+.m-search-row {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  margin-bottom: .5rem;
+}
+
+.m-search-row input[type="search"] {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: .6rem .75rem;
+  font-size: .95rem;
+  outline: none;
+  min-height: 44px;
+}
+.m-search-row input[type="search"]:focus { border-color: var(--accent); }
+
+.m-filter-toggle-btn {
+  flex-shrink: 0;
+  min-height: 44px;
+  min-width: 44px;
+  padding: .5rem .75rem;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.m-filter-toggle-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(124,106,247,.1);
+}
+
+/* Filter drawer — hidden by default */
+.m-filter-drawer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .65rem .75rem;
+  margin-bottom: .5rem;
+  /* Smooth expand/collapse */
+  overflow: hidden;
+  transition: max-height .2s ease, opacity .2s ease, padding .2s ease;
+}
+.m-filter-drawer.hidden {
+  display: none !important;
+}
+
+.m-filter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .4rem;
+  margin-bottom: .5rem;
+}
+
+.m-filter-grid select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: .5rem .5rem;
+  font-size: .85rem;
+  outline: none;
+  cursor: pointer;
+  min-height: 40px;
+}
+.m-filter-grid select:focus { border-color: var(--accent); }
+
+.m-filter-actions {
+  display: flex;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+
+/* ── Tune cards (mobile tweaks) ─────────────────────────────── */
+/* On mobile: single column */
+.mobile-body .tune-list {
+  grid-template-columns: 1fr;
+  gap: .5rem;
+}
+
+.mobile-body .tune-card {
+  padding: .85rem 1rem .85rem 1.5rem;
+  /* larger tap target */
+}
+
+/* Star buttons: hidden on mobile — mastery label shown instead */
+.mobile-body .card-stars { display: none; }
+.mobile-body .card-mastery {
+  display: block;
+  font-size: .82rem;
+  color: var(--text-muted);
+  margin-top: .3rem;
+  min-height: 1.1em;
+  letter-spacing: .02em;
+}
+.mobile-body .card-mastery-label {
+  font-style: italic;
+  margin-left: .1em;
+}
+/* Hitlist button: hidden until active on mobile */
+.mobile-body .hitlist-btn { opacity: 0; transition: opacity .15s; }
+.mobile-body .hitlist-btn.active { opacity: 1; }
+.mobile-body .tune-card:active .hitlist-btn { opacity: .5; }
+
+/* ── Modals: full-screen on mobile ─────────────────────────── */
+.mobile-body .modal-overlay {
+  padding: 0;
+  align-items: flex-end; /* slide up from bottom */
+}
+
+/* The actual modal on mobile: full width, slides up from bottom */
+.mobile-body .modal {
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: 92vh;
+  border-radius: 16px 16px 0 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  padding: 1.25rem 1.25rem 1.5rem !important;
+}
+
+/* Pull handle hint */
+.mobile-body .modal::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto .75rem;
+}
+
+.mobile-body .m-modal-fullscreen {
+  width: 100%;
+  max-width: 100%;
+  max-height: 92vh;
+  border-radius: 16px 16px 0 0;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 1.25rem 1.25rem 1.5rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Narrow dialogs (backup, delete) still centered */
+.mobile-body .modal.modal-narrow {
+  max-width: 92vw !important;
+  border-radius: 12px !important;
+  margin: 0 auto !important;
+}
+.mobile-body .modal-overlay:has(.modal-narrow) {
+  align-items: center;
+}
+
+/* Import modal tabs: scrollable row on small screens */
+.m-import-tabs {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap !important;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.m-import-tabs::-webkit-scrollbar { display: none; }
+.m-import-tabs .tab-btn { flex-shrink: 0; }
+
+/* ── Hamburger menu drawer ──────────────────────────────────── */
+.m-menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 300;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.m-menu-overlay.hidden { display: none !important; }
+
+.m-menu-drawer {
+  background: var(--surface);
+  width: min(300px, 85vw);
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+  animation: slideInLeft .2s ease;
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+.m-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .85rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.m-menu-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.m-menu-items {
+  display: flex;
+  flex-direction: column;
+  padding: .5rem 0;
+  flex: 1;
+}
+
+.m-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: .9rem 1.1rem;
+  font-size: .95rem;
+  cursor: pointer;
+  transition: background .1s;
+  font-family: inherit;
+  text-decoration: none;
+}
+.m-menu-item:hover,
+.m-menu-item:active { background: rgba(255,255,255,.06); }
+.m-menu-danger { color: var(--danger); }
+.m-menu-link { color: var(--text-muted); font-size: .85rem; }
+.m-menu-section-label {
+  display: block;
+  padding: .35rem 1.1rem .1rem;
+  font-size: .7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+}
+
+.m-menu-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: .4rem 0;
+}
+
+/* ── Theme segmented control ──────────────────────────────── */
+.m-menu-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .55rem 1rem;
+}
+.m-menu-theme-label {
+  font-size: .88rem;
+  color: var(--text-muted);
+}
+.m-theme-seg {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.m-theme-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: .8rem;
+  padding: .35rem .7rem;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  border-right: 1px solid var(--border);
+}
+.m-theme-btn:last-child { border-right: none; }
+.m-theme-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.m-menu-footer {
+  border-top: 1px solid var(--border);
+  padding: .4rem 0;
+  margin-top: auto;
+}
+
+/* ── Notes layout: single column on mobile ─────────────────── */
+.mobile-body .notes-layout {
+  grid-template-columns: 1fr;
+  min-height: unset;
+}
+.mobile-body .notes-sidebar {
+  position: static;
+}
+
+/* ── Achievements: tighter layout ──────────────────────────── */
+.mobile-body .achievements-layout {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 1rem 0;
+  padding: 0 .25rem;
+}
+
+/* ── Sheet music: ensure horizontal scroll, no right clip ──── */
+.mobile-body .sheet-music-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  border-radius: 0;
+}
+
+/* ── Sets: full width ───────────────────────────────────────── */
+.mobile-body .view-header { margin: .5rem 0 .75rem; }
+
+/* ── Pagination: touch-friendly ─────────────────────────────── */
+.mobile-body .pagination button {
+  min-height: 40px;
+  min-width: 40px;
+}
+
+/* ── Stats bar: hidden on mobile (clutters header area) ──────── */
+.mobile-body .stats-bar { display: none; }
+
+/* ── Result count ──────────────────────────────────────────── */
+.mobile-body .result-count {
+  font-size: .78rem;
+  padding: 0 .1rem .25rem;
+}
+
+/* ── Bulk bar: tighter on mobile ───────────────────────────── */
+.mobile-body .bulk-bar {
+  gap: .35rem;
+  padding: .4rem .5rem;
+  flex-wrap: wrap;
+}
+
+/* ── Responsive breakpoint: tablet/large phone ─────────────── */
+@media (min-width: 520px) {
+  .mobile-body .tune-list {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+  .m-filter-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+
+
+/* ── Practice tab: boxes don't overflow on small screens ────── */
+.mobile-body .practice-settings {
+  flex-direction: column;
+  align-items: stretch;
+}
+.mobile-body .practice-row {
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+.mobile-body .practice-num-input {
+  width: 4rem;
+  min-width: 3.5rem;
+}
+.mobile-body .practice-section {
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.mobile-body #tab-practice {
+  overflow-x: hidden;
+}
+
+
+
+/* ── Sheet music options: hidden behind ⚙ button on mobile ─── */
+/* Panel starts hidden — opened by the gear button */
+.mobile-body .sheet-music-options-panel {
+  position: fixed;
+  bottom: calc(var(--m-nav-h) + var(--safe-bottom) + .5rem);
+  left: .75rem;
+  right: .75rem;
+  z-index: 150;
+  max-height: 60vh;
+  overflow-y: auto;
+  box-shadow: 0 -4px 20px rgba(0,0,0,.3);
+  border-radius: 12px;
+  margin: 0;
+}
+/* On desktop, always show panel inline and hide gear button */
+
+/* ── Mobile sets: simple tappable list ──────────────────────── */
+.m-sets-list { display: flex; flex-direction: column; gap: 0; }
+.m-set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  background: var(--surface);
+  transition: background .1s;
+  min-height: 56px;
+}
+.m-set-row:first-child { border-top: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
+.m-set-row:last-child  { border-radius: 0 0 var(--radius) var(--radius); }
+.m-set-row:active { background: var(--surface2); }
+.m-set-row-info { display: flex; flex-direction: column; gap: .15rem; flex: 1; min-width: 0; }
+.m-set-row-name { font-weight: 600; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-set-row-meta { font-size: .78rem; color: var(--text-muted); }
+.m-set-row-arrow { color: var(--text-muted); font-size: 1.3rem; margin-left: .5rem; flex-shrink: 0; }
+
+/* ── Tune cards: hide key badge on mobile ───────────────────── */
+.mobile-body .tune-card [data-badge="key"] { display: none; }
+
+/* ── Collection detail: hide edit-only actions on mobile ────── */
+.mobile-body .col-add-set-row { display: none; }
+.mobile-body .remove-from-col,
+.mobile-body .remove-from-col-set { display: none; }
+
+/* ── Tune cards: hide key badge on mobile ───────────────────── */
+.mobile-body .tune-card [data-badge="key"] { display: none; }
+
+/* ── Collection detail: hide edit-only actions on mobile ────── */
+.mobile-body .col-add-set-row { display: none; }
+.mobile-body .remove-from-col,
+.mobile-body .remove-from-col-set { display: none; }
+
+/* ── Filter selects: readable font size on mobile ───────────── */
+.mobile-body select,
+.mobile-body .m-filter-grid select {
+  font-size: 1rem;
+}
+
+/* ── Type filter: pill buttons replace <select> on mobile ───── */
+.mobile-body #filter-type { display: none; }
+.m-type-pills { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0 .1rem; }
+.m-type-pill { padding: .35rem .8rem; border-radius: 999px; border: 1.5px solid var(--border); background: var(--surface); font-size: 1rem; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.m-type-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Key filter: pill row + hidden select revealed by Other ─── */
+.mobile-body #filter-key { display: none; }
+.mobile-body #filter-key.m-key-other-active { display: block; margin-top: .4rem; font-size: 1rem; width: 100%; }
+.m-key-other-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+
+/* ══ PATCH-2-MOBILE-UX ══ */
+/* ══════════════════════════════════════════════════════════════════════════
+   PATCH 2 – Mobile UX improvements
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Dynamic Island / notch: header height grows to clear the island ─────── */
+.m-header {
+  height: auto !important;
+  min-height: calc(var(--m-header-h) + var(--safe-top)) !important;
+  padding-top: var(--safe-top) !important;
+  box-sizing: border-box;
+}
+/* Fullscreen overlay header: also clears notch */
+.abc-fullscreen-header {
+  padding-top: calc(var(--safe-top) + 4px) !important;
+  box-sizing: border-box;
+}
+
+/* ── Sheet music page: move Full Screen button to left side ─────────────── */
+#abc-fs-btn.abc-fs-btn {
+  left: .5rem;
+  right: auto !important;
+}
+/* Reposition ⚙ options button so it doesn't clash */
+#sheet-music-menu-btn {
+  left: 5.5rem;
+  right: auto !important;
+}
+
+/* ── Sets: hide print button on mobile ──────────────────────────────────── */
+#set-full-print-btn { display: none !important; }
+
+/* ── Tune modal: hide "Add to Set" on mobile ────────────────────────────── */
+#add-to-set-btn { display: none !important; }
+
+/* ── Transitions: only one Play button — hide the secondary button ──────── */
+.set-transition-music-btn,
+.set-trans-music-btn { display: none !important; }
+
+/* ── Library: remove double-click hint cursor so single-click feels natural  */
+.tune-card { cursor: pointer; }
+
+/* ── Landscape orientation ──────────────────────────────────────────────── */
+@media (orientation: landscape) {
+  /* Compact header in landscape so sheet music has more room */
+  .m-header {
+    min-height: 40px !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+  }
+  /* Full-screen overlay: account for side notches (iPhone Pro in landscape) */
+  .abc-fullscreen-overlay {
+    padding-left:  env(safe-area-inset-left,  0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  /* Compact bottom nav in landscape */
+  .m-nav {
+    height: 44px !important;
+  }
+  .m-nav-btn {
+    padding: 3px 6px !important;
+    gap: 1px !important;
+  }
+  .m-nav-label {
+    font-size: .58rem !important;
+  }
+}
+
+
+/* ══ PATCH-3-LANDSCAPE-MORE ══ */
+/* ══════════════════════════════════════════════════════════════════════════
+   PATCH 3 – Landscape More button + fullscreen controls
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* More button in fullscreen header — always available, looks like small pill */
+.fs-more-btn {
+  margin-left: .75rem;
+  padding: 2px 9px;
+  font-size: .78rem;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+/* In landscape: hide fullscreen controls by default so sheet music has full height.
+   User taps ⋯ More to reveal them. */
+@media (orientation: landscape) {
+  /* Hide bottom playback controls in FS by default */
+  .abc-fullscreen-overlay .abc-fs-controls,
+  .abc-fullscreen-overlay .abcjs-midi-wrap {
+    display: none;
+  }
+  /* Show the More button */
+  .fs-more-btn {
+    display: inline-block !important;
+  }
+
+  /* Non-fullscreen sheet music page in landscape:
+     collapse metronome, tempo and bar-info rows to give sheet music more room */
+  .mobile-body .tempo-control-row {
+    display: none;
+  }
+}
+
+/* In portrait: always show controls, hide More */
+@media (orientation: portrait) {
+  .abc-fullscreen-overlay .abc-fs-controls,
+  .abc-fullscreen-overlay .abcjs-midi-wrap {
+    display: block;
+  }
+  .fs-more-btn {
+    display: none;
+  }
+}
+
+
+/* ══ PATCH-4-BTN-LAYOUT ══ */
+/* ══════════════════════════════════════════════════════════════════════════
+   PATCH 4 – Button layout + landscape control hiding
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Full screen button: RIGHT side (override patch-2 left positioning) ─── */
+#abc-fs-btn.abc-fs-btn {
+  right: .5rem !important;
+  left:  auto !important;
+}
+
+/* ── ⚙ options button: LEFT side ────────────────────────────────────────── */
+#sheet-music-menu-btn {
+  left:  .5rem !important;
+  right: auto !important;
+}
+
+/* ── Landscape: hide everything below the sheet music ───────────────────── */
+/* This applies to the non-fullscreen tune modal on a phone held sideways.
+   The user can still tap ⚙ (which stays visible) to access options. */
+@media (orientation: landscape) {
+  /* bug1 fix 5 May 2026: unhid #audio-player-container, .bar-selection-info, .metronome-row in landscape */
+
+  /* Options panel — hidden until ⚙ is tapped */
+
+  /* Playback controls below sheet music */
+  .mobile-body .tempo-control-row      { display: none !important; }
+  .mobile-body .instrument-controls-row{ display: none !important; }
+  .mobile-body .chord-controls         { display: none !important; }
+
+  /* Audio / video players */
+  .mobile-body .inline-mp3-player      { display: none !important; }
+  .mobile-body #prac-player-container   { display: block !important; }
+
+  /* Session ABC search row */
+  .mobile-body .session-abc-section    { display: none !important; }
+
+  /* FlutefFling download row + attach row */
+  .mobile-body .ff-download-row        { display: none !important; }
+  .mobile-body .attach-audio-row       { display: none !important; }
+
+  /* Sheet music gets maximum vertical space */
+  .mobile-body .sheet-music-wrap {
+    min-height: 45vh;
+  }
+  .mobile-body #sheet-music-render svg {
+    max-height: 70vh;
+  }
+
+  /* ⚙ button stays visible in landscape so user can reach options */
+  #sheet-music-menu-btn {
+    display: block !important;
+  }
+}
+
+/* Instant tap: no long-press callout, no text selection on tune cards */
+.mobile-body .tune-card {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Sheet music options panel: undo style.css's desktop auto-show ────
+   At ≥600px viewport, style.css force-shows the panel (display: block !important)
+   and hides its header (with the ✕ close). On the mobile route we don't want
+   that — the user needs the panel hidden by default and dismissible.
+   Scoped to .mobile-body so the desktop route (index.html) is unaffected. */
+.mobile-body .sheet-music-options-panel.hidden {
+  display: none !important;
+}
+.mobile-body .sheet-music-options-header {
+  display: flex !important;
+}
+
+/* fix 5 May 2026 v2: flex-column modal — close button stays above scrolling content */
+.mobile-body .modal-wide,
+.mobile-body .m-modal-fullscreen {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.mobile-body .modal-wide > #modal-content,
+.mobile-body .m-modal-fullscreen > #modal-content {
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  min-height: 0 !important;
+}
