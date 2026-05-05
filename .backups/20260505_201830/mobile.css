@@ -793,17 +793,10 @@
   display: flex !important;
 }
 
-/* fix 5 May 2026 v2: flex-column modal — close button stays above scrolling content */
-.mobile-body .modal-wide,
-.mobile-body .m-modal-fullscreen {
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-}
-.mobile-body .modal-wide > #modal-content,
-.mobile-body .m-modal-fullscreen > #modal-content {
-  flex: 1 1 auto !important;
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch !important;
-  min-height: 0 !important;
+/* postpatch fix 5 May 2026: keep close X reachable in landscape */
+.mobile-body .modal-close {
+  position: sticky;
+  top: env(safe-area-inset-top, .25rem);
+  z-index: 50;
+  align-self: flex-end;
 }
