@@ -90,3 +90,188 @@ INFO:     127.0.0.1:54240 - "GET /api/sets HTTP/1.1" 200 OK
 INFO:     127.0.0.1:54240 - "GET /api/tunes/1895/collections HTTP/1.1" 200 OK
 INFO:     127.0.0.1:54242 - "GET /api/tunes/1895/sets HTTP/1.1" 200 OK
 INFO:     127.0.0.1:54264 - "GET /static/mobile.css HTTP/1.1" 200 OK
+
+[notice] A new release of pip is available: 25.3 -> 26.1
+[notice] To update, run: pip3 install --upgrade pip
+Starting Ceol on http://0.0.0.0:8001
+  → Local:   http://localhost:8001
+  → Network: http://192.168.178.178:8001
+INFO:     Will watch for changes in these directories: ['/Users/callummaclellan/Ceol/v3']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [34463] using WatchFiles
+INFO:     Started server process [34471]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+
+[notice] A new release of pip is available: 25.3 -> 26.1
+[notice] To update, run: pip3 install --upgrade pip
+Starting Ceol on http://0.0.0.0:8001
+  → Local:   http://localhost:8001
+  → Network: http://192.168.178.178:8001
+INFO:     Will watch for changes in these directories: ['/Users/callummaclellan/Ceol/v3']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [34494] using WatchFiles
+INFO:     Started server process [34500]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Database initialised at /Users/callummaclellan/Ceol/v3/data/ceol.db
+INFO:     127.0.0.1:55295 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55295 - "GET /static/style.css?v=1777567411 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55303 - "GET /static/mobile.js?v=1777117241 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55300 - "GET /static/abcjs-audio.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55305 - "GET /static/abcjs-basic-min.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55302 - "GET /static/app.js?v=1777938225 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55297 - "GET /static/mobile.css?v=1777963034 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55307 - "GET /static/manifest.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55302 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55297 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55305 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55295 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55295 - "GET /static/icons/icon-192.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55303 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55303 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55295 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55303 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55324 - "GET /api/tunes?page=1&page_size=48&hitlist=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55324 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55324 - "GET /api/tunes/2184/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55327 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55328 - "GET /api/tunes/910 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55324 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55327 - "GET /api/tunes/910/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55328 - "GET /api/tunes/910/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55339 - "GET / HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55339 - "GET / HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55341 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55341 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55341 - "GET /static/mobile.css?v=1777963034 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55353 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55352 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55348 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55345 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55350 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55353 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55352 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55348 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55345 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55350 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55350 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55350 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55345 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55345 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55367 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55367 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55367 - "GET /api/tunes?page=1&page_size=48&hitlist=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55367 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55369 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55372 - "GET /api/tunes/463 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55367 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55367 - "GET /api/tunes/463/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55372 - "GET /api/tunes/463/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55471 - "GET /api/tunes/2188/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55474 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55475 - "GET /api/tunes/819 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55471 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55475 - "GET /api/tunes/819/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55471 - "GET /api/tunes/819/collections HTTP/1.1" 200 OK
+
+[notice] A new release of pip is available: 25.3 -> 26.1
+[notice] To update, run: pip3 install --upgrade pip
+Starting Ceol on http://0.0.0.0:8001
+  → Local:   http://localhost:8001
+  → Network: http://192.168.178.178:8001
+INFO:     Will watch for changes in these directories: ['/Users/callummaclellan/Ceol/v3']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [40464] using WatchFiles
+INFO:     Started server process [40471]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Database initialised at /Users/callummaclellan/Ceol/v3/data/ceol.db
+INFO:     127.0.0.1:56402 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56409 - "GET /static/app.js?v=1777985224 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56402 - "GET /static/style.css?v=1777567411 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56411 - "GET /static/abcjs-basic-min.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56408 - "GET /static/abcjs-audio.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56410 - "GET /static/mobile.js?v=1777117241 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56403 - "GET /static/mobile.css?v=1777985224 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56413 - "GET /static/manifest.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56410 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56411 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56409 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56403 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56403 - "GET /static/icons/icon-192.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56402 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56402 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56403 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56402 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56420 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56420 - "GET /static/mobile.css?v=1777985224 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:56421 - "GET /static/app.js?v=1777985224 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:56428 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56427 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56420 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56421 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56426 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56426 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56421 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56426 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56432 - "GET /api/tunes?page=1&page_size=48&q=Sport+Spors HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56435 - "GET /api/tunes/3113/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56438 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56439 - "GET /api/tunes/3039 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56435 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56439 - "GET /api/tunes/3039/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56438 - "GET /api/tunes/3039/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56442 - "GET /api/uploads/d7904b92cdea40b0a2c5cc78dc6a1521.m4a HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56445 - "GET /api/tunes?page=1&page_size=48&q=1st+August HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56448 - "GET /api/tunes/1481/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56451 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56452 - "GET /api/tunes/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56448 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56451 - "GET /api/tunes/2/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56452 - "GET /api/tunes/2/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57172 - "GET /static/app.js HTTP/1.1" 200 OK
+
+[notice] A new release of pip is available: 25.3 -> 26.1
+[notice] To update, run: pip3 install --upgrade pip
+
+[notice] A new release of pip is available: 25.3 -> 26.1
+[notice] To update, run: pip3 install --upgrade pip
+Starting Ceol on http://0.0.0.0:8001
+  → Local:   http://localhost:8001
+Starting Ceol on http://0.0.0.0:8001
+  → Local:   http://localhost:8001
+  → Network: http://192.168.178.178:8001
+  → Network: http://192.168.178.178:8001
+INFO:     Will watch for changes in these directories: ['/Users/callummaclellan/Ceol/v3']
+INFO:     Will watch for changes in these directories: ['/Users/callummaclellan/Ceol/v3']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+ERROR:    [Errno 48] Address already in use
+INFO:     Started reloader process [45272] using WatchFiles
+INFO:     Started server process [45294]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Database initialised at /Users/callummaclellan/Ceol/v3/data/ceol.db
+INFO:     192.168.178.130:55136 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55137 - "GET /static/style.css?v=1777567411 HTTP/1.1" 304 Not Modified
+INFO:     192.168.178.130:55135 - "GET /static/mobile.css?v=1777413326 HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55138 - "GET /static/app.js?v=1777582153 HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55139 - "GET /static/mobile.css?v=1777985224 HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55137 - "GET /static/app.js?v=1777985224 HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55139 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55138 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55136 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55135 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55137 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55139 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55138 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55136 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55165 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55165 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55170 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55169 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55167 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55168 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55165 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55170 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     192.168.178.130:55169 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK

@@ -3934,7 +3934,7 @@ function renderSheetMusic(abc, opts = {}) {
     // Melody: program: option.  Chord instrument: baked into ABC via %%chordprog.
     // chordsOff: passed as option (ABCJS honours it even when %%chordprog is present).
     const _setTuneOpts = { program: _melodyProgram, chordsOff: _chordsOff };
-    _synthController.setTune(_visualObj, false, { ..._setTuneOpts, soundFontUrl: "https://gleitz.github.io/midi-js-soundfonts/MusyngKite/" }).catch(err => {
+    _synthController.setTune(_visualObj, false, _setTuneOpts).catch(err => {
       console.warn("Audio init failed:", err);
     });
 

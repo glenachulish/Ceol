@@ -702,6 +702,8 @@
 
   /* Non-fullscreen sheet music page in landscape:
      collapse metronome, tempo and bar-info rows to give sheet music more room */
+  .mobile-body .metronome-row,
+  .mobile-body .bar-selection-info,
   .mobile-body .tempo-control-row {
     display: none;
   }
@@ -743,6 +745,7 @@
   /* bug1 fix 5 May 2026: unhid #audio-player-container, .bar-selection-info, .metronome-row in landscape */
 
   /* Options panel — hidden until ⚙ is tapped */
+  .mobile-body .sheet-music-options-panel { display: none !important; }
 
   /* Playback controls below sheet music */
   .mobile-body .tempo-control-row      { display: none !important; }
@@ -791,12 +794,4 @@
 }
 .mobile-body .sheet-music-options-header {
   display: flex !important;
-}
-
-/* postpatch fix 5 May 2026: keep close X reachable in landscape */
-.mobile-body .modal-close {
-  position: sticky;
-  top: env(safe-area-inset-top, .25rem);
-  z-index: 50;
-  align-self: flex-end;
 }
