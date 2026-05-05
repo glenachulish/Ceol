@@ -807,11 +807,3 @@
   -webkit-overflow-scrolling: touch !important;
   min-height: 0 !important;
 }
-/* fix 5 May 2026 v3: X in flex flow, immune to large text */
-.mobile-body .modal-wide > #modal-close,
-.mobile-body .m-modal-fullscreen > #modal-close {
-  position: static !important;
-  align-self: flex-end !important;
-  margin: 8px 8px 0 auto !important;
-  flex-shrink: 0 !important;
-}

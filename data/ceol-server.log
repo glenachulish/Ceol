@@ -515,3 +515,48 @@ INFO:     127.0.0.1:57989 - "GET /api/tunes/2 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:57985 - "GET /api/sets HTTP/1.1" 200 OK
 INFO:     127.0.0.1:57985 - "GET /api/tunes/2/collections HTTP/1.1" 200 OK
 INFO:     127.0.0.1:57989 - "GET /api/tunes/2/sets HTTP/1.1" 200 OK
+
+[notice] A new release of pip is available: 25.3 -> 26.1
+[notice] To update, run: pip3 install --upgrade pip
+
+[notice] A new release of pip is available: 25.3 -> 26.1
+[notice] To update, run: pip3 install --upgrade pip
+Starting Ceol on http://0.0.0.0:8001
+  → Local:   http://localhost:8001
+Starting Ceol on http://0.0.0.0:8001
+  → Local:   http://localhost:8001
+  → Network: http://192.168.178.178:8001
+  → Network: http://192.168.178.178:8001
+INFO:     Will watch for changes in these directories: ['/Users/callummaclellan/Ceol/v3']
+INFO:     Will watch for changes in these directories: ['/Users/callummaclellan/Ceol/v3']
+ERROR:    [Errno 48] Address already in use
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [47732] using WatchFiles
+INFO:     Started server process [47750]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Database initialised at /Users/callummaclellan/Ceol/v3/data/ceol.db
+INFO:     127.0.0.1:58038 - "GET /api/tunes?page=1&page_size=48&q=s HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58038 - "GET /api/tunes?page=1&page_size=48&q=spor HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58038 - "GET /api/tunes/3113/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58041 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58042 - "GET /api/tunes/3039 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58038 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58042 - "GET /api/tunes/3039/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58038 - "GET /api/tunes/3039/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58058 - "GET /api/tunes/3113/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58058 - "PATCH /api/tunes/3044/set-default HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58058 - "GET /api/tunes/3113/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58060 - "PATCH /api/tunes/3039/set-default HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58060 - "GET /api/tunes/3113/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58062 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58062 - "GET /api/tunes/3039 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58064 - "GET /api/tunes/3039/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58062 - "GET /api/tunes/3039/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58068 - "GET /api/tunes?page=1&page_size=48&q=1st+August HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "GET /api/tunes/1481/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58073 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58074 - "GET /api/tunes/2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58073 - "GET /api/tunes/2/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58074 - "GET /api/tunes/2/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58070 - "GET /api/sets HTTP/1.1" 200 OK

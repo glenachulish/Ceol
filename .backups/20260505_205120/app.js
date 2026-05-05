@@ -12659,41 +12659,53 @@ function _staffwidthFor(elementId) {
   }, true);
 })();
 
-;(function _ceolSvgScaleOnRotate() {
-  /* ceol-svg-scale-on-rotate 5 May 2026 v2 */
-  // After orientation change, the abcjs SVG stays portrait-sized.
-  // Fix: remove the max-height abcjs sets on the SVG, set width 100%,
-  // and remove the height attribute so viewBox handles aspect ratio.
-  // This scales the rendered SVG to fill the new container width.
+;(function _ceolOrientationRerender() {
+  /* ceol-orientation-rerender 5 May 2026 */
+  // When the device rotates, the sheet-music-render container changes width.
+  // abcjs has already rendered at the OLD width, so the SVG looks tiny.
+  // Solution: wrap renderSheetMusic to cache the last ABC string, then
+  // re-call it whenever the container width changes meaningfully.
 
-  var _scaleTimer = null;
+  if (typeof renderSheetMusic !== 'function') return;
 
-  function _scaleSvg() {
-    var svg = document.querySelector('#sheet-music-render svg');
-    if (!svg) return;
-    var container = document.getElementById('sheet-music-render');
-    if (!container) return;
-    var cw = container.clientWidth;
-    var sw = svg.getBoundingClientRect().width;
-    // Only act if SVG is significantly narrower than container
-    if (!cw || Math.abs(cw - sw) < 30) return;
-    svg.removeAttribute('height');
-    svg.style.maxHeight = 'none';
-    svg.style.width = '100%';
-    svg.style.height = 'auto';
+  // Intercept renderSheetMusic to cache the last abc argument
+  var _origRSM = renderSheetMusic;
+  var _cachedAbc = null;
+  var _rerenderTimer = null;
+  window.renderSheetMusic = function(abc, opts) {
+    if (typeof abc === 'string' && abc.trim().length > 0) {
+      _cachedAbc = abc;
+    }
+    return _origRSM.apply(this, arguments);
+  };
+
+  var _lastContainerW = 0;
+
+  function _rerenderIfNeeded() {
+    if (!_cachedAbc) return;
+    var renderEl = document.getElementById('sheet-music-render');
+    if (!renderEl) return;
+    // Only re-render if the sheet music tab is currently visible
+    var tab = renderEl.closest('.tab-panel');
+    if (tab && tab.style.display === 'none') return;
+    var w = renderEl.clientWidth;
+    if (!w || Math.abs(w - _lastContainerW) < 40) return;
+    _lastContainerW = w;
+    clearTimeout(_rerenderTimer);
+    _rerenderTimer = setTimeout(function() {
+      if (_cachedAbc && typeof renderSheetMusic === 'function') {
+        renderSheetMusic(_cachedAbc);
+      }
+    }, 100);
   }
 
-  function _schedule() {
-    clearTimeout(_scaleTimer);
-    // Two-pass: first at 300ms (fast) then again at 700ms (after iOS reflow)
-    _scaleTimer = setTimeout(function() {
-      _scaleSvg();
-      setTimeout(_scaleSvg, 400);
-    }, 300);
+  function _scheduleCheck() {
+    clearTimeout(_rerenderTimer);
+    _rerenderTimer = setTimeout(_rerenderIfNeeded, 420);
   }
 
-  window.addEventListener('orientationchange', _schedule);
-  if (screen.orientation) screen.orientation.addEventListener('change', _schedule);
-  window.addEventListener('resize', _schedule);
+  window.addEventListener('orientationchange', _scheduleCheck);
+  if (screen.orientation) screen.orientation.addEventListener('change', _scheduleCheck);
+  window.addEventListener('resize', _scheduleCheck);
 })();
 
