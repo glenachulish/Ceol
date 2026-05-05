@@ -1,0 +1,92 @@
+
+[notice] A new release of pip is available: 25.3 -> 26.1
+[notice] To update, run: pip3 install --upgrade pip
+Starting Ceol on http://0.0.0.0:8001
+  → Local:   http://localhost:8001
+  → Network: http://192.168.178.178:8001
+INFO:     Will watch for changes in these directories: ['/Users/callummaclellan/Ceol/v3']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [28094] using WatchFiles
+INFO:     Started server process [28102]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Database initialised at /Users/callummaclellan/Ceol/v3/data/ceol.db
+INFO:     127.0.0.1:54132 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54139 - "GET /static/mobile.css?v=1777413326 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54133 - "GET /static/style.css?v=1777567411 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54132 - "GET /static/app.js?v=1777938225 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54140 - "GET /static/mobile.js?v=1777117241 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54138 - "GET /static/abcjs-audio.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54141 - "GET /static/abcjs-basic-min.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54143 - "GET /static/manifest.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54140 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54132 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54141 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54133 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54133 - "GET /static/icons/icon-192.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54139 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54139 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54133 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54139 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54146 - "GET /api/tunes?page=1&page_size=48&hitlist=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54146 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54148 - "GET /api/tunes/3113/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54151 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54152 - "GET /api/tunes/3039 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54148 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54152 - "GET /api/tunes/3039/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54148 - "GET /api/tunes/3039/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54154 - "GET /api/tunes/3044 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54156 - "GET /api/tunes/3044/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54154 - "GET /api/tunes/3044/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54154 - "GET /api/tunes/3039 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54156 - "GET /api/tunes/3039/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54154 - "GET /api/tunes/3039/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54163 - "GET /api/circle-of-fifths/compatible?key= HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54163 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54166 - "GET /api/tunes/3039/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54167 - "GET /api/tunes/3039/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54170 - "GET /api/tunes/2184/versions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54172 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /api/tunes/910 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54170 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /api/tunes/910/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54174 - "GET /api/tunes/910/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54201 - "GET / HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:54201 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54201 - "GET /static/app.js?v=1777938225 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54208 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54207 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54202 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54201 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54206 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54206 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54201 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54206 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54211 - "GET /desktop HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54211 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54212 - "GET / HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:54212 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54215 - "GET /library HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54217 - "GET /index.html HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54220 - "GET /?desktop=1 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:54221 - "GET /?view=desktop HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:54221 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54220 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54223 - "GET / HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:54227 - "GET /mobile HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54227 - "GET /static/app.js?v=1777938225 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54233 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54234 - "GET /api/capabilities HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54228 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54227 - "GET /api/filters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54231 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54231 - "GET /api/tunes?page=1&page_size=48 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54227 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54231 - "GET /api/tunes/version-suggestions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54241 - "GET /api/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54242 - "GET /api/tunes/1895 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54240 - "GET /api/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54240 - "GET /api/tunes/1895/collections HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54242 - "GET /api/tunes/1895/sets HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54264 - "GET /static/mobile.css HTTP/1.1" 200 OK

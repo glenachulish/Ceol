@@ -3710,7 +3710,7 @@ function renderSheetMusicAudioOnly(abc) {
       displayLoop: false, displayRestart: true, displayPlay: true,
       displayProgress: true, displayWarp: true,
     });
-    _synthController.setTune(_visualObj, false, { program: _melodyProgram, chordsOff: _chordsOff, visualTranspose: _xposeN, soundFontUrl: "https://gleitz.github.io/midi-js-soundfonts/MusyngKite/" })
+    _synthController.setTune(_visualObj, false, { program: _melodyProgram, chordsOff: _chordsOff, visualTranspose: _xposeN })
       .catch(() => {});
     _initMetronomeUI(_extractAbcBpm(abc));
     _initMelodyControls();
@@ -4475,7 +4475,7 @@ function openAbcFullscreen(abc, title, opts = {}) {
           topRestart.onclick = () => botReset.click();
         }
       }
-      _abcFsSynthCtrl.setTune(_abcFsVisualObj, false, { program: _melodyProgram, chordsOff: _chordsOff, soundFontUrl: "https://gleitz.github.io/midi-js-soundfonts/MusyngKite/" })
+      _abcFsSynthCtrl.setTune(_abcFsVisualObj, false, { program: _melodyProgram, chordsOff: _chordsOff })
         .then(() => {
           // Apply practice tempo progression if opened from Practice tab
           if (initialWarp !== null) {
@@ -4696,7 +4696,7 @@ function renderPreviewMusic(abc) {
       displayProgress: true,
       displayWarp: true,
     });
-    _previewSynthCtrl.setTune(_previewVisualObj, false, { program: 73, soundFontUrl: "https://gleitz.github.io/midi-js-soundfonts/MusyngKite/" }).catch(err => {
+    _previewSynthCtrl.setTune(_previewVisualObj, false, { program: 73 }).catch(err => {
       console.warn("Preview audio init failed:", err);
     });
   } catch (err) {
@@ -5025,7 +5025,7 @@ function openSetMusicModal(title, abc, opts = {}) {
         displayProgress: true,
         displayWarp: true,
       });
-      _setMusicSynth.setTune(visualObjs[0], false, { program: 73, soundFontUrl: "https://gleitz.github.io/midi-js-soundfonts/MusyngKite/" })
+      _setMusicSynth.setTune(visualObjs[0], false, { program: 73 })
         .then(() => _setMusicSynth.setWarp(100))
         .then(() => { if (autoPlay && _setMusicSynth) _setMusicSynth.play(); })
         .catch(err => { console.warn("Set music audio init failed:", err); });
@@ -5228,7 +5228,7 @@ function openFullSetModal(setData, opts = {}) {
             displayLoop: false, displayRestart: true, displayPlay: true,
             displayProgress: true, displayWarp: true,
           });
-          _setMusicSynth.setTune(fullVisual[0], false, { program: _melodyProgram, chordsOff: _chordsOff, soundFontUrl: "https://gleitz.github.io/midi-js-soundfonts/MusyngKite/" })
+          _setMusicSynth.setTune(fullVisual[0], false, { program: _melodyProgram, chordsOff: _chordsOff })
             .then(() => _setMusicSynth.setWarp(100))
             .catch(() => {});
         } catch {}
@@ -5414,23 +5414,19 @@ function openFullSetModal(setData, opts = {}) {
 
   // Wire fullscreen button (uses combined ABC with per-tune colour highlights)
     // ⋯ More button — toggles playback controls in set detail
-    // Bug 5 fix (4 May 2026): there are two .set-more-btn elements
-    // in the rendered modal -- one in the timeline header, one in
-    // the footer. Wire ALL and keep their state in sync.
-    const _setMoreBtns = modalContent.querySelectorAll('.set-more-btn');
-    if (_setMoreBtns.length > 0) {
-      _setMoreBtns.forEach(b => { b.dataset.open = '1'; });
-      _setMoreBtns.forEach(_setMoreBtn => {
-        _setMoreBtn.addEventListener('click', () => {
-          const open = _setMoreBtn.dataset.open !== '1';
-          const targets = [
-            document.getElementById('set-full-audio'),
-            document.getElementById('metronome-row'),
-            document.querySelector('.set-bot-controls'),
-          ].filter(Boolean);
-          targets.forEach(el => { el.style.display = open ? '' : 'none'; });
-          _setMoreBtns.forEach(b => { b.dataset.open = open ? '1' : '0'; });
-        });
+    const _setMoreBtn = modalContent.querySelector('.set-more-btn');
+    if (_setMoreBtn) {
+      _setMoreBtn.dataset.open = '1'; // controls start visible
+      _setMoreBtn.addEventListener('click', () => {
+        const open = _setMoreBtn.dataset.open !== '1';
+        const targets = [
+          document.getElementById('set-full-audio'),
+          document.getElementById('metronome-row'),
+          document.querySelector('.set-bot-controls'),
+        ].filter(Boolean);
+        targets.forEach(el => { el.style.display = open ? '' : 'none'; });
+
+        _setMoreBtn.dataset.open = open ? '1' : '0';
       });
     }
 
@@ -5634,7 +5630,7 @@ function openFullSetModal(setData, opts = {}) {
         displayLoop: false, displayRestart: true, displayPlay: true,
         displayProgress: true, displayWarp: true,
       });
-      _setMusicSynth.setTune(fullVisual[0], false, { program: _melodyProgram, chordsOff: _chordsOff, soundFontUrl: "https://gleitz.github.io/midi-js-soundfonts/MusyngKite/" })
+      _setMusicSynth.setTune(fullVisual[0], false, { program: _melodyProgram, chordsOff: _chordsOff })
         .then(() => {
           _initMetronomeUI(_extractAbcBpm(tunesWithAbc[0]?.abc));
           const botPlayBtn    = document.getElementById("set-bot-play-btn");
@@ -12018,7 +12014,7 @@ function _renderPracticeMusic(pracAbc) {
       displayProgress: true,
       displayWarp: true,
     });
-    _pracSynthCtrl.setTune(_pracVisualObj, false, { program: _melodyProgram, chordsOff: _chordsOff, soundFontUrl: "https://gleitz.github.io/midi-js-soundfonts/MusyngKite/" })
+    _pracSynthCtrl.setTune(_pracVisualObj, false, { program: _melodyProgram, chordsOff: _chordsOff })
       .then(() => {
         _pracSynthCtrl.setWarp(_pracCurWarp);
         try { _pracSynthCtrl.pause(); } catch {}  // prevent auto-start
@@ -12464,87 +12460,3 @@ function _staffwidthFor(elementId) {
     init();
   }
 })();
-
-// --------------------------------------------------------------------------
-// Ghost-click shield (added 4 May 2026 -- bug 4 fix)
-// On iOS, tapping the modal close button can fire a synthetic click on
-// whatever sits behind it (the theme toggle in the header). After any
-// modal-overlay or import-overlay transitions to hidden, swallow the next
-// click on header theme buttons within 500ms.
-// --------------------------------------------------------------------------
-(function _ceolGhostClickShield() {
-  let _shieldUntil = 0;
-  const SHIELD_MS = 500;
-
-  function _watch(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    let wasHidden = el.classList.contains('hidden');
-    new MutationObserver(() => {
-      const isHidden = el.classList.contains('hidden');
-      if (!wasHidden && isHidden) {
-        _shieldUntil = Date.now() + SHIELD_MS;
-      }
-      wasHidden = isHidden;
-    }).observe(el, { attributes: true, attributeFilter: ['class'] });
-  }
-  _watch('modal-overlay');
-  _watch('import-overlay');
-
-  document.addEventListener('click', (e) => {
-    if (Date.now() >= _shieldUntil) return;
-    if (!e.target || !e.target.closest) return;
-    const hit = e.target.closest('#theme-toggle-btn, .m-theme-btn, .library-menu-item');
-    if (hit) {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      _shieldUntil = 0; // consumed
-    }
-  }, true);
-})();
-// -- end ghost-click shield --
-
-// --------------------------------------------------------------------------
-// Media playback coordinator (added 4 May 2026 -- bug 6 fix)
-// Ensures only one media element plays at a time:
-//   * any <audio>/<video> 'play' event pauses other HTML media + abcjs synths
-//   * abcjs play button click pauses all <audio>/<video>
-// Capture-phase listener catches dynamically-created elements anywhere.
-// --------------------------------------------------------------------------
-(function _ceolMediaCoordinator() {
-  function _pauseHtmlMediaExcept(except) {
-    document.querySelectorAll('audio, video').forEach(el => {
-      if (el !== except && !el.paused) {
-        try { el.pause(); } catch (e) {}
-      }
-    });
-  }
-  function _pauseAllSynths() {
-    try {
-      if (typeof _synthController !== 'undefined' && _synthController) {
-        _synthController.pause();
-      }
-    } catch (e) {}
-    try {
-      if (typeof _setMusicSynth !== 'undefined' && _setMusicSynth) {
-        _setMusicSynth.pause();
-      }
-    } catch (e) {}
-  }
-
-  document.addEventListener('play', (e) => {
-    const el = e.target;
-    if (!el || (el.tagName !== 'AUDIO' && el.tagName !== 'VIDEO')) return;
-    _pauseHtmlMediaExcept(el);
-    _pauseAllSynths();
-  }, true);
-
-  document.addEventListener('click', (e) => {
-    if (!e.target || !e.target.closest) return;
-    const btn = e.target.closest('.abcjs-midi-start');
-    if (!btn) return;
-    if (btn.classList.contains('abcjs-pushed')) return;
-    _pauseHtmlMediaExcept(null);
-  }, true);
-})();
-// -- end media coordinator --

@@ -520,8 +520,7 @@ def list_tunes(
                       ORDER BY v.id LIMIT 1)) AS key,
                    t.mode, t.notes, t.imported_at, t.created_at,
                    MAX(t.rating, COALESCE((SELECT MAX(v.rating) FROM tunes v WHERE v.parent_id = t.id), 0)) AS rating,
-                   MAX(t.on_hitlist, COALESCE((SELECT MAX(v.on_hitlist) FROM tunes v WHERE v.parent_id = t.id), 0)) AS on_hitlist,
-                   MAX(t.is_favourite, COALESCE((SELECT MAX(v.is_favourite) FROM tunes v WHERE v.parent_id = t.id), 0)) AS is_favourite,
+                   t.on_hitlist, t.is_favourite,
                    (SELECT COUNT(*) FROM tunes v WHERE v.parent_id = t.id) AS version_count
             FROM tunes t
             {where}
