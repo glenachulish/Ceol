@@ -43,10 +43,3 @@ def auth_db_path() -> Path:
     """data/users.db — shared auth database (users + sessions tables)."""
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     return DATA_ROOT / "users.db"
-
-# === Phase 0 Part 2: request-scoped user id ===
-# Phase 0 hardcodes user_id=1; Phase 1 swaps the HTTP middleware body to
-# resolve from a session cookie. Nothing else in the app needs to change
-# when that happens.
-from contextvars import ContextVar
-current_user_id: ContextVar[int] = ContextVar("ceol_user_id", default=1)

@@ -42,110 +42,10 @@ from backend.abc_parser import (
     parse_abc_string,
     parse_thecraic_export,
 )
-
-# === Phase 0 Part 2: per-user data layout ===
-# IMPORTANT: this block must run BEFORE `from backend.database import ...`,
-# because database.py reads DB_PATH at import time via user_paths.
-from backend import user_paths as _user_paths_mod
-from backend import users_db as _users_db_mod
-from backend.user_paths import current_user_id, user_db_path, user_uploads_dir
-
-
-def _phase0_migrate_to_per_user_layout() -> None:
-    """One-shot migration of legacy single-user layout to per-user layout.
-
-    Idempotent: safe to run on every server start. Refuses to clobber if
-    both legacy and per-user DBs exist (mixed state needs human triage).
-    """
-    import shutil as _shutil
-    _dd = os.environ.get("CEOL_DATA_DIR")
-    data_root = (Path(_dd) if _dd else Path(__file__).parent.parent / "data").resolve()
-
-    legacy_db        = data_root / "ceol.db"
-    legacy_uploads   = data_root / "uploads"
-    target_user_dir  = data_root / "users" / "1"
-    target_db        = target_user_dir / "ceol.db"
-    target_uploads   = target_user_dir / "uploads"
-    preflight_backup = data_root / "ceol.db.preflight"
-
-    # Already migrated — nothing to do.
-    if target_db.exists() and not legacy_db.exists():
-        target_uploads.mkdir(parents=True, exist_ok=True)
-        return
-
-    # Mixed state — refuse to overwrite. User must resolve manually.
-    if target_db.exists() and legacy_db.exists():
-        print("[Ceol Phase 0] WARNING: both legacy and per-user DBs exist.")
-        print(f"               legacy:    {legacy_db}")
-        print(f"               per-user:  {target_db}")
-        print("               Refusing to migrate; resolve manually.")
-        target_uploads.mkdir(parents=True, exist_ok=True)
-        return
-
-    # Empty install — just create the target dirs.
-    if not legacy_db.exists() and not legacy_uploads.exists():
-        target_user_dir.mkdir(parents=True, exist_ok=True)
-        target_uploads.mkdir(parents=True, exist_ok=True)
-        return
-
-    # Pre-flight backup of the legacy DB before any move.
-    if legacy_db.exists():
-        if not preflight_backup.exists():
-            _shutil.copy2(legacy_db, preflight_backup)
-            print(f"[Ceol Phase 0] backed up {legacy_db.name} -> {preflight_backup.name}")
-        else:
-            print(f"[Ceol Phase 0] preflight backup already at {preflight_backup} (kept)")
-
-    target_user_dir.mkdir(parents=True, exist_ok=True)
-    target_uploads.mkdir(parents=True, exist_ok=True)
-
-    # Move the database
-    if legacy_db.exists():
-        _shutil.move(str(legacy_db), str(target_db))
-        print(f"[Ceol Phase 0] moved {legacy_db.name} -> {target_db}")
-
-    # Move uploads file-by-file (so a partial move is recoverable on next run)
-    if legacy_uploads.exists() and legacy_uploads.is_dir():
-        moved = 0
-        skipped = 0
-        for src in list(legacy_uploads.iterdir()):
-            dst = target_uploads / src.name
-            if dst.exists():
-                skipped += 1
-                continue
-            _shutil.move(str(src), str(dst))
-            moved += 1
-        print(f"[Ceol Phase 0] moved {moved} upload(s) -> {target_uploads}"
-              + (f"  (skipped {skipped} already-present)" if skipped else ""))
-        try:
-            legacy_uploads.rmdir()
-        except OSError:
-            pass  # directory not empty for some reason; harmless
-
-
-_phase0_migrate_to_per_user_layout()
-_users_db_mod.init_users_db()
-# === end Phase 0 Part 2 block ===
 from backend.database import DB_PATH, get_connection, init_db
 
 app = FastAPI(title="Ceol", version="0.1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-
-# === Phase 0 Part 2: HTTP middleware sets the per-request user id ===
-# Phase 1 will replace the body of this middleware with a session-cookie
-# lookup. The rest of the app reads `current_user_id.get()` via _db() and
-# the UPLOADS_DIR shim, so nothing else needs to change.
-@app.middleware("http")
-async def _ceol_set_user_context(request, call_next):
-    _ceol_token = current_user_id.set(1)
-    try:
-        response = await call_next(request)
-    finally:
-        current_user_id.reset(_ceol_token)
-    return response
-# === end ===
-
 init_db()
 
 # Auto-classify any tunes that have no type or key yet
@@ -231,42 +131,7 @@ _base_dir = os.environ.get("CEOL_BASE_DIR")
 _data_dir = os.environ.get("CEOL_DATA_DIR")
 FRONTEND_DIR = Path(_base_dir) / "frontend" if _base_dir else Path(__file__).parent.parent / "frontend"
 STATIC_DIR = FRONTEND_DIR / "static"
-class _PerUserUploadsDir:
-    """Path-like proxy that resolves to the current request user's uploads dir.
-
-    All Path operations forward to the resolved Path, so the existing 35
-    UPLOADS_DIR call-sites keep working unchanged: `UPLOADS_DIR / x`,
-    `UPLOADS_DIR.mkdir(...)`, `UPLOADS_DIR.iterdir()`,
-    `shutil.rmtree(UPLOADS_DIR)`, `UPLOADS_DIR.exists()`, and so on.
-    """
-    __slots__ = ()
-
-    def _resolve(self) -> Path:
-        d = user_uploads_dir(current_user_id.get())
-        d.mkdir(parents=True, exist_ok=True)
-        return d
-
-    def __truediv__(self, other):
-        return self._resolve() / other
-
-    def __rtruediv__(self, other):
-        return other / self._resolve()
-
-    def __fspath__(self):
-        return str(self._resolve())
-
-    def __str__(self):
-        return str(self._resolve())
-
-    def __repr__(self):
-        return f"<UPLOADS_DIR shim -> {self._resolve()}>"
-
-    def __getattr__(self, name):
-        # Forward .mkdir, .exists, .iterdir, .resolve, .is_dir, etc.
-        return getattr(self._resolve(), name)
-
-
-UPLOADS_DIR = _PerUserUploadsDir()
+UPLOADS_DIR = Path(_data_dir) / "uploads" if _data_dir else Path(__file__).parent.parent / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_DIR = Path(__file__).parent.parent.resolve()
@@ -459,22 +324,7 @@ with get_connection() as _startup_conn:
 # ---------------------------------------------------------------------------
 
 def _db():
-    """Open a connection to the *current request's* user database.
-
-    Reads `current_user_id` from a ContextVar set by HTTP middleware.
-    Phase 0 always returns 1; Phase 1 replaces the middleware body to
-    look the id up from a session cookie. The connection itself is a
-    context manager (sqlite3.Connection auto-commits/rolls back on
-    `with`), matching the pre-existing call-site contract:
-
-        with _db() as conn:
-            conn.execute(...)
-    """
-    db_path = user_db_path(current_user_id.get())
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    return get_connection(db_path)
-
-
+    return get_connection(DB_PATH)
 
 
 # ---------------------------------------------------------------------------

@@ -19,17 +19,8 @@ def _search_norm(s: str | None) -> str:
     no_accents = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
     return re.sub(r"[^\w\s]", "", no_accents, flags=re.UNICODE).lower()
 
-# === Phase 0 Part 2: per-user DB routing ===
-# DB_PATH now resolves to the current user's per-user database via
-# user_paths. Phase 0 hardcodes user 1 here at module load time; Phase 1
-# will need to re-think this (likely making DB_PATH a function of the
-# request-scoped ContextVar). For now, all 100+ `with _db()` call-sites
-# in main.py keep working unchanged because main.py overrides _db() to
-# read from the ContextVar at request time — this constant is only used
-# by `init_db()` and `get_connection()` defaults.
-_data_dir = os.environ.get("CEOL_DATA_DIR")  # kept for backwards compatibility
-from backend import user_paths as _user_paths_for_db_path
-DB_PATH = _user_paths_for_db_path.user_db_path(1)
+_data_dir = os.environ.get("CEOL_DATA_DIR")
+DB_PATH = Path(_data_dir) / "ceol.db" if _data_dir else Path(__file__).parent.parent / "data" / "ceol.db"
 
 SCHEMA = """
 -- Core tune data (imported from The Craic)
