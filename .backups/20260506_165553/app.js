@@ -11763,10 +11763,14 @@ let _pracCurrentAbc  = null;   // last-built practice ABC (for fullscreen)
 
 function _stopPracticeAudio() {
   if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
-  // NOTE: Do NOT close window.abcjsAudioContext here. It is the SHARED context
-  // used by every synth in the app (tune modal, set modal, fullscreen, preview,
-  // practice). Closing it kills audio app-wide and cannot be undone — once an
-  // AudioContext is .close()'d, state becomes "closed" permanently.
+  // Close and null the shared ABCJS AudioContext so all scheduled nodes are destroyed.
+  // ABCJS will create a fresh context next time audio is needed.
+  try {
+    if (window.abcjsAudioContext) {
+      window.abcjsAudioContext.close();
+      window.abcjsAudioContext = null;
+    }
+  } catch {}
 }
 
 function _extractBpm(abc) {
@@ -12111,29 +12115,8 @@ window.addEventListener("beforeunload", _stopAllAudio);
 // if resume() doesn't restore it to "running" within 300 ms.
 function _tryResumeAudioContext(ctx) {
   if (!ctx || ctx.state === "running") return;
-  if (ctx.state === "closed") {
-    // Closed contexts can't be resumed. Null the shared reference so the
-    // next setTune() / synth init constructs a fresh AudioContext.
-    if (window.abcjsAudioContext === ctx) window.abcjsAudioContext = null;
-    return;
-  }
-  // iOS Safari: "interrupted" means another app took the audio session.
-  // resume() may report success while audio remains silent. If the context
-  // doesn't return to "running" within 400ms, null the shared reference so
-  // abcjs rebuilds it on the next play.
-  const wasInterrupted = ctx.state === "interrupted";
-  ctx.resume().catch(() => {
-    if (wasInterrupted && window.abcjsAudioContext === ctx) {
-      window.abcjsAudioContext = null;
-    }
-  });
-  if (wasInterrupted) {
-    setTimeout(() => {
-      if (ctx.state !== "running" && window.abcjsAudioContext === ctx) {
-        window.abcjsAudioContext = null;
-      }
-    }, 400);
-  }
+  if (ctx.state === "closed") return; // can't resume a closed context
+  ctx.resume().then(() => {}).catch(() => {});
 }
 
 function _recoverAudioContexts() {
