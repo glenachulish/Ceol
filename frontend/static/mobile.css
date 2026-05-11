@@ -1,3 +1,4 @@
+/* cluster-b patch 3 (11 May 2026): scope to iPhone-size only */
 /* ── Ceòl Mobile – mobile-specific CSS ──────────────────────
    Loaded in addition to style.css.
    Targets mobile layout: bottom nav, compact header, full-screen modals.
@@ -648,7 +649,7 @@
 .tune-card { cursor: pointer; }
 
 /* ── Landscape orientation ──────────────────────────────────────────────── */
-@media (orientation: landscape) {
+@media (max-width: 900px) and (orientation: landscape) {
   /* Compact header in landscape so sheet music has more room */
   .m-header {
     min-height: 40px !important;
@@ -689,7 +690,7 @@
 
 /* In landscape: hide fullscreen controls by default so sheet music has full height.
    User taps ⋯ More to reveal them. */
-@media (orientation: landscape) {
+@media (max-width: 900px) and (orientation: landscape) {
   /* Hide bottom playback controls in FS by default */
   .abc-fullscreen-overlay .abc-fs-controls,
   .abc-fullscreen-overlay .abcjs-midi-wrap {
@@ -739,7 +740,7 @@
 /* ── Landscape: hide everything below the sheet music ───────────────────── */
 /* This applies to the non-fullscreen tune modal on a phone held sideways.
    The user can still tap ⚙ (which stays visible) to access options. */
-@media (orientation: landscape) {
+@media (max-width: 900px) and (orientation: landscape) {
   /* bug1 fix 5 May 2026: unhid #audio-player-container, .bar-selection-info, .metronome-row in landscape */
 
   /* Options panel — hidden until ⚙ is tapped */
