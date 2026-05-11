@@ -5869,6 +5869,7 @@ function renderSets(sets) {
           <span class="m-set-row-meta">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}${rating ? " · " + "★".repeat(rating) : ""}</span>
         </div>
         <button class="m-set-rename-btn" data-set-id="${s.id}" title="Rename set">✏</button>
+        <button class="m-set-delete-btn" data-set-id="${s.id}" title="Delete set" aria-label="Delete set">🗑</button>
         <span class="m-set-row-arrow">›</span>
       </div>`;
     }
@@ -6496,6 +6497,28 @@ function renderSets(sets) {
         btn.closest(".set-card").remove();
         state.sets = state.sets.filter(s => String(s.id) !== String(btn.dataset.setId));
         if (!setsList.querySelector(".set-card")) {
+          setsList.innerHTML = '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
+        }
+      } catch {
+        alert("Failed to delete set. Please try again.");
+        btn.disabled = false;
+      }
+    });
+  });
+
+  // Mobile rows: delete-set button (added cluster B patch 1, 11 May 2026)
+  setsList.querySelectorAll(".m-set-delete-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const row  = btn.closest(".m-set-row");
+      const name = row?.querySelector(".m-set-row-name")?.textContent || "this set";
+      if (!confirm(`Delete set "${name}"?`)) return;
+      btn.disabled = true;
+      try {
+        await apiDeleteSet(btn.dataset.setId);
+        row.remove();
+        state.sets = state.sets.filter(s => String(s.id) !== String(btn.dataset.setId));
+        if (!setsList.querySelector(".m-set-row")) {
           setsList.innerHTML = '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
         }
       } catch {

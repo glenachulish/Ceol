@@ -18,3 +18,34 @@ data/*.db-wal
 # macOS
 .DS_Store
 **/.DS_Store
+
+# Ceòl .gitignore — added 11 May 2026
+# These files should never be in the code repository.
+
+# User data: databases, uploads, backups
+data/
+*.db
+*.db-shm
+*.db-wal
+*.db.bak*
+*.db.preflight
+
+# Patch backup files (created by patch scripts)
+*.bak-*
+
+# Tombstone files (renamed during cleanup)
+*.removed-*
+
+# Python / system
+__pycache__/
+*.pyc
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Environment / secrets
+.env
+.env.local
