@@ -728,6 +728,74 @@ document.addEventListener("click", function (e) {
 }, true);
 // ─────────────────────────────────────────────────────────────────────
 
+
+// ─── Silent-switch bypass — cluster A patch 10 (12 May 2026) ─────────
+// On iOS Safari, raw Web Audio API respects the physical silent switch
+// while <audio>/<video> elements ignore it. By .play()ing an invisible
+// silent <audio> element inside a user gesture, we promote the page's
+// audio session to "media playback" category — bypassing the silent
+// switch for the abcjs synth as well.
+(function _initSilentBypass() {
+  if (window._ceolSilentBypassInitialised) return;
+  window._ceolSilentBypassInitialised = true;
+
+  // 1-frame silent MP3 as data URI — tiny, no extra HTTP request
+  const SILENT_MP3 =
+    "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAACcQCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgP////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAnGMHkkIAAAAAAAAAAAAAAAAAAAA//sQxAADwAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxA0DwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxBkDwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxCQDwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxDADwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxDwDwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxEgDwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxFQDwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV";
+
+  // Create the invisible <audio> element with the silent MP3.
+  // 'loop' so it stays playing throughout the session, holding the
+  // audio session in media-playback mode.
+  const silent = document.createElement("audio");
+  silent.id = "_ceol-silent-keeper";
+  silent.src = SILENT_MP3;
+  silent.loop = true;
+  silent.preload = "auto";
+  silent.setAttribute("playsinline", "");
+  silent.setAttribute("webkit-playsinline", "");
+  silent.style.cssText = "position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none";
+  silent.volume = 0.01; // technically inaudible
+  silent.muted = false; // must NOT be muted — muted <audio> doesn't promote session
+  // Append immediately so it's in the DOM
+  function _append() {
+    if (!silent.parentNode) document.body.appendChild(silent);
+  }
+  if (document.body) _append();
+  else document.addEventListener("DOMContentLoaded", _append, { once: true });
+
+  // Promote the audio session on the FIRST user interaction.
+  // iOS requires .play() to be called inside a user gesture.
+  window._ceolPromoteAudioSession = function _ceolPromoteAudioSession() {
+    if (window._ceolSessionPromoted) return Promise.resolve();
+    _append();
+    return silent.play().then(() => {
+      window._ceolSessionPromoted = true;
+      console.info("Ceòl: audio session promoted (silent switch will now be bypassed).");
+    }).catch(err => {
+      // Most commonly: no user gesture context yet, or the data URI failed.
+      // We'll try again on the next interaction.
+      console.warn("Ceòl: audio session promote failed (will retry on next tap):", err);
+    });
+  };
+
+  // Wire it to every kind of user gesture, capture phase, ONCE.
+  function _firstTap() {
+    window._ceolPromoteAudioSession();
+    // Remove listeners after promotion succeeds
+    setTimeout(() => {
+      if (window._ceolSessionPromoted) {
+        document.removeEventListener("touchend", _firstTap, true);
+        document.removeEventListener("click", _firstTap, true);
+        document.removeEventListener("keydown", _firstTap, true);
+      }
+    }, 200);
+  }
+  document.addEventListener("touchend", _firstTap, true);
+  document.addEventListener("click", _firstTap, true);
+  document.addEventListener("keydown", _firstTap, true);
+})();
+// ─────────────────────────────────────────────────────────────────────
+
 function escHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
