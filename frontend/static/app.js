@@ -6018,13 +6018,9 @@ function renderSets(sets) {
       <div class="m-set-row" data-set-id="${s.id}" data-rating="${rating}" data-favourite="${s.is_favourite || 0}" data-hitlist="${s.on_hitlist || 0}">
         <div class="m-set-row-info">
           <span class="m-set-row-name">${escHtml(s.name)}</span>
-          <span class="m-set-row-meta">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
+          <span class="m-set-row-meta">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}${rating ? " · " + "★".repeat(rating) : ""}${s.is_favourite ? " · 👍" : ""}${s.on_hitlist ? " · 📌" : ""}</span>
         </div>
-        <span class="m-set-stars" role="group" aria-label="Mastery rating">${[1,2,3,4,5].map(n => `<button class="m-set-star-btn${rating >= n ? " filled" : ""}" data-set-id="${s.id}" data-n="${n}" tabindex="-1" aria-label="Rate ${n} star${n!==1?"s":""}">★</button>`).join("")}</span>
-        <button class="m-set-fav-btn${s.is_favourite ? " active" : ""}" data-set-id="${s.id}" title="${s.is_favourite ? "Remove from favourites" : "Add to favourites"}" aria-label="Favourite">👍</button>
-        <button class="m-set-hitlist-btn${s.on_hitlist ? " active" : ""}" data-set-id="${s.id}" title="${s.on_hitlist ? "Remove from hitlist" : "Add to hitlist"}" aria-label="Hitlist">📌</button>
-        <button class="m-set-rename-btn" data-set-id="${s.id}" title="Rename set">✏</button>
-        <button class="m-set-delete-btn" data-set-id="${s.id}" title="Delete set" aria-label="Delete set">🗑</button>
+        <button class="m-set-more-btn" data-set-id="${s.id}" title="More options" aria-label="More options">⋯</button>
         <span class="m-set-row-arrow">›</span>
       </div>`;
     }
@@ -6660,6 +6656,227 @@ function renderSets(sets) {
       }
     });
   });
+
+  // Mobile rows: ⋯ more menu (added cluster B patch 6, 12 May 2026)
+  // Closes any open menu (used both on outside-click and on re-tap)
+  function _closeAnySetPopup() {
+    const open = setsList.querySelector(".m-set-popup");
+    if (open) open.remove();
+  }
+  // Outside-click handler — closes the menu when tapping elsewhere
+  function _setPopupOutsideClick(e) {
+    if (!e.target.closest(".m-set-popup") && !e.target.closest(".m-set-more-btn")) {
+      _closeAnySetPopup();
+      document.removeEventListener("click", _setPopupOutsideClick, true);
+    }
+  }
+
+  setsList.querySelectorAll(".m-set-more-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const row = btn.closest(".m-set-row");
+      const setId = btn.dataset.setId;
+      // If a popup is already open for THIS row, close it (toggle off)
+      const existing = row.querySelector(".m-set-popup");
+      _closeAnySetPopup();
+      if (existing) return;
+
+      const rating = Number(row.dataset.rating || 0);
+      const isFav = row.dataset.favourite === "1";
+      const isHit = row.dataset.hitlist === "1";
+
+      const popup = document.createElement("div");
+      popup.className = "m-set-popup";
+      popup.innerHTML = `
+        <div class="m-set-popup-stars" role="group" aria-label="Mastery rating">
+          ${[1,2,3,4,5].map(n =>
+            `<button class="m-set-popup-star-btn${rating >= n ? " filled" : ""}" data-set-id="${setId}" data-n="${n}" aria-label="Rate ${n} star${n!==1?"s":""}">★</button>`
+          ).join("")}
+        </div>
+        <button class="m-set-popup-item m-set-popup-fav${isFav ? " active" : ""}" data-set-id="${setId}">
+          <span class="m-set-popup-icon">👍</span>
+          <span class="m-set-popup-label">${isFav ? "Remove from favourites" : "Add to favourites"}</span>
+        </button>
+        <button class="m-set-popup-item m-set-popup-hitlist${isHit ? " active" : ""}" data-set-id="${setId}">
+          <span class="m-set-popup-icon">📌</span>
+          <span class="m-set-popup-label">${isHit ? "Remove from hitlist" : "Add to hitlist"}</span>
+        </button>
+        <div class="m-set-popup-sep"></div>
+        <button class="m-set-popup-item m-set-popup-rename" data-set-id="${setId}">
+          <span class="m-set-popup-icon">✏</span>
+          <span class="m-set-popup-label">Rename set</span>
+        </button>
+        <button class="m-set-popup-item m-set-popup-delete" data-set-id="${setId}">
+          <span class="m-set-popup-icon">🗑</span>
+          <span class="m-set-popup-label">Delete set</span>
+        </button>
+      `;
+      row.appendChild(popup);
+
+      // Wire stars in popup
+      popup.querySelectorAll(".m-set-popup-star-btn").forEach(starBtn => {
+        starBtn.addEventListener("click", async (ev) => {
+          ev.stopPropagation();
+          const n = Number(starBtn.dataset.n);
+          const current = Number(row.dataset.rating || 0);
+          const newRating = n === current ? 0 : n;
+          try {
+            await apiFetch(`/api/sets/${setId}`, {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ rating: newRating }),
+            });
+            row.dataset.rating = newRating;
+            popup.querySelectorAll(".m-set-popup-star-btn").forEach((s, i) =>
+              s.classList.toggle("filled", i < newRating)
+            );
+            // Update meta line
+            const meta = row.querySelector(".m-set-row-meta");
+            const tuneCountText = `${row.querySelector(".m-set-row-name").nextSibling ? "" : ""}`;
+            const tunes = state.sets.find(s => String(s.id) === String(setId));
+            if (tunes) tunes.rating = newRating;
+            _updateSetRowMeta(row);
+          } catch {
+            alert("Failed to update rating. Please try again.");
+          }
+        });
+      });
+
+      // Wire favourite
+      const favBtn = popup.querySelector(".m-set-popup-fav");
+      favBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const is_favourite = favBtn.classList.contains("active") ? 0 : 1;
+        try {
+          await apiFetch(`/api/sets/${setId}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ is_favourite }),
+          });
+          favBtn.classList.toggle("active", Boolean(is_favourite));
+          favBtn.querySelector(".m-set-popup-label").textContent =
+            is_favourite ? "Remove from favourites" : "Add to favourites";
+          row.dataset.favourite = is_favourite;
+          const ls = state.sets.find(s => String(s.id) === String(setId));
+          if (ls) ls.is_favourite = is_favourite;
+          _updateSetRowMeta(row);
+        } catch {
+          alert("Failed to update favourite. Please try again.");
+        }
+      });
+
+      // Wire hitlist
+      const hitBtn = popup.querySelector(".m-set-popup-hitlist");
+      hitBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const on_hitlist = hitBtn.classList.contains("active") ? 0 : 1;
+        try {
+          await apiFetch(`/api/sets/${setId}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ on_hitlist }),
+          });
+          hitBtn.classList.toggle("active", Boolean(on_hitlist));
+          hitBtn.querySelector(".m-set-popup-label").textContent =
+            on_hitlist ? "Remove from hitlist" : "Add to hitlist";
+          row.dataset.hitlist = on_hitlist;
+          const ls = state.sets.find(s => String(s.id) === String(setId));
+          if (ls) ls.on_hitlist = on_hitlist;
+          _updateSetRowMeta(row);
+        } catch {
+          alert("Failed to update hitlist. Please try again.");
+        }
+      });
+
+      // Wire rename — triggers the existing m-set-rename-btn flow by
+      // simulating a click on a temp hidden button (re-uses patch-1 logic).
+      // Simpler: just inline the same rename flow here.
+      popup.querySelector(".m-set-popup-rename").addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        _closeAnySetPopup();
+        const nameSpan = row.querySelector(".m-set-row-name");
+        const original = nameSpan.textContent;
+        const input = document.createElement("input");
+        input.type = "text"; input.value = original;
+        input.className = "set-name-input"; input.maxLength = 120;
+        nameSpan.replaceWith(input);
+        input.focus(); input.select();
+        async function commit() {
+          const newName = input.value.trim();
+          const span = document.createElement("span");
+          span.className = "m-set-row-name";
+          if (newName && newName !== original) {
+            try {
+              await apiFetch(`/api/sets/${setId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: newName }),
+              });
+              span.textContent = newName;
+              const ls = state.sets.find(s => String(s.id) === String(setId));
+              if (ls) ls.name = newName;
+            } catch {
+              span.textContent = original;
+            }
+          } else {
+            span.textContent = original;
+          }
+          input.replaceWith(span);
+        }
+        input.addEventListener("blur", commit, { once: true });
+        input.addEventListener("keydown", (ke) => {
+          if (ke.key === "Enter") { ke.preventDefault(); input.blur(); }
+          if (ke.key === "Escape") {
+            const span = document.createElement("span");
+            span.className = "m-set-row-name";
+            span.textContent = original;
+            input.replaceWith(span);
+          }
+        });
+      });
+
+      // Wire delete
+      popup.querySelector(".m-set-popup-delete").addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const setName = row.querySelector(".m-set-row-name")?.textContent || "this set";
+        if (!confirm(`Delete set "${setName}"?`)) return;
+        const delBtn = popup.querySelector(".m-set-popup-delete");
+        delBtn.disabled = true;
+        try {
+          await apiDeleteSet(setId);
+          state.sets = state.sets.filter(s => String(s.id) !== String(setId));
+          row.remove();
+          _closeAnySetPopup();
+          if (!setsList.querySelector(".m-set-row")) {
+            setsList.innerHTML = '<p class="empty">No sets yet. Create one to organise tunes into a session!</p>';
+          }
+        } catch {
+          alert("Failed to delete set. Please try again.");
+          delBtn.disabled = false;
+        }
+      });
+
+      // Outside-click registers AFTER this click finishes (capture phase)
+      setTimeout(() => {
+        document.addEventListener("click", _setPopupOutsideClick, true);
+      }, 0);
+    });
+  });
+
+  // Helper: rebuild the meta line on a row based on its data-* attrs
+  function _updateSetRowMeta(row) {
+    const meta = row.querySelector(".m-set-row-meta");
+    if (!meta) return;
+    const setId = row.dataset.setId;
+    const ls = state.sets.find(s => String(s.id) === String(setId));
+    if (!ls) return;
+    const tuneCount = ls.tune_count;
+    const rating = Number(row.dataset.rating || 0);
+    const isFav = row.dataset.favourite === "1";
+    const isHit = row.dataset.hitlist === "1";
+    let txt = `${tuneCount} tune${tuneCount !== 1 ? "s" : ""}`;
+    if (rating) txt += " · " + "★".repeat(rating);
+    if (isFav) txt += " · 👍";
+    if (isHit) txt += " · 📌";
+    meta.textContent = txt;
+  }
 
   // Mobile rows: star rating (added cluster B patch 5, 12 May 2026)
   setsList.querySelectorAll(".m-set-star-btn").forEach(btn => {

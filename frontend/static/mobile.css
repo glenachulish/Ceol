@@ -858,3 +858,91 @@
 @media (max-width: 380px) {
   .m-set-rename-btn { display: none; }
 }
+
+
+/* cluster-b patch 6 (12 May 2026): mobile set row ⋯ popup menu */
+.m-set-more-btn {
+  background: none;
+  border: none;
+  padding: 0.35rem 0.5rem;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--text, #2a2a2a);
+  opacity: 0.55;
+  line-height: 1;
+}
+.m-set-more-btn:active {
+  opacity: 1;
+}
+.m-set-row { position: relative; }
+.m-set-popup {
+  position: absolute;
+  top: 100%;
+  right: 2rem;
+  z-index: 250;
+  min-width: 220px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, rgba(0,0,0,0.12));
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  padding: 0.4rem 0;
+  margin-top: 0.25rem;
+}
+.m-set-popup-stars {
+  display: flex;
+  justify-content: space-around;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,0.08));
+  margin-bottom: 0.25rem;
+}
+.m-set-popup-star-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: rgba(128,128,128,0.35);
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+  line-height: 1;
+}
+.m-set-popup-star-btn.filled {
+  color: #f5b400;
+}
+.m-set-popup-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.95rem;
+  color: var(--text, #2a2a2a);
+  cursor: pointer;
+  line-height: 1.2;
+}
+.m-set-popup-item:active {
+  background: rgba(0,0,0,0.05);
+}
+.m-set-popup-icon {
+  font-size: 1.1rem;
+  width: 1.4rem;
+  text-align: center;
+  filter: grayscale(0.6);
+  opacity: 0.7;
+}
+.m-set-popup-item.active .m-set-popup-icon {
+  filter: none;
+  opacity: 1;
+}
+.m-set-popup-item.active .m-set-popup-label {
+  font-weight: 500;
+}
+.m-set-popup-sep {
+  height: 1px;
+  background: var(--border, rgba(0,0,0,0.08));
+  margin: 0.25rem 0.6rem;
+}
+.m-set-popup-delete .m-set-popup-label {
+  color: #c0392b;
+}
