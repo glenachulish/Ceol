@@ -4533,3 +4533,41 @@ a.bandcamp-link:hover { opacity: .85; }
   border-color: var(--closeall-tint);
   background: color-mix(in srgb, var(--closeall-tint) 14%, transparent);
 }
+
+
+/* cluster-b patch 8 (12 May 2026): alternate-bar note colours */
+/* Every other bar gets its notes/stems/beams in purple so adjacent
+   bars are visually distinct. Bar lines, clefs, key & time
+   signatures stay black at all times. Highlight (orange) and the
+   playback cursor still draw on top via their own selectors. */
+.bar-odd .abcjs-note,
+.bar-odd .abcjs-rest,
+.bar-odd .abcjs-beam-elem,
+.bar-odd .abcjs-flag,
+.bar-odd .abcjs-grace,
+.bar-odd .abcjs-tie,
+.bar-odd .abcjs-slur,
+.bar-odd .abcjs-decoration,
+.bar-odd .abcjs-dynamic,
+.bar-odd .abcjs-ledger,
+.bar-odd .abcjs-stem {
+  fill:   color-mix(in srgb, var(--accent, #7c6af7) 75%, black) !important;
+  stroke: color-mix(in srgb, var(--accent, #7c6af7) 75%, black) !important;
+}
+/* For SVG <path> elements directly inside an odd-bar measure group
+   that aren't otherwise classed (these are abcjs's notes/stems), also
+   recolour. Bar lines have their own class (.abcjs-bar) which is NOT
+   inside the measure group, so they're unaffected. */
+.bar-odd > path,
+.bar-odd > use,
+.bar-odd > g > path,
+.bar-odd > g > use {
+  fill:   color-mix(in srgb, var(--accent, #7c6af7) 75%, black) !important;
+  stroke: color-mix(in srgb, var(--accent, #7c6af7) 75%, black) !important;
+}
+/* Don't recolour the highlight glow or the midi-cursor overlay */
+.bar-odd .abcjs-highlight,
+.bar-odd .abcjs-cursor {
+  fill: unset !important;
+  stroke: unset !important;
+}

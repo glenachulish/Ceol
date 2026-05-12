@@ -646,6 +646,73 @@ function setHandler(id, event, fn) {
   clone.addEventListener(event, fn);
   return clone;
 }
+
+// ─── Alternate-bar colours (added cluster B patch 8, 12 May 2026) ────
+// Walks every measure group in document order and tags it as either
+// .bar-even or .bar-odd so CSS can recolour every other bar's notes.
+// No SVG mutation beyond a class attribute change.
+function _paintBars(containerId) {
+  const root = typeof containerId === "string"
+    ? document.getElementById(containerId)
+    : containerId;
+  if (!root) return;
+  // Find every element with a class like "abcjs-m12" (digit suffix)
+  // — these are individual measure groups. We then filter to only
+  // the LEAF measures (those without nested measure descendants),
+  // because abcjs has nested staff/voice containers that share the
+  // same class pattern.
+  const all = Array.from(root.querySelectorAll("[class*='abcjs-m']"))
+    .filter(el => {
+      const cls = el.getAttribute("class") || "";
+      return /\babcjs-m\d+\b/.test(cls);
+    });
+  if (!all.length) return;
+  const leaves = all.filter(el =>
+    !el.querySelector("[class*='abcjs-m']") ||
+    !Array.from(el.querySelectorAll("[class*='abcjs-m']"))
+      .some(child => /\babcjs-m\d+\b/.test(child.getAttribute("class") || ""))
+  );
+  // Sort by document position (the array is already in DOM order
+  // from querySelectorAll, but be explicit)
+  leaves.forEach((el, idx) => {
+    el.classList.remove("bar-even", "bar-odd");
+    el.classList.add(idx % 2 === 0 ? "bar-even" : "bar-odd");
+  });
+}
+function _paintAllRenderedBars() {
+  document.querySelectorAll("[id$='-render'], [id*='-render-']").forEach(el => {
+    _paintBars(el);
+  });
+}
+// Auto-paint observer: when abcjs adds a new SVG to a render
+// container, paint its bars.
+(function _initBarPaintObserver() {
+  function _maybePaint(node) {
+    if (!(node instanceof Element)) return;
+    let el = node;
+    while (el && el !== document.body) {
+      if (el.id && (el.id.endsWith("-render") || el.id.includes("-render-"))) {
+        requestAnimationFrame(() => _paintBars(el));
+        return;
+      }
+      el = el.parentElement;
+    }
+  }
+  const obs = new MutationObserver(muts => {
+    for (const m of muts) m.addedNodes.forEach(_maybePaint);
+  });
+  function _start() {
+    obs.observe(document.body, { childList: true, subtree: true });
+    _paintAllRenderedBars();
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", _start);
+  } else {
+    _start();
+  }
+})();
+// ─────────────────────────────────────────────────────────────────────
+
 function escHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
