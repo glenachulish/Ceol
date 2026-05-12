@@ -5106,7 +5106,7 @@ function openFullSetModal(setData, opts = {}) {
         <button class="btn-secondary btn-sm" id="set-full-fs-btn" title="Full screen sheet music">⛶ Full screen</button>
       </div>
       ${timelineHtml}
-        <div style="display:flex;justify-content:flex-end;margin-bottom:.35rem"><button class="btn-secondary btn-sm set-more-btn">⋯ More</button></div>
+        <!-- timeline-header More button removed in cluster B patch 4 — now lives in footer only -->
       <div id="set-full-audio" style="margin-top:.5rem"></div>
       <div id="metronome-row" class="metronome-row" style="margin:.3rem 0">
         <button id="metro-toggle" class="btn-secondary btn-sm">♩ Metronome</button>
@@ -5128,7 +5128,61 @@ function openFullSetModal(setData, opts = {}) {
         <button class="btn-secondary btn-sm" id="set-bot-restart-btn">⟳ Restart</button>
       </div>
       ` : '<p class="modal-hint" style="margin-top:.75rem">No ABC notation available for tunes in this set.</p>'}
-        <div class="set-modal-footer-row" style="margin-top:1.5rem;padding:.75rem 0 .25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.5rem"><button class="btn-secondary set-more-btn">&#8943; More</button>${setData.id ? `<div style="position:relative;display:inline-block"><button class="btn-secondary set-export-menu-btn">&#11015; Export &#9660;</button><div class="set-export-menu hidden" style="position:absolute;bottom:2.6rem;right:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:200px;overflow:hidden"><a class="library-menu-item" href="/api/export/set/${setData.id}" download style="display:block;padding:.55rem .9rem;text-decoration:none;color:var(--text)">&#128196; Ceòl JSON (.ceol.json)</a><button class="library-menu-item set-export-abc-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">&#127925; ABC for TheCraic (.abc)</button><button class="library-menu-item set-export-pdf-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">&#9113; Print / PDF</button></div></div>` : ""}</div>
+        <div id="set-music-options-panel" class="sheet-music-options-panel hidden" style="margin-top:1rem">
+        <div class="sheet-music-options-header">
+          <span class="sheet-music-options-title">Sheet Music Options</span>
+          <button id="set-music-options-close" class="btn-icon">✕</button>
+        </div>
+        ${hasAbc ? `<div class="instrument-controls-row">
+          <div id="set-melody-controls" class="chord-controls">
+            <label class="chord-ctrl-label">Melody:</label>
+            <select id="set-melody-program-select" class="chord-program-select" title="Melody instrument">
+              <option value="73">Flute</option>
+              <option value="74">Recorder</option>
+              <option value="110">Fiddle</option>
+              <option value="40">Violin</option>
+              <option value="109">Uilleann Pipes</option>
+              <option value="71">Clarinet</option>
+              <option value="68">Oboe</option>
+              <option value="72">Piccolo</option>
+              <option value="105">Banjo</option>
+              <option value="22">Harmonica</option>
+              <option value="0">Piano</option>
+            </select>
+          </div>
+          <div id="set-chord-controls" class="chord-controls">
+            <label class="chord-ctrl-label">Chords:</label>
+            <select id="set-chord-program-select" class="chord-program-select" title="Chord accompaniment instrument">
+              <option value="-1">Off</option>
+              <option value="0">Piano</option>
+              <option value="24">Guitar (nylon)</option>
+              <option value="25">Guitar (steel)</option>
+              <option value="40">Violin/Strings</option>
+              <option value="46">Harp</option>
+              <option value="11">Vibraphone</option>
+              <option value="19">Organ</option>
+              <option value="48">String Ensemble</option>
+              <option value="52">Choir/Aah</option>
+            </select>
+          </div>
+        </div>
+        <div class="tempo-control-row" style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem">
+          <label class="chord-ctrl-label">Tempo:</label>
+          <button class="btn-icon tempo-adj" id="set-tempo-dec">−</button>
+          <input id="set-tempo-warp-input" type="number" min="40" max="200" value="100" class="metro-bpm-input" title="Playback speed (percentage)" style="width:4rem">
+          <button class="btn-icon tempo-adj" id="set-tempo-inc">+</button>
+          <span class="metro-label">%</span>
+        </div>
+        <div class="highlight-toolbar" style="display:flex;gap:6px;align-items:center;margin-top:.5rem">
+          <button id="set-highlight-mode-btn" class="btn-secondary" title="Toggle highlight mode — click bars to mark difficult sections">🖊 Highlight bars</button>
+        </div>
+        <p id="set-options-hint" class="modal-hint" style="margin-top:.5rem;font-size:.8rem;color:var(--muted);min-height:1.2em"></p>
+        ` : ''}
+        <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)">
+          ${setData.id ? `<button id="set-delete-set-btn" class="btn-secondary" style="color:#c0392b;border-color:#c0392b">🗑 Delete this set</button>` : ''}
+        </div>
+      </div>
+      <div class="set-modal-footer-row" style="margin-top:1.5rem;padding:.75rem 0 .25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.5rem"><button class="btn-secondary set-more-menu-btn" id="set-more-menu-btn">&#8943; More</button>${setData.id ? `<div style="position:relative;display:inline-block"><button class="btn-secondary set-export-menu-btn">&#11015; Export &#9660;</button><div class="set-export-menu hidden" style="position:absolute;bottom:2.6rem;right:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:200px;overflow:hidden"><a class="library-menu-item" href="/api/export/set/${setData.id}" download style="display:block;padding:.55rem .9rem;text-decoration:none;color:var(--text)">&#128196; Ceòl JSON (.ceol.json)</a><button class="library-menu-item set-export-abc-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">&#127925; ABC for TheCraic (.abc)</button><button class="library-menu-item set-export-pdf-btn" style="width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;cursor:pointer;color:var(--text)">&#9113; Print / PDF</button></div></div>` : ""}</div>
   `;
 
   modalOverlay.classList.remove("hidden");
@@ -5413,25 +5467,123 @@ function openFullSetModal(setData, opts = {}) {
   const _setCombined = buildCombinedPlaybackAbcWithRanges(tunesWithAbc);
 
   // Wire fullscreen button (uses combined ABC with per-tune colour highlights)
-    // ⋯ More button — toggles playback controls in set detail
-    // Bug 5 fix (4 May 2026): there are two .set-more-btn elements
-    // in the rendered modal -- one in the timeline header, one in
-    // the footer. Wire ALL and keep their state in sync.
-    const _setMoreBtns = modalContent.querySelectorAll('.set-more-btn');
-    if (_setMoreBtns.length > 0) {
-      _setMoreBtns.forEach(b => { b.dataset.open = '1'; });
-      _setMoreBtns.forEach(_setMoreBtn => {
+    // set-more-menu wiring (cluster B patch 4, 12 May 2026)
+    // Replaces the previous toggle-mode behaviour with a proper menu
+    // matching the tune view's Sheet Music Options panel.
+    {
+      const _setMoreBtn = modalContent.querySelector('#set-more-menu-btn');
+      const _setOptsPanel = modalContent.querySelector('#set-music-options-panel');
+      const _setOptsClose = modalContent.querySelector('#set-music-options-close');
+      const _setOptsHint = modalContent.querySelector('#set-options-hint');
+
+      // Open / close panel
+      if (_setMoreBtn && _setOptsPanel) {
         _setMoreBtn.addEventListener('click', () => {
-          const open = _setMoreBtn.dataset.open !== '1';
-          const targets = [
-            document.getElementById('set-full-audio'),
-            document.getElementById('metronome-row'),
-            document.querySelector('.set-bot-controls'),
-          ].filter(Boolean);
-          targets.forEach(el => { el.style.display = open ? '' : 'none'; });
-          _setMoreBtns.forEach(b => { b.dataset.open = open ? '1' : '0'; });
+          _setOptsPanel.classList.toggle('hidden');
         });
-      });
+      }
+      if (_setOptsClose && _setOptsPanel) {
+        _setOptsClose.addEventListener('click', () => {
+          _setOptsPanel.classList.add('hidden');
+        });
+      }
+
+      // Melody instrument
+      const _setMelodySel = modalContent.querySelector('#set-melody-program-select');
+      if (_setMelodySel) {
+        _setMelodySel.value = String(_melodyProgram);
+        _setMelodySel.addEventListener('change', () => {
+          _melodyProgram = parseInt(_setMelodySel.value);
+          if (_setOptsHint) _setOptsHint.textContent = 'Tap ▶ Play again to hear the new instrument.';
+        });
+      }
+
+      // Chord instrument
+      const _setChordSel = modalContent.querySelector('#set-chord-program-select');
+      if (_setChordSel) {
+        _setChordSel.value = _chordsOff ? '-1' : String(_chordProgram);
+        _setChordSel.addEventListener('change', () => {
+          const prog = parseInt(_setChordSel.value);
+          _chordsOff = prog === -1;
+          if (!_chordsOff) _chordProgram = prog;
+          if (_setOptsHint) _setOptsHint.textContent = 'Tap ▶ Play again to hear the new chords.';
+        });
+      }
+
+      // Tempo — live via setWarp during playback
+      const _setTempoInput = modalContent.querySelector('#set-tempo-warp-input');
+      const _setTempoDec   = modalContent.querySelector('#set-tempo-dec');
+      const _setTempoInc   = modalContent.querySelector('#set-tempo-inc');
+      const _clampWarp = v => Math.min(200, Math.max(40, v));
+      const _applyWarp = () => {
+        if (!_setMusicSynth || !_setTempoInput) return;
+        const v = parseInt(_setTempoInput.value);
+        if (!isNaN(v)) {
+          try { _setMusicSynth.setWarp(_clampWarp(v)); } catch {}
+        }
+      };
+      if (_setTempoDec && _setTempoInput) {
+        _setTempoDec.addEventListener('click', () => {
+          _setTempoInput.value = _clampWarp((parseInt(_setTempoInput.value) || 100) - 5);
+          _applyWarp();
+        });
+      }
+      if (_setTempoInc && _setTempoInput) {
+        _setTempoInc.addEventListener('click', () => {
+          _setTempoInput.value = _clampWarp((parseInt(_setTempoInput.value) || 100) + 5);
+          _applyWarp();
+        });
+      }
+      if (_setTempoInput) {
+        _setTempoInput.addEventListener('change', _applyWarp);
+      }
+
+      // Highlight mode toggle
+      const _setHlBtn = modalContent.querySelector('#set-highlight-mode-btn');
+      if (_setHlBtn) {
+        if (typeof _highlightMode !== 'undefined' && _highlightMode) {
+          _setHlBtn.classList.add('active');
+        }
+        _setHlBtn.addEventListener('click', () => {
+          if (typeof _highlightMode !== 'undefined') {
+            _highlightMode = !_highlightMode;
+            _setHlBtn.classList.toggle('active', _highlightMode);
+            if (_setOptsHint) {
+              _setOptsHint.textContent = _highlightMode
+                ? 'Highlight mode ON — tap bars to mark difficult sections.'
+                : 'Highlight mode off.';
+            }
+          }
+        });
+      }
+
+      // Delete set (danger)
+      const _setDelBtn = modalContent.querySelector('#set-delete-set-btn');
+      if (_setDelBtn && setData.id) {
+        _setDelBtn.addEventListener('click', async () => {
+          if (!confirm(`Delete set "${setData.name}"? This cannot be undone.`)) return;
+          _setDelBtn.disabled = true;
+          _setDelBtn.textContent = 'Deleting…';
+          try {
+            await apiDeleteSet(setData.id);
+            if (state && Array.isArray(state.sets)) {
+              state.sets = state.sets.filter(s => s.id !== setData.id);
+            }
+            // Close the modal
+            modalOverlay.classList.add('hidden');
+            document.body.style.overflow = '';
+            if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
+            // Refresh sets list if visible
+            if (typeof renderSets === 'function' && state && Array.isArray(state.sets)) {
+              renderSets(state.sets);
+            }
+          } catch (e) {
+            alert('Failed to delete set. Please try again.');
+            _setDelBtn.disabled = false;
+            _setDelBtn.textContent = '🗑 Delete this set';
+          }
+        });
+      }
     }
 
   const _setExportMenuBtn = modalContent.querySelector(".set-export-menu-btn");
