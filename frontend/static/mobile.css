@@ -816,3 +816,45 @@
   margin: 8px 8px 0 auto !important;
   flex-shrink: 0 !important;
 }
+
+
+/* cluster-b patch 5 (12 May 2026): mobile set row rating/fav/hitlist */
+.m-set-stars {
+  display: inline-flex;
+  gap: 1px;
+  margin: 0 0.25rem;
+  align-items: center;
+}
+.m-set-star-btn {
+  background: none;
+  border: none;
+  padding: 0 1px;
+  font-size: 0.85rem;
+  color: rgba(128,128,128,0.35);
+  cursor: pointer;
+  line-height: 1;
+}
+.m-set-star-btn.filled {
+  color: #f5b400;
+}
+.m-set-fav-btn,
+.m-set-hitlist-btn {
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0.35;
+  filter: grayscale(1);
+  line-height: 1;
+}
+.m-set-fav-btn.active,
+.m-set-hitlist-btn.active {
+  opacity: 1;
+  filter: grayscale(0);
+}
+/* On very narrow screens, hide the rename button to save room — user can
+   still rename via long-press or by opening the set */
+@media (max-width: 380px) {
+  .m-set-rename-btn { display: none; }
+}

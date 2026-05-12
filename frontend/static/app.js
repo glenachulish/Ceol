@@ -6015,11 +6015,14 @@ function renderSets(sets) {
     const isMobile = document.body.classList.contains("mobile-body");
     if (isMobile) {
       return `
-      <div class="m-set-row" data-set-id="${s.id}">
+      <div class="m-set-row" data-set-id="${s.id}" data-rating="${rating}" data-favourite="${s.is_favourite || 0}" data-hitlist="${s.on_hitlist || 0}">
         <div class="m-set-row-info">
           <span class="m-set-row-name">${escHtml(s.name)}</span>
-          <span class="m-set-row-meta">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}${rating ? " · " + "★".repeat(rating) : ""}</span>
+          <span class="m-set-row-meta">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}</span>
         </div>
+        <span class="m-set-stars" role="group" aria-label="Mastery rating">${[1,2,3,4,5].map(n => `<button class="m-set-star-btn${rating >= n ? " filled" : ""}" data-set-id="${s.id}" data-n="${n}" tabindex="-1" aria-label="Rate ${n} star${n!==1?"s":""}">★</button>`).join("")}</span>
+        <button class="m-set-fav-btn${s.is_favourite ? " active" : ""}" data-set-id="${s.id}" title="${s.is_favourite ? "Remove from favourites" : "Add to favourites"}" aria-label="Favourite">👍</button>
+        <button class="m-set-hitlist-btn${s.on_hitlist ? " active" : ""}" data-set-id="${s.id}" title="${s.on_hitlist ? "Remove from hitlist" : "Add to hitlist"}" aria-label="Hitlist">📌</button>
         <button class="m-set-rename-btn" data-set-id="${s.id}" title="Rename set">✏</button>
         <button class="m-set-delete-btn" data-set-id="${s.id}" title="Delete set" aria-label="Delete set">🗑</button>
         <span class="m-set-row-arrow">›</span>
@@ -6654,6 +6657,78 @@ function renderSets(sets) {
       } catch {
         alert("Failed to delete set. Please try again.");
         btn.disabled = false;
+      }
+    });
+  });
+
+  // Mobile rows: star rating (added cluster B patch 5, 12 May 2026)
+  setsList.querySelectorAll(".m-set-star-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const row = btn.closest(".m-set-row");
+      const setId = btn.dataset.setId;
+      const n = Number(btn.dataset.n);
+      const current = Number(row.dataset.rating || 0);
+      const rating = n === current ? 0 : n;
+      try {
+        await apiFetch(`/api/sets/${setId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rating }),
+        });
+        row.dataset.rating = rating;
+        row.querySelectorAll(".m-set-star-btn").forEach((s, i) =>
+          s.classList.toggle("filled", i < rating)
+        );
+        const ls = state.sets.find(s => String(s.id) === String(setId));
+        if (ls) ls.rating = rating;
+      } catch {
+        alert("Failed to update rating. Please try again.");
+      }
+    });
+  });
+
+  // Mobile rows: favourite toggle (added cluster B patch 5, 12 May 2026)
+  setsList.querySelectorAll(".m-set-fav-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const row = btn.closest(".m-set-row");
+      const setId = btn.dataset.setId;
+      const is_favourite = btn.classList.contains("active") ? 0 : 1;
+      try {
+        await apiFetch(`/api/sets/${setId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_favourite }),
+        });
+        btn.classList.toggle("active", Boolean(is_favourite));
+        btn.title = is_favourite ? "Remove from favourites" : "Add to favourites";
+        row.dataset.favourite = is_favourite;
+        const ls = state.sets.find(s => String(s.id) === String(setId));
+        if (ls) ls.is_favourite = is_favourite;
+      } catch {
+        alert("Failed to update favourite. Please try again.");
+      }
+    });
+  });
+
+  // Mobile rows: hitlist toggle (added cluster B patch 5, 12 May 2026)
+  setsList.querySelectorAll(".m-set-hitlist-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const row = btn.closest(".m-set-row");
+      const setId = btn.dataset.setId;
+      const on_hitlist = btn.classList.contains("active") ? 0 : 1;
+      try {
+        await apiFetch(`/api/sets/${setId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ on_hitlist }),
+        });
+        btn.classList.toggle("active", Boolean(on_hitlist));
+        btn.title = on_hitlist ? "Remove from hitlist" : "Add to hitlist";
+        row.dataset.hitlist = on_hitlist;
+        const ls = state.sets.find(s => String(s.id) === String(setId));
+        if (ls) ls.on_hitlist = on_hitlist;
+      } catch {
+        alert("Failed to update hitlist. Please try again.");
       }
     });
   });

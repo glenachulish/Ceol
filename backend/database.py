@@ -222,6 +222,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE sets ADD COLUMN is_favourite INTEGER NOT NULL DEFAULT 0")
     if "rating" not in existing_set_cols:
         conn.execute("ALTER TABLE sets ADD COLUMN rating INTEGER NOT NULL DEFAULT 0")
+    if "on_hitlist" not in existing_set_cols:
+        conn.execute("ALTER TABLE sets ADD COLUMN on_hitlist INTEGER NOT NULL DEFAULT 0")
 
     # Collections tables (added v3)
     existing_tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}

@@ -1590,7 +1590,7 @@ class SetReorder(BaseModel):
 def list_sets():
     with _db() as conn:
         rows = conn.execute(
-            "SELECT id, name, notes, is_favourite, rating, created_at FROM sets ORDER BY name COLLATE NOCASE"
+            "SELECT id, name, notes, is_favourite, rating, on_hitlist, created_at FROM sets ORDER BY name COLLATE NOCASE"
         ).fetchall()
         result = []
         for r in rows:
@@ -1607,6 +1607,7 @@ class SetUpdate(BaseModel):
     notes: Optional[str] = None
     is_favourite: Optional[int] = None
     rating: Optional[int] = None
+    on_hitlist: Optional[int] = None
 
 
 @app.patch("/api/sets/{set_id}")
