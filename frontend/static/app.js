@@ -646,6 +646,88 @@ function setHandler(id, event, fn) {
   clone.addEventListener(event, fn);
   return clone;
 }
+
+// ─── Audio reliability — cluster A patch 9 (12 May 2026) ─────────────
+// Plays a 0.5s 440Hz beep via the shared abcjs audio context so the
+// user can verify audio is actually reaching their ears BEFORE playing
+// a whole tune. If nothing comes out, the route is wrong (Bluetooth
+// void, silent ring switch, etc) — not Ceòl's fault.
+window._ceolTestSound = function _ceolTestSound() {
+  try {
+    // Use abcjs's shared context if it exists, otherwise create one.
+    // Critically, we do NOT close anything — that's been a bug source
+    // before (see memory note #5).
+    let ctx = window.abcjsAudioContext;
+    if (!ctx || ctx.state === "closed") {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) {
+        alert("Your browser doesn't support Web Audio.");
+        return;
+      }
+      ctx = new AC();
+      window.abcjsAudioContext = ctx;
+    }
+    // Resume if suspended/interrupted — must happen in a user gesture
+    if (ctx.state !== "running") {
+      try { ctx.resume(); } catch {}
+    }
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 440;
+    osc.type = "sine";
+    gain.gain.value = 0.0001;
+    osc.connect(gain).connect(ctx.destination);
+    const now = ctx.currentTime;
+    // Quick attack/release envelope to avoid clicks
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+    osc.start(now);
+    osc.stop(now + 0.5);
+  } catch (e) {
+    console.warn("_ceolTestSound failed:", e);
+  }
+};
+
+// Aggressive audio wake — called BEFORE every Play. Tries resume(),
+// gives iOS 300ms, then if still not "running" nulls the context so
+// abcjs rebuilds it on next setTune.
+window._ceolWakeAudio = function _ceolWakeAudio() {
+  const ctx = window.abcjsAudioContext;
+  if (!ctx) return Promise.resolve();
+  if (ctx.state === "running") return Promise.resolve();
+  if (ctx.state === "closed") {
+    window.abcjsAudioContext = null;
+    return Promise.resolve();
+  }
+  // Try resume, then check after 300ms
+  try { ctx.resume().catch(() => {}); } catch {}
+  return new Promise(res => {
+    setTimeout(() => {
+      const ctxNow = window.abcjsAudioContext;
+      if (!ctxNow || ctxNow.state !== "running") {
+        // iOS gave up — null it, abcjs will rebuild
+        window.abcjsAudioContext = null;
+      }
+      res();
+    }, 300);
+  });
+};
+
+// Capture-phase click listener on every abcjs Play button:
+// wake the context BEFORE the actual play call. iOS requires this
+// to be inside a user gesture, so a capture-phase click fires
+// before the abcjs handler runs.
+document.addEventListener("click", function (e) {
+  const btn = e.target && e.target.closest && e.target.closest(".abcjs-midi-start");
+  if (!btn) return;
+  // Only wake if the button is about to START playback (i.e. not
+  // already pushed). If it IS pushed, this click pauses — no wake
+  // needed.
+  if (btn.classList.contains("abcjs-pushed")) return;
+  _ceolWakeAudio();
+}, true);
+// ─────────────────────────────────────────────────────────────────────
+
 function escHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -1284,6 +1366,9 @@ function renderModal(tune, onBack = null, siblings = null) {
         </div>
         <div class="media-inline-embed hidden" id="embed-${escHtml(u).replace(/[^a-z0-9]/gi,'_').slice(0,30)}"></div>`;
       }).join("")}
+      <div class="audio-test-row" style="display:flex;justify-content:flex-end;margin:.25rem 0">
+        <button class="btn-secondary btn-sm audio-test-btn" type="button" onclick="_ceolTestSound()" title="Play a 0.5s test tone — if you hear nothing, your audio is being routed away from the speaker (Bluetooth, silent switch, etc).">🔊 Test sound</button>
+      </div>
       <div id="audio-player-container" class="audio-player-wrap"></div>
       <audio id="inline-mp3-player" class="inline-mp3-player hidden" controls></audio>
       <div id="metronome-row" class="metronome-row">
