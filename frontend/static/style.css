@@ -4533,31 +4533,3 @@ a.bandcamp-link:hover { opacity: .85; }
   border-color: var(--closeall-tint);
   background: color-mix(in srgb, var(--closeall-tint) 14%, transparent);
 }
-
-
-/* cluster-b patch 7 (12 May 2026): alternate-bar shading */
-/* Even bars (0, 2, 4…) keep the page background — no fill.
-   Odd bars (1, 3, 5…) get a clearly-visible tinted background. */
-.abcjs-bar-shade {
-  pointer-events: none; /* never intercept taps meant for notes */
-}
-.abcjs-bar-shade.bar-shade-even {
-  fill: transparent;
-}
-.abcjs-bar-shade.bar-shade-odd {
-  fill: color-mix(in srgb, var(--accent, #7c6af7) 14%, transparent);
-}
-/* In containers with a white foreground (export views), use a darker
-   tint so it's visible against white paper. */
-.abc-fullscreen-render .abcjs-bar-shade.bar-shade-odd,
-#sheet-music-render .abcjs-bar-shade.bar-shade-odd,
-#set-music-render .abcjs-bar-shade.bar-shade-odd,
-#prac-sheet-render .abcjs-bar-shade.bar-shade-odd {
-  fill: color-mix(in srgb, var(--accent, #7c6af7) 16%, transparent);
-}
-/* Make sure the shade sits BEHIND highlight / cursor / notes */
-.abcjs-bar-shade {
-  /* SVG paint order: by document order. Since the rect is inserted as
-     the first child of each measure group, it naturally sits behind
-     the notes that follow it in the same group. No z-index needed. */
-}
