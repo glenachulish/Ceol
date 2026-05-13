@@ -3017,8 +3017,11 @@ function renderModal(tune, onBack = null, siblings = null) {
   }
 
   function _updateSaveTransposedBtn() {
+    // cluster C patch 14: hide when no ADDITIONAL transposition beyond
+    // tune.transpose (the value already stored for this version).
+    // Prevents confusing re-save button on a version that's already transposed.
     const btn = document.getElementById("save-transposed-btn");
-    if (btn) btn.style.display = _transposeSteps !== 0 ? "" : "none";
+    if (btn) btn.style.display = _transposeSteps !== (tune.transpose || 0) ? "" : "none";
   }
   _updateSaveTransposedBtn();
 
@@ -3029,25 +3032,32 @@ function renderModal(tune, onBack = null, siblings = null) {
   const _saveTransposedBtn = document.getElementById("save-transposed-btn");
   if (_saveTransposedBtn) {
     _saveTransposedBtn.addEventListener("click", async () => {
-      // cluster C patch 11 (13 May 2026) — fixed: refresh versions panel after save
-      if (!_transposeSteps || !tune.abc) return;
+      // cluster C patch 14 (13 May 2026) — complete correct handler
+      if (!tune.abc) return;
+      // Only save if additional transposition beyond what's already stored
+      if (_transposeSteps === (tune.transpose || 0)) return;
+      // Disable BEFORE prompt so a second tap while prompt is open can't fire
+      _saveTransposedBtn.disabled = true;
       const absSteps = Math.abs(_transposeSteps);
       const dir = _transposeSteps > 0 ? "up" : "down";
       const defaultLabel = `Transposed ${dir} ${absSteps} semitone${absSteps === 1 ? "" : "s"}`;
-      // Let the user name the new version before saving.
-      // They can accept the default or type something like "Up to G" or "Whistle key".
       const userLabel = window.prompt(
         "Name this version (or press OK to keep the default):",
         defaultLabel
       );
-      if (userLabel === null) return; // user pressed Cancel — don't save
+      if (userLabel === null) {
+        // User cancelled — re-enable and bail
+        _saveTransposedBtn.disabled = false;
+        return;
+      }
       const versionLabel = userLabel.trim() || defaultLabel;
-      _saveTransposedBtn.disabled = true;
       _saveTransposedBtn.textContent = "Saving…";
       try {
-        // Inject %%MIDI transpose into ABC so it plays + displays transposed
+        // Inject %%MIDI transpose into ABC so audio plays at transposed pitch.
+        // visualTranspose (stored in tune.transpose) handles visual display.
         const transposedAbc = tune.abc.replace(/^(X:[^\n]*\n)/m, `$1%%MIDI transpose ${_transposeSteps}\n`);
-        await apiFetch("/api/tunes", {
+        // Capture the response so we can navigate directly to the new version
+        const newTuneData = await apiFetch("/api/tunes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -3061,13 +3071,12 @@ function renderModal(tune, onBack = null, siblings = null) {
           }),
         });
         _saveTransposedBtn.textContent = "✓ Saved";
-        // Refresh the modal so the versions panel appears showing the new
-        // version alongside the original. (Previously the save succeeded but
-        // the UI never updated — this was the entire bug.)
         await loadTunes();
+        // Navigate to the newly created version.
+        // Back button → versions panel showing both original and new version.
         const parentId = tune.parent_id || tune.id;
-        const fresh = await fetchTune(parentId);
-        renderModal(fresh, onBack, null);
+        const newTune = await fetchTune(newTuneData.id);
+        renderModal(newTune, () => renderVersionsPanel(parentId));
       } catch {
         _saveTransposedBtn.textContent = "💾 Save as new version";
         _saveTransposedBtn.disabled = false;

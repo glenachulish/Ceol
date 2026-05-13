@@ -4224,6 +4224,7 @@ class TuneCreate(BaseModel):
     abc: str = ""
     parent_id: Optional[int] = None
     version_label: str = ""
+    transpose: int = 0  # cluster C patch 13 (13 May 2026)
 
 
 @app.post("/api/tunes", status_code=201)
@@ -4234,10 +4235,11 @@ def create_tune(body: TuneCreate):
         raise HTTPException(400, "Title required")
     with _db() as conn:
         cur = conn.execute(
-            "INSERT INTO tunes (title, type, key, mode, abc, notes, parent_id, version_label) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tunes (title, type, key, mode, abc, notes, parent_id, version_label, transpose) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (title, body.type.strip(), body.key.strip(), body.mode.strip(),
-             body.abc.strip(), body.notes.strip(), body.parent_id, body.version_label.strip()),
+             body.abc.strip(), body.notes.strip(), body.parent_id, body.version_label.strip(),
+             body.transpose or 0),
         )
         tune_id = cur.lastrowid
     return {"id": tune_id, "title": title}
