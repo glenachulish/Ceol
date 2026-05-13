@@ -2048,7 +2048,7 @@ async def import_folder(
     imported; multi-tune .msca files become a collection named after the file.
     """
     ABC_EXTS  = {".abc", ".txt"}
-    AUDIO_EXTS = {".mp3", ".m4a", ".ogg", ".wav"}
+    AUDIO_EXTS = {".mp3", ".m4a", ".mp4", ".ogg", ".wav"}  # cluster C patch 16: .mp4 for iOS
     PDF_EXTS  = {".pdf"}
     IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
     MSCA_EXTS = {".msca"}
@@ -6835,7 +6835,7 @@ async def confirm_pdf_imports(
 # Audio file import — match MP3/M4A/WAV to tunes by filename
 # ---------------------------------------------------------------------------
 
-AUDIO_MIME_EXTS = {".mp3", ".m4a", ".wav", ".ogg", ".aac", ".flac"}
+AUDIO_MIME_EXTS = {".mp3", ".m4a", ".mp4", ".wav", ".ogg", ".aac", ".flac"}  # cluster C patch 16
 
 
 @app.post("/api/import/audio/preview")
@@ -6928,7 +6928,7 @@ def _compress_to_mp3(save_path: "Path") -> "Path":
     Returns the (possibly new) path; caller should update any filename/URL variable.
     Falls back silently if ffmpeg is absent or transcoding fails.
     """
-    COMPRESSIBLE = {".wav", ".aif", ".aiff", ".flac"}
+    COMPRESSIBLE = {".wav", ".aif", ".aiff", ".flac", ".m4a", ".mp4"}  # cluster C patch 16: transcode iOS audio to mp3
     if save_path.suffix.lower() not in COMPRESSIBLE:
         return save_path
     try:

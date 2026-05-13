@@ -1280,7 +1280,7 @@ function renderNotesHtml(text) {
     if (m.index > last) parts.push(`<span>${escHtml(text.slice(last, m.index))}</span>`);
     const url = m[0];
     const urlEsc = escHtml(url);
-    if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url)) {
+    if (/\.(mp3|ogg|wav|m4a|mp4|aac|flac)(\?|$)/i.test(url)) {
       parts.push(`<div class="notes-media-link">
         <button class="btn-secondary btn-sm media-play-btn" data-url="${urlEsc}" data-media-type="audio">▶ Play audio</button>
         <a href="${urlEsc}" target="_blank" rel="noopener" class="notes-link">${escHtml(shortUrl(url))}</a>
@@ -1403,7 +1403,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     let m;
     while ((m = urlRe.exec(src)) !== null) {
       const url = m[0];
-      if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(url) && !seen.has(url)) {
+      if (/\.(mp3|ogg|wav|m4a|mp4|aac|flac)(\?|$)/i.test(url) && !seen.has(url)) {
         seen.add(url); urls.push(url);
       }
     }
@@ -1656,7 +1656,7 @@ function renderModal(tune, onBack = null, siblings = null) {
           <button class="attach-tab-btn" data-tab="dropbox">Dropbox</button>
         </div>
         <div id="attach-tab-upload" class="attach-tab-panel">
-          <input id="attach-audio-file" type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" class="attach-file-input" style="position:absolute;opacity:0;width:1px;height:1px">
+          <input id="attach-audio-file" type="file" accept="audio/*,.mp3,.m4a,.mp4,.wav,.ogg,.aac,.flac" class="attach-file-input" style="position:absolute;opacity:0;width:1px;height:1px">
           <button id="attach-audio-choose-btn" class="btn-secondary">📂 Choose audio file…</button>
           <span id="attach-audio-chosen" class="attach-file-hint" style="margin-left:.5rem"></span>
           <p id="attach-upload-status" class="ff-cat-hint"></p>
@@ -2893,7 +2893,7 @@ function renderModal(tune, onBack = null, siblings = null) {
     let mx;
     while ((mx = urlRe.exec(t.all_notes || t.notes || "")) !== null) {
       const u = mx[0];
-      if (/\.(mp3|ogg|wav|m4a|aac|flac)(\?|$)/i.test(u)) audioUrls.push(u);
+      if (/\.(mp3|ogg|wav|m4a|mp4|aac|flac)(\?|$)/i.test(u)) audioUrls.push(u);
       else if (/(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/.test(u) ||
                /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(u)) videoUrls.push(u);
     }
@@ -9557,7 +9557,7 @@ document.querySelectorAll("[data-import-tab]").forEach(btn => {
   const importBtn   = document.getElementById("audio-import-btn");
   const resultDiv   = document.getElementById("audio-result");
 
-  const AUDIO_RE = /\.(mp3|m4a|wav|ogg|aac|flac)$/i;
+  const AUDIO_RE = /\.(mp3|m4a|mp4|wav|ogg|aac|flac)$/i;
 
   let _audioFiles = [];
   let _audioPreview = [];   // [{filename, title, action, existing_id, existing_title}]
@@ -10717,12 +10717,12 @@ theCraicSubmit.addEventListener("click", async () => {
 // ── Folder import (smart multi-format) ────────────────────────────────────────
 (function () {
   const ABC_RE   = /\.(abc|txt)$/i;
-  const AUDIO_RE = /\.(mp3|m4a|ogg|wav)$/i;
+  const AUDIO_RE = /\.(mp3|m4a|mp4|ogg|wav)$/i;
   const PDF_RE   = /\.pdf$/i;
   const IMAGE_RE = /\.(jpg|jpeg|png)$/i;
   const MSCA_RE  = /\.msca$/i;
   if (!document.getElementById("folder-input")) return; // desktop-only
-  const ALL_RE   = /\.(abc|txt|mp3|m4a|ogg|wav|pdf|jpg|jpeg|png|msca)$/i;
+  const ALL_RE   = /\.(abc|txt|mp3|m4a|mp4|ogg|wav|pdf|jpg|jpeg|png|msca)$/i;
 
   const folderInput           = document.getElementById("folder-input");
   const folderSummary         = document.getElementById("folder-summary");
