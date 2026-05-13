@@ -24,7 +24,7 @@ from typing import List, Optional
 
 import httpx
 import PyPDF2
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 try:
     import bcrypt as _bcrypt_mod
     def _hash_password(pw: str) -> str:
