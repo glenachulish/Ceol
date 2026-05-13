@@ -796,6 +796,112 @@ document.addEventListener("click", function (e) {
 })();
 // ─────────────────────────────────────────────────────────────────────
 
+
+// ─── ABC note transposer — cluster C patch 15 (13 May 2026) ──────────
+// Rewrites ABC note letters by N semitones so abcjs synth plays at the
+// correct transposed pitch. visualTranspose and %%MIDI transpose are
+// ignored by abcjs 6.4.4's SynthController for audio — this is the
+// only reliable fix.
+window._transposeAbcNotes = function _transposeAbcNotes(abc, semitones) {
+  if (!semitones || !abc) return abc;
+  // Normalise semitones to 0-11 range for lookup
+  const steps = ((semitones % 12) + 12) % 12;
+  if (steps === 0) return abc;
+
+  // Chromatic scales (prefer sharps for most trad keys)
+  const SHARPS = ['C','^C','D','^D','E','F','^F','G','^G','A','^A','B'];
+  const FLATS  = ['C','_D','D','_E','E','F','_G','G','_A','A','_B','B'];
+  // Semitone value of each note letter (no accidentals)
+  const BASE = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+
+  // Choose sharps vs flats: use flats if transposing down (semitones > 6)
+  // or if the key has flats
+  const keyM = abc.match(/\nK:\s*([A-G][b#]?)/i);
+  const keyRoot = keyM ? keyM[1] : '';
+  const flatKey = /^[FCGDbAbEb_]/.test(keyRoot) && /b|_/.test(keyRoot);
+  const useFlats = flatKey || steps > 6;
+  const SCALE = useFlats ? FLATS : SHARPS;
+
+  function transposeNote(acc, letter, oct) {
+    const isLow = letter !== letter.toUpperCase();
+    const u = letter.toUpperCase();
+    let s = BASE[u];
+    if (acc === '^')  s++;
+    else if (acc === '^^') s += 2;
+    else if (acc === '_')  s--;
+    else if (acc === '__') s -= 2;
+    s = ((s + steps) % 12 + 12) % 12;
+    let n = SCALE[s];
+    if (isLow) n = n.replace(/[A-G]/, m => m.toLowerCase());
+    return n + oct;
+  }
+
+  let out = '';
+  let i = 0;
+  const len = abc.length;
+
+  while (i < len) {
+    const c = abc[i];
+
+    // Chord symbols "..." — skip entirely (don't transpose chord text)
+    if (c === '"') {
+      out += c; i++;
+      while (i < len && abc[i] !== '"') { out += abc[i]; i++; }
+      if (i < len) { out += abc[i]; i++; }
+      continue;
+    }
+
+    // K: key field at start of line — transpose the key root
+    if (c === 'K' && abc[i+1] === ':' && (i === 0 || abc[i-1] === '\n')) {
+      const end = abc.indexOf('\n', i);
+      const line = end >= 0 ? abc.slice(i, end) : abc.slice(i);
+      // Transpose root letter only, preserve mode (Dor/Mix/m etc.)
+      const transposed = line.replace(/^(K:\s*)([A-G])([b#]?)(.*)/,
+        (_, prefix, root, acc, rest) => {
+          const b = BASE[root.toUpperCase()];
+          let s = b;
+          if (acc === '#') s++;
+          else if (acc === 'b') s--;
+          s = ((s + steps) % 12 + 12) % 12;
+          const newRoot = useFlats ? FLATS[s] : SHARPS[s];
+          return prefix + newRoot + rest;
+        });
+      out += transposed;
+      i += line.length;
+      continue;
+    }
+
+    // Header field lines (X: T: M: L: etc.) — copy unchanged
+    if (i === 0 || abc[i-1] === '\n') {
+      if (/[A-JL-QS-Z]/.test(c) && abc[i+1] === ':') {
+        const end = abc.indexOf('\n', i);
+        const line = end >= 0 ? abc.slice(i, end) : abc.slice(i);
+        out += line;
+        i += line.length;
+        continue;
+      }
+    }
+
+    // Comments % — copy to end of line
+    if (c === '%') {
+      while (i < len && abc[i] !== '\n') { out += abc[i]; i++; }
+      continue;
+    }
+
+    // Note: optional accidental(s) + letter + optional octave marks
+    const m = abc.slice(i).match(/^(\^{1,2}|_{1,2}|=)?([A-Ga-g])([,']*)/);
+    if (m) {
+      out += transposeNote(m[1] || '', m[2], m[3] || '');
+      i += m[0].length;
+      continue;
+    }
+
+    out += c; i++;
+  }
+  return out;
+};
+// ─────────────────────────────────────────────────────────────────────
+
 function escHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -2978,7 +3084,7 @@ function renderModal(tune, onBack = null, siblings = null) {
   // Render sheet music after paint (skip if no ABC — PDF or empty)
   requestAnimationFrame(() => {
     if (tune.abc) {
-      renderSheetMusic(tune.abc, { visualTranspose: tune.transpose || 0 });
+      renderSheetMusic(tune.abc); // cluster C patch 15: abc has correct notes; no visualTranspose needed
     }
   });
 
@@ -3008,12 +3114,18 @@ function renderModal(tune, onBack = null, siblings = null) {
   }
 
   function _applyTransposeOnly() {
-    // Update label, then do a full renderSheetMusic so BOTH visual AND audio
-    // are transposed. abcjs visualTranspose only affects the display when passed
-    // to renderAbc — a full re-render with synth reinit is required for audio.
-    // This is safe because patch 9p fixed the _modalFastTap double-fire issue.
+    // cluster C patch 15: use actual ABC note transposition so synth plays
+    // at the correct pitch. visualTranspose is display-only in abcjs 6.4.4.
     if (_transposeLabel) _transposeLabel.textContent = _transposeSteps > 0 ? "+" + _transposeSteps : String(_transposeSteps);
-    if (tune.abc) renderSheetMusic(tune.abc, { visualTranspose: _transposeSteps });
+    if (tune.abc) {
+      // Always transpose relative to THIS version's stored pitch so that
+      // opening a saved transposed version and tapping + works correctly.
+      const delta = _transposeSteps - (tune.transpose || 0);
+      const displayAbc = delta !== 0
+        ? window._transposeAbcNotes(tune.abc, delta)
+        : tune.abc;
+      renderSheetMusic(displayAbc);
+    }
   }
 
   function _updateSaveTransposedBtn() {
@@ -3027,7 +3139,7 @@ function renderModal(tune, onBack = null, siblings = null) {
 
   _transposeUp?.addEventListener("click",    () => { _transposeSteps++; _applyTransposeOnly(); _saveTranspose(); _updateSaveTransposedBtn(); });
   _transposeDown?.addEventListener("click",  () => { _transposeSteps--; _applyTransposeOnly(); _saveTranspose(); _updateSaveTransposedBtn(); });
-  _transposeReset?.addEventListener("click", () => { _transposeSteps = 0; _applyTransposeOnly(); _saveTranspose(); _updateSaveTransposedBtn(); });
+  _transposeReset?.addEventListener("click", () => { _transposeSteps = tune.transpose || 0; _applyTransposeOnly(); _saveTranspose(); _updateSaveTransposedBtn(); }); // cluster C patch 15: reset to saved version pitch
 
   const _saveTransposedBtn = document.getElementById("save-transposed-btn");
   if (_saveTransposedBtn) {
@@ -3053,9 +3165,12 @@ function renderModal(tune, onBack = null, siblings = null) {
       const versionLabel = userLabel.trim() || defaultLabel;
       _saveTransposedBtn.textContent = "Saving…";
       try {
-        // Inject %%MIDI transpose into ABC so audio plays at transposed pitch.
-        // visualTranspose (stored in tune.transpose) handles visual display.
-        const transposedAbc = tune.abc.replace(/^(X:[^\n]*\n)/m, `$1%%MIDI transpose ${_transposeSteps}\n`);
+        // cluster C patch 15: use actual transposed notes so synth plays correctly.
+        // %%MIDI transpose and visualTranspose are ignored by abcjs 6.4.4 synth.
+        const delta = _transposeSteps - (tune.transpose || 0);
+        const transposedAbc = delta !== 0
+          ? window._transposeAbcNotes(tune.abc, delta)
+          : tune.abc;
         // Capture the response so we can navigate directly to the new version
         const newTuneData = await apiFetch("/api/tunes", {
           method: "POST",
