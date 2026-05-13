@@ -912,7 +912,13 @@ function escHtml(s) {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function apiFetch(url, opts) {
-  const r = await fetch(url, opts);
+  // Phase 1: always include cookies for session auth
+  const r = await fetch(url, { credentials: "include", ...opts });
+  if (r.status === 401) {
+    // Phase 1: session expired or not logged in — redirect to login
+    window.location.href = "/login?next=" + encodeURIComponent(window.location.pathname);
+    throw new Error("Not authenticated");
+  }
   if (!r.ok) {
     let detail = "";
     try { detail = (await r.json()).detail || ""; } catch (_) {}

@@ -25,6 +25,21 @@ from typing import List, Optional
 import httpx
 import PyPDF2
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+try:
+    import bcrypt as _bcrypt_mod
+    def _hash_password(pw: str) -> str:
+        return _bcrypt_mod.hashpw(pw.encode(), _bcrypt_mod.gensalt(rounds=12)).decode()
+    def _verify_password(pw: str, hsh: str) -> bool:
+        try:
+            return _bcrypt_mod.checkpw(pw.encode(), hsh.encode())
+        except Exception:
+            return False
+    _pwd_ctx = True  # sentinel: bcrypt available
+except ImportError:
+    _pwd_ctx = None
+    def _hash_password(pw): raise RuntimeError("bcrypt not installed")
+    def _verify_password(pw, hsh): return False
+
 from fastapi.responses import RedirectResponse,  FileResponse, StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
@@ -132,13 +147,109 @@ app = FastAPI(title="Ceol", version="0.1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
-# === Phase 0 Part 2: HTTP middleware sets the per-request user id ===
-# Phase 1 will replace the body of this middleware with a session-cookie
-# lookup. The rest of the app reads `current_user_id.get()` via _db() and
-# the UPLOADS_DIR shim, so nothing else needs to change.
+# === Phase 0 Part 2 / Phase 1: HTTP middleware ===
+# Phase 1 (13 May 2026): replaced hardcoded user_id=1 with real session-cookie auth.
+
+# ── Auth endpoints ────────────────────────────────────────────────────
+import secrets as _secrets
+from datetime import datetime as _datetime, timedelta as _timedelta
+from fastapi.responses import JSONResponse as _JSONResponse
+
+@app.get("/login")
+def serve_login():
+    from fastapi.responses import FileResponse
+    p = FRONTEND_DIR / "mobile-login.html"
+    return FileResponse(str(p), headers={"Cache-Control": "no-store"})
+
+@app.get("/api/auth/me")
+def auth_me(request: Request):
+    token = request.cookies.get("ceol_session")
+    if not token:
+        raise HTTPException(401, "Not authenticated")
+    with _users_db() as conn:
+        row = conn.execute(
+            "SELECT u.id, u.username, u.display_name, u.is_admin "
+            "FROM sessions s JOIN users u ON u.id = s.user_id "
+            "WHERE s.token=? AND s.expires_at > datetime('now')",
+            (token,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(401, "Session expired")
+    return {"id": row["id"], "username": row["username"],
+            "display_name": row["display_name"], "is_admin": row["is_admin"]}
+
+@app.post("/api/auth/login")
+async def auth_login(request: Request):
+    if _pwd_ctx is None:
+        raise HTTPException(500, "bcrypt not installed on server")
+    body = await request.json()
+    username = (body.get("username") or "").strip().lower()
+    password = body.get("password") or ""
+    if not username or not password:
+        raise HTTPException(400, "Username and password required")
+    with _users_db() as conn:
+        user = conn.execute(
+            "SELECT id, password_hash, display_name, is_admin FROM users WHERE lower(username)=?",
+            (username,)
+        ).fetchone()
+    if not user or not user["password_hash"]:
+        raise HTTPException(401, "Invalid username or password")
+    if not _verify_password(password, user["password_hash"]):
+        raise HTTPException(401, "Invalid username or password")
+    token = _secrets.token_hex(32)
+    expires = (_datetime.utcnow() + _timedelta(days=90)).isoformat()
+    ua = request.headers.get("user-agent", "")[:200]
+    with _users_db() as conn:
+        conn.execute(
+            "INSERT INTO sessions (token, user_id, expires_at, user_agent) VALUES (?,?,?,?)",
+            (token, user["id"], expires, ua)
+        )
+        conn.execute("UPDATE users SET last_login=datetime('now') WHERE id=?", (user["id"],))
+    resp = _JSONResponse({"ok": True, "username": username,
+                          "display_name": user["display_name"]})
+    resp.set_cookie(key="ceol_session", value=token,
+                    max_age=90*24*3600, path="/",
+                    httponly=True, samesite="lax", secure=True)
+    return resp
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request):
+    token = request.cookies.get("ceol_session")
+    if token:
+        with _users_db() as conn:
+            conn.execute("DELETE FROM sessions WHERE token=?", (token,))
+    resp = _JSONResponse({"ok": True})
+    resp.delete_cookie("ceol_session", path="/")
+    return resp
+
+# ── Middleware ────────────────────────────────────────────────────────
 @app.middleware("http")
 async def _ceol_set_user_context(request, call_next):
-    _ceol_token = current_user_id.set(1)
+    # Phase 1 (13 May 2026): real cookie auth — replaced hardcoded user_id=1
+    path = request.url.path
+    _open = ("/login", "/api/auth/login", "/api/auth/logout", "/api/auth/me")
+    if path in _open or path.startswith("/static/") or path == "/sw.js":
+        return await call_next(request)
+    token = request.cookies.get("ceol_session")
+    _uid = None
+    if token:
+        try:
+            with _users_db() as conn:
+                row = conn.execute(
+                    "SELECT user_id FROM sessions WHERE token=? AND expires_at > datetime('now')",
+                    (token,)
+                ).fetchone()
+            if row:
+                _uid = row["user_id"]
+        except Exception:
+            pass
+    if _uid is None:
+        if path.startswith("/api/"):
+            from fastapi.responses import JSONResponse as _JR
+            return _JR({"error": "Not authenticated"}, status_code=401)
+        from fastapi.responses import RedirectResponse as _RR
+        return _RR("/login")
+    _ceol_token = current_user_id.set(_uid)
     try:
         response = await call_next(request)
     finally:
