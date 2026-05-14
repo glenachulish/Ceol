@@ -205,6 +205,7 @@ async def auth_login(request: Request):
             (token, user["id"], expires, ua)
         )
         conn.execute("UPDATE users SET last_login=datetime('now') WHERE id=?", (user["id"],))
+        conn.commit()  # auth_db() context manager does NOT auto-commit
     resp = _JSONResponse({"ok": True, "username": username,
                           "display_name": user["display_name"]})
     resp.set_cookie(key="ceol_session", value=token,
@@ -218,6 +219,7 @@ def auth_logout(request: Request):
     if token:
         with _users_db_mod.auth_db() as conn:
             conn.execute("DELETE FROM sessions WHERE token=?", (token,))
+            conn.commit()
     resp = _JSONResponse({"ok": True})
     resp.delete_cookie("ceol_session", path="/")
     return resp
