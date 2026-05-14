@@ -26,8 +26,27 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT,                       -- nullable in Phase 0
     is_admin      INTEGER NOT NULL DEFAULT 0,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login    TIMESTAMP
+    last_login    TIMESTAMP,
+    disabled      INTEGER NOT NULL DEFAULT 0  -- added 14 May 2026 (hardening)
 );
+"""
+
+# Login attempt audit log (added 14 May 2026, hardening). Records every
+# attempt — success or failure — with IP and user agent. Never stores
+# the attempted password.
+SCHEMA_LOGIN_AUDIT = """
+CREATE TABLE IF NOT EXISTS login_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username_attempted TEXT NOT NULL,
+    ip TEXT,
+    success INTEGER NOT NULL,
+    user_agent TEXT,
+    timestamp INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_login_audit_timestamp
+    ON login_audit (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_login_audit_ip
+    ON login_audit (ip);
 """
 
 # Per the multi-user decisions doc: Callum is the initial sole user
@@ -46,6 +65,17 @@ def init_users_db():
     conn = sqlite3.connect(user_paths.auth_db_path())
     try:
         conn.executescript(SCHEMA_USERS)
+        conn.executescript(SCHEMA_LOGIN_AUDIT)
+        # Idempotent migration: add `disabled` column to pre-existing
+        # `users` tables that were created before 14 May 2026.
+        existing_cols = {row[1] for row in conn.execute(
+            "PRAGMA table_info(users)"
+        ).fetchall()}
+        if "disabled" not in existing_cols:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN disabled "
+                "INTEGER NOT NULL DEFAULT 0"
+            )
         cur = conn.execute(
             "SELECT id FROM users WHERE username = ?",
             (SEED_ADMIN["username"],),
@@ -100,3 +130,29 @@ def get_user_by_username(username: str) -> dict | None:
             (username,),
         ).fetchone()
         return dict(row) if row else None
+
+
+
+def log_login_attempt(username: str, ip: str | None,
+                      success: bool, user_agent: str | None) -> None:
+    """Append a row to login_audit. Swallows any exception so a logging
+    failure can never break login itself.
+    """
+    import time as _t
+    try:
+        with auth_db() as conn:
+            conn.execute(
+                "INSERT INTO login_audit "
+                "(username_attempted, ip, success, user_agent, timestamp) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    (username or "")[:200],
+                    ip,
+                    1 if success else 0,
+                    (user_agent or "")[:500],
+                    int(_t.time()),
+                ),
+            )
+            conn.commit()
+    except Exception as e:  # pragma: no cover — defensive only
+        print(f"[Ceol] failed to log login attempt: {e}")

@@ -152,8 +152,79 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # ── Auth endpoints ────────────────────────────────────────────────────
 import secrets as _secrets
+import threading as _threading
 from datetime import datetime as _datetime, timedelta as _timedelta
 from fastapi.responses import JSONResponse as _JSONResponse
+
+
+# ── Login rate limiter (added 14 May 2026, hardening) ────────────────
+# In-memory: 5 failed attempts per IP per 15 minutes triggers a 30s
+# lockout. Successful login resets the counter for that IP. Restarts
+# reset the table — acceptable; restarts are rare.
+class _LoginRateLimiter:
+    WINDOW_SECONDS = 15 * 60
+    MAX_FAILURES = 5
+    LOCKOUT_SECONDS = 30
+
+    def __init__(self) -> None:
+        self._failures: dict[str, list[float]] = {}
+        self._locked_until: dict[str, float] = {}
+        self._lock = _threading.Lock()
+
+    def _prune(self, ip: str, now: float) -> None:
+        cutoff = now - self.WINDOW_SECONDS
+        if ip in self._failures:
+            self._failures[ip] = [t for t in self._failures[ip] if t >= cutoff]
+            if not self._failures[ip]:
+                del self._failures[ip]
+        if ip in self._locked_until and self._locked_until[ip] <= now:
+            del self._locked_until[ip]
+
+    def check(self, ip: str) -> int | None:
+        """Return seconds remaining on lockout, or None if not locked."""
+        now = _time.time()
+        with self._lock:
+            self._prune(ip, now)
+            until = self._locked_until.get(ip)
+            if until and until > now:
+                return max(1, int(until - now))
+            return None
+
+    def record_failure(self, ip: str) -> None:
+        now = _time.time()
+        with self._lock:
+            self._prune(ip, now)
+            self._failures.setdefault(ip, []).append(now)
+            if len(self._failures[ip]) >= self.MAX_FAILURES:
+                self._locked_until[ip] = now + self.LOCKOUT_SECONDS
+
+    def reset(self, ip: str) -> None:
+        with self._lock:
+            self._failures.pop(ip, None)
+            self._locked_until.pop(ip, None)
+
+
+_login_rate_limiter = _LoginRateLimiter()
+
+
+def _client_ip(request: Request) -> str:
+    """Return the client IP without any port suffix. Defensive — Starlette
+    usually gives us host without port already, but the kickoff spec asks
+    for an explicit strip.
+    """
+    host = (request.client.host if request.client else "") or "unknown"
+    # Bracketed IPv6: [::1]:1234 -> ::1
+    if host.startswith("["):
+        end = host.find("]")
+        if end > 0:
+            return host[1:end]
+        return host
+    # IPv4 with port: 1.2.3.4:1234 -> 1.2.3.4. Avoid splitting bare IPv6
+    # like ::1 — only one colon means "host:port".
+    if host.count(":") == 1:
+        return host.split(":")[0]
+    return host
+
 
 @app.get("/login")
 def serve_login():
@@ -163,14 +234,15 @@ def serve_login():
 
 @app.get("/api/auth/me")
 def auth_me(request: Request):
-    token = request.cookies.get("ceol_session")
+    token = request.cookies.get("__Host-ceol_session")
     if not token:
         raise HTTPException(401, "Not authenticated")
     with _users_db_mod.auth_db() as conn:
         row = conn.execute(
             "SELECT u.id, u.username, u.display_name, u.is_admin "
             "FROM sessions s JOIN users u ON u.id = s.user_id "
-            "WHERE s.token=? AND s.expires_at > datetime('now')",
+            "WHERE s.token=? AND s.expires_at > datetime('now') "
+            "  AND u.disabled = 0",
             (token,)
         ).fetchone()
     if not row:
@@ -182,46 +254,75 @@ def auth_me(request: Request):
 async def auth_login(request: Request):
     if _pwd_ctx is None:
         raise HTTPException(500, "bcrypt not installed on server")
+    ip = _client_ip(request)
+    locked = _login_rate_limiter.check(ip)
+    if locked is not None:
+        plural = "s" if locked != 1 else ""
+        return _JSONResponse(
+            {"error": f"Too many login attempts. Try again in {locked} second{plural}."},
+            status_code=429,
+            headers={"Retry-After": str(locked)},
+        )
     body = await request.json()
     username = (body.get("username") or "").strip().lower()
     password = body.get("password") or ""
+    ua_full = request.headers.get("user-agent", "")
     if not username or not password:
+        # Don't count empty submissions against the rate limit — likely
+        # a misconfigured client, not a brute-force attempt.
         raise HTTPException(400, "Username and password required")
     with _users_db_mod.auth_db() as conn:
         user = conn.execute(
-            "SELECT id, password_hash, display_name, is_admin FROM users WHERE lower(username)=?",
+            "SELECT id, password_hash, display_name, is_admin, disabled "
+            "FROM users WHERE lower(username)=?",
             (username,)
         ).fetchone()
+
+    def _reject():
+        _login_rate_limiter.record_failure(ip)
+        _users_db_mod.log_login_attempt(username, ip, False, ua_full)
+        raise HTTPException(401, "Invalid username or password")
+
     if not user or not user["password_hash"]:
-        raise HTTPException(401, "Invalid username or password")
+        _reject()
     if not _verify_password(password, user["password_hash"]):
-        raise HTTPException(401, "Invalid username or password")
+        _reject()
+    if user["disabled"]:
+        # Same generic message as wrong password — don't leak whether
+        # the account exists or is merely disabled.
+        _reject()
+
+    # Successful login.
+    _login_rate_limiter.reset(ip)
+    _users_db_mod.log_login_attempt(username, ip, True, ua_full)
     token = _secrets.token_hex(32)
     expires = (_datetime.utcnow() + _timedelta(days=90)).isoformat()
-    ua = request.headers.get("user-agent", "")[:200]
     with _users_db_mod.auth_db() as conn:
         conn.execute(
             "INSERT INTO sessions (token, user_id, expires_at, user_agent) VALUES (?,?,?,?)",
-            (token, user["id"], expires, ua)
+            (token, user["id"], expires, ua_full[:200])
         )
         conn.execute("UPDATE users SET last_login=datetime('now') WHERE id=?", (user["id"],))
         conn.commit()  # auth_db() context manager does NOT auto-commit
     resp = _JSONResponse({"ok": True, "username": username,
                           "display_name": user["display_name"]})
-    resp.set_cookie(key="ceol_session", value=token,
+    resp.set_cookie(key="__Host-ceol_session", value=token,
                     max_age=90*24*3600, path="/",
                     httponly=True, samesite="lax", secure=True)
     return resp
 
 @app.post("/api/auth/logout")
 def auth_logout(request: Request):
-    token = request.cookies.get("ceol_session")
+    token = request.cookies.get("__Host-ceol_session")
     if token:
         with _users_db_mod.auth_db() as conn:
             conn.execute("DELETE FROM sessions WHERE token=?", (token,))
             conn.commit()
     resp = _JSONResponse({"ok": True})
-    resp.delete_cookie("ceol_session", path="/")
+    # Browsers will only delete a __Host- cookie if the attributes match
+    # what was set: secure, path=/, no domain.
+    resp.delete_cookie("__Host-ceol_session", path="/",
+                       secure=True, httponly=True, samesite="lax")
     return resp
 
 # ── Middleware ────────────────────────────────────────────────────────
@@ -232,25 +333,34 @@ async def _ceol_set_user_context(request, call_next):
     _open = ("/login", "/api/auth/login", "/api/auth/logout", "/api/auth/me")
     if path in _open or path.startswith("/static/") or path == "/sw.js":
         return await call_next(request)
-    token = request.cookies.get("ceol_session")
+    token = request.cookies.get("__Host-ceol_session")
     _uid = None
     if token:
         try:
             with _users_db_mod.auth_db() as conn:
                 row = conn.execute(
-                    "SELECT user_id FROM sessions WHERE token=? AND expires_at > datetime('now')",
+                    "SELECT s.user_id, u.disabled FROM sessions s "
+                    "JOIN users u ON u.id = s.user_id "
+                    "WHERE s.token=? AND s.expires_at > datetime('now')",
                     (token,)
                 ).fetchone()
-            if row:
+            if row and not row["disabled"]:
                 _uid = row["user_id"]
         except Exception:
             pass
     if _uid is None:
         if path.startswith("/api/"):
             from fastapi.responses import JSONResponse as _JR
-            return _JR({"error": "Not authenticated"}, status_code=401)
-        from fastapi.responses import RedirectResponse as _RR
-        return _RR("/login")
+            _r = _JR({"error": "Not authenticated"}, status_code=401)
+        else:
+            from fastapi.responses import RedirectResponse as _RR
+            _r = _RR("/login")
+        if token:
+            # Defensive clear — covers the case where the session token
+            # was still valid but the user has been disabled.
+            _r.delete_cookie("__Host-ceol_session", path="/",
+                             secure=True, httponly=True, samesite="lax")
+        return _r
     _ceol_token = current_user_id.set(_uid)
     try:
         response = await call_next(request)
