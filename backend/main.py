@@ -166,7 +166,7 @@ def auth_me(request: Request):
     token = request.cookies.get("ceol_session")
     if not token:
         raise HTTPException(401, "Not authenticated")
-    with _users_db() as conn:
+    with _users_db_mod.auth_db() as conn:
         row = conn.execute(
             "SELECT u.id, u.username, u.display_name, u.is_admin "
             "FROM sessions s JOIN users u ON u.id = s.user_id "
@@ -187,7 +187,7 @@ async def auth_login(request: Request):
     password = body.get("password") or ""
     if not username or not password:
         raise HTTPException(400, "Username and password required")
-    with _users_db() as conn:
+    with _users_db_mod.auth_db() as conn:
         user = conn.execute(
             "SELECT id, password_hash, display_name, is_admin FROM users WHERE lower(username)=?",
             (username,)
@@ -199,7 +199,7 @@ async def auth_login(request: Request):
     token = _secrets.token_hex(32)
     expires = (_datetime.utcnow() + _timedelta(days=90)).isoformat()
     ua = request.headers.get("user-agent", "")[:200]
-    with _users_db() as conn:
+    with _users_db_mod.auth_db() as conn:
         conn.execute(
             "INSERT INTO sessions (token, user_id, expires_at, user_agent) VALUES (?,?,?,?)",
             (token, user["id"], expires, ua)
@@ -216,7 +216,7 @@ async def auth_login(request: Request):
 def auth_logout(request: Request):
     token = request.cookies.get("ceol_session")
     if token:
-        with _users_db() as conn:
+        with _users_db_mod.auth_db() as conn:
             conn.execute("DELETE FROM sessions WHERE token=?", (token,))
     resp = _JSONResponse({"ok": True})
     resp.delete_cookie("ceol_session", path="/")
@@ -234,7 +234,7 @@ async def _ceol_set_user_context(request, call_next):
     _uid = None
     if token:
         try:
-            with _users_db() as conn:
+            with _users_db_mod.auth_db() as conn:
                 row = conn.execute(
                     "SELECT user_id FROM sessions WHERE token=? AND expires_at > datetime('now')",
                     (token,)
