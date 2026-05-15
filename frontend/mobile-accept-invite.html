@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Ceòl — Create account</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0f1117;
+  --surface: #1a1d27;
+  --border:  #2e3350;
+  --accent:  #7c6af7;
+  --text:    #e2e8f0;
+  --muted:   #8892aa;
+  --danger:  #ef4444;
+  --success: #10b981;
+  --radius:  10px;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 20px) 1.5rem
+           env(safe-area-inset-bottom, 20px) 1.5rem;
+}
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2rem 1.75rem;
+}
+.logo {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+.logo h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.02em;
+}
+.logo p {
+  color: var(--muted);
+  font-size: .875rem;
+  margin-top: .25rem;
+}
+.field { margin-bottom: 1rem; }
+.field label {
+  display: block;
+  font-size: .8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: .4rem;
+}
+.field input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 1rem;
+  padding: .75rem 1rem;
+  outline: none;
+  -webkit-appearance: none;
+}
+.field input:focus { border-color: var(--accent); }
+.hint {
+  margin-top: .35rem;
+  color: var(--muted);
+  font-size: .75rem;
+}
+.btn {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  padding: .85rem;
+  cursor: pointer;
+  margin-top: .5rem;
+  -webkit-appearance: none;
+}
+.btn:disabled { opacity: .6; }
+.btn-secondary {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.msg {
+  font-size: .875rem;
+  margin-top: .75rem;
+  text-align: center;
+  min-height: 1.25rem;
+}
+.msg.err { color: var(--danger); }
+.msg.ok  { color: var(--success); }
+.back {
+  display: block;
+  margin-top: 1rem;
+  text-align: center;
+  font-size: .8rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.back:hover { color: var(--accent); }
+
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <h1>Ceòl</h1>
+    <p>Create your account</p>
+  </div>
+  <div id="loading" class="msg">Checking your invite…</div>
+  <form id="signup-form" autocomplete="on" style="display:none">
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text"
+             autocomplete="username" autocorrect="off"
+             autocapitalize="none" spellcheck="false"
+             placeholder="e.g. mary" required>
+      <div class="hint">2–30 characters: lowercase letters, numbers, _ or -</div>
+    </div>
+    <div class="field">
+      <label for="email">Email (optional)</label>
+      <input id="email" name="email" type="email"
+             autocomplete="email" autocapitalize="none"
+             placeholder="you@example.com">
+      <div class="hint">Only used if you forget your password.</div>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password"
+             autocomplete="new-password"
+             placeholder="••••••••" required>
+      <div class="hint">8+ characters. Use whatever's easy to remember.</div>
+    </div>
+    <div class="field">
+      <label for="password2">Confirm password</label>
+      <input id="password2" name="password2" type="password"
+             autocomplete="new-password"
+             placeholder="••••••••" required>
+      <div id="match-hint" class="hint"></div>
+    </div>
+    <button class="btn" type="submit" id="submit-btn">Create account</button>
+    <div class="msg err" id="err" aria-live="polite"></div>
+  </form>
+  <div id="invalid" class="msg err" style="display:none"></div>
+</div>
+<script>
+const params = new URLSearchParams(window.location.search);
+const token = params.get("token") || "";
+const loadingEl = document.getElementById("loading");
+const formEl    = document.getElementById("signup-form");
+const invalidEl = document.getElementById("invalid");
+const errEl     = document.getElementById("err");
+const matchHint = document.getElementById("match-hint");
+
+const REASON_MSG = {
+  invalid: "This invite link is not valid.",
+  expired: "This invite has expired. Ask the person who sent it for a new link.",
+  used:    "This invite has already been used.",
+  revoked: "This invite has been revoked.",
+};
+
+async function verify() {
+  if (!token) {
+    loadingEl.style.display = "none";
+    invalidEl.textContent = "Missing invite token.";
+    invalidEl.style.display = "block";
+    return;
+  }
+  try {
+    const r = await fetch("/api/invites/verify?token=" +
+                          encodeURIComponent(token));
+    const d = await r.json();
+    loadingEl.style.display = "none";
+    if (d.valid) {
+      formEl.style.display = "block";
+    } else {
+      invalidEl.textContent = REASON_MSG[d.reason] || "Invite is not valid.";
+      invalidEl.style.display = "block";
+    }
+  } catch {
+    loadingEl.textContent = "Couldn't reach the server. Try again in a moment.";
+  }
+}
+
+document.getElementById("password2").addEventListener("input", () => {
+  const a = document.getElementById("password").value;
+  const b = document.getElementById("password2").value;
+  if (b && a !== b) {
+    matchHint.textContent = "Passwords don't match";
+    matchHint.style.color = "var(--danger)";
+  } else {
+    matchHint.textContent = "";
+  }
+});
+
+document.getElementById("signup-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("submit-btn");
+  errEl.textContent = "";
+  const username = document.getElementById("username").value.trim();
+  const email    = document.getElementById("email").value.trim();
+  const pw1      = document.getElementById("password").value;
+  const pw2      = document.getElementById("password2").value;
+  if (pw1 !== pw2) {
+    errEl.textContent = "Passwords don't match.";
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Creating…";
+  try {
+    const r = await fetch("/api/invites/accept", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      credentials: "include",
+      body: JSON.stringify({
+        token: token, username: username,
+        password: pw1, email: email || null,
+      }),
+    });
+    if (r.ok) {
+      window.location.href = "/mobile";
+    } else {
+      const d = await r.json().catch(() => ({}));
+      errEl.textContent = d.detail || d.error || "Couldn't create account.";
+      btn.disabled = false;
+      btn.textContent = "Create account";
+    }
+  } catch {
+    errEl.textContent = "Couldn't reach the server. Try again.";
+    btn.disabled = false;
+    btn.textContent = "Create account";
+  }
+});
+
+verify();
+</script>
+
+</body>
+</html>

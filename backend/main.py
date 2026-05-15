@@ -325,12 +325,403 @@ def auth_logout(request: Request):
                        secure=True, httponly=True, samesite="lax")
     return resp
 
+# ── Invite signup + password reset (added 15 May 2026) ──────────────
+
+# Independent rate-limiter for password-reset requests. Reusing the
+# _LoginRateLimiter shape but with much smaller numbers: 3 per IP per
+# hour, no lockout — just 429 once exceeded.
+class _SimpleRateLimit:
+    def __init__(self, max_per_window: int, window_seconds: int):
+        self.max = int(max_per_window)
+        self.win = int(window_seconds)
+        self._hits: dict[str, list[float]] = {}
+        self._lock = _threading.Lock()
+
+    def hit(self, key: str) -> int | None:
+        """Record a hit. Returns None if under cap, else seconds
+        remaining until the oldest hit ages out of the window."""
+        now = _time.time()
+        cutoff = now - self.win
+        with self._lock:
+            arr = [t for t in self._hits.get(key, []) if t >= cutoff]
+            arr.append(now)
+            self._hits[key] = arr
+            if len(arr) > self.max:
+                return max(1, int(arr[-(self.max + 1)] + self.win - now))
+            return None
+
+
+_forgot_rate_limit = _SimpleRateLimit(max_per_window=3, window_seconds=3600)
+_accept_rate_limit = _SimpleRateLimit(max_per_window=10, window_seconds=3600)
+
+
+# Validation helpers — single source of truth, used everywhere passwords
+# or usernames are set.
+
+import re as _re_invite
+
+_USERNAME_RE = _re_invite.compile(r"^[a-z0-9_\-]{2,30}$")
+
+
+def _validate_password(pw: str) -> str | None:
+    """Return None if OK, else a user-facing error string."""
+    if not isinstance(pw, str):
+        return "Password is required."
+    if len(pw) < 8:
+        return "Password must be at least 8 characters."
+    if len(pw) > 200:
+        return "Password is too long (max 200 characters)."
+    return None
+
+
+def _validate_username(u: str) -> str | None:
+    if not isinstance(u, str):
+        return "Username is required."
+    u = u.strip().lower()
+    if not _USERNAME_RE.match(u):
+        return ("Username must be 2–30 characters: lowercase letters, "
+                "numbers, hyphen or underscore.")
+    return None
+
+
+def _validate_email(e: str | None) -> tuple[str | None, str | None]:
+    """Returns (cleaned_email, error). Email is optional — an empty
+    string maps to (None, None).
+    """
+    if e is None:
+        return None, None
+    e = e.strip().lower()
+    if not e:
+        return None, None
+    # Deliberately loose — we don't deliver mail, this is just a
+    # sanity check so users don't type "n/a".
+    if len(e) > 200 or "@" not in e or "." not in e.split("@")[-1]:
+        return None, "Please enter a valid email address (or leave blank)."
+    return e, None
+
+
+def _require_admin(request: Request) -> int:
+    """Return the admin's user id or raise 401/403. The middleware
+    already ensures any non-API request is authenticated; here we
+    additionally require is_admin = 1.
+    """
+    token = request.cookies.get("__Host-ceol_session")
+    if not token:
+        raise HTTPException(401, "Not authenticated")
+    with _users_db_mod.auth_db() as conn:
+        row = conn.execute(
+            "SELECT u.id, u.is_admin, u.disabled "
+            "FROM sessions s JOIN users u ON u.id = s.user_id "
+            "WHERE s.token = ? AND s.expires_at > datetime('now')",
+            (token,),
+        ).fetchone()
+    if not row or row["disabled"]:
+        raise HTTPException(401, "Not authenticated")
+    if not row["is_admin"]:
+        raise HTTPException(403, "Admins only")
+    return int(row["id"])
+
+
+def _public_origin(request: Request) -> str:
+    """Return the scheme://host of the current request, for building
+    absolute URLs to paste into iMessage. Behind Funnel this will be
+    the public hostname; on the tailnet it'll be the tailnet hostname.
+    """
+    host = request.headers.get("host", "")
+    scheme = request.url.scheme
+    # Funnel terminates TLS and forwards http; trust X-Forwarded-Proto
+    # if present.
+    proto = request.headers.get("x-forwarded-proto") or scheme
+    return f"{proto}://{host}" if host else ""
+
+
+def _issue_session_cookie(resp, user_id: int, user_agent: str) -> None:
+    """Shared helper used by accept-invite and reset-complete to log
+    the user in immediately after the operation succeeds.
+    """
+    token = _secrets.token_hex(32)
+    expires = (_datetime.utcnow() + _timedelta(days=90)).isoformat()
+    with _users_db_mod.auth_db() as conn:
+        conn.execute(
+            "INSERT INTO sessions (token, user_id, expires_at, user_agent) "
+            "VALUES (?,?,?,?)",
+            (token, int(user_id), expires, user_agent[:200])
+        )
+        conn.execute("UPDATE users SET last_login=datetime('now') "
+                     "WHERE id=?", (int(user_id),))
+        conn.commit()
+    resp.set_cookie(key="__Host-ceol_session", value=token,
+                    max_age=90 * 24 * 3600, path="/",
+                    httponly=True, samesite="lax", secure=True)
+
+
+# ── HTML page routes ─────────────────────────────────────────────────
+
+@app.get("/accept-invite")
+def serve_accept_invite():
+    return FileResponse(str(FRONTEND_DIR / "mobile-accept-invite.html"),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/forgot-password")
+def serve_forgot_password():
+    return FileResponse(str(FRONTEND_DIR / "mobile-forgot-password.html"),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/reset-password")
+def serve_reset_password():
+    return FileResponse(str(FRONTEND_DIR / "mobile-reset-password.html"),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin")
+@app.get("/admin/")
+def serve_admin(request: Request):
+    _require_admin(request)
+    return FileResponse(str(FRONTEND_DIR / "mobile-admin.html"),
+                        headers={"Cache-Control": "no-store"})
+
+
+# ── Admin invite endpoints ───────────────────────────────────────────
+
+class _InviteCreateBody(BaseModel):
+    note: str | None = None
+    expires_in_days: int = _users_db_mod.DEFAULT_INVITE_EXPIRY_DAYS
+
+
+@app.post("/api/admin/invites", status_code=201)
+async def admin_create_invite(body: _InviteCreateBody, request: Request):
+    admin_id = _require_admin(request)
+    try:
+        row = _users_db_mod.create_invite(
+            created_by=admin_id, note=body.note,
+            expires_in_days=body.expires_in_days,
+        )
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+    origin = _public_origin(request)
+    row["url"] = f"{origin}/accept-invite?token={row['token']}" if origin else None
+    return row
+
+
+@app.get("/api/admin/invites")
+def admin_list_invites(request: Request):
+    _require_admin(request)
+    invites = _users_db_mod.list_invites_with_status()
+    origin = _public_origin(request)
+    for inv in invites:
+        if inv["status"] == "pending" and origin:
+            inv["url"] = f"{origin}/accept-invite?token={inv['token']}"
+        else:
+            inv["url"] = None
+    return invites
+
+
+@app.delete("/api/admin/invites/{invite_id}")
+def admin_revoke_invite(invite_id: int, request: Request):
+    _require_admin(request)
+    ok = _users_db_mod.revoke_invite(invite_id)
+    if not ok:
+        raise HTTPException(404, "Invite not pending or doesn't exist")
+    return {"ok": True}
+
+
+# ── Public invite endpoints ──────────────────────────────────────────
+
+@app.get("/api/invites/verify")
+def public_verify_invite(token: str = Query(...)):
+    valid, reason = _users_db_mod.validate_invite_token(token)
+    return {"valid": valid, "reason": reason}
+
+
+class _InviteAcceptBody(BaseModel):
+    token: str
+    username: str
+    password: str
+    email: str | None = None
+
+
+@app.post("/api/invites/accept")
+async def public_accept_invite(body: _InviteAcceptBody, request: Request):
+    ip = _client_ip(request)
+    rate = _accept_rate_limit.hit(ip)
+    if rate is not None:
+        return _JSONResponse(
+            {"error": f"Too many attempts. Try again in {rate} seconds."},
+            status_code=429,
+            headers={"Retry-After": str(rate)},
+        )
+
+    # Validate inputs.
+    valid, reason = _users_db_mod.validate_invite_token(body.token)
+    if not valid:
+        raise HTTPException(400, f"Invite link is {reason}.")
+
+    err = _validate_username(body.username)
+    if err:
+        raise HTTPException(400, err)
+    username = body.username.strip().lower()
+
+    err = _validate_password(body.password)
+    if err:
+        raise HTTPException(400, err)
+
+    email, err = _validate_email(body.email)
+    if err:
+        raise HTTPException(400, err)
+
+    # Check username collision.
+    if _users_db_mod.get_user_by_username(username):
+        raise HTTPException(400, "That username is already taken.")
+
+    # Atomically consume the invite — protects against double-submit.
+    invite_id = _users_db_mod.consume_invite_atomically(body.token)
+    if invite_id is None:
+        raise HTTPException(400, "Invite is no longer valid. "
+                                 "Ask your admin for a new link.")
+
+    # Create the user.
+    pw_hash = _hash_password(body.password)
+    try:
+        new_user_id = _users_db_mod.create_user(
+            username=username,
+            display_name=username,
+            email=email,
+            password_hash=pw_hash,
+            is_admin=0,
+        )
+    except Exception as e:
+        # Username could have been taken between check and insert.
+        raise HTTPException(400, f"Couldn't create account: {e}")
+
+    # Bootstrap the new user's per-user library DB.
+    try:
+        init_db(user_db_path(new_user_id))
+    except Exception as e:
+        # The user row exists but their library won't load. Log loudly;
+        # an admin can re-run init_db manually if needed.
+        print(f"[Ceol] WARNING: init_db failed for new user "
+              f"{new_user_id} ({username}): {e}")
+
+    _users_db_mod.attach_user_to_invite(invite_id, new_user_id)
+
+    # Audit + immediate session.
+    ua_full = request.headers.get("user-agent", "")
+    _users_db_mod.log_login_attempt(username, ip, True, ua_full)
+
+    resp = _JSONResponse({"ok": True, "username": username})
+    _issue_session_cookie(resp, new_user_id, ua_full)
+    return resp
+
+
+# ── Public password-reset endpoints ──────────────────────────────────
+
+class _ForgotPasswordBody(BaseModel):
+    identifier: str
+
+
+@app.post("/api/auth/forgot-password")
+async def public_forgot_password(body: _ForgotPasswordBody, request: Request):
+    ip = _client_ip(request)
+    rate = _forgot_rate_limit.hit(ip)
+    if rate is not None:
+        # Even rate-limit responses don't reveal anything — same shape
+        # as the normal "ok" response.
+        return _JSONResponse({"ok": True})
+
+    identifier = (body.identifier or "").strip()
+    user = _users_db_mod.find_user_for_reset(identifier)
+    if user and not user["disabled"]:
+        try:
+            _users_db_mod.create_password_reset(
+                user_id=user["id"], ip=ip,
+            )
+        except Exception as e:
+            print(f"[Ceol] WARNING: failed to create reset for "
+                  f"user_id={user['id']}: {e}")
+
+    # Always return ok. No enumeration leak.
+    return {"ok": True}
+
+
+@app.get("/api/password-reset/verify")
+def public_verify_reset(token: str = Query(...)):
+    valid, reason, _ = _users_db_mod.validate_reset_token(token)
+    return {"valid": valid, "reason": reason}
+
+
+class _ResetCompleteBody(BaseModel):
+    token: str
+    new_password: str
+
+
+@app.post("/api/password-reset/complete")
+async def public_reset_complete(body: _ResetCompleteBody, request: Request):
+    ip = _client_ip(request)
+
+    err = _validate_password(body.new_password)
+    if err:
+        raise HTTPException(400, err)
+
+    valid, reason, _user_id_preview = _users_db_mod.validate_reset_token(body.token)
+    if not valid:
+        raise HTTPException(400, f"Reset link is {reason}.")
+
+    user_id = _users_db_mod.consume_reset_atomically(body.token)
+    if user_id is None:
+        raise HTTPException(400, "Reset link is no longer valid.")
+
+    new_hash = _hash_password(body.new_password)
+    _users_db_mod.update_password_hash(user_id, new_hash)
+
+    # Audit + immediate session.
+    user = _users_db_mod.get_user_by_id(user_id)
+    ua_full = request.headers.get("user-agent", "")
+    _users_db_mod.log_login_attempt(
+        user["username"] if user else "?", ip, True, ua_full,
+    )
+
+    resp = _JSONResponse({"ok": True})
+    _issue_session_cookie(resp, user_id, ua_full)
+    return resp
+
+
+# ── Admin password-reset endpoints ───────────────────────────────────
+
+@app.get("/api/admin/password-resets")
+def admin_list_resets(request: Request):
+    _require_admin(request)
+    rows = _users_db_mod.list_pending_password_resets()
+    origin = _public_origin(request)
+    for r in rows:
+        r["url"] = (f"{origin}/reset-password?token={r['token']}"
+                    if origin else None)
+    return rows
+
+
+@app.delete("/api/admin/password-resets/{reset_id}")
+def admin_revoke_reset(reset_id: int, request: Request):
+    _require_admin(request)
+    ok = _users_db_mod.revoke_password_reset(reset_id)
+    if not ok:
+        raise HTTPException(404, "Reset not pending or doesn't exist")
+    return {"ok": True}
+
+
 # ── Middleware ────────────────────────────────────────────────────────
 @app.middleware("http")
 async def _ceol_set_user_context(request, call_next):
     # Phase 1 (13 May 2026): real cookie auth — replaced hardcoded user_id=1
     path = request.url.path
-    _open = ("/login", "/api/auth/login", "/api/auth/logout", "/api/auth/me")
+    _open = (
+        "/login", "/api/auth/login", "/api/auth/logout", "/api/auth/me",
+        # Invite-link signup + password reset (15 May 2026)
+        "/accept-invite", "/forgot-password", "/reset-password",
+        "/api/invites/verify", "/api/invites/accept",
+        "/api/auth/forgot-password",
+        "/api/password-reset/verify", "/api/password-reset/complete",
+    )
     if path in _open or path.startswith("/static/") or path == "/sw.js":
         return await call_next(request)
     token = request.cookies.get("__Host-ceol_session")

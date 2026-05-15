@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Ceòl admin</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0f1117;
+  --surface: #1a1d27;
+  --border:  #2e3350;
+  --accent:  #7c6af7;
+  --text:    #e2e8f0;
+  --muted:   #8892aa;
+  --danger:  #ef4444;
+  --success: #10b981;
+  --radius:  10px;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 20px) 1.5rem
+           env(safe-area-inset-bottom, 20px) 1.5rem;
+}
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2rem 1.75rem;
+}
+.logo {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+.logo h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.02em;
+}
+.logo p {
+  color: var(--muted);
+  font-size: .875rem;
+  margin-top: .25rem;
+}
+.field { margin-bottom: 1rem; }
+.field label {
+  display: block;
+  font-size: .8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: .4rem;
+}
+.field input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 1rem;
+  padding: .75rem 1rem;
+  outline: none;
+  -webkit-appearance: none;
+}
+.field input:focus { border-color: var(--accent); }
+.hint {
+  margin-top: .35rem;
+  color: var(--muted);
+  font-size: .75rem;
+}
+.btn {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  padding: .85rem;
+  cursor: pointer;
+  margin-top: .5rem;
+  -webkit-appearance: none;
+}
+.btn:disabled { opacity: .6; }
+.btn-secondary {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.msg {
+  font-size: .875rem;
+  margin-top: .75rem;
+  text-align: center;
+  min-height: 1.25rem;
+}
+.msg.err { color: var(--danger); }
+.msg.ok  { color: var(--success); }
+.back {
+  display: block;
+  margin-top: 1rem;
+  text-align: center;
+  font-size: .8rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.back:hover { color: var(--accent); }
+
+.card.admin {
+  max-width: 560px;
+}
+.section {
+  margin-bottom: 2rem;
+}
+.section h2 {
+  font-size: 1rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: .75rem;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.row:last-child { border-bottom: none; }
+.row-main { flex: 1; min-width: 0; }
+.row-title { font-size: .95rem; }
+.row-sub {
+  font-size: .75rem;
+  color: var(--muted);
+  margin-top: .2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pill {
+  font-size: .7rem;
+  padding: .15rem .5rem;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.pill.pending { color: var(--accent); }
+.pill.used    { color: var(--success); }
+.pill.expired { color: var(--muted); }
+.pill.revoked { color: var(--danger); }
+.btn-mini {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: .35rem .65rem;
+  border-radius: 8px;
+  font-size: .75rem;
+  cursor: pointer;
+}
+.btn-mini.danger { color: var(--danger); }
+.empty {
+  color: var(--muted);
+  font-size: .85rem;
+  padding: .75rem 0;
+}
+.create-invite {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+.create-invite input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: .6rem .8rem;
+  font-size: .95rem;
+  outline: none;
+}
+.create-invite button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+  </style>
+</head>
+<body>
+<div class="card admin">
+  <div class="logo">
+    <h1>Ceòl admin</h1>
+    <p>Invites &amp; password resets</p>
+  </div>
+
+  <div class="section">
+    <h2>New invite</h2>
+    <form id="create-form" class="create-invite">
+      <input id="note" type="text" placeholder="Optional note (e.g. Mary from Diggers)">
+      <button type="submit" id="create-btn">Create</button>
+    </form>
+    <div id="create-msg" class="msg" aria-live="polite"></div>
+  </div>
+
+  <div class="section">
+    <h2>Pending password resets</h2>
+    <div id="resets-list"><div class="empty">Loading…</div></div>
+  </div>
+
+  <div class="section">
+    <h2>Invites</h2>
+    <div id="invites-list"><div class="empty">Loading…</div></div>
+  </div>
+
+  <a href="/mobile" class="back">← Back to library</a>
+</div>
+<script>
+function escapeHTML(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => (
+    {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]
+  ));
+}
+
+function fmtAge(ts) {
+  const secs = Math.floor(Date.now() / 1000 - ts);
+  if (secs < 60)   return secs + "s ago";
+  if (secs < 3600) return Math.floor(secs/60) + "m ago";
+  if (secs < 86400) return Math.floor(secs/3600) + "h ago";
+  return Math.floor(secs/86400) + "d ago";
+}
+function fmtExpires(ts) {
+  const secs = ts - Math.floor(Date.now() / 1000);
+  if (secs <= 0)   return "expired";
+  if (secs < 3600) return "expires in " + Math.floor(secs/60) + "m";
+  if (secs < 86400) return "expires in " + Math.floor(secs/3600) + "h";
+  return "expires in " + Math.floor(secs/86400) + "d";
+}
+
+async function copy(url, btn) {
+  try {
+    await navigator.clipboard.writeText(url);
+    const orig = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  } catch {
+    prompt("Copy this link:", url);
+  }
+}
+
+async function loadInvites() {
+  const list = document.getElementById("invites-list");
+  try {
+    const r = await fetch("/api/admin/invites", {credentials: "include"});
+    const data = await r.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      list.innerHTML = '<div class="empty">No invites yet.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    for (const inv of data) {
+      const row = document.createElement("div");
+      row.className = "row";
+      const sub =
+        inv.status === "used"
+          ? "Used by " + escapeHTML(inv.used_by_username || "?") +
+            " · " + fmtAge(inv.used_at)
+          : inv.status === "pending"
+          ? fmtExpires(inv.expires_at)
+          : inv.status === "expired"
+          ? "Expired " + fmtAge(inv.expires_at)
+          : "Revoked";
+      row.innerHTML = `
+        <div class="row-main">
+          <div class="row-title">${escapeHTML(inv.note || "(no note)")}</div>
+          <div class="row-sub">${sub}</div>
+        </div>
+        <span class="pill ${inv.status}">${inv.status}</span>
+      `;
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.gap = ".3rem";
+      if (inv.status === "pending" && inv.url) {
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "btn-mini";
+        copyBtn.textContent = "Copy link";
+        copyBtn.onclick = () => copy(inv.url, copyBtn);
+        actions.appendChild(copyBtn);
+        const revBtn = document.createElement("button");
+        revBtn.className = "btn-mini danger";
+        revBtn.textContent = "Revoke";
+        revBtn.onclick = async () => {
+          if (!confirm("Revoke this invite?")) return;
+          await fetch("/api/admin/invites/" + inv.id, {
+            method: "DELETE", credentials: "include",
+          });
+          loadInvites();
+        };
+        actions.appendChild(revBtn);
+      }
+      row.appendChild(actions);
+      list.appendChild(row);
+    }
+  } catch (e) {
+    list.innerHTML = '<div class="empty">Couldn\'t load invites.</div>';
+  }
+}
+
+async function loadResets() {
+  const list = document.getElementById("resets-list");
+  try {
+    const r = await fetch("/api/admin/password-resets", {credentials: "include"});
+    const data = await r.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      list.innerHTML = '<div class="empty">No pending resets.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    for (const pr of data) {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `
+        <div class="row-main">
+          <div class="row-title">${escapeHTML(pr.username)}</div>
+          <div class="row-sub">Requested ${fmtAge(pr.requested_at)} · ${fmtExpires(pr.expires_at)}</div>
+        </div>
+      `;
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.gap = ".3rem";
+      if (pr.url) {
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "btn-mini";
+        copyBtn.textContent = "Copy link";
+        copyBtn.onclick = () => copy(pr.url, copyBtn);
+        actions.appendChild(copyBtn);
+      }
+      const revBtn = document.createElement("button");
+      revBtn.className = "btn-mini danger";
+      revBtn.textContent = "Revoke";
+      revBtn.onclick = async () => {
+        if (!confirm("Revoke this reset?")) return;
+        await fetch("/api/admin/password-resets/" + pr.id, {
+          method: "DELETE", credentials: "include",
+        });
+        loadResets();
+      };
+      actions.appendChild(revBtn);
+      row.appendChild(actions);
+      list.appendChild(row);
+    }
+  } catch (e) {
+    list.innerHTML = '<div class="empty">Couldn\'t load resets.</div>';
+  }
+}
+
+document.getElementById("create-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("create-btn");
+  const msg = document.getElementById("create-msg");
+  const note = document.getElementById("note").value.trim();
+  btn.disabled = true; btn.textContent = "...";
+  msg.textContent = ""; msg.className = "msg";
+  try {
+    const r = await fetch("/api/admin/invites", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      credentials: "include",
+      body: JSON.stringify({note: note}),
+    });
+    const d = await r.json();
+    if (r.ok && d.url) {
+      msg.className = "msg ok";
+      msg.innerHTML = "Created. <a href='#' id='copy-new'>Copy link</a>";
+      document.getElementById("copy-new").onclick = (ev) => {
+        ev.preventDefault();
+        copy(d.url, ev.target);
+      };
+      document.getElementById("note").value = "";
+      loadInvites();
+    } else {
+      msg.className = "msg err";
+      msg.textContent = d.detail || d.error || "Couldn't create invite.";
+    }
+  } catch {
+    msg.className = "msg err";
+    msg.textContent = "Couldn't reach the server.";
+  }
+  btn.disabled = false; btn.textContent = "Create";
+});
+
+loadResets();
+loadInvites();
+</script>
+
+</body>
+</html>

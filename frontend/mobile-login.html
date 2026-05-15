@@ -101,6 +101,18 @@
       text-align: center;
       min-height: 1.25rem;
     }
+    .login-hint {
+      margin-top: .4rem;
+      font-size: .8rem;
+      text-align: right;
+    }
+    .login-hint a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .login-hint a:hover {
+      color: var(--accent);
+    }
   </style>
 </head>
 <body>
@@ -134,6 +146,9 @@
           placeholder="••••••••"
           required
         >
+        <div class="login-hint">
+          <a href="/forgot-password">Forgot password?</a>
+        </div>
       </div>
       <button class="login-btn" type="submit" id="login-btn">Log in</button>
       <div class="login-error" id="login-error" aria-live="polite"></div>
