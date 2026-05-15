@@ -236,7 +236,9 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
       }),
     });
     if (r.ok) {
-      window.location.href = "/mobile";
+      // First-time users get the welcome guide; experienced users can
+      // skip via the link at the bottom of /welcome.
+      window.location.href = "/welcome";
     } else {
       const d = await r.json().catch(() => ({}));
       errEl.textContent = d.detail || d.error || "Couldn't create account.";

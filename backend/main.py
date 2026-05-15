@@ -475,6 +475,20 @@ def serve_reset_password():
                         headers={"Cache-Control": "no-store"})
 
 
+# User guides (added 15 May 2026). Both require auth — the middleware
+# enforces this since they're not in the _open list.
+@app.get("/welcome")
+def serve_welcome():
+    return FileResponse(str(FRONTEND_DIR / "mobile-welcome.html"),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/help")
+def serve_help():
+    return FileResponse(str(FRONTEND_DIR / "mobile-help.html"),
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/admin")
 @app.get("/admin/")
 def serve_admin(request: Request):

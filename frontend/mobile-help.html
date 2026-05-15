@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Ceòl day-to-day</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      #0f1117;
+      --surface: #1a1d27;
+      --border:  #2e3350;
+      --accent:  #7c6af7;
+      --text:    #e2e8f0;
+      --muted:   #8892aa;
+      --code-bg: #0a0c12;
+      --warn:    #f59e0b;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+      padding: env(safe-area-inset-top, 20px) 1.25rem
+               env(safe-area-inset-bottom, 40px) 1.25rem;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      margin: 1.5rem 0 .25rem;
+    }
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin: 2.5rem 0 .25rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    h2:first-of-type { border-top: none; padding-top: 0; }
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 1.5rem 0 .5rem;
+      color: var(--text);
+    }
+    p {
+      margin: .65rem 0;
+    }
+    ol, ul {
+      margin: .65rem 0 1rem 1.5rem;
+    }
+    li {
+      margin-bottom: .3rem;
+    }
+    code {
+      background: var(--code-bg);
+      padding: .1rem .35rem;
+      border-radius: 4px;
+      font-size: .9em;
+      font-family: "SF Mono", Consolas, monospace;
+    }
+    .muted { color: var(--muted); }
+    .tagline {
+      color: var(--muted);
+      margin-top: -.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0 2rem;
+    }
+    .toc ol { margin: .5rem 0 0 1.25rem; }
+    .toc a {
+      color: var(--text);
+      text-decoration: none;
+    }
+    .toc a:hover { color: var(--accent); }
+    .nav-back {
+      display: inline-block;
+      margin-top: 2rem;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: .9rem;
+    }
+    .nav-back:hover { color: var(--accent); }
+    .callout {
+      background: var(--surface);
+      border-left: 3px solid var(--accent);
+      padding: .75rem 1rem;
+      margin: 1rem 0;
+      border-radius: 4px;
+      font-size: .92em;
+    }
+    .callout.warn {
+      border-left-color: var(--warn);
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<h1>Ceòl day-to-day</h1>
+<p class="tagline">The reference for getting more out of the app.</p>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#library">Finding tunes in your library</a></li>
+    <li><a href="#reading">Reading a tune</a></li>
+    <li><a href="#practice">Practising — the loop, tempo, hitlist</a></li>
+    <li><a href="#thesession">Adding tunes from TheSession.org</a></li>
+    <li><a href="#other-imports">Other ways to add tunes</a></li>
+    <li><a href="#audio">Adding audio to a tune</a></li>
+    <li><a href="#sheetmusic">Adding sheet music photos</a></li>
+    <li><a href="#sets">Sets</a></li>
+    <li><a href="#collections">Collections</a></li>
+    <li><a href="#versions">Versions — keeping different settings</a></li>
+    <li><a href="#achievements">Achievements</a></li>
+    <li><a href="#account">Your account &amp; password</a></li>
+    <li><a href="#admin">Admin (if you have it)</a></li>
+    <li><a href="#rough">Things that are still rough</a></li>
+  </ol>
+</div>
+
+
+<h2 id="library">Finding tunes in your library</h2>
+
+<p>The Library tab is your main view. Tunes appear as cards with the
+title, type (reel, jig, etc.), key, and a hint of the sheet music.</p>
+
+<h3>Searching</h3>
+<p>Tap the search bar at the top and start typing. Search looks at the
+tune title, alternative names, and composer. It searches as you type
+— no need to hit a button.</p>
+
+<h3>Filters</h3>
+<p>The filter row sits under the search bar. You can filter by:</p>
+<ul>
+  <li><strong>Type</strong> — reel, jig, hornpipe, slow air, etc.</li>
+  <li><strong>Key</strong> — G major, D minor, etc.</li>
+  <li><strong>Mode</strong> — major, dorian, mixolydian.</li>
+  <li><strong>Rating</strong> — minimum stars (1–5).</li>
+  <li><strong>📌 Hitlist</strong> — only tunes on your current hitlist.</li>
+  <li><strong>👍 Favourites</strong> — only ones you've marked as favourite.</li>
+  <li><strong>Collection</strong> — only tunes in a specific collection.</li>
+</ul>
+
+<p>Filters combine — you can have "Reels in D, rated 4 or above, on
+the hitlist" all at once. Tap a filter again to clear it.</p>
+
+
+<h2 id="reading">Reading a tune</h2>
+
+<p>Tap any tune card to open the full view. You'll see:</p>
+
+<ul>
+  <li><strong>Sheet music</strong> — rendered from the ABC notation.
+  Pinch to zoom.</li>
+  <li><strong>Play / pause / stop</strong> controls at the top.</li>
+  <li><strong>Tempo slider</strong> — slow it down for learning.</li>
+  <li><strong>Transpose</strong> — shift the tune up or down a number
+  of semitones. The sheet music updates live.</li>
+  <li><strong>Metadata</strong> — type, key, composer, where it came
+  from, any notes you've added.</li>
+</ul>
+
+<p>The playback uses a flute sound by default. It's a synthesiser —
+useful for hearing the shape of a tune, not for replacing a real
+recording.</p>
+
+
+<h2 id="practice">Practising — the loop, tempo, hitlist</h2>
+
+<h3>The bar-range loop</h3>
+<p>The killer practice feature. On the sheet music, tap a bar to start
+the range, then tap another bar to end it. The playback now loops just
+those bars over and over until you tell it to stop.</p>
+
+<p>Combine that with the tempo slider and you can hammer a tricky
+phrase at half speed until it sticks, then speed it back up.</p>
+
+<h3>Highlights</h3>
+<p>You can highlight specific bars on a tune to mark them as
+difficult. Tap a bar and choose Highlight. Useful for remembering
+"this is the bit I always trip on".</p>
+
+<h3>The hitlist</h3>
+<p>The 📌 hitlist is your current practice list. Mark tunes you're
+actively learning. Filter the library by 📌 to see just your hitlist,
+then work through it.</p>
+
+<p>When a tune lands properly under your fingers, take it off the
+hitlist (tap the 📌 again on the card) — that's the small win.</p>
+
+
+<h2 id="thesession">Adding tunes from TheSession.org</h2>
+
+<p>TheSession.org is the biggest free catalogue of traditional Irish
+tunes. There are a few ways to import from it but the most reliable is
+copy-paste:</p>
+
+<ol>
+  <li>Open TheSession.org in a browser, find the tune.</li>
+  <li>On the tune page, scroll to a setting you like. Each setting
+  shows ABC notation in a code-style block starting with
+  <code>X:1</code>.</li>
+  <li>Select the whole ABC block — from <code>X:1</code> down to the
+  last bar of the tune — and copy.</li>
+  <li>In Ceòl, tap <strong>Import</strong> at the bottom.</li>
+  <li>Tap the <strong>Paste ABC</strong> tab.</li>
+  <li>Paste into the text box. Tap <strong>Import</strong>.</li>
+</ol>
+
+<p>The tune lands in your library with title, type, key, mode, and
+composer all filled in from the ABC headers.</p>
+
+<div class="callout">
+There's also a direct TheSession.org import tab that searches by tune
+name, but the copy-paste route gives you more control over <em>which
+setting</em> you grab. Most people end up using paste-ABC for that
+reason.
+</div>
+
+
+<h2 id="other-imports">Other ways to add tunes</h2>
+
+<p>Tap Import at the bottom and you'll see a row of tabs. The most
+useful besides Paste ABC:</p>
+
+<ul>
+  <li><strong>ABC File</strong> — upload one or more <code>.abc</code>
+  files from your phone.</li>
+  <li><strong>Folder</strong> — upload a whole folder of ABC files at
+  once. Good for migrating from another app.</li>
+  <li><strong>Photos</strong> — take a photo of sheet music, Ceòl will
+  attempt to read it.</li>
+  <li><strong>PDF Files</strong> / <strong>PDF Book</strong> — pull
+  tunes out of PDF tunebooks via OCR.</li>
+  <li><strong>Ceol file</strong> — import a <code>.ceol.json</code>
+  export from another Ceòl user.</li>
+  <li><strong>TheCraic</strong> — import from the TheCraic iOS app.</li>
+</ul>
+
+<p>The other tabs (Music Scanner, YouTube, FlutefFling, Dropbox) all
+work too — explore them as you need them.</p>
+
+<p class="muted">When you import in bulk, Ceòl shows a <strong>Recently
+Imported</strong> set at the top of your Sets view, grouping the
+batch together so you can find what you just added.</p>
+
+
+<h2 id="audio">Adding audio to a tune</h2>
+
+<p>Attaching a real recording — your own playing, a session you were
+at, a YouTube clip — is one of the most useful things you can do for
+a tune. It turns a piece of sheet music into something living.</p>
+
+<h3>Upload an audio file from your phone</h3>
+<ol>
+  <li>Open the tune.</li>
+  <li>Scroll down to the attachments section.</li>
+  <li>Tap <strong>🎧 Add audio</strong>.</li>
+  <li>Tap <strong>📂 Choose audio file…</strong> and pick the file
+  from your phone's storage.</li>
+  <li>Wait for the upload. MP3, M4A, WAV, OGG, AAC, FLAC all work.</li>
+</ol>
+
+<p>Once attached, the file appears with a play button and a label
+("audio 1", "audio 2", etc — you can rename them). Tap to play
+in-line.</p>
+
+<div class="callout warn">
+WAV files get automatically converted to MP3 on upload to save space.
+The original is replaced. AIFF files unfortunately don't work yet —
+convert them to MP3 first.
+</div>
+
+<h3>Link a YouTube video</h3>
+<p>Same Add audio menu, switch to the YouTube tab, paste the URL.</p>
+
+
+<h2 id="sheetmusic">Adding sheet music photos</h2>
+
+<p>If you have a paper score, a setting written out by hand, or a
+printed page you want to keep with the tune, you can attach it as an
+image:</p>
+
+<ol>
+  <li>Open the tune.</li>
+  <li>Find the sheet music attachment button.</li>
+  <li>Either choose a photo from your library or take one with the
+  camera.</li>
+</ol>
+
+<p>The photo lives alongside the auto-generated sheet music. Useful
+when the printed version has fingering, ornament marks, or notes
+written on it.</p>
+
+
+<h2 id="sets">Sets</h2>
+
+<p>A set is a sequence of tunes you play one after the other — the
+bread and butter of session playing. Ceòl has two ways to build them.</p>
+
+<h3>Build a set from scratch (freeform)</h3>
+<ol>
+  <li>Tap <strong>Sets</strong> at the bottom.</li>
+  <li>Tap <strong>+ New Set</strong>.</li>
+  <li>Give it a name (and optional notes) and tap Create.</li>
+  <li>Open the new set. Search your library and add tunes one by one
+  in the order you want to play them.</li>
+  <li>Drag to reorder if needed.</li>
+</ol>
+
+<p>This is what you want if you already know which tunes go together
+— "Drowsy Maggie into The Star of Munster into The Banshee."</p>
+
+<h3>Build a set with Circle of Fifths help</h3>
+<p>If you're not sure what'd flow well after a particular tune, Ceòl
+can suggest:</p>
+
+<ol>
+  <li>In the Sets view, tap <strong>🎵 Build a Set</strong>.</li>
+  <li>Pick a starting tune.</li>
+  <li>Ceòl shows you tunes in compatible keys — the same key, the
+  relative minor/major, neighbours on the circle of fifths.</li>
+  <li>Add the ones you like, in order.</li>
+  <li>Name and save.</li>
+</ol>
+
+<p>Useful when you've got a big library and want to find unexpected
+combinations.</p>
+
+<h3>Playing a set</h3>
+<p>Open a set and tap play — Ceòl plays through every tune in
+sequence. Each tune is played the usual number of times (twice
+through is the default for reels and jigs), then moves on.</p>
+
+
+<h2 id="collections">Collections</h2>
+
+<p>Collections are looser groupings than sets. A set is "these
+three tunes, played in this order, twice each." A collection is
+"all my Diggers tunes" or "tunes I learned in 2024" or "Cape Breton
+fiddle stuff" — a label you stick on a bunch of tunes for finding
+them later.</p>
+
+<h3>Creating a collection</h3>
+<ol>
+  <li>Tap <strong>Collections</strong> at the bottom.</li>
+  <li>Tap <strong>+ New Collection</strong>.</li>
+  <li>Name it. Tap Create.</li>
+</ol>
+
+<h3>Adding tunes to a collection</h3>
+<p>Open the collection and use the Add Tunes button to search your
+library and pick. A tune can be in as many collections as you like —
+they're just labels, not folders.</p>
+
+<h3>Filtering by collection</h3>
+<p>Back in the Library, the Collection filter lets you see only tunes
+in a specific collection.</p>
+
+
+<h2 id="versions">Versions — keeping different settings</h2>
+
+<p>Lots of traditional tunes have multiple settings: TheSession.org
+might list five different versions of The Abbey Reel. Ceòl lets you
+keep more than one as related rows so the library doesn't fill up
+with what look like duplicates.</p>
+
+<h3>What versions do</h3>
+<p>One tune is the <strong>parent</strong>; the others are
+<strong>versions</strong> of it. They appear stacked on a single card
+in the library with a count ("3 versions"). Open the card and switch
+between them.</p>
+
+<h3>How to make a version</h3>
+<ul>
+  <li>When importing a tune that's clearly another setting of one you
+  already have, Ceòl will offer to attach it as a version rather than
+  a new tune.</li>
+  <li>You can also manually merge two tunes via the versions panel on
+  a tune detail page.</li>
+  <li>Each version can have a <strong>version label</strong> ("my
+  setting", "Liz Carroll's version", "Diggers version") so you remember
+  which is which.</li>
+</ul>
+
+
+<h2 id="achievements">Achievements</h2>
+
+<p>The Achievements tab shows a timeline of milestones — first tune
+added, first set built, tune count crossing 50/100/500, that sort of
+thing. Pure dopamine. Don't take it too seriously, but it's nice to
+look back on.</p>
+
+
+<h2 id="account">Your account &amp; password</h2>
+
+<h3>Forgot your password?</h3>
+<p>From the login page, tap <strong>Forgot password?</strong> under
+the password field. Enter your username or email. An admin gets
+notified, and they'll send you a reset link out-of-band (iMessage,
+WhatsApp, whatever). Tap the link, set a new password, you're in.</p>
+
+<h3>Logging out</h3>
+<p>There's a Logout option in the main menu. Worth doing if you're on
+a shared device.</p>
+
+
+<h2 id="admin">Admin (if you have it)</h2>
+
+<p>If your account is marked as admin, you can visit
+<code>/admin</code> on the site. This page lets you:</p>
+
+<ul>
+  <li><strong>Create invite links</strong> for new family members
+  or friends. Each link is single-use, expires in 7 days, and lets
+  whoever clicks it create a fresh account.</li>
+  <li><strong>See pending password resets.</strong> When a user taps
+  Forgot password, it shows up here. You copy the reset link and send
+  it to them.</li>
+  <li><strong>Revoke</strong> invites or resets you've issued by
+  mistake.</li>
+</ul>
+
+<p>Don't share invite or reset links publicly — they're effectively
+one-time tickets into an account.</p>
+
+
+<h2 id="rough">Things that are still rough</h2>
+
+<p>Ceòl is a personal project under active development. A few known
+limitations worth knowing about:</p>
+
+<ul>
+  <li><strong>AIFF audio files don't import.</strong> Convert to MP3
+  first.</li>
+  <li><strong>iOS silent switch silences playback.</strong> Flip the
+  switch on the side of the phone to "loud" if you can't hear
+  anything.</li>
+  <li><strong>The bar-shading on the loop range</strong> sometimes
+  doesn't visually highlight properly — playback still loops the right
+  range though.</li>
+  <li><strong>No undo</strong> on deletions. Be careful with the bin
+  icon.</li>
+  <li><strong>Sharing tunes between users</strong> isn't built yet —
+  if you want to send a tune to someone, ask Callum to do it
+  manually for now.</li>
+  <li><strong>The tuner</strong> using your phone's microphone is on
+  the roadmap, not built yet.</li>
+</ul>
+
+<p>If you spot something else, tell Callum. Bug reports are welcome
+and usually get fixed within a session or two.</p>
+
+<a href="/mobile" class="nav-back">← Back to the app</a>
+
+</body>
+</html>
