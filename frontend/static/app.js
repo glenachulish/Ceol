@@ -4558,7 +4558,7 @@ window._ceolMoreToggle = function(e) {
 function openAbcFullscreen(abc, title, opts = {}) {
   const transposeSteps = opts.transposeSteps || 0;
   _fsCurrentOpts = { abc, title, opts };  // capture full args for resize re-render
-  const { tuneRanges = null, tuneColors = null, tuneNames = null, tuneAbcs = null, initialWarp = null, pracSettings = null } = opts;
+  const { tuneRanges = null, tuneColors = null, tuneNames = null, tuneAbcs = null, tuneRepeats = null, initialWarp = null, pracSettings = null } = opts;
   _abcFsTitleEl.textContent = title || "";
   // Show coloured tune name pills for sets
   const existingPills = document.getElementById("abc-fs-tune-pills");
@@ -4674,16 +4674,25 @@ function openAbcFullscreen(abc, title, opts = {}) {
       tuneAbcs.forEach((_, i) => {
         document.querySelectorAll(`#fs-tune-render-${i} .abcjs-note`).forEach(el => visibleNotes.push(el));
       });
-      // Tune-segmented map: slice hidden notes by per-tune visible counts
-      // so inline key/meter changes in the combined ABC don't shift alignment
+      // Tune-segmented map. Each tune's slice of hidden notes is
+      // _tuneVis.length × repeats[i] notes long (one block per repeat).
+      // We map hidden note k within the slice to visible note (k mod V_i)
+      // so every repeat re-lights the same visible notes. Without this,
+      // later repeats of later tunes ran off the end of the visible
+      // arrays and notes stopped highlighting (16 May evening bug).
       window._fsHiddenToVis = new Map();
       let _hiddenCursor = 0;
       tuneAbcs.forEach((_, _ti) => {
         const _tuneVis = [...document.querySelectorAll(`#fs-tune-render-${_ti} .abcjs-note`)];
-        for (let _j = 0; _j < _tuneVis.length && (_hiddenCursor + _j) < hiddenNotes.length; _j++) {
-          window._fsHiddenToVis.set(hiddenNotes[_hiddenCursor + _j], _tuneVis[_j]);
+        const _reps = (tuneRepeats && Number.isFinite(tuneRepeats[_ti]))
+          ? Math.max(1, Math.min(3, tuneRepeats[_ti]))
+          : 1;
+        const _hiddenForThisTune = _tuneVis.length * _reps;
+        for (let _k = 0; _k < _hiddenForThisTune && (_hiddenCursor + _k) < hiddenNotes.length; _k++) {
+          const _visIdx = _k % _tuneVis.length;
+          window._fsHiddenToVis.set(hiddenNotes[_hiddenCursor + _k], _tuneVis[_visIdx]);
         }
-        _hiddenCursor += _tuneVis.length;
+        _hiddenCursor += _hiddenForThisTune;
       });
     } else {
       window._fsHiddenToVis = null;
@@ -6087,6 +6096,13 @@ function openFullSetModal(setData, opts = {}) {
         tuneColors: TUNE_COLORS,
         tuneNames: tunesWithAbc.map(t => t.title),
         tuneAbcs: tunesWithAbc.map(t => t.abc),
+        // Pass per-tune repeats so the hidden→visible note map can
+        // wrap correctly through each repeat. Without this, later
+        // repeats of later tunes stop highlighting (16 May evening).
+        tuneRepeats: tunesWithAbc.map(t => {
+          const n = Number(t.repeats);
+          return Number.isFinite(n) && n >= 1 ? Math.min(3, n) : 2;
+        }),
       });
     });
   }
@@ -6459,8 +6475,12 @@ function renderSets(sets) {
       <div class="m-set-row" data-set-id="${s.id}" data-rating="${rating}" data-favourite="${s.is_favourite || 0}" data-hitlist="${s.on_hitlist || 0}">
         <div class="m-set-row-info">
           <span class="m-set-row-name">${escHtml(s.name)}</span>
-          <span class="m-set-row-meta">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}${rating ? " · " + "★".repeat(rating) : ""}${s.is_favourite ? " · 👍" : ""}${s.on_hitlist ? " · 📌" : ""}</span>
+          <span class="m-set-row-meta">${s.tune_count} tune${s.tune_count !== 1 ? "s" : ""}${rating ? " · " + "★".repeat(rating) : ""}</span>
         </div>
+        <button class="m-row-fav-btn set-fav-btn${s.is_favourite ? " active" : ""}" data-set-id="${s.id}"
+                title="${s.is_favourite ? "Remove from favourites" : "Add to favourites"}">👍</button>
+        <button class="m-row-hitlist-btn set-fav-btn${s.on_hitlist ? " active" : ""}" data-set-id="${s.id}"
+                title="${s.on_hitlist ? "Remove from hitlist" : "Add to hitlist"}">📌</button>
         <button class="m-set-more-btn" data-set-id="${s.id}" title="More options" aria-label="More options">⋯</button>
         <span class="m-set-row-arrow">›</span>
       </div>`;
@@ -7264,9 +7284,16 @@ function renderSets(sets) {
           favBtn.querySelector(".m-set-popup-label").textContent =
             is_favourite ? "Remove from favourites" : "Add to favourites";
           row.dataset.favourite = is_favourite;
+          // Reflect on inline button too (added 16 May evening)
+          const inlineFav = row.querySelector(".m-row-fav-btn");
+          if (inlineFav) {
+            inlineFav.classList.toggle("active", Boolean(is_favourite));
+            inlineFav.title = is_favourite ? "Remove from favourites" : "Add to favourites";
+          }
           const ls = state.sets.find(s => String(s.id) === String(setId));
           if (ls) ls.is_favourite = is_favourite;
           _updateSetRowMeta(row);
+          _applySetsQuickFilter();
         } catch {
           alert("Failed to update favourite. Please try again.");
         }
@@ -7286,9 +7313,16 @@ function renderSets(sets) {
           hitBtn.querySelector(".m-set-popup-label").textContent =
             on_hitlist ? "Remove from hitlist" : "Add to hitlist";
           row.dataset.hitlist = on_hitlist;
+          // Reflect on inline button too (added 16 May evening)
+          const inlineHit = row.querySelector(".m-row-hitlist-btn");
+          if (inlineHit) {
+            inlineHit.classList.toggle("active", Boolean(on_hitlist));
+            inlineHit.title = on_hitlist ? "Remove from hitlist" : "Add to hitlist";
+          }
           const ls = state.sets.find(s => String(s.id) === String(setId));
           if (ls) ls.on_hitlist = on_hitlist;
           _updateSetRowMeta(row);
+          _applySetsQuickFilter();
         } catch {
           alert("Failed to update hitlist. Please try again.");
         }
@@ -7433,6 +7467,55 @@ function renderSets(sets) {
         _applySetsQuickFilter();
       } catch {
         alert("Failed to update favourite. Please try again.");
+      }
+    });
+  });
+
+  // Inline fav/hitlist toggles on m-set-row (added 16 May evening).
+  // Mirrors Collections behaviour. Replaces the dead .m-set-fav-btn /
+  // .m-set-hitlist-btn handlers above which referenced non-existent
+  // classes.
+  setsList.querySelectorAll(".m-row-fav-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const row = btn.closest(".m-set-row");
+      const setId = btn.dataset.setId;
+      const is_favourite = btn.classList.contains("active") ? 0 : 1;
+      try {
+        await apiFetch(`/api/sets/${setId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_favourite }),
+        });
+        btn.classList.toggle("active", Boolean(is_favourite));
+        btn.title = is_favourite ? "Remove from favourites" : "Add to favourites";
+        row.dataset.favourite = is_favourite;
+        const ls = state.sets.find(s => String(s.id) === String(setId));
+        if (ls) ls.is_favourite = is_favourite;
+        _applySetsQuickFilter();
+      } catch {
+        alert("Failed to update favourite. Please try again.");
+      }
+    });
+  });
+  setsList.querySelectorAll(".m-row-hitlist-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const row = btn.closest(".m-set-row");
+      const setId = btn.dataset.setId;
+      const on_hitlist = btn.classList.contains("active") ? 0 : 1;
+      try {
+        await apiFetch(`/api/sets/${setId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ on_hitlist }),
+        });
+        btn.classList.toggle("active", Boolean(on_hitlist));
+        btn.title = on_hitlist ? "Remove from hitlist" : "Add to hitlist";
+        row.dataset.hitlist = on_hitlist;
+        const ls = state.sets.find(s => String(s.id) === String(setId));
+        if (ls) ls.on_hitlist = on_hitlist;
+        _applySetsQuickFilter();
+      } catch {
+        alert("Failed to update hitlist. Please try again.");
       }
     });
   });

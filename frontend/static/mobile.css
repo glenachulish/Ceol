@@ -1009,3 +1009,28 @@
   color: #fff;
   border-color: var(--accent);
 }
+
+
+/* m-set-row inline fav/hitlist buttons (added 16 May evening).
+   Match the .set-fav-btn shape but slimmer to fit the row. */
+.m-set-row .m-row-fav-btn,
+.m-set-row .m-row-hitlist-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .25rem .45rem;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  margin: 0 .15rem;
+  opacity: .4;
+  transition: opacity .15s, background .15s;
+}
+.m-set-row .m-row-fav-btn.active,
+.m-set-row .m-row-hitlist-btn.active {
+  opacity: 1;
+  background: var(--accent-soft, rgba(124,106,247,.15));
+  border-color: var(--accent);
+}
+.m-set-row .m-row-fav-btn:hover,
+.m-set-row .m-row-hitlist-btn:hover { opacity: 1; }
