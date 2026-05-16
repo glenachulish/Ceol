@@ -2631,6 +2631,25 @@ def create_set(body: SetCreate):
     return {"id": set_id, "name": name, "notes": body.notes, "tune_count": 0}
 
 
+def _compute_set_audio_hash(conn, set_id: int) -> str:
+    """Deterministic hash of (ordered tune_id, repeats, abc) for a set.
+    Used to detect when a set's rendered MP3 is out of date.
+    Phase 1 of playlist work, 16 May 2026."""
+    import hashlib
+    rows = conn.execute(
+        "SELECT t.id, t.abc, st.repeats FROM set_tunes st "
+        "JOIN tunes t ON t.id = st.tune_id "
+        "WHERE st.set_id = ? ORDER BY st.position",
+        (set_id,),
+    ).fetchall()
+    h = hashlib.sha256()
+    for r in rows:
+        h.update(f"{r['id']}|{r['repeats']}|".encode())
+        h.update((r["abc"] or "").encode("utf-8"))
+        h.update(b"\n---\n")
+    return h.hexdigest()
+
+
 @app.get("/api/sets/{set_id}")
 def get_set(set_id: int):
     with _db() as conn:
@@ -2648,19 +2667,134 @@ def get_set(set_id: int):
             """,
             (set_id,),
         ).fetchall()
+        # Phase 1 of playlist work: tell the frontend whether the
+        # stored MP3 (if any) still matches the current set contents.
+        current_hash = _compute_set_audio_hash(conn, set_id)
     result = dict(s)
     result["tunes"] = [dict(t) for t in tunes]
+    stored_hash = result.get("rendered_audio_hash")
+    result["rendered_audio_out_of_date"] = bool(
+        result.get("rendered_audio_at") and stored_hash and stored_hash != current_hash
+    )
     return result
 
 
 @app.delete("/api/sets/{set_id}")
 def delete_set(set_id: int):
     with _db() as conn:
-        if not conn.execute("SELECT 1 FROM sets WHERE id = ?", (set_id,)).fetchone():
+        row = conn.execute(
+            "SELECT rendered_audio_path FROM sets WHERE id = ?", (set_id,)
+        ).fetchone()
+        if not row:
             raise HTTPException(404, "Set not found")
         conn.execute("DELETE FROM set_tunes WHERE set_id = ?", (set_id,))
         conn.execute("DELETE FROM collection_sets WHERE set_id = ?", (set_id,))
         conn.execute("DELETE FROM sets WHERE id = ?", (set_id,))
+    # Phase 1 of playlist work: also remove the rendered MP3 file (best-effort).
+    rel = row["rendered_audio_path"] if row else None
+    if rel:
+        try:
+            full = user_uploads_dir(current_user_id.get()) / rel
+            if full.exists():
+                full.unlink()
+            parent = full.parent
+            # Tidy up empty sets/{set_id}/ directory
+            if parent.exists() and parent.name == str(set_id) and not any(parent.iterdir()):
+                parent.rmdir()
+        except Exception as _e:
+            print(f"[Ceol] failed to clean rendered audio for set {set_id}: {_e}")
+    return {"ok": True}
+
+
+# ── Phase 1 of playlist work (16 May 2026 late evening) ──────────────
+# Client-side MP3 render per set: the browser uses abcjs synth +
+# lamejs to produce an MP3 with per-tune repeats baked in, and POSTs
+# the bytes here. The server is dumb about audio content — it just
+# stores and serves the file. The hash captures (ordered tune_id +
+# repeats + abc) so we can detect when the audio is stale.
+
+@app.post("/api/sets/{set_id}/rendered-audio", status_code=201)
+async def upload_set_rendered_audio(set_id: int, file: UploadFile = File(...)):
+    """Accept a client-rendered MP3 for a set."""
+    with _db() as conn:
+        if not conn.execute("SELECT 1 FROM sets WHERE id = ?", (set_id,)).fetchone():
+            raise HTTPException(404, "Set not found")
+        current_hash = _compute_set_audio_hash(conn, set_id)
+
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(413, "Rendered audio too large (>50 MB)")
+    # Validate MP3 magic: either ID3 tag or MPEG frame sync.
+    is_id3 = content[:3] == b"ID3"
+    is_frame_sync = len(content) >= 2 and content[0] == 0xFF and (content[1] & 0xE0) == 0xE0
+    if not (is_id3 or is_frame_sync):
+        raise HTTPException(400, "Uploaded file is not a valid MP3")
+
+    # Store under per-user uploads/sets/{set_id}/audio.mp3
+    user_uploads = user_uploads_dir(current_user_id.get())
+    set_dir = user_uploads / "sets" / str(set_id)
+    set_dir.mkdir(parents=True, exist_ok=True)
+    out_path = set_dir / "audio.mp3"
+    out_path.write_bytes(content)
+
+    rel_path = f"sets/{set_id}/audio.mp3"
+    now = int(_time.time())
+    with _db() as conn:
+        conn.execute(
+            "UPDATE sets SET rendered_audio_path = ?, "
+            "rendered_audio_at = ?, rendered_audio_hash = ? WHERE id = ?",
+            (rel_path, now, current_hash, set_id),
+        )
+    return {"ok": True, "rendered_audio_at": now, "size": len(content)}
+
+
+@app.get("/api/sets/{set_id}/rendered-audio")
+def get_set_rendered_audio(set_id: int):
+    """Stream a set's rendered MP3."""
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT rendered_audio_path FROM sets WHERE id = ?", (set_id,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "Set not found")
+    rel = row["rendered_audio_path"]
+    if not rel:
+        raise HTTPException(404, "No rendered audio for this set")
+    full = user_uploads_dir(current_user_id.get()) / rel
+    if not full.exists():
+        raise HTTPException(404, "Rendered audio file missing on disk")
+    return FileResponse(
+        str(full),
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "private, max-age=60"},
+    )
+
+
+@app.delete("/api/sets/{set_id}/rendered-audio")
+def delete_set_rendered_audio(set_id: int):
+    """Clear a set's rendered audio (manual invalidation)."""
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT rendered_audio_path FROM sets WHERE id = ?", (set_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Set not found")
+        rel = row["rendered_audio_path"]
+        conn.execute(
+            "UPDATE sets SET rendered_audio_path = NULL, "
+            "rendered_audio_at = NULL, rendered_audio_hash = NULL WHERE id = ?",
+            (set_id,),
+        )
+    if rel:
+        try:
+            full = user_uploads_dir(current_user_id.get()) / rel
+            if full.exists():
+                full.unlink()
+            parent = full.parent
+            if parent.exists() and parent.name == str(set_id) and not any(parent.iterdir()):
+                parent.rmdir()
+        except Exception as _e:
+            print(f"[Ceol] failed to delete rendered audio for set {set_id}: {_e}")
     return {"ok": True}
 
 

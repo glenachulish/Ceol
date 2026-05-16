@@ -286,6 +286,15 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "on_hitlist" not in existing_set_cols:
         conn.execute("ALTER TABLE sets ADD COLUMN on_hitlist INTEGER NOT NULL DEFAULT 0")
 
+    # Phase 1 of playlist work (16 May 2026 late evening):
+    # client-rendered MP3 per set for lock-screen-friendly offline playback.
+    if "rendered_audio_path" not in existing_set_cols:
+        conn.execute("ALTER TABLE sets ADD COLUMN rendered_audio_path TEXT")
+    if "rendered_audio_at" not in existing_set_cols:
+        conn.execute("ALTER TABLE sets ADD COLUMN rendered_audio_at INTEGER")
+    if "rendered_audio_hash" not in existing_set_cols:
+        conn.execute("ALTER TABLE sets ADD COLUMN rendered_audio_hash TEXT")
+
     # Collections tables (added v3)
     existing_tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     if "collections" not in existing_tables:

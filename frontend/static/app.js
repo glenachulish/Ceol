@@ -5033,6 +5033,286 @@ function expandAbcRepeats(abc) {
   return header + body;
 }
 
+// ── Phase 1 of playlist work (16 May 2026 late evening) ─────────────
+// Per-set MP3 rendering for offline / lock-screen-friendly playback.
+// abcjs synth -> AudioBuffer per tune -> Int16 mono concat with 0.5 s
+// gaps -> lamejs Mp3Encoder at 96 kbps -> Blob.
+
+async function _renderSetMp3(setData, onProgress) {
+  if (typeof lamejs === "undefined" || !lamejs.Mp3Encoder) {
+    throw new Error("MP3 encoder (lamejs) not loaded — try refreshing the page");
+  }
+  if (typeof ABCJS === "undefined" || !ABCJS.synth || !ABCJS.synth.supportsAudio()) {
+    throw new Error("ABCJS synth not available in this browser");
+  }
+  const tunes = (setData.tunes || []).filter(t => t.abc);
+  if (!tunes.length) throw new Error("This set has no tunes with ABC notation");
+
+  const SAMPLE_RATE = 44100;
+  const KBPS = 96;
+  const GAP_SECONDS = 0.5;
+
+  // Reuse the shared audio context if it exists — DO NOT close it. The
+  // memory rule: closing window.abcjsAudioContext kills app-wide audio.
+  let ctx = window.abcjsAudioContext;
+  let ownsCtx = false;
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+    window.abcjsAudioContext = ctx;
+    ownsCtx = true;
+  }
+  if (ctx.state === "suspended") {
+    try { await ctx.resume(); } catch {}
+  }
+
+  // Offscreen div for abcjs renderAbc (synth needs a visualObj).
+  const offscreen = document.createElement("div");
+  offscreen.style.cssText = "position:fixed;left:-99999px;top:0;width:800px;height:1px;overflow:hidden;pointer-events:none";
+  document.body.appendChild(offscreen);
+
+  const SOUNDFONT_URL = "https://gleitz.github.io/midi-js-soundfonts/MusyngKite/";
+  const tuneBufs = [];
+  try {
+    for (let i = 0; i < tunes.length; i++) {
+      const t = tunes[i];
+      const reps = Math.max(1, Math.min(3, Number(t.repeats) || 2));
+      onProgress?.({
+        phase: "render", pct: i / (tunes.length + 1),
+        msg: `Rendering tune ${i + 1} of ${tunes.length} (${t.title || ""})…`,
+      });
+      const expandedAbc = expandAbcRepeats(t.abc);
+      const vobjs = ABCJS.renderAbc(offscreen, expandedAbc, { add_classes: false });
+      if (!vobjs || !vobjs[0]) {
+        console.warn(`[ceol-render] tune ${i} (${t.title}) had no visual object`);
+        continue;
+      }
+      const synth = new ABCJS.synth.CreateSynth();
+      await synth.init({
+        visualObj: vobjs[0],
+        audioContext: ctx,
+        options: { program: 73, soundFontUrl: SOUNDFONT_URL },
+      });
+      await synth.prime();
+      const buf = synth.getAudioBuffer();
+      if (!buf) {
+        console.warn(`[ceol-render] tune ${i} (${t.title}) had no audio buffer`);
+        continue;
+      }
+      tuneBufs.push({ buf, reps, title: t.title });
+    }
+  } finally {
+    if (offscreen.parentNode) offscreen.parentNode.removeChild(offscreen);
+  }
+
+  if (!tuneBufs.length) {
+    if (ownsCtx) try { ctx.close(); } catch {}
+    throw new Error("No tunes could be rendered (check ABC validity)");
+  }
+
+  // Concatenate to a single mono Int16Array with 0.5 s silence gaps.
+  onProgress?.({ phase: "mix", pct: tuneBufs.length / (tuneBufs.length + 1), msg: "Combining tunes…" });
+  const silenceSamples = Math.floor(GAP_SECONDS * SAMPLE_RATE);
+  let totalSamples = 0;
+  for (let i = 0; i < tuneBufs.length; i++) {
+    totalSamples += tuneBufs[i].buf.length * tuneBufs[i].reps;
+    if (i < tuneBufs.length - 1) totalSamples += silenceSamples;
+  }
+  const mono = new Int16Array(totalSamples);
+  let offset = 0;
+  for (let i = 0; i < tuneBufs.length; i++) {
+    const { buf, reps } = tuneBufs[i];
+    const numCh = buf.numberOfChannels;
+    const ch0 = buf.getChannelData(0);
+    const ch1 = numCh > 1 ? buf.getChannelData(1) : null;
+    const len = buf.length;
+    for (let r = 0; r < reps; r++) {
+      for (let j = 0; j < len; j++) {
+        let s = ch1 ? (ch0[j] + ch1[j]) * 0.5 : ch0[j];
+        if (s > 1) s = 1; else if (s < -1) s = -1;
+        mono[offset++] = s < 0 ? Math.round(s * 32768) : Math.round(s * 32767);
+      }
+    }
+    if (i < tuneBufs.length - 1) offset += silenceSamples;  // Int16Array is zero-initialised
+  }
+
+  // Encode mono Int16 -> MP3, yielding to UI roughly every 5 s of audio.
+  const enc = new lamejs.Mp3Encoder(1, SAMPLE_RATE, KBPS);
+  const CHUNK = 1152;
+  const yieldEvery = CHUNK * 200;
+  const mp3Chunks = [];
+  let lastYield = 0;
+  for (let i = 0; i < mono.length; i += CHUNK) {
+    const chunk = mono.subarray(i, i + CHUNK);
+    const out = enc.encodeBuffer(chunk);
+    if (out.length) mp3Chunks.push(out);
+    if (i - lastYield >= yieldEvery) {
+      lastYield = i;
+      onProgress?.({
+        phase: "encode", pct: 0.6 + 0.4 * (i / mono.length),
+        msg: `Encoding MP3 (${Math.round(100 * i / mono.length)}%)…`,
+      });
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  const tail = enc.flush();
+  if (tail.length) mp3Chunks.push(tail);
+
+  if (ownsCtx) { try { ctx.close(); } catch {} window.abcjsAudioContext = null; }
+
+  onProgress?.({ phase: "done", pct: 1, msg: "Done" });
+  return new Blob(mp3Chunks, { type: "audio/mpeg" });
+}
+
+function _formatRenderedDate(unixSec) {
+  if (!unixSec) return "";
+  const d = new Date(unixSec * 1000);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) {
+    return "today, " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  const sameYear = d.getFullYear() === today.getFullYear();
+  return d.toLocaleDateString([], {
+    day: "numeric", month: "short", year: sameYear ? undefined : "numeric",
+  });
+}
+
+async function _onSetRenderClick(setData, btn) {
+  const section = document.getElementById("set-offline-audio-section");
+  const statusEl = document.getElementById("set-offline-status");
+  const progressWrap = document.getElementById("set-render-progress");
+  const progressBar = document.getElementById("set-render-progress-bar");
+  const progressLbl = document.getElementById("set-render-progress-label");
+
+  btn.disabled = true;
+  if (section) section.querySelectorAll("button").forEach(b => { b.disabled = true; });
+  if (progressWrap) progressWrap.classList.remove("hidden");
+  if (progressBar) progressBar.value = 0;
+  if (progressLbl) progressLbl.textContent = "Loading instrument…";
+
+  // Pause any in-progress synth playback to avoid context contention.
+  if (typeof _setMusicSynth !== "undefined" && _setMusicSynth) {
+    try { _setMusicSynth.pause(); } catch {}
+  }
+
+  try {
+    const blob = await _renderSetMp3(setData, p => {
+      if (progressBar) progressBar.value = Math.round((p.pct || 0) * 100);
+      if (progressLbl) progressLbl.textContent = p.msg || "Rendering…";
+    });
+
+    if (progressLbl) progressLbl.textContent = `Uploading (${(blob.size / 1024).toFixed(0)} KB)…`;
+    if (progressBar) progressBar.value = 100;
+
+    const fd = new FormData();
+    fd.append("file", blob, `set-${setData.id}.mp3`);
+    const r = await fetch(`/api/sets/${setData.id}/rendered-audio`, {
+      method: "POST", credentials: "include", body: fd,
+    });
+    if (!r.ok) {
+      let detail = ""; try { detail = (await r.json()).detail || ""; } catch {}
+      throw new Error(detail || `Upload failed (${r.status})`);
+    }
+    const data = await r.json();
+
+    setData.rendered_audio_at = data.rendered_audio_at;
+    setData.rendered_audio_out_of_date = false;
+    _refreshSetOfflineUi(setData);
+  } catch (err) {
+    console.error("[ceol-render]", err);
+    if (statusEl) {
+      statusEl.innerHTML = `<span class="set-offline-stale">⚠ Render failed: ${escHtml(err.message || String(err))}</span>`;
+    }
+  } finally {
+    if (section) section.querySelectorAll("button").forEach(b => { b.disabled = false; });
+    if (progressWrap) progressWrap.classList.add("hidden");
+  }
+}
+
+function _onSetPlayOfflineClick(setData) {
+  const audioEl = document.getElementById("set-offline-audio-el");
+  if (!audioEl) return;
+  audioEl.src = `/api/sets/${setData.id}/rendered-audio?t=${Date.now()}`;
+  audioEl.classList.remove("hidden");
+  audioEl.play().catch(err => console.warn("[ceol-render] audio play failed:", err));
+  // Lock-screen metadata via MediaSession (iOS shows title + artist).
+  if ("mediaSession" in navigator) {
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: setData.name || "Ceòl Set",
+        artist: "Ceòl",
+        album: `${(setData.tunes || []).length} tunes`,
+      });
+      navigator.mediaSession.setActionHandler("play", () => audioEl.play());
+      navigator.mediaSession.setActionHandler("pause", () => audioEl.pause());
+      navigator.mediaSession.setActionHandler("seekbackward", () => {
+        audioEl.currentTime = Math.max(0, audioEl.currentTime - 10);
+      });
+      navigator.mediaSession.setActionHandler("seekforward", () => {
+        audioEl.currentTime = Math.min(audioEl.duration || Infinity, audioEl.currentTime + 10);
+      });
+    } catch (e) { console.warn("[ceol-render] MediaSession setup failed:", e); }
+  }
+}
+
+async function _onSetClearOfflineClick(setData) {
+  if (!confirm("Delete the offline audio for this set?")) return;
+  try {
+    await apiFetch(`/api/sets/${setData.id}/rendered-audio`, { method: "DELETE" });
+    setData.rendered_audio_at = null;
+    setData.rendered_audio_out_of_date = false;
+    _refreshSetOfflineUi(setData);
+  } catch (err) {
+    alert(`Failed to delete: ${err.message || err}`);
+  }
+}
+
+function _refreshSetOfflineUi(setData) {
+  const section = document.getElementById("set-offline-audio-section");
+  if (!section) return;
+  const has = !!setData.rendered_audio_at;
+  const stale = !!setData.rendered_audio_out_of_date;
+  const status = section.querySelector("#set-offline-status");
+  if (status) {
+    if (has && stale) {
+      status.innerHTML = `<span class="set-offline-stale">⚠ Audio out of date — re-render to update</span>`;
+    } else if (has) {
+      status.innerHTML = `<span class="set-offline-ready">✓ Ready to play offline (rendered ${_formatRenderedDate(setData.rendered_audio_at)})</span>`;
+    } else {
+      status.innerHTML = `<span class="set-offline-none">No offline audio yet — tap below to render an MP3</span>`;
+    }
+  }
+  const renderBtn = section.querySelector("#set-render-btn");
+  if (renderBtn) renderBtn.textContent = `🎵 ${has ? "Re-render" : "Render for offline play"}`;
+
+  const actions = section.querySelector(".set-offline-actions");
+  let playBtn = section.querySelector("#set-play-offline-btn");
+  let clearBtn = section.querySelector("#set-clear-offline-btn");
+  if (has) {
+    if (!playBtn && actions) {
+      playBtn = document.createElement("button");
+      playBtn.id = "set-play-offline-btn";
+      playBtn.className = "btn-secondary btn-sm";
+      playBtn.textContent = "▶ Play full set (offline)";
+      playBtn.addEventListener("click", () => _onSetPlayOfflineClick(setData));
+      actions.appendChild(playBtn);
+    }
+    if (!clearBtn && actions) {
+      clearBtn = document.createElement("button");
+      clearBtn.id = "set-clear-offline-btn";
+      clearBtn.className = "btn-icon";
+      clearBtn.title = "Delete offline audio";
+      clearBtn.textContent = "✕";
+      clearBtn.addEventListener("click", () => _onSetClearOfflineClick(setData));
+      actions.appendChild(clearBtn);
+    }
+  } else {
+    playBtn?.remove();
+    clearBtn?.remove();
+    const audioEl = section.querySelector("#set-offline-audio-el");
+    if (audioEl) { audioEl.pause(); audioEl.removeAttribute("src"); audioEl.classList.add("hidden"); }
+  }
+}
+
 // After abcjs renders, add viewBox to the SVG so CSS max-width scales
 // the content proportionally instead of clipping it.
 function _patchSvgViewBox(containerId) {
@@ -5531,6 +5811,28 @@ function openFullSetModal(setData, opts = {}) {
         <button class="btn-secondary btn-sm" id="set-bot-play-btn">▶ Play</button>
         <button class="btn-secondary btn-sm" id="set-bot-restart-btn">⟳ Restart</button>
       </div>
+      ${setData.id ? `
+      <div class="set-offline-audio" id="set-offline-audio-section">
+        <div class="set-offline-hd">📱 Offline play</div>
+        <div class="set-offline-status" id="set-offline-status">${
+          setData.rendered_audio_at
+            ? (setData.rendered_audio_out_of_date
+                ? `<span class="set-offline-stale">⚠ Audio out of date — re-render to update</span>`
+                : `<span class="set-offline-ready">✓ Ready to play offline (rendered ${_formatRenderedDate(setData.rendered_audio_at)})</span>`)
+            : `<span class="set-offline-none">No offline audio yet — tap below to render an MP3</span>`
+        }</div>
+        <div class="set-offline-actions">
+          <button class="btn-secondary btn-sm" id="set-render-btn">🎵 ${setData.rendered_audio_at ? "Re-render" : "Render for offline play"}</button>
+          ${setData.rendered_audio_at ? `<button class="btn-secondary btn-sm" id="set-play-offline-btn">▶ Play full set (offline)</button>` : ""}
+          ${setData.rendered_audio_at ? `<button class="btn-icon" id="set-clear-offline-btn" title="Delete offline audio">✕</button>` : ""}
+        </div>
+        <div class="set-offline-progress hidden" id="set-render-progress">
+          <progress id="set-render-progress-bar" max="100" value="0"></progress>
+          <div id="set-render-progress-label" class="set-offline-progress-label">Preparing…</div>
+        </div>
+        <audio id="set-offline-audio-el" controls preload="none" class="hidden set-offline-audio-el"></audio>
+      </div>
+      ` : ""}
       ` : '<p class="modal-hint" style="margin-top:.75rem">No ABC notation available for tunes in this set.</p>'}
         <div id="set-music-options-panel" class="sheet-music-options-panel hidden" style="margin-top:1rem">
         <div class="sheet-music-options-header">
@@ -6138,6 +6440,22 @@ function openFullSetModal(setData, opts = {}) {
       win.focus();
       setTimeout(() => { win.print(); }, 400);
     });
+  }
+
+  // Phase 1 of playlist work (16 May 2026 late evening): wire offline-audio buttons.
+  if (setData.id && hasAbc) {
+    const _renderBtn = document.getElementById("set-render-btn");
+    if (_renderBtn) {
+      _renderBtn.addEventListener("click", () => _onSetRenderClick(setData, _renderBtn));
+    }
+    const _playOfflineBtn = document.getElementById("set-play-offline-btn");
+    if (_playOfflineBtn) {
+      _playOfflineBtn.addEventListener("click", () => _onSetPlayOfflineClick(setData));
+    }
+    const _clearOfflineBtn = document.getElementById("set-clear-offline-btn");
+    if (_clearOfflineBtn) {
+      _clearOfflineBtn.addEventListener("click", () => _onSetClearOfflineClick(setData));
+    }
   }
 
   requestAnimationFrame(() => {
