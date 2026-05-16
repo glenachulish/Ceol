@@ -70,7 +70,8 @@ CREATE TABLE IF NOT EXISTS set_tunes (
     set_id       INTEGER REFERENCES sets(id),
     tune_id      INTEGER REFERENCES tunes(id),
     position     INTEGER NOT NULL,
-    key_override TEXT
+    key_override TEXT,
+    repeats      INTEGER NOT NULL DEFAULT 2  -- added 15 May 2026
 );
 
 -- Tags for flexible organisation
@@ -182,6 +183,19 @@ def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
+    # Idempotent migration: add `repeats` to set_tunes if missing
+    # (added 15 May 2026).
+    try:
+        cols = {row[1] for row in conn.execute(
+            "PRAGMA table_info(set_tunes)"
+        ).fetchall()}
+        if "repeats" not in cols:
+            conn.execute(
+                "ALTER TABLE set_tunes ADD COLUMN repeats "
+                "INTEGER NOT NULL DEFAULT 2"
+            )
+    except Exception as e:
+        print(f"[Ceol] set_tunes.repeats migration warning: {e}")
     """Apply incremental migrations for existing databases."""
     existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(tunes)").fetchall()}
     if "imported_at" not in existing_cols:

@@ -16,7 +16,6 @@
       --accent:  #7c6af7;
       --text:    #e2e8f0;
       --muted:   #8892aa;
-      --code-bg: #0a0c12;
     }
     body {
       background: var(--bg);
@@ -32,39 +31,17 @@
       font-size: 2rem;
       font-weight: 700;
       letter-spacing: -.02em;
-      margin: 1.5rem 0 .5rem;
+      margin: 1.5rem 0 1rem;
     }
     h2 {
       font-size: 1.25rem;
       font-weight: 700;
       margin: 2rem 0 .75rem;
-      color: var(--text);
     }
-    p {
-      margin: .75rem 0;
-      color: var(--text);
-    }
-    ol, ul {
-      margin: .75rem 0 1.25rem 1.5rem;
-    }
-    li {
-      margin-bottom: .4rem;
-    }
-    code {
-      background: var(--code-bg);
-      padding: .1rem .35rem;
-      border-radius: 4px;
-      font-size: .9em;
-      font-family: "SF Mono", Consolas, monospace;
-    }
-    .muted {
-      color: var(--muted);
-    }
-    .tagline {
-      color: var(--muted);
-      margin-top: -.25rem;
-      margin-bottom: 1.5rem;
-    }
+    p { margin: .75rem 0; }
+    ul { margin: .75rem 0 1.25rem 1.5rem; }
+    li { margin-bottom: .4rem; }
+    .muted { color: var(--muted); }
     .nav-back {
       display: inline-block;
       margin-top: 2rem;
@@ -93,59 +70,47 @@
 <body>
 
 <h1>Welcome to Ceòl</h1>
-<p class="tagline">A traditional music library you actually want to use.</p>
 
 <p>You've just signed up to Ceòl. This is your personal library of
-traditional Irish and Scottish music — tunes, sheet music, audio,
-recordings, sets, the lot. Nobody else can see what's in it.</p>
+traditional music — tunes, sheet music, audio, recordings, sets.</p>
 
-<p>The app runs on a Raspberry Pi sitting in Callum's house, so you're
-not on a cloud service that might disappear next year. Everything you
-add belongs to you and stays there.</p>
+<p>The app runs on a Raspberry Pi sitting in my house. No-one else has
+access to your library, including me.</p>
 
 <h2>How to get around</h2>
 
-<p>The bottom of the screen has tabs: <strong>Library</strong> for
-your tunes, <strong>Sets</strong> for groupings of tunes that go
-together, <strong>Collections</strong> for broader categories
-("Diggers tunes", "Cape Breton stuff", whatever you want), and
-<strong>Import</strong> for adding new tunes.</p>
+<p>The bottom of the screen has tabs: <strong>Library</strong> for your
+tunes, <strong>Sets</strong>, <strong>Collections</strong> for broader
+categories (eg. Diggers tunes), and <strong>Import</strong> for adding
+new tunes.</p>
 
-<p>Your library starts empty. Let's add something to it.</p>
+<p>Your library comes with some tunes from my library to get you started.</p>
 
 <h2>Add your first tune</h2>
 
 <p>The easiest way to get tunes into Ceòl is to copy them from
-<a href="https://thesession.org" style="color:var(--accent)">TheSession.org</a>
-— a free online catalogue of traditional tunes. Here's the
-six-step recipe:</p>
+<strong>TheSession.org</strong>. There are different ways to do this.
+The quickest I've found is:</p>
 
-<ol>
-  <li>Open TheSession.org in another browser tab and find a tune
-  you like.</li>
-  <li>On the tune page, look for the <strong>X:1</strong> block
-  near the top — that's the ABC notation. Tap and hold to select
-  it all, then copy.</li>
-  <li>Back in Ceòl, tap <strong>Import</strong> at the bottom.</li>
+<ul>
+  <li>Open TheSession.org.</li>
+  <li>Search for the name of the tune you are after.</li>
+  <li>For the version of the tune that you like, click on the ABC
+  notation option and copy that.</li>
+  <li>Click back on Ceòl and tap <strong>Import</strong>.</li>
   <li>Tap the <strong>Paste ABC</strong> tab.</li>
   <li>Paste what you copied into the big text box.</li>
   <li>Tap <strong>Import</strong>.</li>
-</ol>
+</ul>
 
-<p>Your new tune should appear in your library with sheet music and
-all the metadata filled in.</p>
+<p>Your new tune should appear in your library with sheet music and all
+the metadata filled in.</p>
 
 <h2>Hear it played</h2>
 
-<p>Tap any tune in your library to open it. You'll see the sheet
-music rendered properly with bar lines, and a play button at the
-top. Tap play — Ceòl will play the tune through your phone's
-speakers using a flute sound. Not a perfect performance, but very
-useful for sanity-checking that you've got the right tune.</p>
-
-<p class="muted">If you can't hear anything on an iPhone, check the
-silent switch on the side of the phone is off (the orange line
-shouldn't be showing). iOS treats web audio as quiet by default.</p>
+<p>Tap any tune in your library to open it. You'll see the sheet music
+rendered properly. Tap play — Ceòl will play the tune through your
+device's speakers.</p>
 
 <h2>Mark your favourites</h2>
 
@@ -153,33 +118,19 @@ shouldn't be showing). iOS treats web audio as quiet by default.</p>
 the corner:</p>
 
 <ul>
-  <li><strong>👍 Favourite</strong> — tunes you love. Filter by these
-  later with the Favourites filter.</li>
-  <li><strong>📌 Hitlist</strong> — tunes you're working on. Use this
-  as your practice list for the week.</li>
+  <li><strong>Favourite</strong></li>
+  <li><strong>Hitlist</strong> — tunes you're working on.</li>
 </ul>
 
-<p>You can also star-rate tunes 1–5 to remember which settings you
-prefer.</p>
-
-<h2>What's next</h2>
-
-<p>That's the absolute minimum to get going. When you want to do more
-— add MP3 recordings to tunes, build sets, save sheet music photos,
-create your own collections — there's a longer reference guide:</p>
+<p>You can also star-rate tunes 1–5. I use this to rate how well I know
+a tune.</p>
 
 <a href="/help" class="more-link">
   <strong>Ceòl day-to-day →</strong>
-  <span class="muted">The full reference: imports, audio attachments,
-  sets, collections, ratings, and the rest.</span>
+  <span class="muted">More detailed instructions for everything in the app.</span>
 </a>
 
-<h2>Stuck?</h2>
-
-<p>If something's not working or you can't figure out how to do
-something, text Callum. The app is a personal project so things will
-occasionally be rough around the edges — say what's confusing and
-he'll either fix it or explain.</p>
+<p style="margin-top:1.5rem">If you have any problems, please message me.</p>
 
 <a href="/mobile" class="nav-back">← Back to the app</a>
 

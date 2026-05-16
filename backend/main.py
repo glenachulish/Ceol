@@ -2275,7 +2275,8 @@ def get_set(set_id: int):
             raise HTTPException(404, "Set not found")
         tunes = conn.execute(
             """
-            SELECT t.id, t.title, t.type, t.key, t.mode, t.abc, st.position, st.key_override
+            SELECT t.id, t.title, t.type, t.key, t.mode, t.abc,
+                   st.position, st.key_override, st.repeats
             FROM set_tunes st
             JOIN tunes t ON t.id = st.tune_id
             WHERE st.set_id = ?
@@ -2343,6 +2344,33 @@ def reorder_set_tunes(set_id: int, body: SetReorder):
                 (pos, set_id, tune_id),
             )
     return {"ok": True}
+
+
+class SetTuneRepeats(BaseModel):
+    repeats: int
+
+
+@app.patch("/api/sets/{set_id}/tunes/{tune_id}/repeats")
+def update_set_tune_repeats(set_id: int, tune_id: int, body: SetTuneRepeats):
+    """Update the play-count for a tune within a set.
+
+    Added 15 May 2026 (per-tune repeats feature). Repeats must be
+    between 1 and 9 — higher values are unlikely to be musical and
+    would also blow up the rendered MP3 size when the playlist
+    feature lands.
+    """
+    n = int(body.repeats)
+    if n < 1 or n > 9:
+        raise HTTPException(400, "Repeats must be between 1 and 9.")
+    with _db() as conn:
+        cur = conn.execute(
+            "UPDATE set_tunes SET repeats = ? "
+            "WHERE set_id = ? AND tune_id = ?",
+            (n, set_id, tune_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Tune not in set")
+    return {"ok": True, "repeats": n}
 
 
 # ---------------------------------------------------------------------------

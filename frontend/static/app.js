@@ -5242,9 +5242,14 @@ function buildCombinedPlaybackAbcWithRanges(tunes) {
     // still contributes to character positions, keeping tuneRanges accurate.
     const titleLine = `% ${t.title || ''}\n`;
     const body = extractBody(abc);
+    // Per-tune repeats: replay the body N times (default 2). Joined
+    // with " " so two repeats don't accidentally fuse the last bar
+    // of repeat 1 with the first bar of repeat 2.
+    const n = Number.isFinite(t.repeats) && t.repeats >= 1 ? Math.min(9, t.repeats) : 2;
+    const repeatedBody = Array(n).fill(body).join(' ');
     const start = header.length + combined.length + prefix.length + titleLine.length;
-    tuneRanges.push({ start, end: start + body.length });
-    combined += prefix + titleLine + body + '\n';
+    tuneRanges.push({ start, end: start + repeatedBody.length });
+    combined += prefix + titleLine + repeatedBody + '\n';
   }
 
   return { abc: header + combined, tuneRanges };
@@ -6381,19 +6386,61 @@ function renderSets(sets) {
         `<button class="tune-star-btn${r >= n ? " filled" : ""}" data-n="${n}" data-tune-id="${t.id}" title="${_masteryTip[n]}">★</button>`
       ).join("");
       const masteryLabel = r > 0 ? `<span class="tune-mastery-label">${_masteryTip[r]}</span>` : "";
+      const repeats = Number.isFinite(t.repeats) ? t.repeats : 2;
+      const repeatsCtl = `
+        <span class="set-tune-repeats" title="How many times this tune plays through when the set plays">
+          <button class="set-tune-repeats-down btn-icon" data-tune-id="${t.id}" data-set-id="${id}" ${repeats <= 1 ? "disabled" : ""}>−</button>
+          <span class="set-tune-repeats-value" data-tune-id="${t.id}">× ${repeats}</span>
+          <button class="set-tune-repeats-up btn-icon" data-tune-id="${t.id}" data-set-id="${id}" ${repeats >= 9 ? "disabled" : ""}>+</button>
+        </span>`;
       return `
-      <div class="set-tune-row" data-tune-id="${t.id}">
+      <div class="set-tune-row" data-tune-id="${t.id}" data-repeats="${repeats}">
         <button class="set-move-up btn-icon" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
         <button class="set-move-down btn-icon" title="Move down" ${i === tunes.length - 1 ? "disabled" : ""}>↓</button>
         <span class="set-tune-pos">${i + 1}.</span>
         <button class="set-tune-title tune-open-btn" data-tune-id="${t.id}">${escHtml(t.title)}</button>
         <span class="badge ${typeBadgeClass(t.type)}">${escHtml(t.type || "")}</span>
         <span class="badge badge-key">${escHtml(t.key || "")}</span>
+        ${repeatsCtl}
         <span class="tune-stars-inline" data-tune-id="${t.id}" title="Your mastery of this tune">${stars}${masteryLabel}</span>
         <button class="remove-from-set btn-sm" style="flex-shrink:0"
           data-set-id="${id}" data-tune-id="${t.id}" title="Remove from set">✕ Remove</button>
       </div>`;
     }).join("");
+
+    // Hook up repeat ± buttons. Re-rebuild transitions so the in-memory
+    // `tunes` array (used to build the combined-playback ABC) sees the
+    // new repeat count.
+    tunesDiv.querySelectorAll(".set-tune-repeats-up, .set-tune-repeats-down")
+      .forEach(btn => {
+        btn.addEventListener("click", async (ev) => {
+          ev.stopPropagation();
+          const tuneId = btn.dataset.tuneId;
+          const setId  = btn.dataset.setId;
+          const row = btn.closest(".set-tune-row");
+          let n = Number(row.dataset.repeats) || 2;
+          n += btn.classList.contains("set-tune-repeats-up") ? 1 : -1;
+          n = Math.max(1, Math.min(9, n));
+          row.dataset.repeats = n;
+          row.querySelector(".set-tune-repeats-value").textContent = "× " + n;
+          row.querySelector(".set-tune-repeats-down").disabled = (n <= 1);
+          row.querySelector(".set-tune-repeats-up").disabled   = (n >= 9);
+          // Update the in-memory tune object so the next playback
+          // build sees the new count without needing a server round-trip.
+          const tuneInList = tunes.find(t => String(t.id) === String(tuneId));
+          if (tuneInList) tuneInList.repeats = n;
+          try {
+            await apiFetch(`/api/sets/${setId}/tunes/${tuneId}/repeats`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ repeats: n }),
+            });
+          } catch (e) {
+            // Revert UI on failure
+            console.warn("Failed to save repeat count:", e);
+          }
+        });
+      });
 
     _rebuildTransitions();
 
