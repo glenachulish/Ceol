@@ -618,6 +618,18 @@ async def public_accept_invite(body: _InviteAcceptBody, request: Request):
         print(f"[Ceol] WARNING: init_db failed for new user "
               f"{new_user_id} ({username}): {e}")
 
+    # Seed starter collections (added 16 May 2026). Non-fatal — if this
+    # fails the user still gets an empty library and can be backfilled
+    # via /api/admin/seed-existing-users.
+    try:
+        n = _seed_starter_collections_for_user(new_user_id)
+        if n:
+            print(f"[Ceol] seed: gave new user {new_user_id} "
+                  f"({username}) {n} starter tune(s)")
+    except Exception as e:
+        print(f"[Ceol] WARNING: starter-collection seed failed for "
+              f"user {new_user_id} ({username}): {e}")
+
     _users_db_mod.attach_user_to_invite(invite_id, new_user_id)
 
     # Audit + immediate session.
@@ -721,6 +733,336 @@ def admin_revoke_reset(reset_id: int, request: Request):
     if not ok:
         raise HTTPException(404, "Reset not pending or doesn't exist")
     return {"ok": True}
+
+
+# ── Starter-collections seeding (added 16 May 2026) ──────────────────
+#
+# When a user signs up, every collection marked is_starter=1 in the
+# admin's library (user_id=1) gets copied into the new user's library:
+#   - tunes (ABC + metadata)
+#   - sets (with their set_tunes, repeats preserved)
+#   - the collection itself + its collection_tunes and collection_sets
+#   - sheet music photo FILES (jpg/jpeg/png) — physically copied to
+#     the recipient's uploads dir
+#
+# Tune notes are STRIPPED to image-refs only — personal annotations
+# are not copied. Audio files are NOT copied (SD card preservation).
+#
+# A `seeded_from_collection_id` column on the recipient's tunes
+# prevents re-seeding the same person from the same collection.
+
+import re as _re_seed
+import shutil as _shutil_seed
+import sqlite3 as _sql_seed
+import uuid as _uuid_seed
+
+# Match lines like: "sheet music (image): /api/uploads/abc123.jpg"
+_SHEET_IMG_RE = _re_seed.compile(
+    r"^[ \t]*sheet music \(image\):\s*(/api/uploads/[^\s]+\.(?:jpe?g|png))[ \t]*$",
+    _re_seed.MULTILINE | _re_seed.IGNORECASE,
+)
+
+# Source of starter collections is always user_id=1 (the initial
+# admin). Future enhancement: each admin's starter collections seed
+# users they invite. For now, single source.
+_STARTER_SOURCE_USER_ID = 1
+
+
+def _extract_sheet_image_refs(notes: str | None) -> list[str]:
+    """Return /api/uploads/... URLs for sheet-music image references
+    found in a tune's notes."""
+    if not notes:
+        return []
+    return [m.group(1) for m in _SHEET_IMG_RE.finditer(notes)]
+
+
+def _copy_image_files(image_urls: list[str], source_user_id: int,
+                      dest_user_id: int) -> dict[str, str]:
+    """Copy each /api/uploads/X file from source user's uploads to
+    dest user's uploads. Returns a map of old_url -> new_url."""
+    src_dir = _user_paths_mod.user_uploads_dir(source_user_id)
+    dst_dir = _user_paths_mod.user_uploads_dir(dest_user_id)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    mapping: dict[str, str] = {}
+    for url in image_urls:
+        # URL form: /api/uploads/{stored_name}
+        old_name = url.rsplit("/", 1)[-1]
+        src_path = src_dir / old_name
+        if not src_path.is_file():
+            print(f"[Ceol] seed: source image missing: {src_path}")
+            continue
+        ext = src_path.suffix
+        new_name = f"{_uuid_seed.uuid4().hex}{ext}"
+        try:
+            _shutil_seed.copy2(src_path, dst_dir / new_name)
+            mapping[url] = f"/api/uploads/{new_name}"
+        except Exception as e:
+            print(f"[Ceol] seed: failed to copy {src_path}: {e}")
+    return mapping
+
+
+def _filtered_notes(original_notes: str | None,
+                    url_mapping: dict[str, str]) -> str | None:
+    """Build a fresh notes field containing only sheet-music image
+    references, rewritten to the recipient's new URLs. Personal
+    annotations and anything else are dropped."""
+    if not original_notes:
+        return None
+    lines = []
+    for old_url, new_url in url_mapping.items():
+        lines.append(f"sheet music (image): {new_url}")
+    return "\n".join(lines) if lines else None
+
+
+def _seed_starter_collections_for_user(new_user_id: int) -> int:
+    """Copy every is_starter=1 collection from source admin's library
+    into new_user_id's library. Returns the number of tunes seeded.
+
+    Idempotent at the collection level: if the recipient already has
+    a tune with `seeded_from_collection_id` matching a source
+    collection's id, that whole collection is skipped (prevents
+    double-seeding from a previous run).
+    """
+    if new_user_id == _STARTER_SOURCE_USER_ID:
+        return 0  # the admin is the source; don't seed them from themselves
+
+    src_db_path = _user_paths_mod.user_db_path(_STARTER_SOURCE_USER_ID)
+    dst_db_path = _user_paths_mod.user_db_path(new_user_id)
+
+    if not src_db_path.is_file():
+        return 0
+
+    tunes_seeded = 0
+
+    # Open both DBs with row_factory for named access
+    src = _sql_seed.connect(src_db_path)
+    src.row_factory = _sql_seed.Row
+    dst = _sql_seed.connect(dst_db_path)
+    dst.row_factory = _sql_seed.Row
+
+    try:
+        starter_cols = src.execute(
+            "SELECT id, name, description FROM collections "
+            "WHERE is_starter = 1 ORDER BY id"
+        ).fetchall()
+
+        for col in starter_cols:
+            src_col_id = col["id"]
+
+            # Skip if recipient already has any tune from this source
+            # collection (idempotency).
+            already = dst.execute(
+                "SELECT 1 FROM tunes "
+                "WHERE seeded_from_collection_id = ? LIMIT 1",
+                (src_col_id,),
+            ).fetchone()
+            if already:
+                continue
+
+            # Fetch all tunes in this collection
+            src_tunes = src.execute(
+                """
+                SELECT t.* FROM tunes t
+                JOIN collection_tunes ct ON ct.tune_id = t.id
+                WHERE ct.collection_id = ?
+                """,
+                (src_col_id,),
+            ).fetchall()
+
+            # Fetch all sets in this collection
+            src_sets = src.execute(
+                """
+                SELECT s.* FROM sets s
+                JOIN collection_sets cs ON cs.set_id = s.id
+                WHERE cs.collection_id = ?
+                """,
+                (src_col_id,),
+            ).fetchall()
+
+            # Also fetch any tunes referenced by those sets that
+            # aren't already in the collection — sets-within-the-
+            # collection have their tunes pulled in too.
+            extra_tune_ids: set[int] = set()
+            for s in src_sets:
+                rows = src.execute(
+                    "SELECT tune_id FROM set_tunes WHERE set_id = ?",
+                    (s["id"],),
+                ).fetchall()
+                for r in rows:
+                    extra_tune_ids.add(int(r["tune_id"]))
+
+            already_seen_tune_ids = {int(t["id"]) for t in src_tunes}
+            for extra_id in extra_tune_ids - already_seen_tune_ids:
+                row = src.execute(
+                    "SELECT * FROM tunes WHERE id = ?", (extra_id,),
+                ).fetchone()
+                if row:
+                    src_tunes = list(src_tunes) + [row]
+
+            # Create the destination collection
+            cur = dst.execute(
+                "INSERT INTO collections (name, description, is_starter) "
+                "VALUES (?, ?, 0)",
+                (col["name"], col["description"]),
+            )
+            dst_col_id = int(cur.lastrowid)
+
+            # Copy each tune: image files, filtered notes, then insert
+            src_tune_id_to_dst: dict[int, int] = {}
+            for st in src_tunes:
+                src_tune_id = int(st["id"])
+                image_urls = _extract_sheet_image_refs(st["notes"])
+                url_map = _copy_image_files(
+                    image_urls, _STARTER_SOURCE_USER_ID, new_user_id,
+                )
+                new_notes = _filtered_notes(st["notes"], url_map)
+
+                cur = dst.execute(
+                    """
+                    INSERT INTO tunes
+                    (craic_id, session_id, title, type, key, mode, abc,
+                     notes, source_url, seeded_from_collection_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (st["craic_id"], st["session_id"], st["title"],
+                     st["type"], st["key"], st["mode"], st["abc"],
+                     new_notes, st["source_url"], src_col_id),
+                )
+                dst_tune_id = int(cur.lastrowid)
+                src_tune_id_to_dst[src_tune_id] = dst_tune_id
+
+                # Link the new tune to the new collection (only for
+                # tunes that were in the source collection — not the
+                # extra tunes pulled in by sets).
+                if src_tune_id in already_seen_tune_ids:
+                    dst.execute(
+                        "INSERT INTO collection_tunes "
+                        "(collection_id, tune_id) VALUES (?, ?)",
+                        (dst_col_id, dst_tune_id),
+                    )
+                tunes_seeded += 1
+
+            # Copy each set + its set_tunes (with mapped tune IDs +
+            # repeats preserved).
+            for s in src_sets:
+                cur = dst.execute(
+                    "INSERT INTO sets (name, notes) VALUES (?, ?)",
+                    (s["name"], s["notes"]),
+                )
+                dst_set_id = int(cur.lastrowid)
+
+                src_set_tunes = src.execute(
+                    "SELECT tune_id, position, key_override, repeats "
+                    "FROM set_tunes WHERE set_id = ? ORDER BY position",
+                    (s["id"],),
+                ).fetchall()
+                for sst in src_set_tunes:
+                    src_tid = int(sst["tune_id"])
+                    if src_tid not in src_tune_id_to_dst:
+                        # Tune wasn't part of this collection — shouldn't
+                        # happen because we pulled in extras above, but
+                        # guard anyway.
+                        continue
+                    dst_tid = src_tune_id_to_dst[src_tid]
+                    dst.execute(
+                        "INSERT INTO set_tunes "
+                        "(set_id, tune_id, position, key_override, repeats) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (dst_set_id, dst_tid, sst["position"],
+                         sst["key_override"], sst["repeats"]),
+                    )
+
+                # Link set to collection
+                dst.execute(
+                    "INSERT INTO collection_sets (collection_id, set_id) "
+                    "VALUES (?, ?)",
+                    (dst_col_id, dst_set_id),
+                )
+
+        dst.commit()
+    except Exception as e:
+        print(f"[Ceol] seed: error for user {new_user_id}: {e}")
+        try:
+            dst.rollback()
+        except Exception:
+            pass
+    finally:
+        src.close()
+        dst.close()
+
+    return tunes_seeded
+
+
+# ── Endpoints (added 16 May 2026) ────────────────────────────────────
+
+class _StarterToggleBody(BaseModel):
+    is_starter: bool
+
+
+@app.patch("/api/collections/{col_id}/is-starter")
+def toggle_starter_collection(col_id: int,
+                              body: _StarterToggleBody,
+                              request: Request):
+    """Mark or unmark a collection as a starter collection.
+
+    Only the source-admin user (user_id=1) may use this — the seed
+    logic copies from user_id=1's library, so only their starter
+    flag is meaningful. Other admins get a 403 with an explanation.
+    """
+    _require_admin(request)
+    if current_user_id.get() != _STARTER_SOURCE_USER_ID:
+        raise HTTPException(
+            403,
+            f"Only the source admin (user_id={_STARTER_SOURCE_USER_ID}) "
+            "can mark collections as starter. Future versions may extend "
+            "this to all admins.",
+        )
+    with _db() as conn:
+        cur = conn.execute(
+            "UPDATE collections SET is_starter = ? WHERE id = ?",
+            (1 if body.is_starter else 0, col_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Collection not found")
+    return {"ok": True, "is_starter": bool(body.is_starter)}
+
+
+@app.post("/api/admin/seed-existing-users")
+def admin_seed_existing_users(request: Request):
+    """Backfill: seed every existing non-admin user with the current
+    starter collections, idempotently. Useful for Eilis/Seonaidh/Josie
+    who signed up before this feature existed.
+    """
+    _require_admin(request)
+    if current_user_id.get() != _STARTER_SOURCE_USER_ID:
+        raise HTTPException(
+            403,
+            f"Only user_id={_STARTER_SOURCE_USER_ID} can backfill. "
+            "(They are the source of starter collections.)",
+        )
+    seeded_summary: list[dict] = []
+    with _users_db_mod.auth_db() as conn:
+        users = conn.execute(
+            "SELECT id, username FROM users "
+            "WHERE id != ? AND disabled = 0 "
+            "ORDER BY id",
+            (_STARTER_SOURCE_USER_ID,),
+        ).fetchall()
+    for u in users:
+        try:
+            n = _seed_starter_collections_for_user(int(u["id"]))
+            seeded_summary.append({
+                "user_id": int(u["id"]),
+                "username": u["username"],
+                "tunes_seeded": n,
+            })
+        except Exception as e:
+            seeded_summary.append({
+                "user_id": int(u["id"]),
+                "username": u["username"],
+                "error": str(e),
+            })
+    return {"ok": True, "results": seeded_summary}
 
 
 # ── Middleware ────────────────────────────────────────────────────────

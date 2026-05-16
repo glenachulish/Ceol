@@ -18,7 +18,17 @@ const state = {
   sets: [],
   collections: [],
   capabilities: { has_anthropic_key: true },
+  isAdmin: false,  // populated by loadAuthInfo() at boot
 };
+
+async function loadAuthInfo() {
+  // Fetch /api/auth/me and stash is_admin so menus can hide admin-only
+  // items. Failures are non-fatal — defaults to non-admin.
+  try {
+    const me = await apiFetch("/api/auth/me");
+    state.isAdmin = !!me?.is_admin;
+  } catch { /* not logged in or transient; ignore */ }
+}
 
 async function loadCapabilities() {
   try {
@@ -27,6 +37,8 @@ async function loadCapabilities() {
     const el = document.getElementById("help-data-dir");
     if (el && c.data_dir) el.textContent = c.data_dir;
   } catch { /* non-fatal — fall back to defaults */ }
+  // Also load admin status while we're at boot.
+  await loadAuthInfo();
 }
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
@@ -7360,6 +7372,7 @@ function renderCollections(collections) {
             <div class="library-menu hidden col-options-menu" id="col-menu-${c.id}">
               <button class="library-menu-item col-export-btn" data-col-id="${c.id}" data-col-name="${escHtml(c.name)}">⬇ Export</button>
               <button class="library-menu-item col-rename-btn col-rename-inline" data-col-id="${c.id}">✏ Rename</button>
+              ${state.isAdmin ? `<button class="library-menu-item col-starter-btn" data-col-id="${c.id}" data-is-starter="${c.is_starter ? 1 : 0}">${c.is_starter ? "★ Unmark as starter" : "☆ Mark as starter"}</button>` : ""}
               <hr class="library-menu-divider"/>
               <button class="library-menu-item library-menu-danger col-delete-btn" data-col-id="${c.id}">🗑 Delete</button>
             </div>
@@ -7379,6 +7392,33 @@ function renderCollections(collections) {
     });
   });
   
+  // Wire "Mark as starter" toggle buttons (admin only)
+  collectionsList.querySelectorAll(".col-starter-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const colId = btn.dataset.colId;
+      const newVal = btn.dataset.isStarter === "1" ? false : true;
+      btn.disabled = true;
+      try {
+        const r = await apiFetch(`/api/collections/${colId}/is-starter`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_starter: newVal }),
+        });
+        // Update button label without full re-render
+        btn.dataset.isStarter = r.is_starter ? "1" : "0";
+        btn.textContent = r.is_starter ? "★ Unmark as starter" : "☆ Mark as starter";
+        // Update the in-memory collection too
+        const col = (state.collections || []).find(c => String(c.id) === String(colId));
+        if (col) col.is_starter = r.is_starter ? 1 : 0;
+      } catch (err) {
+        alert(err?.message || "Couldn't update starter flag");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
   // Wire ⋯ menu buttons
   collectionsList.querySelectorAll(".col-menu-btn").forEach(btn => {
     btn.addEventListener("click", (e) => {

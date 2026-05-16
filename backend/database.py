@@ -34,19 +34,20 @@ DB_PATH = _user_paths_for_db_path.user_db_path(1)
 SCHEMA = """
 -- Core tune data (imported from The Craic)
 CREATE TABLE IF NOT EXISTS tunes (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    craic_id    TEXT,
-    session_id  INTEGER,
-    title       TEXT NOT NULL,
-    type        TEXT,
-    key         TEXT,
-    mode        TEXT,
-    abc         TEXT NOT NULL,
-    notes       TEXT,
-    source_url  TEXT,
-    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    craic_id                 TEXT,
+    session_id               INTEGER,
+    title                    TEXT NOT NULL,
+    type                     TEXT,
+    key                      TEXT,
+    mode                     TEXT,
+    abc                      TEXT NOT NULL,
+    notes                    TEXT,
+    source_url               TEXT,
+    imported_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    seeded_from_collection_id INTEGER  -- 16 May 2026: source collection id in admin's library
 );
 
 -- Alternate titles / aliases for a tune
@@ -91,7 +92,8 @@ CREATE TABLE IF NOT EXISTS collections (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL,
     description TEXT,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_starter  INTEGER NOT NULL DEFAULT 0  -- 16 May 2026
 );
 
 CREATE TABLE IF NOT EXISTS collection_tunes (
@@ -196,6 +198,31 @@ def _migrate(conn: sqlite3.Connection) -> None:
             )
     except Exception as e:
         print(f"[Ceol] set_tunes.repeats migration warning: {e}")
+
+    # Idempotent: starter-collection columns (added 16 May 2026).
+    try:
+        cols = {row[1] for row in conn.execute(
+            "PRAGMA table_info(collections)"
+        ).fetchall()}
+        if "is_starter" not in cols:
+            conn.execute(
+                "ALTER TABLE collections ADD COLUMN is_starter "
+                "INTEGER NOT NULL DEFAULT 0"
+            )
+    except Exception as e:
+        print(f"[Ceol] collections.is_starter migration warning: {e}")
+
+    try:
+        cols = {row[1] for row in conn.execute(
+            "PRAGMA table_info(tunes)"
+        ).fetchall()}
+        if "seeded_from_collection_id" not in cols:
+            conn.execute(
+                "ALTER TABLE tunes ADD COLUMN "
+                "seeded_from_collection_id INTEGER"
+            )
+    except Exception as e:
+        print(f"[Ceol] tunes.seeded_from_collection_id migration warning: {e}")
     """Apply incremental migrations for existing databases."""
     existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(tunes)").fetchall()}
     if "imported_at" not in existing_cols:

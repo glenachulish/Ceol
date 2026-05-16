@@ -226,6 +226,18 @@ body {
   </div>
 
   <div class="section">
+    <h2>Starter collections</h2>
+    <p class="muted" style="margin-bottom:.75rem;font-size:.85rem">
+      Mark collections as "starter" from their ⋯ menu. New users get a
+      copy of each starter collection when they sign up. Use the button
+      below to seed your existing users (Eilis, Seonaidh, Josie) — runs
+      once per user, safe to re-click.
+    </p>
+    <button class="btn-mini" id="seed-existing-btn">Re-seed existing users</button>
+    <div id="seed-result" class="msg" style="margin-top:.5rem;display:none"></div>
+  </div>
+
+  <div class="section">
     <h2>Invites</h2>
     <div id="invites-list"><div class="empty">Loading…</div></div>
   </div>
@@ -405,6 +417,36 @@ document.getElementById("create-form").addEventListener("submit", async (e) => {
   }
   btn.disabled = false; btn.textContent = "Create";
 });
+
+async function seedExistingUsers(btn) {
+  btn.disabled = true;
+  const result = document.getElementById("seed-result");
+  result.style.display = "block";
+  result.className = "msg muted";
+  result.textContent = "Seeding…";
+  try {
+    const r = await fetch("/api/admin/seed-existing-users", {
+      method: "POST", credentials: "include",
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    const lines = (data.results || []).map(x => {
+      if (x.error) return `${escapeHTML(x.username)}: error — ${escapeHTML(x.error)}`;
+      if (x.tunes_seeded > 0) return `${escapeHTML(x.username)}: +${x.tunes_seeded} tunes`;
+      return `${escapeHTML(x.username)}: already seeded`;
+    });
+    result.className = "msg ok";
+    result.innerHTML = lines.join("<br>") || "Nothing to seed.";
+  } catch (e) {
+    result.className = "msg err";
+    result.textContent = "Failed: " + (e?.message || "unknown error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("seed-existing-btn")
+  .addEventListener("click", (e) => seedExistingUsers(e.currentTarget));
 
 loadResets();
 loadInvites();
