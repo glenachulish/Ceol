@@ -19,6 +19,8 @@ const state = {
   collections: [],
   capabilities: { has_anthropic_key: true },
   isAdmin: false,  // populated by loadAuthInfo() at boot
+  setsQuickFilter: "",       // "", "fav", "hitlist" — polish patch 16 May
+  collectionsQuickFilter: "", // same — polish patch 16 May
 };
 
 async function loadAuthInfo() {
@@ -28,6 +30,12 @@ async function loadAuthInfo() {
     const me = await apiFetch("/api/auth/me");
     state.isAdmin = !!me?.is_admin;
   } catch { /* not logged in or transient; ignore */ }
+  // Reveal admin shortcut in hamburger if applicable.
+  const _adminMenuBtn = document.getElementById("m-admin-btn");
+  if (_adminMenuBtn) {
+    if (state.isAdmin) _adminMenuBtn.removeAttribute("hidden");
+    else _adminMenuBtn.setAttribute("hidden", "");
+  }
 }
 
 async function loadCapabilities() {
@@ -40,6 +48,66 @@ async function loadCapabilities() {
   // Also load admin status while we're at boot.
   await loadAuthInfo();
 }
+
+// ── Quick-filter helpers for Sets and Collections views ─────────────
+// (Polish patch 16 May 2026.) Library already has its own; these
+// mirror it for Sets and Collections by filtering the rendered cards
+// client-side via [hidden] attribute. Source of truth lives in
+// state.setsQuickFilter / state.collectionsQuickFilter.
+
+function _applySetsQuickFilter() {
+  const f = state.setsQuickFilter;
+  const list = document.getElementById("sets-list");
+  if (!list) return;
+  list.querySelectorAll(".set-card, .m-set-row").forEach(el => {
+    let show = true;
+    if (f === "fav")    show = el.dataset.favourite === "1";
+    if (f === "hitlist") show = el.dataset.hitlist === "1";
+    el.toggleAttribute("hidden", !show);
+  });
+  // Reflect active state on buttons
+  const favBtn = document.getElementById("sets-quick-fav-btn");
+  const hitBtn = document.getElementById("sets-quick-hitlist-btn");
+  if (favBtn) favBtn.classList.toggle("active", f === "fav");
+  if (hitBtn) hitBtn.classList.toggle("active", f === "hitlist");
+}
+
+function _applyCollectionsQuickFilter() {
+  const f = state.collectionsQuickFilter;
+  const list = document.getElementById("collections-list");
+  if (!list) return;
+  list.querySelectorAll(".set-card").forEach(el => {
+    let show = true;
+    if (f === "fav")    show = el.dataset.favourite === "1";
+    if (f === "hitlist") show = el.dataset.hitlist === "1";
+    el.toggleAttribute("hidden", !show);
+  });
+  const favBtn = document.getElementById("cols-quick-fav-btn");
+  const hitBtn = document.getElementById("cols-quick-hitlist-btn");
+  if (favBtn) favBtn.classList.toggle("active", f === "fav");
+  if (hitBtn) hitBtn.classList.toggle("active", f === "hitlist");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Sets quick-filter buttons
+  document.getElementById("sets-quick-fav-btn")?.addEventListener("click", () => {
+    state.setsQuickFilter = state.setsQuickFilter === "fav" ? "" : "fav";
+    _applySetsQuickFilter();
+  });
+  document.getElementById("sets-quick-hitlist-btn")?.addEventListener("click", () => {
+    state.setsQuickFilter = state.setsQuickFilter === "hitlist" ? "" : "hitlist";
+    _applySetsQuickFilter();
+  });
+  // Collections quick-filter buttons
+  document.getElementById("cols-quick-fav-btn")?.addEventListener("click", () => {
+    state.collectionsQuickFilter = state.collectionsQuickFilter === "fav" ? "" : "fav";
+    _applyCollectionsQuickFilter();
+  });
+  document.getElementById("cols-quick-hitlist-btn")?.addEventListener("click", () => {
+    state.collectionsQuickFilter = state.collectionsQuickFilter === "hitlist" ? "" : "hitlist";
+    _applyCollectionsQuickFilter();
+  });
+});
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 const searchEl         = document.getElementById("search");
@@ -5353,14 +5421,24 @@ function openFullSetModal(setData, opts = {}) {
   const tunes = setData.tunes || [];
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
 
-  const trackRows = tunes.map((t, i) => `
-    <div class="set-track-item" draggable="true" data-tune-id="${t.id}">
+  const trackRows = tunes.map((t, i) => {
+    const reps = Number.isFinite(t.repeats) && t.repeats >= 1 ? Math.min(3, t.repeats) : 2;
+    const repsCtl = setData.id ? `
+      <span class="set-track-repeats" title="How many times this tune plays">
+        <button class="set-track-repeats-down btn-icon" data-tune-id="${t.id}" data-set-id="${setData.id}" ${reps <= 1 ? "disabled" : ""}>−</button>
+        <span class="set-track-repeats-value" data-tune-id="${t.id}">× ${reps}</span>
+        <button class="set-track-repeats-up btn-icon" data-tune-id="${t.id}" data-set-id="${setData.id}" ${reps >= 3 ? "disabled" : ""}>+</button>
+      </span>` : "";
+    return `
+    <div class="set-track-item" draggable="true" data-tune-id="${t.id}" data-repeats="${reps}">
       <span class="set-track-drag" title="Drag to reorder">⠿</span>
       <span class="set-track-num">${i + 1}</span>
       <button class="set-track-title set-track-open-tune" data-tune-id="${t.id}" title="Open tune in library">${escHtml(t.title)}</button>
       <span class="set-track-meta">${[t.type, t.key].filter(Boolean).map(escHtml).join(" · ") || ""}</span>
+      ${repsCtl}
       ${setData.id ? `<button class="set-track-remove btn-sm" data-tune-id="${t.id}" style="margin-left:auto;flex-shrink:0" title="Remove from set">✕</button>` : ""}
-    </div>`).join("");
+    </div>`;
+  }).join("");
 
   const tunesWithAbc = tunes.filter(t => t.abc);
   const transRows = [];
@@ -5407,6 +5485,7 @@ function openFullSetModal(setData, opts = {}) {
   modalContent.innerHTML = `
     <button class="modal-back-btn" id="full-set-back-btn">✕ Close</button>
     <h2 class="modal-title">${escHtml(setData.name)}
+      ${setData.id ? `<button class="set-add-col-btn btn-collection btn-sm" id="full-set-add-col-btn" data-set-id="${setData.id}" title="Add this set to a collection" style="margin-left:.5rem;vertical-align:middle;font-size:.8rem">+ Collection</button>` : ""}
     </h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
     ${transRows.length ? `
@@ -5504,6 +5583,37 @@ function openFullSetModal(setData, opts = {}) {
   // ── Drag-and-drop reordering for track list ──────────────────────────────
   {
     const trackList = modalContent.querySelector(".set-track-list");
+
+    // Polish patch 16 May: wire up per-tune repeats controls in track list
+    if (trackList && setData.id) {
+      trackList.querySelectorAll(".set-track-repeats-up, .set-track-repeats-down")
+        .forEach(btn => {
+          btn.addEventListener("click", async (ev) => {
+            ev.stopPropagation();
+            const tuneId = btn.dataset.tuneId;
+            const setId  = btn.dataset.setId;
+            const row = btn.closest(".set-track-item");
+            let n = Number(row.dataset.repeats) || 2;
+            n += btn.classList.contains("set-track-repeats-up") ? 1 : -1;
+            n = Math.max(1, Math.min(3, n));
+            row.dataset.repeats = n;
+            row.querySelector(".set-track-repeats-value").textContent = "× " + n;
+            row.querySelector(".set-track-repeats-down").disabled = (n <= 1);
+            row.querySelector(".set-track-repeats-up").disabled   = (n >= 3);
+            const tuneInList = tunes.find(t => String(t.id) === String(tuneId));
+            if (tuneInList) tuneInList.repeats = n;
+            try {
+              await apiFetch(`/api/sets/${setId}/tunes/${tuneId}/repeats`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ repeats: n }),
+              });
+            } catch (e) {
+              console.warn("Failed to save repeat count:", e);
+            }
+          });
+        });
+    }
     function _reorderSetSheetMusic(orderedTunes) {
       const twAbc = orderedTunes.filter(t => t.abc);
       if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
@@ -5667,6 +5777,24 @@ function openFullSetModal(setData, opts = {}) {
           renderModal(tuneData, () => openFullSetModal(setData));
         } catch (e) { console.warn("Failed to open tune from set", e); }
       });
+    });
+  }
+
+  // Polish patch 16 May: wire in-modal "+ Collection" button
+  const _setAddColBtn = document.getElementById("full-set-add-col-btn");
+  if (_setAddColBtn) {
+    _setAddColBtn.addEventListener("click", () => {
+      // The sets list has a hidden handler we can trigger by synthesising
+      // a click on the matching .set-add-col-btn for this set.
+      const setId = String(setData.id);
+      const orig = document.querySelector(
+        `.set-add-col-btn[data-set-id="${setId}"]:not(#full-set-add-col-btn)`
+      );
+      if (orig) {
+        orig.click();
+      } else {
+        alert("Couldn't open the collection picker — please return to the Sets list.");
+      }
     });
   }
 
@@ -6338,7 +6466,7 @@ function renderSets(sets) {
       </div>`;
     }
     return `
-    <div class="set-card" data-set-id="${s.id}" data-favourite="${s.is_favourite || 0}" data-rating="${rating}">
+    <div class="set-card" data-set-id="${s.id}" data-favourite="${s.is_favourite || 0}" data-hitlist="${s.on_hitlist || 0}" data-rating="${rating}">
       <div class="set-card-header">
         <div class="set-card-info">
           <span class="set-name">${escHtml(s.name)}</span>
@@ -6348,6 +6476,8 @@ function renderSets(sets) {
         <div class="set-card-actions">
           <button class="set-fav-btn${s.is_favourite ? " active" : ""}" data-set-id="${s.id}"
                   title="${s.is_favourite ? "Remove from favourites" : "Add to favourites"}">👍</button>
+          <button class="set-hitlist-btn set-fav-btn${s.on_hitlist ? " active" : ""}" data-set-id="${s.id}"
+                  title="${s.on_hitlist ? "Remove from hitlist" : "Add to hitlist"}">📌</button>
           <button class="set-add-col-btn btn-collection btn-sm" data-set-id="${s.id}" title="Add to collection">+ Collection</button>
           <button class="btn-secondary set-expand-btn" data-set-id="${s.id}">View</button>
           <button class="btn-secondary set-music-btn" data-set-id="${s.id}" title="View full set sheet music">Sheet music</button>
@@ -6819,7 +6949,31 @@ function renderSets(sets) {
     });
   });
 
-  setsList.querySelectorAll(".set-fav-btn").forEach(btn => {
+  // Polish patch 16 May: hitlist toggle (desktop set card)
+  setsList.querySelectorAll(".set-hitlist-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const card = btn.closest(".set-card");
+      const setId = btn.dataset.setId;
+      const on_hitlist = btn.classList.contains("active") ? 0 : 1;
+      try {
+        await apiFetch(`/api/sets/${setId}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ on_hitlist }),
+        });
+        btn.classList.toggle("active", Boolean(on_hitlist));
+        btn.title = on_hitlist ? "Remove from hitlist" : "Add to hitlist";
+        if (card) card.dataset.hitlist = on_hitlist;
+        const ls = state.sets.find(s => String(s.id) === String(setId));
+        if (ls) ls.on_hitlist = on_hitlist;
+        _applySetsQuickFilter();
+      } catch {
+        alert("Failed to update hitlist.");
+      }
+    });
+  });
+
+  setsList.querySelectorAll(".set-fav-btn:not(.set-hitlist-btn):not(.col-fav-btn):not(.col-hitlist-btn)").forEach(btn => {
     btn.addEventListener("click", async () => {
       const card = btn.closest(".set-card");
       const setId = btn.dataset.setId;
@@ -7276,6 +7430,7 @@ function renderSets(sets) {
         row.dataset.favourite = is_favourite;
         const ls = state.sets.find(s => String(s.id) === String(setId));
         if (ls) ls.is_favourite = is_favourite;
+        _applySetsQuickFilter();
       } catch {
         alert("Failed to update favourite. Please try again.");
       }
@@ -7299,11 +7454,15 @@ function renderSets(sets) {
         row.dataset.hitlist = on_hitlist;
         const ls = state.sets.find(s => String(s.id) === String(setId));
         if (ls) ls.on_hitlist = on_hitlist;
+        _applySetsQuickFilter();
       } catch {
         alert("Failed to update hitlist. Please try again.");
       }
     });
   });
+
+  // Polish patch 16 May: reapply quick filter on every render
+  _applySetsQuickFilter();
 
   // Mobile rows: delete-set button (added cluster B patch 1, 11 May 2026)
   setsList.querySelectorAll(".m-set-delete-btn").forEach(btn => {
@@ -7358,7 +7517,7 @@ function renderCollections(collections) {
     if (c.set_count)  parts.push(`${c.set_count} set${c.set_count !== 1 ? "s" : ""}`);
     const countLabel = parts.join(", ") || "empty";
     return `
-    <div class="set-card" data-col-id="${c.id}">
+    <div class="set-card" data-col-id="${c.id}" data-favourite="${c.is_favourite ? 1 : 0}" data-hitlist="${c.on_hitlist ? 1 : 0}">
       <div class="set-card-header">
         <div class="set-card-info">
           <span class="set-name col-name-link" data-col-id="${c.id}" style="cursor:pointer;text-decoration:underline dotted">${escHtml(c.name)}</span>
@@ -7366,6 +7525,10 @@ function renderCollections(collections) {
           <span class="set-count">${countLabel}</span>
         </div>
         <div class="set-card-actions">
+          <button class="col-fav-btn set-fav-btn${c.is_favourite ? " active" : ""}" data-col-id="${c.id}"
+                  title="${c.is_favourite ? "Remove from favourites" : "Add to favourites"}">👍</button>
+          <button class="col-hitlist-btn set-fav-btn${c.on_hitlist ? " active" : ""}" data-col-id="${c.id}"
+                  title="${c.on_hitlist ? "Remove from hitlist" : "Add to hitlist"}">📌</button>
 
           <div class="library-menu-wrap">
             <button class="btn-icon col-menu-btn" data-col-id="${c.id}" title="Options">⋯</button>
@@ -7384,6 +7547,41 @@ function renderCollections(collections) {
     </div>`;
   }).join("");
   
+  // Wire favourite/hitlist toggles on collection cards (polish patch 16 May)
+  function _wireColToggle(selector, field) {
+    collectionsList.querySelectorAll(selector).forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const card = btn.closest(".set-card");
+        const colId = btn.dataset.colId;
+        const newVal = btn.classList.contains("active") ? 0 : 1;
+        try {
+          await apiFetch(`/api/collections/${colId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ [field]: newVal }),
+          });
+          btn.classList.toggle("active", Boolean(newVal));
+          if (field === "is_favourite") {
+            btn.title = newVal ? "Remove from favourites" : "Add to favourites";
+            if (card) card.dataset.favourite = newVal;
+          } else {
+            btn.title = newVal ? "Remove from hitlist" : "Add to hitlist";
+            if (card) card.dataset.hitlist = newVal;
+          }
+          const lc = (state.collections || []).find(c => String(c.id) === String(colId));
+          if (lc) lc[field] = newVal;
+          // Re-apply quick filter if active
+          _applyCollectionsQuickFilter();
+        } catch {
+          alert(`Failed to update ${field === "is_favourite" ? "favourite" : "hitlist"}.`);
+        }
+      });
+    });
+  }
+  _wireColToggle(".col-fav-btn", "is_favourite");
+  _wireColToggle(".col-hitlist-btn", "on_hitlist");
+
   // Wire collection name click → view
   collectionsList.querySelectorAll(".col-name-link").forEach(link => {
     link.addEventListener("click", () => {
@@ -7430,6 +7628,9 @@ function renderCollections(collections) {
   document.addEventListener("click", () => {
     document.querySelectorAll(".col-options-menu").forEach(m => m.classList.add("hidden"));
   }, { once: false, capture: false });
+
+  // Polish patch 16 May: reapply collections quick filter
+  _applyCollectionsQuickFilter();
 
   collectionsList.querySelectorAll(".col-expand-btn").forEach(btn => {
     btn.addEventListener("click", async () => {

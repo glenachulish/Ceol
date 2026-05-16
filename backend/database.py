@@ -89,11 +89,13 @@ CREATE TABLE IF NOT EXISTS tune_tags (
 
 -- Collections: thematic groupings of tunes (many-to-many)
 CREATE TABLE IF NOT EXISTS collections (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT NOT NULL,
-    description TEXT,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_starter  INTEGER NOT NULL DEFAULT 0  -- 16 May 2026
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL,
+    description  TEXT,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_starter   INTEGER NOT NULL DEFAULT 0,  -- 16 May 2026
+    is_favourite INTEGER NOT NULL DEFAULT 0,  -- 16 May 2026 polish
+    on_hitlist   INTEGER NOT NULL DEFAULT 0   -- 16 May 2026 polish
 );
 
 CREATE TABLE IF NOT EXISTS collection_tunes (
@@ -223,6 +225,24 @@ def _migrate(conn: sqlite3.Connection) -> None:
             )
     except Exception as e:
         print(f"[Ceol] tunes.seeded_from_collection_id migration warning: {e}")
+
+    # Polish patch (16 May 2026): collections get hitlist + favourite.
+    try:
+        cols = {row[1] for row in conn.execute(
+            "PRAGMA table_info(collections)"
+        ).fetchall()}
+        if "is_favourite" not in cols:
+            conn.execute(
+                "ALTER TABLE collections ADD COLUMN is_favourite "
+                "INTEGER NOT NULL DEFAULT 0"
+            )
+        if "on_hitlist" not in cols:
+            conn.execute(
+                "ALTER TABLE collections ADD COLUMN on_hitlist "
+                "INTEGER NOT NULL DEFAULT 0"
+            )
+    except Exception as e:
+        print(f"[Ceol] collections.is_favourite/on_hitlist migration warning: {e}")
     """Apply incremental migrations for existing databases."""
     existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(tunes)").fetchall()}
     if "imported_at" not in existing_cols:

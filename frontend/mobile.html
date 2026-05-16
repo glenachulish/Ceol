@@ -125,6 +125,10 @@
         <button id="new-set-btn" class="btn-set">+ New Set</button>
         <button id="build-set-btn" class="btn-set" title="Build a set using Circle of Fifths, compatible keys, or other templates to find tunes that flow well together">🎵 Build a Set</button>
       </div>
+      <div class="m-quick-filters">
+        <button id="sets-quick-fav-btn" class="btn-secondary btn-sm quick-filter-btn" data-filter="fav" title="Show favourite sets">👍 Favs</button>
+        <button id="sets-quick-hitlist-btn" class="btn-secondary btn-sm quick-filter-btn" data-filter="hitlist" title="Show hitlist sets">📌 Hitlist</button>
+      </div>
       <div id="new-set-form" class="new-set-form hidden">
         <input id="new-set-name" type="text" placeholder="Set name…" maxlength="120" />
         <input id="new-set-notes" type="text" placeholder="Notes (optional)…" />
@@ -150,6 +154,10 @@
         <input id="collections-search" type="search" class="view-search-input" placeholder="Search collections…" autocomplete="off">
         <button id="new-collection-btn" class="btn-collection">+ New Collection</button>
         <button id="discography-btn" class="btn-secondary">🎵 Build from Discography</button>
+      </div>
+      <div class="m-quick-filters">
+        <button id="cols-quick-fav-btn" class="btn-secondary btn-sm quick-filter-btn" data-filter="fav" title="Show favourite collections">👍 Favs</button>
+        <button id="cols-quick-hitlist-btn" class="btn-secondary btn-sm quick-filter-btn" data-filter="hitlist" title="Show hitlist collections">📌 Hitlist</button>
       </div>
       <!-- Discography scanner panel -->
       <div id="discography-panel" class="discography-panel hidden">
@@ -301,6 +309,7 @@
         <button id="m-nav-achievements-btn" class="m-menu-item m-menu-view-btn" data-view="achievements">⭐ Achievements</button>
         <hr class="m-menu-divider" />
         <button id="m-help-btn" class="m-menu-item">? Help</button>
+        <button id="m-admin-btn" class="m-menu-item" hidden>🔧 Admin</button>
         <hr class="m-menu-divider" />
         <span class="m-menu-section-label">Database</span>
         <button id="m-backup-btn" class="m-menu-item">📤 Export</button>

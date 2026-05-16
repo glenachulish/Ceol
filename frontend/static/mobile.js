@@ -277,7 +277,20 @@
   });
 
   _menuDelegate("m-info-btn",       "info-btn");
-  _menuDelegate("m-help-btn",       "help-btn");
+  // m-help-btn: take the user to the /help reference guide
+  const _helpBtn = document.getElementById("m-help-btn");
+  if (_helpBtn) {
+    _helpBtn.addEventListener("click", () => {
+      window.location.href = "/help";
+    });
+  }
+  // m-admin-btn: shown only when state.isAdmin is true (set after boot)
+  const _adminBtn = document.getElementById("m-admin-btn");
+  if (_adminBtn) {
+    _adminBtn.addEventListener("click", () => {
+      window.location.href = "/admin";
+    });
+  }
   _menuDelegate("m-backup-btn",     "library-backup-btn");
   
   // Import nav button → open the tune import overlay directly

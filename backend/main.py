@@ -1027,6 +1027,28 @@ def toggle_starter_collection(col_id: int,
     return {"ok": True, "is_starter": bool(body.is_starter)}
 
 
+class _CollectionUpdate(BaseModel):
+    is_favourite: Optional[int] = None
+    on_hitlist:   Optional[int] = None
+
+
+@app.patch("/api/collections/{col_id}")
+def update_collection(col_id: int, body: _CollectionUpdate):
+    """Toggle is_favourite or on_hitlist on a collection (16 May polish)."""
+    fields = {k: int(bool(v)) for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(400, "No fields to update")
+    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    values = list(fields.values()) + [col_id]
+    with _db() as conn:
+        cur = conn.execute(
+            f"UPDATE collections SET {set_clause} WHERE id = ?", values
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Collection not found")
+    return {"ok": True, **fields}
+
+
 @app.post("/api/admin/seed-existing-users")
 def admin_seed_existing_users(request: Request):
     """Backfill: seed every existing non-admin user with the current
@@ -2732,7 +2754,9 @@ class CollectionTuneAdd(BaseModel):
 def list_collections():
     with _db() as conn:
         rows = conn.execute(
-            "SELECT id, name, description, created_at FROM collections ORDER BY name COLLATE NOCASE"
+            "SELECT id, name, description, created_at, "
+            "is_starter, is_favourite, on_hitlist "
+            "FROM collections ORDER BY name COLLATE NOCASE"
         ).fetchall()
         result = []
         for r in rows:
