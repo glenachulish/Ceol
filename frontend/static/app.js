@@ -63,7 +63,10 @@ function _applySetsQuickFilter() {
     let show = true;
     if (f === "fav")    show = el.dataset.favourite === "1";
     if (f === "hitlist") show = el.dataset.hitlist === "1";
-    el.toggleAttribute("hidden", !show);
+    // Use inline display rather than the [hidden] attribute:
+    // .m-set-row has `display: flex` in mobile.css which
+    // overrides the browser default `[hidden] { display: none }`.
+    el.style.display = show ? "" : "none";
   });
   // Reflect active state on buttons
   const favBtn = document.getElementById("sets-quick-fav-btn");
