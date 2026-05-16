@@ -2360,8 +2360,8 @@ def update_set_tune_repeats(set_id: int, tune_id: int, body: SetTuneRepeats):
     feature lands.
     """
     n = int(body.repeats)
-    if n < 1 or n > 9:
-        raise HTTPException(400, "Repeats must be between 1 and 9.")
+    if n < 1 or n > 3:
+        raise HTTPException(400, "Repeats must be between 1 and 3.")
     with _db() as conn:
         cur = conn.execute(
             "UPDATE set_tunes SET repeats = ? "

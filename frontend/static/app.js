@@ -5245,7 +5245,7 @@ function buildCombinedPlaybackAbcWithRanges(tunes) {
     // Per-tune repeats: replay the body N times (default 2). Joined
     // with " " so two repeats don't accidentally fuse the last bar
     // of repeat 1 with the first bar of repeat 2.
-    const n = Number.isFinite(t.repeats) && t.repeats >= 1 ? Math.min(9, t.repeats) : 2;
+    const n = Number.isFinite(t.repeats) && t.repeats >= 1 ? Math.min(3, t.repeats) : 2;
     const repeatedBody = Array(n).fill(body).join(' ');
     const start = header.length + combined.length + prefix.length + titleLine.length;
     tuneRanges.push({ start, end: start + repeatedBody.length });
@@ -6391,7 +6391,7 @@ function renderSets(sets) {
         <span class="set-tune-repeats" title="How many times this tune plays through when the set plays">
           <button class="set-tune-repeats-down btn-icon" data-tune-id="${t.id}" data-set-id="${id}" ${repeats <= 1 ? "disabled" : ""}>−</button>
           <span class="set-tune-repeats-value" data-tune-id="${t.id}">× ${repeats}</span>
-          <button class="set-tune-repeats-up btn-icon" data-tune-id="${t.id}" data-set-id="${id}" ${repeats >= 9 ? "disabled" : ""}>+</button>
+          <button class="set-tune-repeats-up btn-icon" data-tune-id="${t.id}" data-set-id="${id}" ${repeats >= 3 ? "disabled" : ""}>+</button>
         </span>`;
       return `
       <div class="set-tune-row" data-tune-id="${t.id}" data-repeats="${repeats}">
@@ -6420,11 +6420,11 @@ function renderSets(sets) {
           const row = btn.closest(".set-tune-row");
           let n = Number(row.dataset.repeats) || 2;
           n += btn.classList.contains("set-tune-repeats-up") ? 1 : -1;
-          n = Math.max(1, Math.min(9, n));
+          n = Math.max(1, Math.min(3, n));
           row.dataset.repeats = n;
           row.querySelector(".set-tune-repeats-value").textContent = "× " + n;
           row.querySelector(".set-tune-repeats-down").disabled = (n <= 1);
-          row.querySelector(".set-tune-repeats-up").disabled   = (n >= 9);
+          row.querySelector(".set-tune-repeats-up").disabled   = (n >= 3);
           // Update the in-memory tune object so the next playback
           // build sees the new count without needing a server round-trip.
           const tuneInList = tunes.find(t => String(t.id) === String(tuneId));
