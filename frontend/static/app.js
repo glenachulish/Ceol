@@ -14453,6 +14453,15 @@ function _renderPlaylistDetail(pl) {
     <div class="playlist-detail-summary">
       ${pl.sets.length} set${pl.sets.length === 1 ? "" : "s"}
       ${pl.sets.length ? `· ${playableCount} ready to play` : ""}
+      ${(() => {
+        if (!pl.sets.length) return "";
+        const needs = pl.sets.filter(s => !s.rendered_audio_at).length;
+        const stale = pl.sets.filter(s => s.rendered_audio_at && s.rendered_audio_out_of_date).length;
+        const parts = [];
+        if (needs) parts.push(`${needs} need${needs === 1 ? "s" : ""} rendering`);
+        if (stale) parts.push(`${stale} out of date`);
+        return parts.length ? `· ${parts.join(" · ")}` : "";
+      })()}
     </div>
     <div class="playlist-detail-actions">
       <button id="playlist-play-btn" class="btn-primary" ${playableCount ? "" : "disabled"} title="${playableCount ? "Start the playlist player" : "Render at least one set's audio first"}">▶ Play playlist</button>
@@ -14535,24 +14544,58 @@ function _renderPlaylistDetail(pl) {
 }
 
 // --- "+ Add a set" picker ------------------------------------------
-async function _openAddSetToPlaylistPicker(pl) {
-  await fetchSets();  // ensures state.sets is populated
-  const memberIds = new Set(pl.sets.map(s => String(s.id)));
-  const rows = (state.sets || []).map(s => {
-    const already = memberIds.has(String(s.id));
-    return `
-      <button class="set-picker-row${already ? " picker-row-member" : ""}" data-set-id="${s.id}">
+// Phase 2 polish (17 May 2026): "+ Add a set" picker now shows render
+// status (Ready / Out of date / Needs rendering) and a "🎵 Render"
+// button on every unrendered or stale row, so you can fix the
+// playlist's render state without leaving the picker.
+
+// Module-scope lock — only one render at a time (window.abcjsAudioContext
+// is shared). When _renderLock is non-null, all other Render buttons
+// in the picker are disabled.
+let _pickerRenderLock = null;
+
+function _setPickerBadge(s) {
+  if (!s.rendered_audio_at) {
+    return '<span class="playlist-needs-render picker-badge">🎵 Needs rendering</span>';
+  } else if (s.rendered_audio_out_of_date) {
+    return '<span class="playlist-stale picker-badge">⚠ Out of date</span>';
+  }
+  return '<span class="playlist-ready picker-badge">✓ Ready</span>';
+}
+
+function _pickerRowHtml(s, already) {
+  const needsRender = !s.rendered_audio_at || s.rendered_audio_out_of_date;
+  const renderBtn = needsRender
+    ? `<button class="picker-row-render-btn" data-set-id="${s.id}" title="${s.rendered_audio_at ? "Re-render this set" : "Render this set for offline playback"}">🎵 ${s.rendered_audio_at ? "Re-render" : "Render"}</button>`
+    : "";
+  return `
+    <div class="set-picker-row${already ? " picker-row-member" : ""}" data-set-id="${s.id}">
+      <div class="set-picker-main">
         <span class="set-picker-name">${escHtml(s.name)}</span>
         <span class="set-picker-count">${s.tune_count || 0} tune${s.tune_count !== 1 ? "s" : ""}</span>
-        ${already ? '<span class="picker-member-tick" title="Already in playlist">✓</span>' : '<span class="set-picker-arrow">＋</span>'}
-      </button>`;
-  }).join("");
+        ${_setPickerBadge(s)}
+        ${already ? '<span class="picker-member-tick" title="Already in playlist">✓ in playlist</span>' : '<span class="set-picker-arrow">＋</span>'}
+      </div>
+      ${renderBtn ? `<div class="set-picker-actions">${renderBtn}<span class="picker-row-progress hidden" data-set-id="${s.id}"></span></div>` : ""}
+    </div>`;
+}
+
+async function _openAddSetToPlaylistPicker(pl) {
+  await fetchSets();  // ensures state.sets is populated (includes render fields)
+  const memberIds = new Set(pl.sets.map(s => String(s.id)));
+  const rows = (state.sets || []).map(s => _pickerRowHtml(s, memberIds.has(String(s.id)))).join("");
+
+  const needsCount = (state.sets || []).filter(s => !s.rendered_audio_at).length;
+  const staleCount = (state.sets || []).filter(s => s.rendered_audio_at && s.rendered_audio_out_of_date).length;
+  const hint = needsCount || staleCount
+    ? `Tap a set to add it, or tap 🎵 Render to prepare its offline audio first.`
+    : `Tap a set to add it.`;
 
   modalContent.innerHTML = `
     <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="picker-back-btn">← Back</button>
     <h2 class="modal-title">Add a set to "${escHtml(pl.name)}"</h2>
-    <p class="modal-hint">Tap a set to add it.</p>
-    <div class="set-picker-list">${rows || '<p class="modal-hint">No sets in your library yet.</p>'}</div>`;
+    <p class="modal-hint">${hint}</p>
+    <div class="set-picker-list set-picker-list-v2">${rows || '<p class="modal-hint">No sets in your library yet.</p>'}</div>`;
 
   document.getElementById("modal-overlay")?.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -14564,13 +14607,17 @@ async function _openAddSetToPlaylistPicker(pl) {
   };
   document.getElementById("picker-back-btn").addEventListener("click", close);
 
-  modalContent.querySelectorAll(".set-picker-row").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const sid = parseInt(btn.dataset.setId, 10);
-      if (btn.classList.contains("picker-row-member")) {
+  // Add-set click on main area (not on the render button)
+  modalContent.querySelectorAll(".set-picker-row .set-picker-main").forEach(main => {
+    main.addEventListener("click", async () => {
+      const row = main.closest(".set-picker-row");
+      const sid = parseInt(row.dataset.setId, 10);
+      if (row.classList.contains("picker-row-member")) {
         close();
         return;
       }
+      // Defensive: don't add while a render is mid-flight (the modal would close).
+      if (_pickerRenderLock) return;
       try {
         await apiAddPlaylistItem(pl.id, sid);
         close();
@@ -14579,6 +14626,109 @@ async function _openAddSetToPlaylistPicker(pl) {
       }
     });
   });
+
+  // Render-now button click
+  modalContent.querySelectorAll(".picker-row-render-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const sid = parseInt(btn.dataset.setId, 10);
+      await _renderSetFromPickerRow(sid, pl);
+    });
+  });
+}
+
+async function _renderSetFromPickerRow(setId, pl) {
+  if (_pickerRenderLock) {
+    alert("A render is already in progress. Please wait for it to finish.");
+    return;
+  }
+  _pickerRenderLock = setId;
+  const allRenderBtns = modalContent.querySelectorAll(".picker-row-render-btn");
+  allRenderBtns.forEach(b => {
+    if (parseInt(b.dataset.setId, 10) !== setId) b.disabled = true;
+  });
+  const myBtn = modalContent.querySelector(`.picker-row-render-btn[data-set-id="${setId}"]`);
+  const progEl = modalContent.querySelector(`.picker-row-progress[data-set-id="${setId}"]`);
+  if (myBtn) { myBtn.disabled = true; myBtn.textContent = "Rendering…"; }
+  if (progEl) { progEl.classList.remove("hidden"); progEl.textContent = "0%"; }
+
+  try {
+    // 1. Fetch full set data (with tunes + abc + repeats)
+    const setData = await apiGetSet(setId);
+
+    // 2. Render to MP3 via the Phase 1 pipeline
+    const blob = await _renderSetMp3(setData, p => {
+      if (progEl) progEl.textContent = `${Math.round((p.pct || 0) * 100)}%`;
+      if (myBtn)  myBtn.textContent = `Rendering ${Math.round((p.pct || 0) * 100)}%`;
+    });
+
+    // 3. Upload
+    if (progEl) progEl.textContent = "Uploading…";
+    const fd = new FormData();
+    fd.append("file", blob, `set-${setId}.mp3`);
+    const r = await fetch(`/api/sets/${setId}/rendered-audio`, {
+      method: "POST", credentials: "include", body: fd,
+    });
+    if (!r.ok) {
+      let detail = ""; try { detail = (await r.json()).detail || ""; } catch {}
+      throw new Error(detail || `Upload failed (${r.status})`);
+    }
+    const data = await r.json();
+
+    // 4. Update the row in-place: flip badge to ✓ Ready, hide render button.
+    const row = modalContent.querySelector(`.set-picker-row[data-set-id="${setId}"]`);
+    if (row) {
+      // Update local state for any subsequent picker logic
+      const local = (state.sets || []).find(s => s.id === setId);
+      if (local) {
+        local.rendered_audio_at = data.rendered_audio_at;
+        local.rendered_audio_out_of_date = false;
+      }
+      // Also update the playlist's view of the set, if it's a member
+      const inPl = pl.sets.find(s => s.id === setId);
+      if (inPl) {
+        inPl.rendered_audio_at = data.rendered_audio_at;
+        inPl.rendered_audio_out_of_date = false;
+      }
+      // Re-render this row's HTML inline
+      const already = row.classList.contains("picker-row-member");
+      const tmp = document.createElement("div");
+      tmp.innerHTML = _pickerRowHtml(local || { id: setId, name: setData.name, tune_count: setData.tunes?.length || 0, rendered_audio_at: data.rendered_audio_at, rendered_audio_out_of_date: false }, already).trim();
+      const fresh = tmp.firstChild;
+      row.replaceWith(fresh);
+      // Re-wire new row's click handlers
+      fresh.querySelector(".set-picker-main")?.addEventListener("click", async () => {
+        if (fresh.classList.contains("picker-row-member")) {
+          document.getElementById("modal-overlay")?.classList.add("hidden");
+          document.body.style.overflow = "";
+          _openPlaylistDetail(pl.id);
+          return;
+        }
+        if (_pickerRenderLock) return;
+        try {
+          await apiAddPlaylistItem(pl.id, setId);
+          document.getElementById("modal-overlay")?.classList.add("hidden");
+          document.body.style.overflow = "";
+          _openPlaylistDetail(pl.id);
+        } catch (err) {
+          alert("Add failed: " + (err.message || err));
+        }
+      });
+    }
+  } catch (err) {
+    console.error("[picker-render]", err);
+    if (myBtn) {
+      myBtn.disabled = false;
+      myBtn.textContent = "⚠ Retry render";
+      myBtn.title = err.message || String(err);
+    }
+    if (progEl) progEl.textContent = "";
+  } finally {
+    _pickerRenderLock = null;
+    // Re-enable all the other render buttons. (The just-rendered row no
+    // longer has one, since the row got swapped out for a fresh ✓ Ready.)
+    modalContent.querySelectorAll(".picker-row-render-btn").forEach(b => { b.disabled = false; });
+  }
 }
 
 // --- Player ---------------------------------------------------------

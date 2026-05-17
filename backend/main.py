@@ -2580,9 +2580,14 @@ class SetReorder(BaseModel):
 
 @app.get("/api/sets")
 def list_sets():
+    # Phase 2 polish (17 May 2026): list_sets includes rendered_audio_at
+    # and rendered_audio_out_of_date so the "+ Add a set" picker can
+    # show render status badges without needing a per-set extra fetch.
     with _db() as conn:
         rows = conn.execute(
-            "SELECT id, name, notes, is_favourite, rating, on_hitlist, created_at FROM sets ORDER BY name COLLATE NOCASE"
+            "SELECT id, name, notes, is_favourite, rating, on_hitlist, "
+            "created_at, rendered_audio_at, rendered_audio_hash "
+            "FROM sets ORDER BY name COLLATE NOCASE"
         ).fetchall()
         result = []
         for r in rows:
@@ -2590,6 +2595,13 @@ def list_sets():
             s["tune_count"] = conn.execute(
                 "SELECT COUNT(*) FROM set_tunes WHERE set_id = ?", (s["id"],)
             ).fetchone()[0]
+            current_hash = _compute_set_audio_hash(conn, s["id"])
+            s["rendered_audio_out_of_date"] = bool(
+                s.get("rendered_audio_at") and s.get("rendered_audio_hash")
+                and s["rendered_audio_hash"] != current_hash
+            )
+            # Internal-only: don't ship the hash bytes to clients.
+            s.pop("rendered_audio_hash", None)
             result.append(s)
     return result
 
