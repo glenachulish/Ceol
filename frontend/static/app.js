@@ -3592,119 +3592,14 @@ function _buildBarMap() {
     }
   }
 
-  // PATCH-E2: whenever _barMap is built, repaint tap targets so they're
-  // always in sync with the current visible structure (resize, transpose,
-  // tune change, etc).  Defer one frame to let any in-progress layout
-  // settle before measuring bounding boxes.
-  if (typeof _drawTapTargets === "function" && result.length) {
-    requestAnimationFrame(() => _drawTapTargets("sheet-music-render", result));
-  }
-
   return result;
 }
 
 // Direct DOM click handler: identify the bar by finding the abcjs-mN class
 // and the specific abcjs-staff-wrapper DOM element, then look both up in the
 // bar map by object identity (not class name).
-// ── PATCH-E2-17MAY2026-TAP-TARGETS: bigger tap targets per bar ─────────────
-// Paints one invisible <rect> per bar in barMap.  Each rect spans the bar's
-// bounding box plus the wrapper's full height so the user can tap anywhere
-// within the bar's area — including whitespace above/below the stave —
-// and register a click on that bar.  Rect sits BEFORE the wrapper's
-// existing children in the SVG, so it paints behind the staff and notes,
-// but with pointer-events:visible it still catches clicks.  Each rect
-// carries data-bar-idx so the click handler can route directly without
-// walking ancestor classes.
-function _drawTapTargets(containerId, barMap) {
-  const root = document.getElementById(containerId);
-  if (!root) return;
-  // Remove any old tap targets (e.g. from previous render pass)
-  root.querySelectorAll(".bar-tap-target").forEach(el => el.remove());
-  if (!barMap || !barMap.length) return;
-
-  // Group bars by wrapper for batched coordinate-math.
-  const byWrapper = new Map();
-  barMap.forEach(({ wrapper, measure }, globalIdx) => {
-    if (!byWrapper.has(wrapper)) byWrapper.set(wrapper, []);
-    byWrapper.get(wrapper).push({ measure, globalIdx });
-  });
-
-  for (const [wrapper, bars] of byWrapper) {
-    const svgRoot = wrapper.ownerSVGElement || wrapper.closest("svg");
-    if (!svgRoot) continue;
-    const ctm = wrapper.getScreenCTM && wrapper.getScreenCTM();
-    if (!ctm) continue;
-    let inv;
-    try { inv = ctm.inverse(); } catch (_e) { continue; }
-
-    const wbox = wrapper.getBoundingClientRect();
-    if (!wbox || (wbox.width === 0 && wbox.height === 0)) continue;
-
-    for (const { measure, globalIdx } of bars) {
-      // Bar's horizontal extent: union of all elements with .abcjs-mN class
-      // inside the wrapper.  Includes notes, stems, beams, and the closing
-      // barline — so the tap area extends right up to the bar boundary.
-      let scrLeft = Infinity, scrRight = -Infinity;
-      for (const el of wrapper.querySelectorAll(`.abcjs-m${measure}`)) {
-        const r = el.getBoundingClientRect();
-        if (r.width === 0 && r.height === 0) continue;
-        scrLeft  = Math.min(scrLeft,  r.left);
-        scrRight = Math.max(scrRight, r.right);
-      }
-      if (!isFinite(scrLeft) || !isFinite(scrRight)) continue;
-
-      // Map screen-space → SVG local coords via the inverse CTM.
-      // Vertical extent: full wrapper height so taps above/below count.
-      const pt = svgRoot.createSVGPoint();
-      pt.x = scrLeft;  pt.y = wbox.top;    const tl = pt.matrixTransform(inv);
-      pt.x = scrRight; pt.y = wbox.bottom; const br = pt.matrixTransform(inv);
-
-      const x = Math.min(tl.x, br.x);
-      const y = Math.min(tl.y, br.y);
-      const w = Math.abs(br.x - tl.x);
-      const h = Math.abs(br.y - tl.y);
-      if (!(w > 0 && h > 0)) continue;
-
-      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-      rect.setAttribute("class", "bar-tap-target");
-      rect.setAttribute("x", x);
-      rect.setAttribute("y", y);
-      rect.setAttribute("width",  w);
-      rect.setAttribute("height", h);
-      rect.setAttribute("data-bar-idx", String(globalIdx));
-      // Paint first (behind notes) but still catch clicks.
-      wrapper.insertBefore(rect, wrapper.firstChild);
-    }
-  }
-}
-// ── END PATCH-E2 additions ─────────────────────────────────────────────────
-
 function _sheetMusicClickHandler(e) {
   const container = document.getElementById("sheet-music-render");
-
-  // PATCH-E2: fast-path for invisible tap targets.  If the click landed
-  // on one, route straight to _onMeasureClicked using the bar idx stored
-  // in data-bar-idx; no ancestor-class walking needed.
-  {
-    let cur = e.target;
-    while (cur && cur !== container) {
-      if (cur.classList && cur.classList.contains("bar-tap-target")) {
-        const idxStr = cur.getAttribute("data-bar-idx");
-        const idx = idxStr === null ? -1 : parseInt(idxStr, 10);
-        if (idx >= 0 && _barMap[idx]) {
-          if (_highlightMode) {
-            _tuneHighlights.has(idx) ? _tuneHighlights.delete(idx) : _tuneHighlights.add(idx);
-            _applyHighlights();
-            _saveHighlights();
-          } else {
-            _onMeasureClicked(idx);
-          }
-        }
-        return;
-      }
-      cur = cur.parentElement;
-    }
-  }
 
   // Walk up to find abcjs-mN, ignoring barline elements (: repeat signs etc.)
   let measure = null;
@@ -4324,7 +4219,6 @@ function renderSheetMusic(abc, opts = {}) {
     // Re-apply persistent highlights after render
     requestAnimationFrame(() => {
       _barMap = _buildBarMap();
-      _drawTapTargets("sheet-music-render", _barMap);   // PATCH-E2
       _applyHighlights();
     });
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
