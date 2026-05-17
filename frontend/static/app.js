@@ -4170,7 +4170,23 @@ function renderSheetMusic(abc, opts = {}) {
       _hiddenDiv.style.cssText = "position:absolute;left:-9999px;width:800px;height:1px;overflow:hidden;pointer-events:none;";
       document.body.appendChild(_hiddenDiv);
     }
-    const _hiddenObjs = ABCJS.renderAbc("sheet-music-render-hidden", _processedAbc, { add_classes: true, staffwidth: 800, visualTranspose: _xposeN });
+    // PATCH-D-17MAY2026-ALIGN-HIDDEN-RENDER: use the SAME staffwidth and wrap
+    // as the visible render below.  Without this, the two renders break lines
+    // differently on narrow viewports (phone), the wrapper-count guard in
+    // _buildBarTimingMap bails out, the timing map stays empty, and
+    // _seekToBar falls back to a linear estimate that plays the wrong bars.
+    // The hidden render's only job is to feed the synth a visualObj with
+    // correct MIDI timing; its visual layout doesn't matter to the user,
+    // but matching the visible layout makes every downstream wrapper-by-
+    // position lookup (note highlights, bar timings) just work.
+    const _alignedStaffwidth = (typeof _staffwidthFor === 'function' ? _staffwidthFor("sheet-music-render") : 700);
+    const _alignedMeasuresPerLine = (typeof _measuresPerLineForSize === 'function' ? _measuresPerLineForSize() : 4);
+    const _hiddenObjs = ABCJS.renderAbc("sheet-music-render-hidden", _processedAbc, {
+      add_classes: true,
+      staffwidth: _alignedStaffwidth,
+      wrap: { preferredMeasuresPerLine: _alignedMeasuresPerLine },
+      visualTranspose: _xposeN
+    });
     if (!_hiddenObjs?.length) return;
     _visualObj = _hiddenObjs[0];
     // Use explicit staffwidth — responsive:"resize" produces 0 lines in abcjs 6.4.4
