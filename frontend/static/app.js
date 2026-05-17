@@ -3746,6 +3746,7 @@ function _updateSelectionInfo() {
 // so we use the same (wrapper, measure) key as _barMap to resolve the correct
 // global bar index.  Without this, Part B bars are misidentified as Part A.
 function _buildBarTimingMap() {
+  /* PATCH-C-17MAY2026-LOOP-SEEK-FIX */
   _barFirstMs = {};
   if (!_synthController || !_synthController.timer) return;
   const events = _synthController.timer.noteTimings;
@@ -3755,7 +3756,26 @@ function _buildBarTimingMap() {
   if (_barMap.length === 0) _barMap = _buildBarMap();
   if (!_barMap.length) return;
 
-  // Build (wrapper element, measure index) → global bar index lookup.
+  // PATCH-C: noteTimings reference elements in the HIDDEN render
+  // (#sheet-music-render-hidden), because that's the visualObj the
+  // synth was loaded with.  _barMap is built from VISIBLE wrappers
+  // only.  Build a hidden→visible wrapper map by document position so
+  // we can translate before the lookup.  Same principle as the
+  // note-level _hiddenToVis map at the render site.
+  const hiddenWrappers  = Array.from(document.querySelectorAll("#sheet-music-render-hidden .abcjs-staff-wrapper"));
+  const visibleWrappers = Array.from(document.querySelectorAll("#sheet-music-render .abcjs-staff-wrapper"));
+  const hiddenToVisibleWrapper = new Map();
+  if (hiddenWrappers.length === visibleWrappers.length) {
+    for (let k = 0; k < hiddenWrappers.length; k++) {
+      hiddenToVisibleWrapper.set(hiddenWrappers[k], visibleWrappers[k]);
+    }
+  }
+  // If counts disagree (rare abcjs edge case with very narrow modals)
+  // we fall back to identity-mapping any wrapper that's directly in the
+  // visible tree, and skip the rest.  Better an incomplete map than a
+  // wrong one — the fallback in _barMs will interpolate sensibly.
+
+  // Build (visibleWrapper, measure) → global bar index lookup.
   const wrapperMeasureToIdx = new Map();
   _barMap.forEach(({ wrapper, measure }, globalIdx) => {
     let inner = wrapperMeasureToIdx.get(wrapper);
@@ -3772,11 +3792,13 @@ function _buildBarTimingMap() {
         if (!el || !el.classList) return;
         // Walk up ancestors to find abcjs-mN (ABCJS may put it on a parent group,
         // not directly on the highlighted element).
-        const wrapper = el.closest && el.closest('.abcjs-staff-wrapper');
-        if (!wrapper) return;
+        const rawWrapper = el.closest && el.closest('.abcjs-staff-wrapper');
+        if (!rawWrapper) return;
+        // PATCH-C: translate hidden wrapper → visible wrapper
+        const wrapper = hiddenToVisibleWrapper.get(rawWrapper) || rawWrapper;
         let measure = null;
         let target = el;
-        while (target && target !== wrapper) {
+        while (target && target !== rawWrapper) {
           for (const cls of target.classList) {
             const hit = cls.match(/^abcjs-m(\d+)$/);
             if (hit) { measure = parseInt(hit[1], 10); break; }
@@ -4389,12 +4411,28 @@ function _fsBuildBarMap() {
 }
 
 function _fsBuildTimingMap() {
+  /* PATCH-C-17MAY2026-LOOP-SEEK-FIX: same hidden→visible wrapper fix
+     as the modal _buildBarTimingMap above.  For multi-tune sets the
+     hidden render contains R×tunes worth of notes (one block per
+     repeat) — that case still falls back to the linear estimate; only
+     the single-tune fullscreen path is repaired here.  */
   _fsBarFirstMs = {};
   if (!_abcFsSynthCtrl || !_abcFsSynthCtrl.timer) return;
   const events = _abcFsSynthCtrl.timer.noteTimings;
   if (!events || !events.length) return;
   if (_fsBarMap.length === 0) _fsBarMap = _fsBuildBarMap();
   if (!_fsBarMap.length) return;
+
+  // Map hidden wrappers to visible wrappers by position.  The single-tune
+  // fullscreen render uses #abc-fs-hidden-render → #abc-fullscreen-render.
+  const hiddenWrappers  = Array.from(document.querySelectorAll("#abc-fs-hidden-render .abcjs-staff-wrapper"));
+  const visibleWrappers = Array.from(document.querySelectorAll("#abc-fullscreen-render .abcjs-staff-wrapper"));
+  const hiddenToVisibleWrapper = new Map();
+  if (hiddenWrappers.length && hiddenWrappers.length === visibleWrappers.length) {
+    for (let k = 0; k < hiddenWrappers.length; k++) {
+      hiddenToVisibleWrapper.set(hiddenWrappers[k], visibleWrappers[k]);
+    }
+  }
 
   const wmToIdx = new Map();
   _fsBarMap.forEach(({ wrapper, measure }, gi) => {
@@ -4408,13 +4446,12 @@ function _fsBuildTimingMap() {
       if (!grp) return;
       grp.forEach(el => {
         if (!el || !el.classList) return;
-        // Walk up ancestors to find abcjs-mN (ABCJS may put it on a parent group,
-        // not directly on the highlighted element).
-        const wrapper = el.closest && el.closest(".abcjs-staff-wrapper");
-        if (!wrapper) return;
+        const rawWrapper = el.closest && el.closest(".abcjs-staff-wrapper");
+        if (!rawWrapper) return;
+        const wrapper = hiddenToVisibleWrapper.get(rawWrapper) || rawWrapper;
         let measure = null;
         let target = el;
-        while (target && target !== wrapper) {
+        while (target && target !== rawWrapper) {
           for (const cls of target.classList) {
             const hit = cls.match(/^abcjs-m(\d+)$/);
             if (hit) { measure = parseInt(hit[1], 10); break; }

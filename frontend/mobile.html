@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- PATCH-C-17MAY2026-LOOP-SEEK-FIX -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -42,7 +43,8 @@
       <section class="m-filters">
         <div class="m-search-row">
           <input id="search" type="search" placeholder="Search tunes…"
-                 autocomplete="off" spellcheck="false" />
+                 autocomplete="off" spellcheck="false"
+                 data-1p-ignore data-lpignore="true" data-form-type="other" />
           <button id="m-filter-toggle" class="m-filter-toggle-btn btn-secondary"
                   aria-label="Toggle filters" title="Filters">⚙</button>
         </div>
@@ -1005,7 +1007,7 @@
 
   <script defer src="/static/abcjs-basic-min.js"></script>
   <script defer src="/static/lamejs.min.js"></script>
-  <script src="/static/app.js?v=354"></script>
+  <script src="/static/app.js?v=355"></script>
   <script src="/static/mobile.js?v=13"></script>
     <script>
     // Unregister any existing service workers (they caused stale cache issues)
