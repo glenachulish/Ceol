@@ -255,6 +255,59 @@
       </div>
     </div>
 
+    <!-- ── Playlists view (Phase 2 of playlist work, 17 May 2026) ── -->
+    <div id="view-playlists" class="m-view hidden">
+      <div class="view-header">
+        <h2 class="section-title">Playlists</h2>
+        <input id="playlists-search" type="search" class="view-search-input" placeholder="Search playlists…" autocomplete="off">
+        <button id="new-playlist-btn" class="btn-set">+ New Playlist</button>
+      </div>
+      <div id="new-playlist-form" class="new-set-form hidden">
+        <input id="new-playlist-name" type="text" placeholder="Playlist name…" maxlength="120" />
+        <input id="new-playlist-notes" type="text" placeholder="Notes (optional)…" />
+        <div class="form-actions">
+          <button id="create-playlist-btn" class="btn-set">Create</button>
+          <button id="cancel-playlist-btn" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+      <div id="playlists-list" class="sets-list m-sets-list">
+        <p class="loading">Loading playlists…</p>
+      </div>
+      <!-- Focused single-playlist detail view -->
+      <div id="playlist-detail-view" class="hidden">
+        <button id="playlist-detail-back" class="modal-back-btn btn-nav-back" style="margin-bottom:.75rem">← All Playlists</button>
+        <div id="playlist-detail-content"></div>
+      </div>
+    </div>
+
+    <!-- ── Playlist player overlay (Phase 2, 17 May 2026) ── -->
+    <div id="playlist-player-overlay" class="playlist-player-overlay hidden" role="dialog" aria-label="Playlist player">
+      <div class="playlist-player-card">
+        <button id="playlist-player-close" class="modal-close" aria-label="Close player">✕</button>
+        <div class="playlist-player-hd">
+          <span id="playlist-player-name" class="playlist-player-name">Playlist</span>
+          <span id="playlist-player-progress" class="playlist-player-progress">Set 0 of 0</span>
+        </div>
+        <div id="playlist-player-now" class="playlist-player-now">—</div>
+        <div id="playlist-player-status" class="playlist-player-status"></div>
+        <audio id="playlist-player-audio" preload="auto"></audio>
+        <div class="playlist-player-bar">
+          <progress id="playlist-player-bar" max="100" value="0"></progress>
+          <div class="playlist-player-times">
+            <span id="playlist-player-cur">0:00</span>
+            <span id="playlist-player-dur">0:00</span>
+          </div>
+        </div>
+        <div class="playlist-player-controls">
+          <button id="playlist-player-prev" class="btn-secondary playlist-player-skip" aria-label="Previous set">⏮ Prev</button>
+          <button id="playlist-player-play" class="btn-primary playlist-player-play" aria-label="Play / pause">▶ Play</button>
+          <button id="playlist-player-next" class="btn-secondary playlist-player-skip" aria-label="Next set">Next ⏭</button>
+        </div>
+        <div class="playlist-player-upnext-hd">Up next</div>
+        <ol id="playlist-player-upnext" class="playlist-player-upnext"></ol>
+      </div>
+    </div>
+
     <!-- ── Achievements view ── -->
     <div id="view-achievements" class="m-view hidden">
       <div class="achievements-layout">
@@ -291,9 +344,9 @@
       <span class="m-nav-icon">📁</span>
       <span class="m-nav-label">Collections</span>
     </button>
-    <button id="import-nav-btn" class="m-nav-btn" aria-label="Import tunes" data-action="import">
-      <span class="m-nav-icon">＋</span>
-      <span class="m-nav-label">Import</span>
+    <button class="m-nav-btn" data-view="playlists" aria-label="Playlists">
+      <span class="m-nav-icon">🎵</span>
+      <span class="m-nav-label">Playlists</span>
     </button>
   </nav>
 
@@ -307,6 +360,7 @@
       <nav class="m-menu-items">
         <button id="m-nav-notes-btn" class="m-menu-item m-menu-view-btn" data-view="notes">📝 Notes</button>
         <button id="m-nav-achievements-btn" class="m-menu-item m-menu-view-btn" data-view="achievements">⭐ Achievements</button>
+        <button id="import-nav-btn" class="m-menu-item" data-action="import">➕ Import tunes</button>
         <hr class="m-menu-divider" />
         <button id="m-help-btn" class="m-menu-item">? Help</button>
         <button id="m-admin-btn" class="m-menu-item" hidden>🔧 Admin</button>
@@ -951,7 +1005,7 @@
 
   <script defer src="/static/abcjs-basic-min.js"></script>
   <script defer src="/static/lamejs.min.js"></script>
-  <script src="/static/app.js?v=352"></script>
+  <script src="/static/app.js?v=353"></script>
   <script src="/static/mobile.js?v=13"></script>
     <script>
     // Unregister any existing service workers (they caused stale cache issues)

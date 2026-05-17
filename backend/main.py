@@ -2798,6 +2798,266 @@ def delete_set_rendered_audio(set_id: int):
     return {"ok": True}
 
 
+# ═════════════════════════════════════════════════════════════════════
+# Playlists (Phase 2 of playlist work, 17 May 2026)
+# Per-user-private in v1; schema includes owner_user_id for future sharing.
+# ═════════════════════════════════════════════════════════════════════
+
+class PlaylistCreate(BaseModel):
+    name: str
+    notes: Optional[str] = None
+
+
+class PlaylistUpdate(BaseModel):
+    name: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class PlaylistItemAdd(BaseModel):
+    set_id: int
+    position: Optional[int] = None  # default: append
+
+
+class PlaylistReorder(BaseModel):
+    order: List[int]  # list of set_ids in desired order
+
+
+@app.get("/api/playlists")
+def list_playlists():
+    """List playlists for the current user, with item counts."""
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, notes, created_at, updated_at FROM playlists "
+            "ORDER BY name COLLATE NOCASE"
+        ).fetchall()
+        result = []
+        for r in rows:
+            p = dict(r)
+            p["item_count"] = conn.execute(
+                "SELECT COUNT(*) FROM playlist_items WHERE playlist_id = ?",
+                (p["id"],),
+            ).fetchone()[0]
+            result.append(p)
+    return result
+
+
+@app.post("/api/playlists", status_code=201)
+def create_playlist(body: PlaylistCreate):
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(400, "Playlist name is required")
+    if len(name) > 120:
+        raise HTTPException(400, "Playlist name too long (max 120)")
+    uid = current_user_id.get()
+    with _db() as conn:
+        cur = conn.execute(
+            "INSERT INTO playlists (name, notes, owner_user_id) VALUES (?, ?, ?)",
+            (name, body.notes, uid),
+        )
+        pid = cur.lastrowid
+    return {"id": pid, "name": name, "notes": body.notes, "item_count": 0}
+
+
+@app.get("/api/playlists/{playlist_id}")
+def get_playlist(playlist_id: int):
+    """Return a playlist with its sets in order. Each set includes
+    enough info for the player to know whether the rendered MP3 is
+    available + still fresh."""
+    with _db() as conn:
+        p = conn.execute(
+            "SELECT * FROM playlists WHERE id = ?", (playlist_id,)
+        ).fetchone()
+        if not p:
+            raise HTTPException(404, "Playlist not found")
+        rows = conn.execute(
+            """
+            SELECT s.id, s.name,
+                   s.rendered_audio_at, s.rendered_audio_hash,
+                   pi.position,
+                   (SELECT COUNT(*) FROM set_tunes st WHERE st.set_id = s.id) AS tune_count
+            FROM playlist_items pi
+            JOIN sets s ON s.id = pi.set_id
+            WHERE pi.playlist_id = ?
+            ORDER BY pi.position
+            """,
+            (playlist_id,),
+        ).fetchall()
+        sets = []
+        for r in rows:
+            d = dict(r)
+            current_hash = _compute_set_audio_hash(conn, d["id"])
+            d["rendered_audio_out_of_date"] = bool(
+                d.get("rendered_audio_at") and d.get("rendered_audio_hash")
+                and d["rendered_audio_hash"] != current_hash
+            )
+            # Hash bytes are internal; don't ship them to the client.
+            d.pop("rendered_audio_hash", None)
+            sets.append(d)
+    result = dict(p)
+    result["sets"] = sets
+    return result
+
+
+@app.patch("/api/playlists/{playlist_id}")
+def update_playlist(playlist_id: int, body: PlaylistUpdate):
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(400, "No fields to update")
+    if "name" in fields:
+        nm = (fields["name"] or "").strip()
+        if not nm:
+            raise HTTPException(400, "Playlist name is required")
+        if len(nm) > 120:
+            raise HTTPException(400, "Playlist name too long (max 120)")
+        fields["name"] = nm
+    set_clause = ", ".join(f"{k} = ?" for k in fields) + ", updated_at = datetime('now')"
+    values = list(fields.values()) + [playlist_id]
+    with _db() as conn:
+        cur = conn.execute(
+            f"UPDATE playlists SET {set_clause} WHERE id = ?", values
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Playlist not found")
+    return {"ok": True}
+
+
+@app.delete("/api/playlists/{playlist_id}")
+def delete_playlist(playlist_id: int):
+    with _db() as conn:
+        if not conn.execute(
+            "SELECT 1 FROM playlists WHERE id = ?", (playlist_id,)
+        ).fetchone():
+            raise HTTPException(404, "Playlist not found")
+        # playlist_items has ON DELETE CASCADE but be explicit for clarity.
+        conn.execute("DELETE FROM playlist_items WHERE playlist_id = ?", (playlist_id,))
+        conn.execute("DELETE FROM playlists WHERE id = ?", (playlist_id,))
+    return {"ok": True}
+
+
+@app.post("/api/playlists/{playlist_id}/items")
+def add_playlist_item(playlist_id: int, body: PlaylistItemAdd):
+    """Add a set to a playlist. Idempotent — adding a set that's already
+    in the playlist is a no-op (returns added=False). Default position
+    is the end of the list."""
+    with _db() as conn:
+        if not conn.execute(
+            "SELECT 1 FROM playlists WHERE id = ?", (playlist_id,)
+        ).fetchone():
+            raise HTTPException(404, "Playlist not found")
+        if not conn.execute(
+            "SELECT 1 FROM sets WHERE id = ?", (body.set_id,)
+        ).fetchone():
+            raise HTTPException(404, "Set not found")
+        if conn.execute(
+            "SELECT 1 FROM playlist_items WHERE playlist_id = ? AND set_id = ?",
+            (playlist_id, body.set_id),
+        ).fetchone():
+            return {"ok": True, "added": False}
+        pos = body.position
+        if pos is None:
+            pos = conn.execute(
+                "SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_items "
+                "WHERE playlist_id = ?",
+                (playlist_id,),
+            ).fetchone()[0]
+        else:
+            # Shift later items down to make room.
+            conn.execute(
+                "UPDATE playlist_items SET position = position + 1 "
+                "WHERE playlist_id = ? AND position >= ?",
+                (playlist_id, pos),
+            )
+        conn.execute(
+            "INSERT INTO playlist_items (playlist_id, set_id, position) "
+            "VALUES (?, ?, ?)",
+            (playlist_id, body.set_id, pos),
+        )
+        conn.execute(
+            "UPDATE playlists SET updated_at = datetime('now') WHERE id = ?",
+            (playlist_id,),
+        )
+    return {"ok": True, "added": True}
+
+
+@app.delete("/api/playlists/{playlist_id}/items/{set_id}")
+def remove_playlist_item(playlist_id: int, set_id: int):
+    with _db() as conn:
+        cur = conn.execute(
+            "DELETE FROM playlist_items WHERE playlist_id = ? AND set_id = ?",
+            (playlist_id, set_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Set not in playlist")
+        # Re-pack positions to keep them contiguous.
+        rows = conn.execute(
+            "SELECT id FROM playlist_items WHERE playlist_id = ? ORDER BY position",
+            (playlist_id,),
+        ).fetchall()
+        for idx, r in enumerate(rows):
+            conn.execute(
+                "UPDATE playlist_items SET position = ? WHERE id = ?",
+                (idx, r["id"]),
+            )
+        conn.execute(
+            "UPDATE playlists SET updated_at = datetime('now') WHERE id = ?",
+            (playlist_id,),
+        )
+    return {"ok": True}
+
+
+@app.put("/api/playlists/{playlist_id}/items/reorder")
+def reorder_playlist_items(playlist_id: int, body: PlaylistReorder):
+    """Set the playlist's items to match the order of set_ids in body.order.
+    Set IDs not in the playlist are silently ignored; set IDs in the
+    playlist but absent from body.order keep their original relative
+    order at the end."""
+    with _db() as conn:
+        if not conn.execute(
+            "SELECT 1 FROM playlists WHERE id = ?", (playlist_id,)
+        ).fetchone():
+            raise HTTPException(404, "Playlist not found")
+        existing = [
+            r["set_id"] for r in conn.execute(
+                "SELECT set_id FROM playlist_items WHERE playlist_id = ? "
+                "ORDER BY position",
+                (playlist_id,),
+            ).fetchall()
+        ]
+        ordered = [sid for sid in body.order if sid in existing]
+        trailing = [sid for sid in existing if sid not in ordered]
+        final = ordered + trailing
+        for pos, sid in enumerate(final):
+            conn.execute(
+                "UPDATE playlist_items SET position = ? "
+                "WHERE playlist_id = ? AND set_id = ?",
+                (pos, playlist_id, sid),
+            )
+        conn.execute(
+            "UPDATE playlists SET updated_at = datetime('now') WHERE id = ?",
+            (playlist_id,),
+        )
+    return {"ok": True}
+
+
+@app.get("/api/sets/{set_id}/playlists")
+def list_playlists_containing_set(set_id: int):
+    """Used by the '+ Playlist' picker in the set modal so it can show
+    a tick next to playlists the set is already in."""
+    with _db() as conn:
+        if not conn.execute(
+            "SELECT 1 FROM sets WHERE id = ?", (set_id,)
+        ).fetchone():
+            raise HTTPException(404, "Set not found")
+        rows = conn.execute(
+            "SELECT p.id, p.name FROM playlist_items pi "
+            "JOIN playlists p ON p.id = pi.playlist_id "
+            "WHERE pi.set_id = ? "
+            "ORDER BY p.name COLLATE NOCASE",
+            (set_id,),
+        ).fetchall()
+    return {"playlists": [dict(r) for r in rows]}
+
+
 @app.post("/api/sets/{set_id}/tunes")
 def add_tune_to_set(set_id: int, body: SetTuneAdd):
     with _db() as conn:

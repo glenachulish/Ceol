@@ -1205,7 +1205,8 @@ function switchView(view) {
   _applyNavColour(view);
   if (_setMusicSynth) { try { _setMusicSynth.pause(); } catch {} _setMusicSynth = null; }
   // Hide every view container.  Some refs may be null if m-compat is gone.
-  [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements, viewPractice, viewTodo]
+  const viewPlaylists = document.getElementById("view-playlists");
+  [viewLibrary, viewSets, viewCollections, viewNotes, viewAchievements, viewPractice, viewTodo, viewPlaylists]
     .forEach(v => v && v.classList.add("hidden"));
   [navLibrary, navSets, navCollections, navTodo].forEach(n => n && n.classList.remove("active"));
   if (navMoreMenu) navMoreMenu.classList.add("hidden");
@@ -1239,6 +1240,9 @@ function switchView(view) {
     if (viewTodo) viewTodo.classList.remove("hidden");
     if (navTodo) navTodo.classList.add("active");
     loadTodoView();
+  } else if (view === "playlists") {
+    if (viewPlaylists) viewPlaylists.classList.remove("hidden");
+    loadPlaylists();
   }
 }
 
@@ -5778,6 +5782,7 @@ function openFullSetModal(setData, opts = {}) {
     <button class="modal-back-btn" id="full-set-back-btn">✕ Close</button>
     <h2 class="modal-title">${escHtml(setData.name)}
       ${setData.id ? `<button class="set-add-col-btn btn-collection btn-sm" id="full-set-add-col-btn" data-set-id="${setData.id}" title="Add this set to a collection" style="margin-left:.5rem;vertical-align:middle;font-size:.8rem">+ Collection</button>` : ""}
+      ${setData.id ? `<button class="set-add-playlist-btn btn-secondary btn-sm" id="full-set-add-playlist-btn" data-set-id="${setData.id}" title="Add this set to a playlist" style="margin-left:.35rem;vertical-align:middle;font-size:.8rem">+ Playlist</button>` : ""}
     </h2>
     <div class="set-track-list">${trackRows || '<p class="modal-hint">No tunes in this set.</p>'}</div>
     ${transRows.length ? `
@@ -6091,6 +6096,14 @@ function openFullSetModal(setData, opts = {}) {
           renderModal(tuneData, () => openFullSetModal(setData));
         } catch (e) { console.warn("Failed to open tune from set", e); }
       });
+    });
+  }
+
+  // Phase 2 of playlist work (17 May 2026): wire in-modal "+ Playlist" button.
+  const _setAddPlBtn = document.getElementById("full-set-add-playlist-btn");
+  if (_setAddPlBtn) {
+    _setAddPlBtn.addEventListener("click", () => {
+      _openSetPlaylistPicker(setData, () => openFullSetModal(setData));
     });
   }
 
@@ -14291,3 +14304,558 @@ function _staffwidthFor(elementId) {
   window._ceolAudioForceResume = function() { _resumeAll('manual'); return _ceolAudioStatus(); };
 })();
 
+
+
+// ═════════════════════════════════════════════════════════════════════
+// Playlists (Phase 2 of playlist work, 17 May 2026)
+// ═════════════════════════════════════════════════════════════════════
+
+// --- API helpers -----------------------------------------------------
+async function apiListPlaylists()              { return apiFetch("/api/playlists"); }
+async function apiCreatePlaylist(name, notes)  { return apiFetch("/api/playlists", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, notes }) }); }
+async function apiGetPlaylist(id)              { return apiFetch(`/api/playlists/${id}`); }
+async function apiPatchPlaylist(id, fields)    { return apiFetch(`/api/playlists/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fields) }); }
+async function apiDeletePlaylist(id)           { return apiFetch(`/api/playlists/${id}`, { method: "DELETE" }); }
+async function apiAddPlaylistItem(id, setId)   { return apiFetch(`/api/playlists/${id}/items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ set_id: setId }) }); }
+async function apiRemovePlaylistItem(id, setId){ return apiFetch(`/api/playlists/${id}/items/${setId}`, { method: "DELETE" }); }
+async function apiReorderPlaylistItems(id, order) { return apiFetch(`/api/playlists/${id}/items/reorder`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order }) }); }
+async function apiPlaylistsForSet(setId)       { return apiFetch(`/api/sets/${setId}/playlists`); }
+
+// Module-scope state for the currently-open playlist & player.
+let _currentPlaylistId = null;
+const _player = {
+  playlist: null,   // { id, name, sets: [...] }
+  idx: -1,          // index into playlist.sets
+  audio: null,      // <audio> element
+  isPlaying: false,
+  interSetTimer: null,
+};
+
+// --- List view (the Playlists tab) ----------------------------------
+async function loadPlaylists() {
+  const listEl = document.getElementById("playlists-list");
+  if (!listEl) return;
+  listEl.innerHTML = '<p class="loading">Loading playlists…</p>';
+  try {
+    const playlists = await apiListPlaylists();
+    _renderPlaylistsList(playlists);
+  } catch (err) {
+    listEl.innerHTML = `<p class="modal-hint">Failed to load playlists: ${escHtml(err.message || err)}</p>`;
+  }
+}
+
+function _renderPlaylistsList(playlists, filter = "") {
+  const listEl = document.getElementById("playlists-list");
+  if (!listEl) return;
+  const q = filter.trim().toLowerCase();
+  const filtered = q ? playlists.filter(p => p.name.toLowerCase().includes(q)) : playlists;
+  if (!filtered.length) {
+    listEl.innerHTML = playlists.length
+      ? `<p class="set-empty">No playlists match "${escHtml(filter)}".</p>`
+      : `<div class="empty-library">
+           <div class="empty-library-icon">🎵</div>
+           <h2>No playlists yet</h2>
+           <p>Tap <strong>+ New Playlist</strong> above, then add sets to it. The playlist player chains the offline MP3s together for driving / walking.</p>
+         </div>`;
+    return;
+  }
+  listEl.innerHTML = filtered.map(p => `
+    <div class="m-set-row playlist-row" data-playlist-id="${p.id}">
+      <span class="m-set-row-name">${escHtml(p.name)}</span>
+      <span class="m-set-row-count">${p.item_count} set${p.item_count === 1 ? "" : "s"}</span>
+      <button class="m-row-menu-btn" data-playlist-id="${p.id}" title="Playlist menu" aria-label="Playlist menu">⋯</button>
+    </div>`).join("");
+
+  listEl.querySelectorAll(".playlist-row").forEach(row => {
+    const id = row.dataset.playlistId;
+    row.addEventListener("click", e => {
+      if (e.target.closest(".m-row-menu-btn")) return;
+      _openPlaylistDetail(id);
+    });
+  });
+  listEl.querySelectorAll(".m-row-menu-btn").forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      _showPlaylistRowMenu(btn);
+    });
+  });
+}
+
+function _showPlaylistRowMenu(btn) {
+  const id = btn.dataset.playlistId;
+  const choice = prompt(
+    "Playlist actions:\n  1 = Rename\n  2 = Delete\n  (Cancel to do nothing)"
+  );
+  if (choice === "1") {
+    const newName = prompt("New playlist name:");
+    if (newName && newName.trim()) {
+      apiPatchPlaylist(id, { name: newName.trim() })
+        .then(() => loadPlaylists())
+        .catch(err => alert("Rename failed: " + (err.message || err)));
+    }
+  } else if (choice === "2") {
+    if (confirm("Delete this playlist? (The sets in it stay in your library.)")) {
+      apiDeletePlaylist(id)
+        .then(() => loadPlaylists())
+        .catch(err => alert("Delete failed: " + (err.message || err)));
+    }
+  }
+}
+
+// --- Detail view ----------------------------------------------------
+async function _openPlaylistDetail(id) {
+  _currentPlaylistId = id;
+  const detailView    = document.getElementById("playlist-detail-view");
+  const detailContent = document.getElementById("playlist-detail-content");
+  const listEl        = document.getElementById("playlists-list");
+  const formEl        = document.getElementById("new-playlist-form");
+  const header        = document.querySelector("#view-playlists .view-header");
+  detailContent.innerHTML = '<p class="loading">Loading…</p>';
+  listEl?.classList.add("hidden");
+  formEl?.classList.add("hidden");
+  header?.classList.add("hidden");
+  detailView.classList.remove("hidden");
+
+  try {
+    const pl = await apiGetPlaylist(id);
+    _renderPlaylistDetail(pl);
+  } catch (err) {
+    detailContent.innerHTML = `<p class="modal-hint">Failed to load: ${escHtml(err.message || err)}</p>`;
+  }
+}
+
+function _renderPlaylistDetail(pl) {
+  const wrap = document.getElementById("playlist-detail-content");
+  const playableCount = pl.sets.filter(s => s.rendered_audio_at && !s.rendered_audio_out_of_date).length;
+  const rows = pl.sets.map((s, i) => {
+    let badge = "";
+    if (!s.rendered_audio_at) {
+      badge = `<span class="playlist-needs-render">🎵 Needs rendering</span>`;
+    } else if (s.rendered_audio_out_of_date) {
+      badge = `<span class="playlist-stale">⚠ Out of date</span>`;
+    } else {
+      badge = `<span class="playlist-ready">✓ Ready</span>`;
+    }
+    return `
+      <div class="playlist-set-row" data-set-id="${s.id}" draggable="true">
+        <span class="playlist-set-num">${i + 1}</span>
+        <span class="playlist-set-drag" title="Drag to reorder">⠿</span>
+        <button class="playlist-set-title" data-set-id="${s.id}" title="Open set">${escHtml(s.name)}</button>
+        <span class="playlist-set-meta">${s.tune_count} tune${s.tune_count === 1 ? "" : "s"}</span>
+        ${badge}
+        <button class="playlist-set-remove btn-icon" data-set-id="${s.id}" title="Remove from playlist">✕</button>
+      </div>`;
+  }).join("");
+
+  wrap.innerHTML = `
+    <h2 class="section-title" style="margin-bottom:.25rem">${escHtml(pl.name)}</h2>
+    ${pl.notes ? `<p class="modal-hint" style="margin-bottom:.75rem">${escHtml(pl.notes)}</p>` : ""}
+    <div class="playlist-detail-summary">
+      ${pl.sets.length} set${pl.sets.length === 1 ? "" : "s"}
+      ${pl.sets.length ? `· ${playableCount} ready to play` : ""}
+    </div>
+    <div class="playlist-detail-actions">
+      <button id="playlist-play-btn" class="btn-primary" ${playableCount ? "" : "disabled"} title="${playableCount ? "Start the playlist player" : "Render at least one set's audio first"}">▶ Play playlist</button>
+      <button id="playlist-add-set-btn" class="btn-secondary">+ Add a set</button>
+    </div>
+    <div id="playlist-set-list" class="playlist-set-list">
+      ${rows || '<p class="set-empty">No sets in this playlist yet. Tap <strong>+ Add a set</strong>.</p>'}
+    </div>`;
+
+  document.getElementById("playlist-play-btn")?.addEventListener("click", () => {
+    if (playableCount === 0) return;
+    _openPlaylistPlayer(pl);
+  });
+  document.getElementById("playlist-add-set-btn")?.addEventListener("click", () => {
+    _openAddSetToPlaylistPicker(pl);
+  });
+
+  // Wire title -> open set modal
+  wrap.querySelectorAll(".playlist-set-title").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const sid = btn.dataset.setId;
+      try {
+        const setData = await apiGetSet(sid);
+        openFullSetModal(setData, { onBack: () => _openPlaylistDetail(pl.id) });
+        document.getElementById("modal-overlay")?.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+      } catch (e) { console.warn("open set from playlist failed", e); }
+    });
+  });
+
+  // Remove buttons
+  wrap.querySelectorAll(".playlist-set-remove").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const sid = btn.dataset.setId;
+      if (!confirm("Remove this set from the playlist?")) return;
+      try {
+        await apiRemovePlaylistItem(pl.id, sid);
+        _openPlaylistDetail(pl.id);
+      } catch (err) {
+        alert("Remove failed: " + (err.message || err));
+      }
+    });
+  });
+
+  // Drag-to-reorder
+  const listEl = document.getElementById("playlist-set-list");
+  if (listEl && pl.sets.length > 1) {
+    let dragId = null;
+    listEl.querySelectorAll(".playlist-set-row").forEach(row => {
+      row.addEventListener("dragstart", e => {
+        dragId = row.dataset.setId;
+        row.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      });
+      row.addEventListener("dragend", () => {
+        row.classList.remove("dragging");
+        listEl.querySelectorAll(".playlist-set-row").forEach(r => r.classList.remove("drag-over"));
+      });
+      row.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; });
+      row.addEventListener("dragenter", e => { e.preventDefault(); row.classList.add("drag-over"); });
+      row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+      row.addEventListener("drop", async e => {
+        e.preventDefault();
+        row.classList.remove("drag-over");
+        const dropId = row.dataset.setId;
+        if (!dragId || dragId === dropId) return;
+        const ids = [...listEl.querySelectorAll(".playlist-set-row")].map(r => r.dataset.setId);
+        const srcIdx = ids.indexOf(dragId);
+        const dstIdx = ids.indexOf(dropId);
+        if (srcIdx === -1 || dstIdx === -1) return;
+        const moved = ids.splice(srcIdx, 1)[0];
+        ids.splice(dstIdx, 0, moved);
+        try {
+          await apiReorderPlaylistItems(pl.id, ids.map(s => parseInt(s, 10)));
+          _openPlaylistDetail(pl.id);
+        } catch (err) { console.warn("reorder failed", err); }
+      });
+    });
+  }
+}
+
+// --- "+ Add a set" picker ------------------------------------------
+async function _openAddSetToPlaylistPicker(pl) {
+  await fetchSets();  // ensures state.sets is populated
+  const memberIds = new Set(pl.sets.map(s => String(s.id)));
+  const rows = (state.sets || []).map(s => {
+    const already = memberIds.has(String(s.id));
+    return `
+      <button class="set-picker-row${already ? " picker-row-member" : ""}" data-set-id="${s.id}">
+        <span class="set-picker-name">${escHtml(s.name)}</span>
+        <span class="set-picker-count">${s.tune_count || 0} tune${s.tune_count !== 1 ? "s" : ""}</span>
+        ${already ? '<span class="picker-member-tick" title="Already in playlist">✓</span>' : '<span class="set-picker-arrow">＋</span>'}
+      </button>`;
+  }).join("");
+
+  modalContent.innerHTML = `
+    <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="picker-back-btn">← Back</button>
+    <h2 class="modal-title">Add a set to "${escHtml(pl.name)}"</h2>
+    <p class="modal-hint">Tap a set to add it.</p>
+    <div class="set-picker-list">${rows || '<p class="modal-hint">No sets in your library yet.</p>'}</div>`;
+
+  document.getElementById("modal-overlay")?.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+
+  const close = () => {
+    document.getElementById("modal-overlay")?.classList.add("hidden");
+    document.body.style.overflow = "";
+    _openPlaylistDetail(pl.id);
+  };
+  document.getElementById("picker-back-btn").addEventListener("click", close);
+
+  modalContent.querySelectorAll(".set-picker-row").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const sid = parseInt(btn.dataset.setId, 10);
+      if (btn.classList.contains("picker-row-member")) {
+        close();
+        return;
+      }
+      try {
+        await apiAddPlaylistItem(pl.id, sid);
+        close();
+      } catch (err) {
+        alert("Add failed: " + (err.message || err));
+      }
+    });
+  });
+}
+
+// --- Player ---------------------------------------------------------
+function _openPlaylistPlayer(pl) {
+  // Filter to only the playable sets at open time; if a set goes stale
+  // between now and play, we'll skip it with a status message.
+  const playable = pl.sets.filter(s => s.rendered_audio_at);
+  if (!playable.length) return;
+  _player.playlist = { ...pl, sets: pl.sets };  // keep originals; player handles skipping
+  _player.idx = -1;
+  _player.audio = document.getElementById("playlist-player-audio");
+  if (_player.interSetTimer) { clearTimeout(_player.interSetTimer); _player.interSetTimer = null; }
+  document.getElementById("playlist-player-name").textContent = pl.name;
+  document.getElementById("playlist-player-overlay").classList.remove("hidden");
+  _wirePlayerOnce();
+  _playerAdvance(0);
+}
+
+let _playerWired = false;
+function _wirePlayerOnce() {
+  if (_playerWired) return;
+  _playerWired = true;
+
+  const audio   = document.getElementById("playlist-player-audio");
+  const playBtn = document.getElementById("playlist-player-play");
+  const prevBtn = document.getElementById("playlist-player-prev");
+  const nextBtn = document.getElementById("playlist-player-next");
+  const closeBtn = document.getElementById("playlist-player-close");
+  const bar     = document.getElementById("playlist-player-bar");
+  const curEl   = document.getElementById("playlist-player-cur");
+  const durEl   = document.getElementById("playlist-player-dur");
+
+  const fmt = s => {
+    if (!Number.isFinite(s)) return "0:00";
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return `${m}:${String(sec).padStart(2, "0")}`;
+  };
+
+  playBtn.addEventListener("click", () => {
+    if (audio.paused) { audio.play().catch(() => {}); }
+    else { audio.pause(); }
+  });
+  prevBtn.addEventListener("click", () => _playerAdvance(_player.idx - 1, { force: true }));
+  nextBtn.addEventListener("click", () => _playerAdvance(_player.idx + 1, { force: true }));
+  closeBtn.addEventListener("click", () => _closePlaylistPlayer());
+
+  audio.addEventListener("play",  () => { _player.isPlaying = true; playBtn.textContent = "⏸ Pause"; _updateMediaSession(); });
+  audio.addEventListener("pause", () => { _player.isPlaying = false; playBtn.textContent = "▶ Play"; });
+  audio.addEventListener("ended", () => _playerAdvance(_player.idx + 1));
+  audio.addEventListener("error", () => {
+    _setPlayerStatus(`⚠ Couldn't load set audio. Skipping…`);
+    setTimeout(() => _playerAdvance(_player.idx + 1, { force: true }), 1200);
+  });
+  audio.addEventListener("timeupdate", () => {
+    if (audio.duration) {
+      bar.value = (audio.currentTime / audio.duration) * 100;
+      curEl.textContent = fmt(audio.currentTime);
+      durEl.textContent = fmt(audio.duration);
+    }
+  });
+  audio.addEventListener("loadedmetadata", () => {
+    durEl.textContent = fmt(audio.duration);
+  });
+}
+
+function _playerAdvance(targetIdx, opts = {}) {
+  const pl = _player.playlist;
+  if (!pl) return;
+  if (_player.interSetTimer) { clearTimeout(_player.interSetTimer); _player.interSetTimer = null; }
+  // Find the next playable set starting at targetIdx (skip ones missing audio).
+  let i = targetIdx;
+  const dir = (opts.force && targetIdx < _player.idx) ? -1 : 1;
+  const skipped = [];
+  while (i >= 0 && i < pl.sets.length && !pl.sets[i].rendered_audio_at) {
+    skipped.push(pl.sets[i].name);
+    i += dir;
+  }
+  if (i < 0 || i >= pl.sets.length) {
+    // End of playlist (or before the start when stepping back).
+    _player.idx = -1;
+    document.getElementById("playlist-player-now").textContent = "End of playlist";
+    document.getElementById("playlist-player-progress").textContent = `${pl.sets.length} of ${pl.sets.length}`;
+    _setPlayerStatus(skipped.length ? `Skipped: ${skipped.join(", ")}` : "");
+    _renderUpNext();
+    if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "none";
+    return;
+  }
+  _player.idx = i;
+  const set = pl.sets[i];
+  document.getElementById("playlist-player-now").textContent = set.name;
+  document.getElementById("playlist-player-progress").textContent = `${i + 1} of ${pl.sets.length}`;
+  _setPlayerStatus(
+    skipped.length
+      ? `Skipped (no offline audio): ${skipped.join(", ")}`
+      : (set.rendered_audio_out_of_date ? "⚠ This set's audio is out of date — playing the last rendered version." : "")
+  );
+  _renderUpNext();
+
+  const audio = _player.audio;
+  // Inter-set 2 s gap: only when advancing automatically (audio.ended),
+  // not for manual prev/next or initial open.
+  const gap = (opts.force || i === 0) ? 0 : 2000;
+  const startPlayback = () => {
+    audio.src = `/api/sets/${set.id}/rendered-audio?t=${Date.now()}`;
+    audio.play().catch(err => {
+      console.warn("[playlist] play failed:", err);
+      _setPlayerStatus("⚠ Tap ▶ Play to start (browser needs a tap to start audio)");
+    });
+  };
+  if (gap > 0) {
+    _player.interSetTimer = setTimeout(startPlayback, gap);
+  } else {
+    startPlayback();
+  }
+}
+
+function _renderUpNext() {
+  const ol = document.getElementById("playlist-player-upnext");
+  const pl = _player.playlist;
+  if (!ol || !pl) return;
+  const upcoming = pl.sets.map((s, i) => ({ ...s, idx: i }))
+    .filter(s => s.idx > _player.idx);
+  if (!upcoming.length) {
+    ol.innerHTML = '<li class="playlist-upnext-empty">— end of playlist —</li>';
+    return;
+  }
+  ol.innerHTML = upcoming.map(s => `
+    <li class="playlist-upnext-row${s.rendered_audio_at ? "" : " upnext-skip"}">
+      <span class="playlist-upnext-name">${escHtml(s.name)}</span>
+      ${s.rendered_audio_at ? "" : '<span class="playlist-upnext-note">will skip · no offline audio</span>'}
+    </li>`).join("");
+}
+
+function _setPlayerStatus(msg) {
+  const el = document.getElementById("playlist-player-status");
+  if (el) el.textContent = msg || "";
+}
+
+function _updateMediaSession() {
+  if (!("mediaSession" in navigator)) return;
+  const pl = _player.playlist;
+  const set = pl?.sets?.[_player.idx];
+  if (!set) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: set.name || "Ceòl Set",
+      artist: pl.name || "Ceòl Playlist",
+      album: `Set ${_player.idx + 1} of ${pl.sets.length}`,
+    });
+    navigator.mediaSession.playbackState = "playing";
+    navigator.mediaSession.setActionHandler("play",  () => _player.audio?.play());
+    navigator.mediaSession.setActionHandler("pause", () => _player.audio?.pause());
+    navigator.mediaSession.setActionHandler("previoustrack", () => _playerAdvance(_player.idx - 1, { force: true }));
+    navigator.mediaSession.setActionHandler("nexttrack",     () => _playerAdvance(_player.idx + 1, { force: true }));
+  } catch (e) { /* iOS sometimes throws on action handlers */ }
+}
+
+function _closePlaylistPlayer() {
+  if (_player.interSetTimer) { clearTimeout(_player.interSetTimer); _player.interSetTimer = null; }
+  if (_player.audio) { try { _player.audio.pause(); _player.audio.removeAttribute("src"); _player.audio.load(); } catch {} }
+  document.getElementById("playlist-player-overlay")?.classList.add("hidden");
+  if ("mediaSession" in navigator) {
+    try { navigator.mediaSession.metadata = null; navigator.mediaSession.playbackState = "none"; } catch {}
+  }
+}
+
+// --- "+ Playlist" picker from the set modal -------------------------
+async function _openSetPlaylistPicker(setData, onBack) {
+  await fetchSets();  // not strictly needed but matches the pattern
+  let memberIds = new Set();
+  try {
+    const { playlists } = await apiPlaylistsForSet(setData.id);
+    playlists.forEach(p => memberIds.add(p.id));
+  } catch {}
+  const all = await apiListPlaylists();
+
+  const rows = all.map(p => {
+    const already = memberIds.has(p.id);
+    return `
+      <button class="set-picker-row${already ? " picker-row-member" : ""}" data-playlist-id="${p.id}">
+        <span class="set-picker-name">${escHtml(p.name)}</span>
+        <span class="set-picker-count">${p.item_count} set${p.item_count === 1 ? "" : "s"}</span>
+        ${already ? '<span class="picker-member-tick" title="Already in playlist">✓</span>' : '<span class="set-picker-arrow">＋</span>'}
+      </button>`;
+  }).join("");
+
+  modalContent.innerHTML = `
+    <button class="modal-back-btn btn-secondary btn-sm btn-nav-back" id="picker-back-btn">← Back</button>
+    <h2 class="modal-title">Add "${escHtml(setData.name)}" to a playlist</h2>
+    <div class="set-picker-list">${rows || '<p class="modal-hint">No playlists yet. Create one from the Playlists tab.</p>'}</div>
+    <div style="margin-top:1rem">
+      <button id="picker-create-playlist-btn" class="btn-secondary btn-sm">+ Create new playlist instead</button>
+    </div>`;
+
+  document.getElementById("picker-back-btn").addEventListener("click", () => onBack?.());
+
+  modalContent.querySelectorAll(".set-picker-row").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const pid = parseInt(btn.dataset.playlistId, 10);
+      if (btn.classList.contains("picker-row-member")) { onBack?.(); return; }
+      try {
+        await apiAddPlaylistItem(pid, setData.id);
+        onBack?.();
+      } catch (err) {
+        alert("Add failed: " + (err.message || err));
+      }
+    });
+  });
+
+  document.getElementById("picker-create-playlist-btn")?.addEventListener("click", async () => {
+    const name = prompt("New playlist name:");
+    if (!name || !name.trim()) return;
+    try {
+      const created = await apiCreatePlaylist(name.trim(), null);
+      await apiAddPlaylistItem(created.id, setData.id);
+      onBack?.();
+    } catch (err) {
+      alert("Create failed: " + (err.message || err));
+    }
+  });
+}
+window._openSetPlaylistPicker = _openSetPlaylistPicker;
+
+// --- New-playlist form + search wiring ------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  const newBtn   = document.getElementById("new-playlist-btn");
+  const form     = document.getElementById("new-playlist-form");
+  const nameEl   = document.getElementById("new-playlist-name");
+  const notesEl  = document.getElementById("new-playlist-notes");
+  const createBtn= document.getElementById("create-playlist-btn");
+  const cancelBtn= document.getElementById("cancel-playlist-btn");
+  const search   = document.getElementById("playlists-search");
+  const detailBack = document.getElementById("playlist-detail-back");
+
+  newBtn?.addEventListener("click", () => {
+    form?.classList.remove("hidden");
+    nameEl?.focus();
+  });
+  cancelBtn?.addEventListener("click", () => {
+    form?.classList.add("hidden");
+    if (nameEl)  nameEl.value = "";
+    if (notesEl) notesEl.value = "";
+  });
+  createBtn?.addEventListener("click", async () => {
+    const name = (nameEl?.value || "").trim();
+    if (!name) { nameEl?.focus(); return; }
+    try {
+      await apiCreatePlaylist(name, (notesEl?.value || "").trim() || null);
+      form?.classList.add("hidden");
+      if (nameEl)  nameEl.value = "";
+      if (notesEl) notesEl.value = "";
+      await loadPlaylists();
+    } catch (err) {
+      alert("Create failed: " + (err.message || err));
+    }
+  });
+  nameEl?.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); createBtn?.click(); }});
+
+  let _searchAll = null;
+  search?.addEventListener("input", async () => {
+    if (!_searchAll) {
+      try { _searchAll = await apiListPlaylists(); } catch { _searchAll = []; }
+    }
+    _renderPlaylistsList(_searchAll, search.value);
+  });
+  // Invalidate cache on view-switch back to playlists
+  const _origLoad = loadPlaylists;
+  window.loadPlaylists = async function() {
+    _searchAll = null;
+    return _origLoad();
+  };
+
+  detailBack?.addEventListener("click", () => {
+    document.getElementById("playlist-detail-view")?.classList.add("hidden");
+    document.getElementById("playlists-list")?.classList.remove("hidden");
+    document.querySelector("#view-playlists .view-header")?.classList.remove("hidden");
+    _currentPlaylistId = null;
+    loadPlaylists();
+  });
+});

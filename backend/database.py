@@ -343,6 +343,34 @@ def _migrate(conn: sqlite3.Connection) -> None:
             )
         """)
 
+    # Phase 2 of playlist work (17 May 2026): playlists tables.
+    # `owner_user_id` is per-user-private in v1 but the column exists so
+    # cross-user sharing later is a UI-only change.
+    if "playlists" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE playlists (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                name          TEXT NOT NULL,
+                notes         TEXT,
+                owner_user_id INTEGER,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+    if "playlist_items" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE playlist_items (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+                set_id      INTEGER NOT NULL REFERENCES sets(id) ON DELETE CASCADE,
+                position    INTEGER NOT NULL
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist "
+            "ON playlist_items(playlist_id, position)"
+        )
+
 
 def init_db(db_path: Path = DB_PATH) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)

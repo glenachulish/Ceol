@@ -293,10 +293,18 @@
   }
   _menuDelegate("m-backup-btn",     "library-backup-btn");
   
-  // Import nav button → open the tune import overlay directly
+  // Import nav button → open the tune import overlay directly.
+  // Phase 2 of playlist work (17 May 2026): now lives in the hamburger
+  // drawer, so close the drawer too before opening the import overlay.
   const _importNavBtn = document.getElementById("import-nav-btn");
   if (_importNavBtn) {
     _importNavBtn.addEventListener('click', () => {
+      // If the button is inside the hamburger drawer, close it first.
+      const menuOverlay = document.getElementById('m-menu-overlay');
+      if (menuOverlay && !menuOverlay.classList.contains('hidden')) {
+        menuOverlay.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
       const overlay = document.getElementById('import-overlay');
       if (overlay && !overlay.classList.contains('hidden')) {
         // Already open — close and go to library
