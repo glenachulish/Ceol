@@ -84,8 +84,6 @@
 </head>
 <body>
 
-<!-- PATCH-A-17MAY2026-HELP-REFRESH -->
-
 <h1>Ceòl day-to-day</h1>
 
 <div class="toc">
@@ -98,11 +96,9 @@
     <li><a href="#other-imports">Other ways to add tunes</a></li>
     <li><a href="#media">Adding media to a tune</a></li>
     <li><a href="#sets">Sets</a></li>
-    <li><a href="#playlists">Playlists for offline play</a></li>
     <li><a href="#collections">Collections</a></li>
     <li><a href="#versions">Versions — keeping different settings</a></li>
     <li><a href="#achievements">Achievements</a></li>
-    <li><a href="#menu">The menu (☰)</a></li>
     <li><a href="#account">Your account &amp; password</a></li>
   </ol>
 </div>
@@ -176,7 +172,7 @@ section of the tune.</p>
   ABC notation in a code-style block starting with <strong>X:1</strong>.</li>
   <li>Select the whole ABC block — from <strong>X:1</strong> down to the
   last bar of the tune — and copy.</li>
-  <li>In Ceòl, open the menu (☰ top-left) and tap <strong>➕ Import tunes</strong>.</li>
+  <li>In Ceòl, tap <strong>Import</strong> at the bottom.</li>
   <li>Tap the <strong>Paste ABC</strong> tab.</li>
   <li>Paste into the text box. Tap <strong>Import</strong>.</li>
 </ul>
@@ -187,8 +183,8 @@ composer all filled in from the ABC headers.</p>
 
 <h2 id="other-imports">Other ways to add tunes</h2>
 
-<p>Open the menu (☰) and tap <strong>➕ Import tunes</strong>. You'll see a row of tabs across the top.
-The most useful besides Paste ABC:</p>
+<p>Tap Import at the bottom and you'll see a row of tabs. The most
+useful besides Paste ABC:</p>
 
 <ul>
   <li><strong>ABC File</strong> — upload one or more .abc files from
@@ -266,70 +262,6 @@ combinations.</p>
 <h3>Playing a set</h3>
 <p>Open a set and tap play — Ceòl plays through every tune in sequence.
 You can also listen to the transitions between each pair of tunes.</p>
-<p class="muted">For uninterrupted offline playback (lock screen, no data, car Bluetooth) see <a href="#playlists">Playlists for offline play</a> below.</p>
-
-
-
-<h2 id="playlists">Playlists for offline play</h2>
-
-<p>The <strong>Playlists</strong> tab in the bottom nav is for chaining
-sets together into a single uninterrupted run of music — useful for
-driving, walking, or anywhere your phone might go to sleep mid-tune.</p>
-
-<p>The trick is that each set first needs to be <strong>rendered to an
-MP3</strong> in advance. That way the playlist plays as a regular audio
-stream — the lock screen shows controls, the screen can sleep, the data
-connection can drop, and the music keeps going.</p>
-
-<h3>Rendering a set for offline play</h3>
-<ul>
-  <li>Open a set from the Sets tab.</li>
-  <li>Scroll down to the <strong>📱 Offline play</strong> section.</li>
-  <li>Tap <strong>🎵 Render for offline play</strong>. Your phone does
-  the work — it can take 10–60 seconds depending on the set length.
-  Keep the screen on while it runs.</li>
-  <li>When it finishes you'll see <strong>✓ Ready to play offline</strong>
-  and a <strong>▶ Play full set (offline)</strong> button.</li>
-</ul>
-
-<p class="muted">If you later change the tunes in a set, or edit the ABC
-of any tune in it, the offline audio is marked <strong>⚠ Audio out of
-date</strong>. Tap <strong>🎵 Re-render</strong> to refresh it.</p>
-
-<h3>Building a playlist</h3>
-<ul>
-  <li>Tap <strong>Playlists</strong> at the bottom.</li>
-  <li>Tap <strong>+ New Playlist</strong>, give it a name (e.g.
-  "Driving North"), tap Create.</li>
-  <li>Open the new playlist. Tap <strong>+ Add a set</strong> and
-  pick from your library. Each set shows a badge:
-    <ul>
-      <li><strong>✓ Ready</strong> — rendered and ready to play.</li>
-      <li><strong>🎵 Needs rendering</strong> — no offline audio yet.</li>
-      <li><strong>⚠ Out of date</strong> — rendered audio is stale.</li>
-    </ul>
-  </li>
-  <li>Sets without rendered audio show an inline <strong>🎵 Render</strong>
-  button right there in the picker — tap it and the render happens in
-  place. The picker stays open so you can fix several sets in one go.</li>
-</ul>
-
-<p>Sets in the playlist can be reordered (drag) and removed.</p>
-
-<h3>Playing a playlist</h3>
-<p>Open a playlist and tap the big play button. The player slides up
-from the bottom of the screen with prev/next buttons, a progress bar,
-and an <strong>Up next</strong> list. Sets play in order with a brief
-silence between them.</p>
-
-<p>The iPhone lock screen shows the current set name, the artist
-"Ceòl", and play/pause/skip controls — so you can leave the phone in
-your pocket and control playback from the lock screen, AirPods, or car
-stereo.</p>
-
-<p class="muted">Sets without offline audio are skipped automatically
-with a brief "Skipped: [Set Name]" note. Render them first if you want
-them included.</p>
 
 
 <h2 id="collections">Collections</h2>
@@ -384,33 +316,6 @@ between them.</p>
 <p>The Achievements tab shows a timeline of milestones — first tune
 added, first set built, tune count crossing 50/100/500, that sort of
 thing.</p>
-
-
-
-<h2 id="menu">The menu (☰)</h2>
-
-<p>The hamburger icon (☰) at the top-left of every screen opens the
-side menu. Things tucked away here:</p>
-
-<ul>
-  <li><strong>📝 Notes</strong> — free-form notes you've attached to
-  tunes, sets, or kept as standalone documents.</li>
-  <li><strong>⭐ Achievements</strong> — milestones timeline.</li>
-  <li><strong>➕ Import tunes</strong> — the import screen
-  (TheSession, ABC files, photos, PDFs, etc.). This used to live in
-  the bottom nav; it's here now so the bottom nav stays focused on
-  playback.</li>
-  <li><strong>📤 Export</strong> / <strong>📂 Import</strong> — full
-  library backup as a .json file you can save to Files or iCloud.
-  Useful before big changes or for moving between devices.</li>
-  <li><strong>📱 Export for TheCraic</strong> — generates a file the
-  TheCraic iOS app can read.</li>
-  <li><strong>♻️ Rationalise Library</strong> — runs a tidy-up pass
-  on duplicate detection and version grouping.</li>
-  <li><strong>Appearance</strong> — auto / light / dark theme.</li>
-  <li><strong>Logout</strong> — sign out (worth doing on a shared
-  device).</li>
-</ul>
 
 
 <h2 id="account">Your account &amp; password</h2>

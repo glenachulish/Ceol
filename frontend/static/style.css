@@ -4547,21 +4547,3 @@ a.bandcamp-link:hover { opacity: .85; }
 .audio-test-btn:active {
   opacity: 1;
 }
-/* PATCH-B-17MAY2026-LOOP-ROBUSTNESS */
-
-/* PATCH-B-17MAY2026-LOOP-ROBUSTNESS: bar-band overlay behind selected bars.
-   Sits underneath the staff lines and notes so it's a translucent
-   colour wash, not a fill of the notes themselves. */
-.bar-sel-overlay-rect {
-  fill: var(--accent2, #5eead4);
-  fill-opacity: 0.20;
-}
-.bar-sel-overlay-rect.pending {
-  fill: var(--accent, #7c6af7);
-  fill-opacity: 0.18;
-}
-/* In light themes the translucent wash needs slightly more punch */
-@media (prefers-color-scheme: light) {
-  .bar-sel-overlay-rect          { fill-opacity: 0.28; }
-  .bar-sel-overlay-rect.pending  { fill-opacity: 0.24; }
-}
