@@ -6,6 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Ceòl day-to-day</title>
+  <!-- PATCH-1P1-17MAY2026 -->
   <link rel="manifest" href="/static/manifest.json">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -90,12 +91,14 @@
   <strong>Contents</strong>
   <ol>
     <li><a href="#library">Finding tunes in your library</a></li>
+    <li><a href="#menu">The hamburger menu — where everything lives</a></li>
     <li><a href="#reading">Reading a tune</a></li>
     <li><a href="#practice">Practising — the loop, tempo, hitlist</a></li>
     <li><a href="#thesession">Adding tunes from TheSession.org</a></li>
     <li><a href="#other-imports">Other ways to add tunes</a></li>
     <li><a href="#media">Adding media to a tune</a></li>
     <li><a href="#sets">Sets</a></li>
+    <li><a href="#playlists">Playlists</a></li>
     <li><a href="#collections">Collections</a></li>
     <li><a href="#versions">Versions — keeping different settings</a></li>
     <li><a href="#achievements">Achievements</a></li>
@@ -130,6 +133,28 @@ tune title, alternative names, and composer. It searches as you type
 hitlist" all at once. Tap a filter again to clear it. You can clear
 these options by hitting the little cog on the right-hand side — this
 gives you a more open view of the tunes in your library.</p>
+
+
+<h2 id="menu">The hamburger menu — where everything lives</h2>
+
+<p>The bottom of the screen has four main tabs:
+<strong>Library</strong>, <strong>Sets</strong>,
+<strong>Collections</strong>, and <strong>Playlists</strong>. Everything
+else lives in the <strong>hamburger menu</strong> — the <code>☰</code>
+icon at the top-left.</p>
+
+<p>Tap it and you get:</p>
+<ul>
+  <li><strong>+ Import</strong> — every way of adding tunes (paste ABC,
+  TheSession.org, photos, PDFs, and so on).</li>
+  <li><strong>Achievements</strong> — your milestones timeline.</li>
+  <li><strong>Help</strong> — this document.</li>
+  <li><strong>Account</strong> — change your password, log out.</li>
+  <li><strong>Admin</strong> — only if your account is marked admin.</li>
+</ul>
+
+<p class="muted">Older versions of the app had Import as a fifth bottom
+tab. It moved into the hamburger when Playlists were added.</p>
 
 
 <h2 id="reading">Reading a tune</h2>
@@ -172,7 +197,7 @@ section of the tune.</p>
   ABC notation in a code-style block starting with <strong>X:1</strong>.</li>
   <li>Select the whole ABC block — from <strong>X:1</strong> down to the
   last bar of the tune — and copy.</li>
-  <li>In Ceòl, tap <strong>Import</strong> at the bottom.</li>
+  <li>In Ceòl, tap the hamburger menu (<code>☰</code>) at the top, then <strong>+ Import</strong>.</li>
   <li>Tap the <strong>Paste ABC</strong> tab.</li>
   <li>Paste into the text box. Tap <strong>Import</strong>.</li>
 </ul>
@@ -262,6 +287,60 @@ combinations.</p>
 <h3>Playing a set</h3>
 <p>Open a set and tap play — Ceòl plays through every tune in sequence.
 You can also listen to the transitions between each pair of tunes.</p>
+
+
+<h2 id="playlists">Playlists</h2>
+
+<p>A <strong>playlist</strong> is an ordered list of <em>sets</em> — what
+you reach for when you want a session's worth of music to play through
+without tapping between each set. Think of it like an album made of
+sets.</p>
+
+<p>Each set in a playlist plays from a pre-rendered MP3, so playback
+keeps going when your phone is locked and the lock-screen and Bluetooth
+car-audio controls work as expected.</p>
+
+<h3>Building a playlist</h3>
+<ol>
+  <li>Tap <strong>Playlists</strong> at the bottom.</li>
+  <li>Tap <strong>+ New Playlist</strong> and give it a name.</li>
+  <li>Open the new playlist and tap <strong>+ Add a set</strong>.</li>
+  <li>Pick sets from the list. Each row has a badge showing whether the
+  set is <strong>✓ Ready</strong>, <strong>🎵 Needs rendering</strong>,
+  or <strong>⚠ Out of date</strong>.</li>
+  <li>Sets without rendered audio show a <strong>🎵 Render</strong> button
+  right in the picker — tap it to render in place without closing the
+  picker.</li>
+  <li>Drag rows to reorder once added.</li>
+</ol>
+
+<h3>Rendering set audio</h3>
+<p>Each set has its own MP3, rendered on your phone from the ABC notation
+using the synth voice. Open a set, scroll to
+<strong>📱 Offline play</strong>, and tap <strong>🎵 Render for offline
+play</strong>. Your phone does the work — no upload — and the resulting
+MP3 lives on the server, ready for any playlist.</p>
+
+<p>If you later change a tune in the set (notes, repeats, order), the set
+will show <strong>⚠ Out of date</strong>. Tap
+<strong>🎵 Re-render</strong> to refresh.</p>
+
+<h3>Playing a playlist</h3>
+<p>Tap a playlist and tap play — a player overlay slides up with a big
+play button, progress bar, prev/next, and an "Up next" list. The lock
+screen shows the current set's name; play/pause and skip ±10 s work
+from there.</p>
+
+<p>Any set in the playlist without rendered audio is skipped with a
+brief "Skipped: <em>Set Name</em>" note. Render those sets first if you
+want the playlist to play them.</p>
+
+<div class="callout">
+A playlist is essentially a Spotify-style queue for sets. Use
+<strong>sets</strong> for "these three tunes in order, played twice
+each". Use <strong>playlists</strong> when you want a longer flow —
+"tonight's session warm-up", "tunes for the drive to Inverness".
+</div>
 
 
 <h2 id="collections">Collections</h2>
