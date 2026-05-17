@@ -4547,3 +4547,22 @@ a.bandcamp-link:hover { opacity: .85; }
 .audio-test-btn:active {
   opacity: 1;
 }
+/* PATCH-E2-17MAY2026-TAP-TARGETS */
+
+/* PATCH-E2-17MAY2026-TAP-TARGETS: invisible tap rects behind each bar.
+   Catch clicks across the bar's entire bounding box so the user doesn't
+   have to land precisely on a notehead.  Painted behind notes (paint
+   order), but pointer-events:visible means they still receive clicks. */
+.bar-tap-target {
+  fill: transparent;
+  pointer-events: visible;
+  cursor: pointer;
+}
+/* Subtle hover hint on desktop only (no-op on touch since :hover doesn't
+   fire on tap). */
+@media (hover: hover) {
+  .bar-tap-target:hover {
+    fill: var(--accent2, #5eead4);
+    fill-opacity: 0.05;
+  }
+}
