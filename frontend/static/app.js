@@ -3533,6 +3533,169 @@ function initMetaEdit(tune) {
   attach();
 }
 
+// ── PATCH-B-17MAY2026-LOOP-ROBUSTNESS additions ─────────────────────────────
+// Cached, pre-computed loop bounds (ms).  Refreshed when:
+//   • the selection range is confirmed (_onMeasureClicked / _fsMeasureClickHandler)
+//   • cursorControl.onStart fires (which rebuilds the bar-timing map)
+//   • the user toggles the Loop button (defensive)
+// Cleared by _clearBarSel / _clearFsBarSel.
+let _loopStartMs = null;
+let _loopEndMs   = null;
+let _lastSeekAt  = 0;     // simple re-fire guard (replaces _loopSeeking re-arm)
+
+let _fsLoopStartMs = null;
+let _fsLoopEndMs   = null;
+let _fsLastSeekAt  = 0;
+
+// Pure helper: compute loop {startMs, endMs} from the timing map.
+// Exported on window for the unit test harness.
+//
+// Why this exists: the old inline logic recomputed end time on every
+// note event AND used a visual-measure fallback for the last bar, which
+// produced the wrong endpoint for "loop bars X to last-bar" at any non-
+// 100% tempo warp.  This function uses midiBuffer.duration (exact) when
+// the bar AFTER end isn't in the timing map.
+function _ceolComputeLoopBounds(barFirstMs, msPerMeasure, totalDurationMs, sel) {
+  if (!sel || sel.start === null || sel.end === null) return null;
+  const _mpm = msPerMeasure || 0;
+
+  const startMs = Object.prototype.hasOwnProperty.call(barFirstMs, sel.start)
+    ? barFirstMs[sel.start]
+    : sel.start * _mpm;
+
+  let endMs;
+  if (Object.prototype.hasOwnProperty.call(barFirstMs, sel.end + 1)) {
+    endMs = barFirstMs[sel.end + 1];
+  } else if (Object.prototype.hasOwnProperty.call(barFirstMs, sel.end)
+             && totalDurationMs > 0) {
+    // Last-bar case: use the exact MIDI buffer duration, not a visual estimate.
+    endMs = totalDurationMs;
+  } else {
+    const lastKnown = Object.prototype.hasOwnProperty.call(barFirstMs, sel.end)
+      ? barFirstMs[sel.end]
+      : sel.end * _mpm;
+    endMs = lastKnown + _mpm;
+  }
+  return { startMs, endMs };
+}
+if (typeof window !== "undefined") window._ceolComputeLoopBounds = _ceolComputeLoopBounds;
+
+// Recompute and cache loop bounds for the modal sheet.  Safe to call
+// at any time; if the data isn't ready yet, we just leave the cache
+// null and onStart will retry once the timing map is built.
+function _recomputeLoopBounds() {
+  const total = (_synthController && _synthController.midiBuffer && _synthController.midiBuffer.duration)
+    ? _synthController.midiBuffer.duration * 1000
+    : 0;
+  const b = _ceolComputeLoopBounds(_barFirstMs, _msPerMeasure, total, _barSel);
+  _loopStartMs = b ? b.startMs : null;
+  _loopEndMs   = b ? b.endMs   : null;
+}
+
+// Same for the fullscreen sheet.
+function _fsRecomputeLoopBounds() {
+  const total = (_abcFsSynthCtrl && _abcFsSynthCtrl.midiBuffer && _abcFsSynthCtrl.midiBuffer.duration)
+    ? _abcFsSynthCtrl.midiBuffer.duration * 1000
+    : 0;
+  const b = _ceolComputeLoopBounds(_fsBarFirstMs, _fsMsPerMeasure, total, _fsBarSel);
+  _fsLoopStartMs = b ? b.startMs : null;
+  _fsLoopEndMs   = b ? b.endMs   : null;
+}
+
+// Draw translucent overlay rects behind selected bars, in SVG.
+// Strategy: for each contiguous run of selected measures within a
+// single staff wrapper, compute the screen-space bounding box of
+// those measures, convert back into the wrapper's local SVG
+// coordinate system via getScreenCTM, and insert a <rect> as the
+// wrapper's first child so it paints BEHIND the staff and notes.
+function _drawBarSelOverlay(containerId, barMap, sel) {
+  const root = document.getElementById(containerId);
+  if (!root) return;
+  // Clean previous overlays in this container
+  root.querySelectorAll(".bar-sel-overlay-rect").forEach(el => el.remove());
+  if (!sel || sel.start === null) return;
+  if (!barMap || !barMap.length) return;
+
+  const pending = (sel.end === null);
+  const lo = sel.start;
+  const hi = pending ? sel.start : sel.end;
+  const cls = pending ? "bar-sel-overlay-rect pending" : "bar-sel-overlay-rect";
+
+  // Group selected bar indices by wrapper element.
+  const byWrapper = new Map();
+  for (let i = lo; i <= hi; i++) {
+    if (i >= barMap.length) break;
+    const { wrapper, measure } = barMap[i];
+    if (!byWrapper.has(wrapper)) byWrapper.set(wrapper, []);
+    byWrapper.get(wrapper).push(measure);
+  }
+
+  for (const [wrapper, measures] of byWrapper) {
+    measures.sort((a, b) => a - b);
+    // Split into contiguous runs (e.g. measures 3,4,7 → [[3,4],[7]]).
+    const runs = [];
+    let curRun = [measures[0]];
+    for (let i = 1; i < measures.length; i++) {
+      if (measures[i] === measures[i - 1] + 1) curRun.push(measures[i]);
+      else { runs.push(curRun); curRun = [measures[i]]; }
+    }
+    runs.push(curRun);
+
+    const svgRoot = wrapper.ownerSVGElement || wrapper.closest("svg");
+    if (!svgRoot) continue;
+    const ctm = wrapper.getScreenCTM && wrapper.getScreenCTM();
+    if (!ctm) continue;
+    let inv;
+    try { inv = ctm.inverse(); } catch (_e) { continue; }
+
+    for (const run of runs) {
+      let scrLeft = Infinity, scrRight = -Infinity;
+      for (const m of run) {
+        for (const el of wrapper.querySelectorAll(`.abcjs-m${m}`)) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) continue;
+          scrLeft  = Math.min(scrLeft,  r.left);
+          scrRight = Math.max(scrRight, r.right);
+        }
+      }
+      if (!isFinite(scrLeft) || !isFinite(scrRight)) continue;
+
+      const wbox = wrapper.getBoundingClientRect();
+      if (!wbox || (wbox.width === 0 && wbox.height === 0)) continue;
+
+      const pt = svgRoot.createSVGPoint();
+      pt.x = scrLeft;  pt.y = wbox.top;    const tl = pt.matrixTransform(inv);
+      pt.x = scrRight; pt.y = wbox.bottom; const br = pt.matrixTransform(inv);
+
+      const padX = 3;
+      const padY = 6;
+      const x = Math.min(tl.x, br.x) - padX;
+      const y = Math.min(tl.y, br.y) - padY;
+      const w = Math.abs(br.x - tl.x) + padX * 2;
+      const h = Math.abs(br.y - tl.y) + padY * 2;
+
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("class", cls);
+      rect.setAttribute("x", x);
+      rect.setAttribute("y", y);
+      rect.setAttribute("width", w);
+      rect.setAttribute("height", h);
+      rect.setAttribute("rx", "4");
+      rect.setAttribute("pointer-events", "none");
+      wrapper.insertBefore(rect, wrapper.firstChild);
+    }
+  }
+}
+
+// Format a duration in ms as "1.2s" for the selection-info pill.
+function _ceolFormatLoopDuration(ms) {
+  if (!isFinite(ms) || ms <= 0) return "";
+  const secs = ms / 1000;
+  if (secs < 10) return `${secs.toFixed(1)}s`;
+  return `${Math.round(secs)}s`;
+}
+// ── END PATCH-B additions ───────────────────────────────────────────────────
+
 // ── Bar-range selection (practice loop) ──────────────────────────────────────
 let _visualObj = null;
 let _synthController = null;
@@ -3659,6 +3822,7 @@ function _onMeasureClicked(m) {
     _barLooping = false;
   }
 
+  _recomputeLoopBounds();   // PATCH-B: pre-compute end-of-loop ms
   _updateBarHighlight();
   _updateSelectionInfo();
   _applySelectionToPlayer();
@@ -3667,7 +3831,11 @@ function _onMeasureClicked(m) {
 function _updateBarHighlight() {
   document.querySelectorAll("#sheet-music-render .bar-selected, #sheet-music-render .bar-sel-start")
     .forEach(el => el.classList.remove("bar-selected", "bar-sel-start"));
-  if (_barSel.start === null) return;
+  if (_barSel.start === null) {
+    // PATCH-B: clear overlay rects when selection cleared
+    _drawBarSelOverlay("sheet-music-render", _barMap, _barSel);
+    return;
+  }
 
   const isPending = _barSel.end === null;
   const cls = isPending ? "bar-sel-start" : "bar-selected";
@@ -3679,6 +3847,8 @@ function _updateBarHighlight() {
     wrapper.querySelectorAll(`.abcjs-m${measure}`)
       .forEach(el => el.classList.add(cls));
   }
+  // PATCH-B: draw the bar-band overlay rect(s) behind the notes
+  _drawBarSelOverlay("sheet-music-render", _barMap, _barSel);
 }
 
 function _applyHighlights() {
@@ -3717,7 +3887,14 @@ function _updateSelectionInfo() {
   const isPending = _barSel.end === null;
   const lo = _barSel.start + 1;
   const hi = (isPending ? _barSel.start : _barSel.end) + 1;
-  const label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
+  const barCount = hi - lo + 1;
+  // PATCH-B: show bar count and (once timings are known) loop duration
+  let label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
+  if (!isPending && barCount > 1) label += ` · ${barCount} bars`;
+  if (!isPending && _loopStartMs !== null && _loopEndMs !== null) {
+    const dur = _ceolFormatLoopDuration(_loopEndMs - _loopStartMs);
+    if (dur) label += ` · ${dur}`;
+  }
 
   el.classList.remove("hidden");
   if (isPending) {
@@ -3731,6 +3908,7 @@ function _updateSelectionInfo() {
       + `<button class="btn-secondary bar-sel-clear">Clear</button>`;
     el.querySelector(".bar-loop-toggle").addEventListener("click", () => {
       _barLooping = !_barLooping;
+      _recomputeLoopBounds();   // PATCH-B: stay consistent if user toggles
       _updateSelectionInfo();
     });
   }
@@ -3818,6 +3996,7 @@ function _seekToBar(barIndex) {
   const buf = _synthController.midiBuffer;
   if (!buf || !buf.duration) return;
   const frac = Math.max(0, Math.min(1, _barMs(barIndex) / (buf.duration * 1000)));
+  _lastSeekAt = Date.now();   // PATCH-B: re-fire guard timestamp
   _synthController.seek(frac);
 }
 
@@ -3826,6 +4005,8 @@ function _clearBarSel() {
   _barLooping = false;
   _barSeekPending = false;
   _loopSeeking = false;
+  _loopStartMs = null;   // PATCH-B
+  _loopEndMs   = null;
   _updateBarHighlight();
   _updateSelectionInfo();
 }
@@ -4199,6 +4380,9 @@ function renderSheetMusic(abc, opts = {}) {
       onStart() {
         // Build the accurate bar→MIDI-time map from ABCJS's pre-computed noteTimings.
         _buildBarTimingMap();
+        // PATCH-B: refresh cached loop bounds now that the timing map is fresh
+        _recomputeLoopBounds();
+        _updateSelectionInfo();
         // Seek to selected bar synchronously on (re)start — avoids briefly playing
         // from bar 0 before the seek fires.  Handles warp changes and loop restarts.
         if (_barSel.start !== null && _synthController) {
@@ -4225,35 +4409,27 @@ function renderSheetMusic(abc, opts = {}) {
             });
           });
         }
-        // Bar-range loop: controlled by our own _barLooping toggle (not the
-        // ABCJS loop button) so it survives warp/speed changes.
-        if (!_loopSeeking && _barLooping
-            && _barSel.start !== null && _barSel.end !== null && ev) {
-          const endTimeMs = Object.prototype.hasOwnProperty.call(_barFirstMs, _barSel.end + 1)
-            ? _barFirstMs[_barSel.end + 1]
-            : _barMs(_barSel.end) + (_msPerMeasure || 0);
-          if (ev.milliseconds >= endTimeMs) {
-            _loopSeeking = true;
-            // Delay seek slightly so _barFirstMs is fully populated before seeking
-            const _loopStart = _barSel.start;
-            setTimeout(() => {
-              if (_barLooping && _barSel.start !== null) {
-                _seekToBar(_loopStart);
-              }
-              setTimeout(() => { _loopSeeking = false; }, 250);
-            }, 30);
+        // PATCH-B: bar-range loop check using pre-computed bounds.
+        // Simpler than the previous setTimeout-dance: synchronous seek
+        // with a short timestamp guard against rapid re-fire.  Bounds
+        // are refreshed in onStart and on every selection change, so
+        // they stay correct across tempo (warp) changes too.
+        if (_barLooping
+            && _loopStartMs !== null && _loopEndMs !== null && ev) {
+          const sinceLast = Date.now() - _lastSeekAt;
+          if (ev.milliseconds >= _loopEndMs && sinceLast > 80) {
+            _seekToBar(_barSel.start);
           }
         }
       },
       onFinished() {
         document.querySelectorAll("#sheet-music-render .abcjs-highlight")
           .forEach(el => el.classList.remove("abcjs-highlight"));
-        // If looping, restart — but skip if a seek is already in flight (race
-        // condition: loop endpoint detected in onEvent, tune still finished before
-        // seek took effect).  onStart will immediately seek to selection start.
-        if (_barLooping && _barSel.start !== null && _synthController && !_loopSeeking) {
-          // Pre-seek to loop start BEFORE calling play(), so ABCJS doesn't
-          // briefly play from bar 0 while waiting for onStart to fire.
+        // PATCH-B: with synchronous loop-seek in onEvent, the old "in-flight
+        // seek" race is gone.  If we still reach onFinished while looping
+        // (e.g. loop end IS the tune end and the event check just missed),
+        // simply pre-seek to start and replay.
+        if (_barLooping && _barSel.start !== null && _synthController) {
           _seekToBar(_barSel.start);
           _barSeekPending = true;
           try { _synthController.play(); } catch {}
@@ -4446,6 +4622,7 @@ function _fsSeekToBar(idx) {
   const buf = _abcFsSynthCtrl.midiBuffer;
   if (!buf || !buf.duration) return;
   const frac = Math.max(0, Math.min(1, _fsBarMs(idx) / (buf.duration * 1000)));
+  _fsLastSeekAt = Date.now();   // PATCH-B
   _abcFsSynthCtrl.seek(frac);
 }
 
@@ -4454,7 +4631,11 @@ function _updateFsBarHighlight() {
   if (!render) return;
   render.querySelectorAll(".bar-selected, .bar-sel-start")
     .forEach(el => el.classList.remove("bar-selected", "bar-sel-start"));
-  if (_fsBarSel.start === null) return;
+  if (_fsBarSel.start === null) {
+    // PATCH-B: clear overlay rects when selection cleared
+    _drawBarSelOverlay("abc-fullscreen-render", _fsBarMap, _fsBarSel);
+    return;
+  }
 
   const pending = _fsBarSel.end === null;
   const cls = pending ? "bar-sel-start" : "bar-selected";
@@ -4465,6 +4646,8 @@ function _updateFsBarHighlight() {
     const { wrapper, measure } = _fsBarMap[i];
     wrapper.querySelectorAll(`.abcjs-m${measure}`).forEach(el => el.classList.add(cls));
   }
+  // PATCH-B: overlay rect(s) behind the notes
+  _drawBarSelOverlay("abc-fullscreen-render", _fsBarMap, _fsBarSel);
 }
 
 function _updateFsSelectionInfo() {
@@ -4474,7 +4657,14 @@ function _updateFsSelectionInfo() {
   const pending = _fsBarSel.end === null;
   const lo = _fsBarSel.start + 1;
   const hi = (pending ? _fsBarSel.start : _fsBarSel.end) + 1;
-  const label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
+  const barCount = hi - lo + 1;
+  // PATCH-B: bar count + loop duration where known
+  let label = lo === hi ? `Bar ${lo}` : `Bars ${lo}–${hi}`;
+  if (!pending && barCount > 1) label += ` · ${barCount} bars`;
+  if (!pending && _fsLoopStartMs !== null && _fsLoopEndMs !== null) {
+    const dur = _ceolFormatLoopDuration(_fsLoopEndMs - _fsLoopStartMs);
+    if (dur) label += ` · ${dur}`;
+  }
   el.classList.remove("hidden");
   if (pending) {
     el.innerHTML = `<span>${label} — tap another to extend, or same bar to loop just this one</span>`
@@ -4486,6 +4676,7 @@ function _updateFsSelectionInfo() {
       + `<button class="btn-secondary bar-sel-clear">✕</button>`;
     el.querySelector(".bar-loop-toggle").addEventListener("click", () => {
       _fsLooping = !_fsLooping;
+      _fsRecomputeLoopBounds();
       _updateFsSelectionInfo();
     });
   }
@@ -4497,6 +4688,8 @@ function _clearFsBarSel() {
   _fsLooping = false;
   _fsBarSeekPending = false;
   _fsLoopSeeking = false;
+  _fsLoopStartMs = null;   // PATCH-B
+  _fsLoopEndMs   = null;
   _updateFsBarHighlight();
   _updateFsSelectionInfo();
 }
@@ -4540,6 +4733,7 @@ function _fsMeasureClickHandler(e) {
     _fsLooping = false;
   }
   _fsBarSeekPending = true;
+  _fsRecomputeLoopBounds();   // PATCH-B
   _updateFsBarHighlight();
   _updateFsSelectionInfo();
   if (_fsBarSel.start !== null) _fsSeekToBar(_fsBarSel.start);
@@ -4736,6 +4930,8 @@ function openAbcFullscreen(abc, title, opts = {}) {
       const cursorControl = {
         onStart() {
           _fsBuildTimingMap();
+          _fsRecomputeLoopBounds();   // PATCH-B
+          _updateFsSelectionInfo();
           // Seek to selected bar immediately on (re)start — same fix as modal.
           if (_fsBarSel.start !== null) {
             setTimeout(() => { if (_abcFsSynthCtrl) _fsSeekToBar(_fsBarSel.start); }, 0);
@@ -4791,25 +4987,12 @@ function openAbcFullscreen(abc, title, opts = {}) {
             }
           }
 
-          // Bar-range loop: controlled by _fsLooping (not ABCJS loop button).
-          // Mirrors the modal pattern (L3818): wrap the seek in a 30ms timer so
-          // ABCJS can settle internal state before seeking, and reset
-          // _fsLoopSeeking AFTER the seek inside a nested timer.  Without this,
-          // ABCJS sometimes silenced onEvent on the second pass — BUG 3.
-          if (!_fsLoopSeeking && _fsLooping
-              && _fsBarSel.start !== null && _fsBarSel.end !== null && ev) {
-            const endMs = Object.prototype.hasOwnProperty.call(_fsBarFirstMs, _fsBarSel.end + 1)
-              ? _fsBarFirstMs[_fsBarSel.end + 1]
-              : _fsBarMs(_fsBarSel.end) + (_fsMsPerMeasure || 0);
-            if (ev.milliseconds >= endMs) {
-              _fsLoopSeeking = true;
-              const _fsLoopStart = _fsBarSel.start;
-              setTimeout(() => {
-                if (_fsLooping && _fsBarSel.start !== null) {
-                  _fsSeekToBar(_fsLoopStart);
-                }
-                setTimeout(() => { _fsLoopSeeking = false; }, 250);
-              }, 30);
+          // PATCH-B: cached-bounds loop check, see modal version for rationale.
+          if (_fsLooping
+              && _fsLoopStartMs !== null && _fsLoopEndMs !== null && ev) {
+            const sinceLast = Date.now() - _fsLastSeekAt;
+            if (ev.milliseconds >= _fsLoopEndMs && sinceLast > 80) {
+              _fsSeekToBar(_fsBarSel.start);
             }
           }
         },
@@ -4821,14 +5004,10 @@ function openAbcFullscreen(abc, title, opts = {}) {
             document.querySelectorAll("#abc-fullscreen-render .abcjs-highlight")
               .forEach(el => el.classList.remove("abcjs-highlight"));
           }
-          // If looping, restart from selection start.  Guard !_fsLoopSeeking so a
-          // seek already in flight (loop endpoint detected in onEvent, tune still
-          // ended before seek took effect) doesn't double-fire play().  Pre-seek
-          // BEFORE play() so ABCJS doesn't briefly play from bar 0 while waiting
-          // for onStart to fire — without this, loops near the end of the tune
-          // produced highlight glitches because the cursor would emit events for
-          // bar 0 before snapping back.  BUG 5.
-          if (_fsLooping && _fsBarSel.start !== null && _abcFsSynthCtrl && !_fsLoopSeeking) {
+          // PATCH-B: with synchronous loop-seek in onEvent the in-flight race
+          // is gone.  If we still reach onFinished while looping (loop end IS
+          // the tune end), pre-seek and replay.
+          if (_fsLooping && _fsBarSel.start !== null && _abcFsSynthCtrl) {
             _fsSeekToBar(_fsBarSel.start);
             _fsBarSeekPending = true;
             try { _abcFsSynthCtrl.play(); } catch {}
