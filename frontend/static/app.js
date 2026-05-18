@@ -13384,7 +13384,19 @@ let _pracSettings    = {};
 let _pracCurrentAbc  = null;   // last-built practice ABC (for fullscreen)
 
 function _stopPracticeAudio() {
-  if (_pracSynthCtrl) { try { _pracSynthCtrl.stop(); } catch {} _pracSynthCtrl = null; }
+  // PATCH-PRAC-STOP-FIX-18MAY2026: _pracSynthCtrl.stop() does not exist on the abcjs synth
+  // controller. The methods that DO exist and that actually halt
+  // scheduled audio on iOS are pause(), midiBuffer.stop(), and disable().
+  if (_pracSynthCtrl) {
+    try { _pracSynthCtrl.pause(); } catch (_) {}
+    try {
+      if (_pracSynthCtrl.midiBuffer && typeof _pracSynthCtrl.midiBuffer.stop === 'function') {
+        _pracSynthCtrl.midiBuffer.stop();
+      }
+    } catch (_) {}
+    try { _pracSynthCtrl.disable(true); } catch (_) {}
+    _pracSynthCtrl = null;
+  }
   // NOTE: Do NOT close window.abcjsAudioContext here. It is the SHARED context
   // used by every synth in the app (tune modal, set modal, fullscreen, preview,
   // practice). Closing it kills audio app-wide and cannot be undone — once an
