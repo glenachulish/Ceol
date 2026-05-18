@@ -3771,8 +3771,10 @@ function _updateSelectionInfo() {
 //     because CSS lost to the !important from style.css.
 //   * No teardown needed: abcjs re-render destroys staff wrappers, our
 //     rects go with them.
-function _drawTapTargets() {
-  const container = document.getElementById('sheet-music-render');
+function _drawTapTargets(containerId) {
+  // PATCH-PRAC-TAP-1-18MAY2026: accept optional container ID, default sheet-music-render
+  if (!containerId) containerId = 'sheet-music-render';
+  const container = document.getElementById(containerId);
   if (!container) return;
   const svg = container.querySelector('svg');
   if (!svg) return;
@@ -13564,8 +13566,13 @@ function _renderPracticeMusic(pracAbc) {
     _pracVisualObj = visualObjs[0];
 
     // Color notes by phrase group after render
-    const { phraseLen = 2, restBars = 2 } = _pracSettings;
-    requestAnimationFrame(() => _pracColorPhraseBars(phraseLen, restBars));
+    // PATCH-PRAC-TAP-1-18MAY2026: guard against undefined _pracSettings; draw tap targets + shading
+    const { phraseLen = 2, restBars = 2 } = (window._pracSettings || {});
+    requestAnimationFrame(() => {
+      _pracColorPhraseBars(phraseLen, restBars);
+      try { _drawTapTargets('prac-sheet-render'); } catch (e) { console.warn('[prac-tap] drawTapTargets failed', e); }
+      try { _pracUpdateBarShading(); } catch (e) {}
+    });
 
     if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) return;
 
@@ -15161,3 +15168,122 @@ document.addEventListener("DOMContentLoaded", () => {
     loadPlaylists();
   });
 });
+
+
+// ===================================================================
+// PATCH-PRAC-TAP-1-18MAY2026
+// Practice tab tap-to-select infrastructure.
+// ===================================================================
+
+function _pracEnsureFullRender(forceReRender) {
+  const container = document.getElementById('prac-sheet-render');
+  if (!container) return;
+  if (!forceReRender && container.querySelector('svg')) return;
+  const tune = (window._ceolLastModalArgs || [])[0];
+  if (!tune || !tune.abc) return;
+  if (typeof _renderPracticeMusic === 'function') {
+    try { _renderPracticeMusic(tune.abc); }
+    catch (e) { console.warn('[prac-tap] ensureFullRender failed', e); }
+  }
+}
+
+function _onPracBarTap(ev) {
+  let el = ev.target;
+  while (el && el.nodeType === 1) {
+    if (el.tagName.toLowerCase() === 'rect'
+        && el.getAttribute
+        && el.getAttribute('data-ceol-tap') === '1') break;
+    el = el.parentNode;
+  }
+  if (!el || el.nodeType !== 1 || el.tagName.toLowerCase() !== 'rect') return;
+  const allRects = Array.from(document.querySelectorAll(
+    '#prac-sheet-render rect[data-ceol-tap="1"]'
+  ));
+  const idx = allRects.indexOf(el);
+  if (idx < 0) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  _pracHandleBarTap(idx + 1);
+}
+
+function _pracHandleBarTap(barNum) {
+  const fromEl = document.getElementById('prac-from-bar');
+  const toEl = document.getElementById('prac-to-bar');
+  if (!fromEl || !toEl) return;
+  const fromVal = parseInt(fromEl.value);
+  const toVal = parseInt(toEl.value);
+  const hasFrom = Number.isFinite(fromVal) && fromVal >= 1;
+  const hasTo = Number.isFinite(toVal) && toVal >= 1;
+  // State machine (option 1: tap 3 starts a new range)
+  if (!hasFrom || (hasFrom && hasTo)) {
+    fromEl.value = barNum;
+    toEl.value = '';
+  } else {
+    let from = fromVal, to = barNum;
+    if (to < from) { const tmp = from; from = to; to = tmp; }
+    fromEl.value = from;
+    toEl.value = to;
+  }
+  fromEl.dispatchEvent(new Event('input', { bubbles: true }));
+  toEl.dispatchEvent(new Event('input', { bubbles: true }));
+  _pracUpdateBarShading();
+}
+
+function _pracUpdateBarShading() {
+  const allRects = Array.from(document.querySelectorAll(
+    '#prac-sheet-render rect[data-ceol-tap="1"]'
+  ));
+  if (!allRects.length) return;
+  allRects.forEach(r => {
+    r.classList.remove('bar-sel-start');
+    r.classList.remove('bar-selected');
+  });
+  const fromEl = document.getElementById('prac-from-bar');
+  const toEl = document.getElementById('prac-to-bar');
+  const fromVal = parseInt(fromEl && fromEl.value);
+  const toVal = parseInt(toEl && toEl.value);
+  if (!Number.isFinite(fromVal) || fromVal < 1) return;
+  const fromIdx = fromVal - 1;
+  const startRect = allRects[fromIdx];
+  if (startRect) startRect.classList.add('bar-sel-start');
+  if (Number.isFinite(toVal) && toVal > fromVal) {
+    for (let i = fromIdx + 1; i < Math.min(toVal, allRects.length); i++) {
+      allRects[i].classList.add('bar-selected');
+    }
+  }
+}
+
+// Wire up: tab activation, sheet taps, input syncing — idempotent.
+(function _pracTapInit() {
+  if (window._pracTapInitDone) return;
+  window._pracTapInitDone = true;
+
+  // (A) Practice tab activation → render full tune if sheet is empty.
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target && ev.target.closest && ev.target.closest('[data-tab="practice"]');
+    if (!btn) return;
+    setTimeout(() => _pracEnsureFullRender(false), 100);
+  }, true);
+
+  // (B) Tap on practice sheet → select bars.
+  document.addEventListener('click', (ev) => {
+    const sheet = ev.target && ev.target.closest && ev.target.closest('#prac-sheet-render');
+    if (!sheet) return;
+    _onPracBarTap(ev);
+  }, true);
+
+  // (C) Typed From/To → keep shading in sync. If BOTH cleared, re-render
+  //     the full tune so user can pick a fresh range after a Build.
+  document.addEventListener('input', (ev) => {
+    const t = ev.target;
+    if (!t || !t.id) return;
+    if (t.id !== 'prac-from-bar' && t.id !== 'prac-to-bar') return;
+    _pracUpdateBarShading();
+    const fromV = (document.getElementById('prac-from-bar') || {}).value;
+    const toV = (document.getElementById('prac-to-bar') || {}).value;
+    if ((fromV === '' || fromV == null) && (toV === '' || toV == null)) {
+      _pracEnsureFullRender(true);
+    }
+  }, true);
+})();
+

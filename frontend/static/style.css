@@ -4573,3 +4573,17 @@ a.bandcamp-link:hover { opacity: .85; }
   fill: rgb(212, 160, 23) !important;
   fill-opacity: 0.25 !important;
 }
+
+
+/* PATCH-PRAC-TAP-1-18MAY2026 — Practice tab bar shading, mirrors sheet-music modal palette */
+#prac-sheet-render rect[data-ceol-tap="1"].bar-sel-start {
+  fill: var(--accent) !important;
+  fill-opacity: 0.18 !important;
+  stroke: none !important;
+}
+#prac-sheet-render rect[data-ceol-tap="1"].bar-selected {
+  fill: var(--accent2) !important;
+  fill-opacity: 0.18 !important;
+  stroke: none !important;
+}
+
