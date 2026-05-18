@@ -15401,3 +15401,215 @@ window._onPracBarTap = function(ev) {
   }, true);
 })();
 
+
+// ===================================================================
+// PATCH-PRAC-TAP-3-18MAY2026
+// Practice tab "Next →" and "✕ Clear" buttons, plus Build & Practice
+// morphs to "⏹ Stop" while playing.
+// ===================================================================
+
+function _pracTuneTotalBars() {
+  const fromEl = document.getElementById('prac-from-bar');
+  const v = parseInt(fromEl && fromEl.getAttribute('max'));
+  return Number.isFinite(v) && v >= 1 ? v : 0;
+}
+
+function _pracInsertControlButtons() {
+  if (document.getElementById('prac-next-btn')) return false;
+  const toBar = document.getElementById('prac-to-bar');
+  if (!toBar) return false;
+  // Insert after the row containing From/To. That row is toBar's parent.
+  const row = toBar.closest('.practice-row') || toBar.parentNode;
+  if (!row || !row.parentNode) return false;
+  const wrap = document.createElement('div');
+  wrap.className = 'practice-row practice-row-actions';
+  wrap.id = 'prac-action-row';
+  wrap.innerHTML =
+    '<button id="prac-next-btn" type="button" class="btn-secondary prac-action-btn" disabled>Next →</button>' +
+    '<button id="prac-clear-btn" type="button" class="btn-secondary prac-action-btn" disabled>✕ Clear</button>';
+  row.parentNode.insertBefore(wrap, row.nextSibling);
+  return true;
+}
+
+function _pracOnNextClicked() {
+  const fromEl = document.getElementById('prac-from-bar');
+  const toEl = document.getElementById('prac-to-bar');
+  if (!fromEl || !toEl) return;
+  const from = parseInt(fromEl.value);
+  const to = parseInt(toEl.value);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from < 1 || to < from) return;
+  const total = _pracTuneTotalBars();
+  if (!total) return;
+  const len = to - from + 1;
+  let newFrom = to + 1;
+  let newTo = newFrom + len - 1;
+  if (newFrom > total) return;
+  if (newTo > total) {
+    // Snug the range up to the last bar
+    newTo = total;
+    newFrom = Math.max(1, newTo - len + 1);
+  }
+  // Stop audio if playing — same model as slice-tap interrupt
+  try { if (typeof _stopPracticeAudio === 'function') _stopPracticeAudio(); } catch (_) {}
+  // Ensure full tune is visible so the new range shades correctly
+  let currentAbc;
+  try { currentAbc = _pracCurrentAbc; } catch (e) {}
+  const fullAbc = (window._ceolLastModalArgs || [])[0]?.abc;
+  const isSlice = !!(currentAbc && fullAbc && currentAbc !== fullAbc);
+  if (isSlice) {
+    try { if (typeof _pracEnsureFullRender === 'function') _pracEnsureFullRender(true); } catch (_) {}
+    setTimeout(() => {
+      fromEl.value = newFrom;
+      toEl.value = newTo;
+      fromEl.dispatchEvent(new Event('input', { bubbles: true }));
+      toEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }, 350);
+  } else {
+    fromEl.value = newFrom;
+    toEl.value = newTo;
+    fromEl.dispatchEvent(new Event('input', { bubbles: true }));
+    toEl.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+function _pracOnClearClicked() {
+  const fromEl = document.getElementById('prac-from-bar');
+  const toEl = document.getElementById('prac-to-bar');
+  // Stop audio first
+  try { if (typeof _stopPracticeAudio === 'function') _stopPracticeAudio(); } catch (_) {}
+  if (fromEl) fromEl.value = '';
+  if (toEl)   toEl.value   = '';
+  if (fromEl) fromEl.dispatchEvent(new Event('input', { bubbles: true }));
+  if (toEl)   toEl.dispatchEvent(new Event('input', { bubbles: true }));
+  // Reset tempo display readout if present
+  const tempoDisp = document.getElementById('prac-tempo-display');
+  if (tempoDisp) tempoDisp.textContent = '';
+  // Bring full tune back
+  try { if (typeof _pracEnsureFullRender === 'function') _pracEnsureFullRender(true); } catch (_) {}
+}
+
+function _pracUpdateActionButtonStates() {
+  const nextBtn = document.getElementById('prac-next-btn');
+  const clearBtn = document.getElementById('prac-clear-btn');
+  if (!nextBtn || !clearBtn) return;
+  const fromEl = document.getElementById('prac-from-bar');
+  const toEl = document.getElementById('prac-to-bar');
+  const from = parseInt(fromEl && fromEl.value);
+  const to = parseInt(toEl && toEl.value);
+  const hasRange = Number.isFinite(from) && Number.isFinite(to) && from >= 1 && to >= from;
+  const total = _pracTuneTotalBars();
+  const canAdvance = hasRange && total > 0 && to < total;
+  nextBtn.disabled = !canAdvance;
+  // Clear is enabled if either input has a value
+  const anyValue = (fromEl && fromEl.value !== '') || (toEl && toEl.value !== '');
+  clearBtn.disabled = !anyValue;
+}
+
+// --- Build button morph: ▶ Build & Practice ⇄ ⏹ Stop ---
+let _pracBuildMorphPoll = null;
+const _pracBuildOriginalLabel = '▶ Build & Practice';
+const _pracBuildStopLabel = '⏹ Stop';
+
+function _pracIsPlaying() {
+  try {
+    return !!(_pracSynthCtrl && _pracSynthCtrl.isStarted);
+  } catch (e) {
+    return false;
+  }
+}
+
+function _pracUpdateBuildButtonLabel() {
+  const btn = document.getElementById('prac-build-btn');
+  if (!btn) return;
+  const playing = _pracIsPlaying();
+  const wantLabel = playing ? _pracBuildStopLabel : _pracBuildOriginalLabel;
+  if (btn.textContent.trim() !== wantLabel) {
+    btn.textContent = wantLabel;
+  }
+  btn.dataset.playing = playing ? '1' : '0';
+  // Add CSS class for styling the Stop state
+  btn.classList.toggle('prac-build-stopping', playing);
+}
+
+function _pracStartBuildMorphPoll() {
+  if (_pracBuildMorphPoll) return;
+  _pracBuildMorphPoll = setInterval(() => {
+    _pracUpdateBuildButtonLabel();
+    if (!_pracIsPlaying()) {
+      // Once stopped, do one final update and stand down the poll
+      clearInterval(_pracBuildMorphPoll);
+      _pracBuildMorphPoll = null;
+    }
+  }, 250);
+}
+
+// Intercept clicks on Build & Practice. If playing → stop. Otherwise → original.
+(function _pracBuildBtnInit() {
+  if (window._pracBuildBtnInitDone) return;
+  window._pracBuildBtnInitDone = true;
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target && ev.target.closest && ev.target.closest('#prac-build-btn');
+    if (!btn) return;
+    if (_pracIsPlaying()) {
+      // Intercept: stop instead of triggering build
+      ev.preventDefault();
+      ev.stopPropagation();
+      try { if (typeof _stopPracticeAudio === 'function') _stopPracticeAudio(); } catch (_) {}
+      _pracUpdateBuildButtonLabel();
+      return;
+    }
+    // Otherwise: original handler runs, AND we start polling for the
+    // playback start so the label morphs as soon as the synth fires up.
+    // Poll a bit later — synth needs to load first.
+    setTimeout(() => {
+      // Wait up to 5 seconds for play to start, then begin morph polling.
+      let waited = 0;
+      const waitPoll = setInterval(() => {
+        waited += 200;
+        if (_pracIsPlaying()) {
+          clearInterval(waitPoll);
+          _pracUpdateBuildButtonLabel();
+          _pracStartBuildMorphPoll();
+        } else if (waited >= 5000) {
+          clearInterval(waitPoll);
+        }
+      }, 200);
+    }, 100);
+  }, true);
+})();
+
+// --- Wire it all up ---
+(function _pracActionBtnsInit() {
+  if (window._pracActionBtnsInitDone) return;
+  window._pracActionBtnsInitDone = true;
+
+  // Inject buttons whenever Practice tab opens, and refresh state on every input change.
+  const tryInject = () => {
+    try { _pracInsertControlButtons(); } catch (_) {}
+    try { _pracUpdateActionButtonStates(); } catch (_) {}
+  };
+
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target && ev.target.closest && ev.target.closest('[data-tab="practice"]');
+    if (btn) setTimeout(tryInject, 60);
+    if (ev.target && ev.target.id === 'prac-next-btn') {
+      ev.preventDefault();
+      _pracOnNextClicked();
+    }
+    if (ev.target && ev.target.id === 'prac-clear-btn') {
+      ev.preventDefault();
+      _pracOnClearClicked();
+    }
+  }, true);
+
+  document.addEventListener('input', (ev) => {
+    const t = ev.target;
+    if (!t || !t.id) return;
+    if (t.id !== 'prac-from-bar' && t.id !== 'prac-to-bar') return;
+    _pracUpdateActionButtonStates();
+  }, true);
+
+  // First-pass injection in case modal is already open
+  setTimeout(tryInject, 100);
+})();
+

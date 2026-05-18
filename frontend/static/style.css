@@ -4587,3 +4587,22 @@ a.bandcamp-link:hover { opacity: .85; }
   stroke: none !important;
 }
 
+
+/* PATCH-PRAC-TAP-3-18MAY2026 — Practice tab action row buttons */
+.practice-row-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.5rem 0;
+}
+.prac-action-btn {
+  flex: 0 0 auto;
+  padding: 0.45rem 0.9rem;
+}
+.prac-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+#prac-build-btn.prac-build-stopping {
+  background: var(--accent2, #c0392b) !important;
+}
+
