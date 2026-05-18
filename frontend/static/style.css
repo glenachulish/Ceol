@@ -4547,3 +4547,29 @@ a.bandcamp-link:hover { opacity: .85; }
 .audio-test-btn:active {
   opacity: 1;
 }
+
+
+/* PATCH-3-BAR-SHADING-17MAY2026 — bar-shading on tap-target rects.
+   These rules paint the invisible bar-sized rects from Patch 2 (v2)
+   with a soft tint matching each selection state's existing palette,
+   so the loop start, range, and pinned bars are obvious at a glance.
+
+   Why these selectors win:
+     The [data-ceol-tap="1"] attribute selector is strictly more
+     specific than the existing .bar-* rect rules above, so these win
+     for our tap-target rects without an !important specificity war.
+     Note bodies (which don't carry data-ceol-tap) still get their
+     existing tint from the rules above. */
+
+#sheet-music-render rect[data-ceol-tap="1"].bar-sel-start {
+  fill: var(--accent) !important;
+  fill-opacity: 0.18 !important;
+}
+#sheet-music-render rect[data-ceol-tap="1"].bar-selected {
+  fill: var(--accent2) !important;
+  fill-opacity: 0.18 !important;
+}
+#sheet-music-render rect[data-ceol-tap="1"].bar-pinned {
+  fill: rgb(212, 160, 23) !important;
+  fill-opacity: 0.25 !important;
+}
