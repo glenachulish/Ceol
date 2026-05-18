@@ -3745,6 +3745,104 @@ function _updateSelectionInfo() {
 // Critical: abcjs-mN is per-staff-wrapper (each visual line resets to m0),
 // so we use the same (wrapper, measure) key as _barMap to resolve the correct
 // global bar index.  Without this, Part B bars are misidentified as Part A.
+// PATCH-2-TAP-TARGETS-V2-17MAY2026
+// Draws invisible bar-sized rects inside each staff wrapper so taps
+// anywhere in a bar's area resolve to the right measure via the
+// existing ancestor-walk click handler.
+//
+// Why each detail:
+//   * UNION BBOX. abcjs puts abcjs-mN on every element of a measure
+//     (clef, beam, note groups, ending, barline) rather than wrapping
+//     them in one container — so we bucket by measure within each
+//     .abcjs-staff-wrapper and compute the union bbox.
+//   * EXCLUDE abcjs-ending + abcjs-bar. Volta brackets and barlines
+//     overhang into the next measure's territory and would inflate the
+//     bbox into neighbouring bars. Tested live: with them included
+//     ~50% of L1 bars overlapped their neighbour; with them excluded,
+//     all 27 bars hit-test correctly.
+//   * RECT IS A CHILD OF WRAPPER, classed abcjs-mN abcjs-lN. The
+//     existing click handler walks ancestors from event.target to find
+//     .abcjs-mN and .abcjs-staff-wrapper — both resolve correctly from
+//     a rect-tap, zero handler changes.
+//   * fill-opacity="0" + stroke-opacity="0" defeat style.css's
+//     !important fill + stroke rules without an !important arms race.
+//     SVG presentation attributes set this way — DO NOT switch to CSS,
+//     the previous attempt (E2 16 May) rendered solid black on phones
+//     because CSS lost to the !important from style.css.
+//   * No teardown needed: abcjs re-render destroys staff wrappers, our
+//     rects go with them.
+function _drawTapTargets() {
+  const container = document.getElementById('sheet-music-render');
+  if (!container) return;
+  const svg = container.querySelector('svg');
+  if (!svg) return;
+  const measureClassRe = /^abcjs-m(\d+)$/;
+  const excludeClassRe = /\b(abcjs-ending|abcjs-bar)\b/;
+  const wrappers = svg.querySelectorAll('.abcjs-staff-wrapper');
+  let drawn = 0;
+  wrappers.forEach((wrapper) => {
+    let lineN = null;
+    for (const c of wrapper.classList) {
+      const m = c.match(/^abcjs-l(\d+)$/);
+      if (m) { lineN = m[1]; break; }
+    }
+    const buckets = {};
+    wrapper.querySelectorAll('*').forEach(el => {
+      const cls = el.getAttribute('class') || '';
+      if (excludeClassRe.test(cls)) return;
+      let p = el.parentNode;
+      let skip = false;
+      while (p && p !== wrapper) {
+        const pcls = (p.getAttribute && p.getAttribute('class')) || '';
+        if (excludeClassRe.test(pcls)) { skip = true; break; }
+        p = p.parentNode;
+      }
+      if (skip) return;
+      for (const c of el.classList) {
+        const m = c.match(measureClassRe);
+        if (m) (buckets[m[1]] = buckets[m[1]] || []).push(el);
+      }
+    });
+    Object.keys(buckets).forEach(measureN => {
+      if (wrapper.querySelector(':scope > rect[data-ceol-tap="1"][data-bar-m="' + measureN + '"]')) return;
+      let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity, count=0;
+      for (const el of buckets[measureN]) {
+        try {
+          const b = el.getBBox();
+          if (b.width <= 0 && b.height <= 0) continue;
+          if (b.x < minX) minX = b.x;
+          if (b.y < minY) minY = b.y;
+          if (b.x + b.width > maxX) maxX = b.x + b.width;
+          if (b.y + b.height > maxY) maxY = b.y + b.height;
+          count++;
+        } catch (e) {}
+      }
+      if (count === 0) return;
+      const w = maxX - minX;
+      const h = maxY - minY;
+      const padY = h * 0.4;
+      const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      r.setAttribute('x', minX);
+      r.setAttribute('y', minY - padY);
+      r.setAttribute('width', w);
+      r.setAttribute('height', h + padY * 2);
+      r.setAttribute('fill', 'black');
+      r.setAttribute('fill-opacity', '0');
+      r.setAttribute('stroke', 'none');
+      r.setAttribute('stroke-opacity', '0');
+      r.setAttribute('pointer-events', 'all');
+      r.setAttribute('class', 'abcjs-m' + measureN + (lineN !== null ? ' abcjs-l' + lineN : ''));
+      r.setAttribute('data-ceol-tap', '1');
+      r.setAttribute('data-bar-m', measureN);
+      wrapper.appendChild(r);
+      drawn++;
+    });
+  });
+  if (window._ceolTapDebug) {
+    console.log('[ceol] drew ' + drawn + ' tap targets');
+  }
+}
+
 function _buildBarTimingMap() {
   /* PATCH-C-17MAY2026-LOOP-SEEK-FIX */
   _barFirstMs = {};
@@ -4220,6 +4318,7 @@ function renderSheetMusic(abc, opts = {}) {
     requestAnimationFrame(() => {
       _barMap = _buildBarMap();
       _applyHighlights();
+      _drawTapTargets();  // PATCH-2-TAP-TARGETS-V2-17MAY2026
     });
     _msPerMeasure = typeof _visualObj.millisecondsPerMeasure === "function"
       ? _visualObj.millisecondsPerMeasure()
