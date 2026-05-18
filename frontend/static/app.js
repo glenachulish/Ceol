@@ -15287,3 +15287,117 @@ function _pracUpdateBarShading() {
   }, true);
 })();
 
+
+// ===================================================================
+// PATCH-PRAC-TAP-2-18MAY2026
+// Practice tab layout reorder + slice-tap interrupt.
+//
+// Replaces _onPracBarTap from Patch 1 with a version that detects
+// when the user is looking at a built slice (not the full tune) and,
+// on tap, stops audio + reverts to the full tune + sets the tapped
+// bar (translated to the original tune's bar number) as the new From.
+//
+// Also reorders the Practice tab so the sheet music renders ABOVE
+// the controls.  Idempotent; safe to run repeatedly.
+// ===================================================================
+
+function _pracReorderLayout() {
+  const tab = document.getElementById('tab-practice');
+  if (!tab) return false;
+  const sheet = document.getElementById('prac-sheet-render');
+  if (!sheet) return false;
+  if (tab.firstElementChild === sheet) return false; // already done
+  const tempoDisp = document.getElementById('prac-tempo-display');
+  const phraseInd = document.getElementById('prac-phrase-indicator');
+  const player = document.getElementById('prac-player-container');
+  const order = [sheet, tempoDisp, phraseInd, player].filter(Boolean);
+  const anchor = tab.firstChild;
+  order.forEach(el => tab.insertBefore(el, anchor));
+  return true;
+}
+
+// Override Patch 1's _onPracBarTap with slice-aware version.
+// IMPORTANT: this is a function-declaration override — by reassigning
+// via window._onPracBarTap and re-running init below.  The Patch 1
+// listener captures the function by name in a closure, but bare-name
+// lookups resolve dynamically, so the override takes effect.
+window._onPracBarTap = function(ev) {
+  let el = ev.target;
+  while (el && el.nodeType === 1) {
+    if (el.tagName.toLowerCase() === 'rect'
+        && el.getAttribute
+        && el.getAttribute('data-ceol-tap') === '1') break;
+    el = el.parentNode;
+  }
+  if (!el || el.nodeType !== 1 || el.tagName.toLowerCase() !== 'rect') return;
+
+  const allRects = Array.from(document.querySelectorAll(
+    '#prac-sheet-render rect[data-ceol-tap="1"]'
+  ));
+  const tapIdx = allRects.indexOf(el);
+  if (tapIdx < 0) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  const tune = (window._ceolLastModalArgs || [])[0];
+  const fullAbc = tune && tune.abc;
+  // _pracCurrentAbc is a top-level `let` in app.js, NOT a window prop —
+  // we're appended into the same script scope so the bare name resolves.
+  let currentAbc;
+  try { currentAbc = _pracCurrentAbc; } catch (e) { currentAbc = undefined; }
+  const isSlice = !!(currentAbc && fullAbc && currentAbc !== fullAbc);
+
+  if (isSlice) {
+    // Translate slice-local bar (1-indexed) to original tune bar.
+    const fromInputVal = parseInt(
+      (document.getElementById('prac-from-bar') || {}).value
+    );
+    const baseFrom = (Number.isFinite(fromInputVal) && fromInputVal >= 1)
+      ? fromInputVal : 1;
+    const originalBar = baseFrom + tapIdx;
+
+    try { if (typeof _stopPracticeAudio === 'function') _stopPracticeAudio(); }
+    catch (_) {}
+
+    // Clear inputs first so _pracEnsureFullRender's caller sees clean state
+    const fromEl = document.getElementById('prac-from-bar');
+    const toEl   = document.getElementById('prac-to-bar');
+    if (fromEl) fromEl.value = '';
+    if (toEl)   toEl.value   = '';
+
+    // Force the full tune back in.  The renderer is async via rAF, so
+    // we set the new From bar after a short timeout to let the rects
+    // get drawn.
+    try { if (typeof _pracEnsureFullRender === 'function') _pracEnsureFullRender(true); }
+    catch (_) {}
+
+    setTimeout(() => {
+      try { if (typeof _pracHandleBarTap === 'function') _pracHandleBarTap(originalBar); }
+      catch (_) {}
+    }, 350);
+    return;
+  }
+
+  // Normal full-tune tap: behaviour from Patch 1.
+  try { if (typeof _pracHandleBarTap === 'function') _pracHandleBarTap(tapIdx + 1); }
+  catch (_) {}
+};
+
+// Reorder the layout once practice tab is created.  Two hook points:
+//   (1) on initial DOM ready
+//   (2) on practice tab activation (in case modal recreated DOM)
+(function _pracLayoutInit() {
+  if (window._pracLayoutInitDone) return;
+  window._pracLayoutInitDone = true;
+
+  // (1) Try once now in case the modal is already up
+  try { _pracReorderLayout(); } catch (_) {}
+
+  // (2) Re-attempt whenever the practice tab is clicked.  Cheap idempotent op.
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target && ev.target.closest && ev.target.closest('[data-tab="practice"]');
+    if (!btn) return;
+    setTimeout(() => { try { _pracReorderLayout(); } catch (_) {} }, 50);
+  }, true);
+})();
+
