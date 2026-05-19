@@ -554,6 +554,13 @@ async function loadInvites() {
       right.appendChild(pill);
 
       if (inv.status === "pending") {
+        if (inv.url) {
+          const copyLinkBtn = document.createElement("button");
+          copyLinkBtn.className = "btn-mini";
+          copyLinkBtn.textContent = "Copy link";
+          copyLinkBtn.onclick = (e) => copyText(inv.url, e.currentTarget);
+          right.appendChild(copyLinkBtn);
+        }
         const revBtn = document.createElement("button");
         revBtn.className = "btn-mini danger";
         revBtn.textContent = "Revoke";

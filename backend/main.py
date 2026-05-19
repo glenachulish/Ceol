@@ -423,14 +423,23 @@ def _require_admin(request: Request) -> int:
 
 
 def _public_origin(request: Request) -> str:
-    """Return the scheme://host of the current request, for building
-    absolute URLs to paste into iMessage. Behind Funnel this will be
-    the public hostname; on the tailnet it'll be the tailnet hostname.
+    """Return the scheme://host (and optional port) for building
+    absolute URLs to paste into iMessage / Signal / email.
+
+    If CEOL_PUBLIC_ORIGIN is set in the environment, use it verbatim.
+    This is the right answer in production: the admin might be
+    browsing the admin page on the tailnet URL (:8001) but the
+    invitee will be visiting on the public Funnel URL (:8443), so we
+    can't infer the public address from the request alone.
+
+    Falls back to the request's host header for dev / first-run
+    setups where the env var hasn't been configured yet.
     """
+    override = os.environ.get("CEOL_PUBLIC_ORIGIN", "").strip().rstrip("/")
+    if override:
+        return override
     host = request.headers.get("host", "")
     scheme = request.url.scheme
-    # Funnel terminates TLS and forwards http; trust X-Forwarded-Proto
-    # if present.
     proto = request.headers.get("x-forwarded-proto") or scheme
     return f"{proto}://{host}" if host else ""
 
