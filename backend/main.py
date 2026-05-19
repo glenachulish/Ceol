@@ -501,6 +501,7 @@ def serve_admin(request: Request):
 
 class _InviteCreateBody(BaseModel):
     note: str | None = None
+    email: str | None = None
     expires_in_days: int = _users_db_mod.DEFAULT_INVITE_EXPIRY_DAYS
 
 
@@ -509,7 +510,7 @@ async def admin_create_invite(body: _InviteCreateBody, request: Request):
     admin_id = _require_admin(request)
     try:
         row = _users_db_mod.create_invite(
-            created_by=admin_id, note=body.note,
+            created_by=admin_id, note=body.note, email=body.email,
             expires_in_days=body.expires_in_days,
         )
     except RuntimeError as e:
@@ -544,8 +545,24 @@ def admin_revoke_invite(invite_id: int, request: Request):
 # ── Public invite endpoints ──────────────────────────────────────────
 
 @app.get("/api/invites/verify")
-def public_verify_invite(token: str = Query(...)):
+def public_verify_invite(request: Request, token: str = Query(...)):
     valid, reason = _users_db_mod.validate_invite_token(token)
+    # If the token is recognised but the invite is spent / expired /
+    # revoked, log the attempt on the invite row so the admin page
+    # can surface it. We deliberately don't log "invalid" (token
+    # doesn't match any row) — that's brute-force noise.
+    if not valid and reason in ("used", "expired", "revoked"):
+        try:
+            row = _users_db_mod.find_invite_by_token(token)
+            if row:
+                _users_db_mod.log_invite_attempt(
+                    invite_id=int(row["id"]),
+                    reason=reason,
+                    ip=_client_ip(request),
+                    user_agent=request.headers.get("user-agent", ""),
+                )
+        except Exception as e:  # pragma: no cover — defensive
+            print(f"[Ceol] verify-log error: {e}")
     return {"valid": valid, "reason": reason}
 
 
@@ -732,6 +749,29 @@ def admin_revoke_reset(reset_id: int, request: Request):
     ok = _users_db_mod.revoke_password_reset(reset_id)
     if not ok:
         raise HTTPException(404, "Reset not pending or doesn't exist")
+    return {"ok": True}
+
+
+# ── Admin: default invitation message (added 19 May 2026) ────────────
+
+class _InviteMessageBody(BaseModel):
+    value: str
+
+
+@app.get("/api/admin/settings/invite-message")
+def admin_get_invite_message(request: Request):
+    _require_admin(request)
+    saved = _users_db_mod.get_admin_setting("invite_message_default", "")
+    if not saved:
+        saved = _users_db_mod.DEFAULT_INVITE_MESSAGE
+    return {"value": saved}
+
+
+@app.put("/api/admin/settings/invite-message")
+def admin_set_invite_message(body: _InviteMessageBody, request: Request):
+    _require_admin(request)
+    value = (body.value or "")[:5000]
+    _users_db_mod.set_admin_setting("invite_message_default", value)
     return {"ok": True}
 
 

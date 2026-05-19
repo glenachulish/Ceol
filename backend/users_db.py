@@ -101,6 +101,33 @@ CREATE INDEX IF NOT EXISTS idx_password_resets_token
     ON password_resets(token);
 """
 
+# Spent-link attempts (added 19 May 2026). Logged whenever someone
+# tries to use an invite token that's already been used / expired /
+# revoked. Surfaces on the admin page so we can tell the recipient
+# what's going on.
+SCHEMA_INVITE_ATTEMPTS = """
+CREATE TABLE IF NOT EXISTS invite_attempts (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    invite_id    INTEGER NOT NULL,
+    reason       TEXT NOT NULL,
+    ip           TEXT,
+    user_agent   TEXT,
+    attempted_at INTEGER NOT NULL,
+    FOREIGN KEY (invite_id) REFERENCES invites(id)
+);
+CREATE INDEX IF NOT EXISTS idx_invite_attempts_invite
+    ON invite_attempts(invite_id);
+"""
+
+# Admin-wide key/value settings (added 19 May 2026). Currently used
+# only for the global default invitation message.
+SCHEMA_ADMIN_SETTINGS = """
+CREATE TABLE IF NOT EXISTS admin_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+);
+"""
+
 # Per the multi-user decisions doc: Callum is the initial sole user
 # and username == display_name.
 SEED_ADMIN = {
@@ -121,6 +148,14 @@ def init_users_db():
         conn.executescript(SCHEMA_SESSIONS)
         conn.executescript(SCHEMA_INVITES)
         conn.executescript(SCHEMA_PASSWORD_RESETS)
+        conn.executescript(SCHEMA_INVITE_ATTEMPTS)
+        conn.executescript(SCHEMA_ADMIN_SETTINGS)
+        # Idempotent ALTER on invites for the email column added 19 May 2026.
+        invite_cols = {row[1] for row in conn.execute(
+            "PRAGMA table_info(invites)"
+        ).fetchall()}
+        if "email" not in invite_cols:
+            conn.execute("ALTER TABLE invites ADD COLUMN email TEXT")
         # Idempotent migrations on `users` for columns added after the
         # initial Phase 0 schema:
         existing_cols = {row[1] for row in conn.execute(
@@ -238,7 +273,8 @@ def _now() -> int:
 
 
 def create_invite(created_by: int, note: str | None,
-                  expires_in_days: int = DEFAULT_INVITE_EXPIRY_DAYS
+                  expires_in_days: int = DEFAULT_INVITE_EXPIRY_DAYS,
+                  email: str | None = None,
                   ) -> dict:
     """Create a new invite. Returns the inserted row as a dict
     (including the raw token; that's how it gets delivered).
@@ -263,10 +299,11 @@ def create_invite(created_by: int, note: str | None,
             )
         conn.execute(
             "INSERT INTO invites "
-            "(token, created_by, created_at, expires_at, note) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "(token, created_by, created_at, expires_at, note, email) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (token, int(created_by), now, expires_at,
-             (note or "").strip()[:200] or None),
+             (note or "").strip()[:200] or None,
+             (email or "").strip().lower()[:200] or None),
         )
         conn.commit()
         row = conn.execute(
@@ -276,12 +313,14 @@ def create_invite(created_by: int, note: str | None,
 
 
 def list_invites_with_status() -> list[dict]:
-    """All invites, newest first, with derived `status` and joined
-    `used_by_username`."""
+    """All invites, newest first, with derived `status`, joined
+    `used_by_username`, and a count of post-spent attempts."""
     now = _now()
     with auth_db() as conn:
         rows = conn.execute(
-            "SELECT i.*, u.username AS used_by_username "
+            "SELECT i.*, u.username AS used_by_username, "
+            "  (SELECT COUNT(*) FROM invite_attempts a "
+            "   WHERE a.invite_id = i.id) AS attempts_count "
             "FROM invites i "
             "LEFT JOIN users u ON u.id = i.used_by "
             "ORDER BY i.id DESC"
@@ -512,5 +551,75 @@ def update_password_hash(user_id: int, new_hash: str) -> None:
         conn.execute(
             "UPDATE users SET password_hash = ? WHERE id = ?",
             (new_hash, int(user_id)),
+        )
+        conn.commit()
+
+
+# ── Invite-attempts logging (added 19 May 2026) ──────────────────────
+
+def find_invite_by_token(token: str) -> dict | None:
+    """Look up an invite row by its raw token, regardless of state.
+    Used by the verify endpoint to log post-spent attempts."""
+    if not token or len(token) > 200:
+        return None
+    with auth_db() as conn:
+        row = conn.execute(
+            "SELECT id, note, email, used_by, used_at, revoked, expires_at "
+            "FROM invites WHERE token = ?",
+            (token,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def log_invite_attempt(invite_id: int, reason: str,
+                       ip: str | None, user_agent: str | None) -> None:
+    """Record an attempt to use a spent / expired / revoked invite.
+    Swallows exceptions defensively."""
+    try:
+        with auth_db() as conn:
+            conn.execute(
+                "INSERT INTO invite_attempts "
+                "(invite_id, reason, ip, user_agent, attempted_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (int(invite_id), reason,
+                 ip, (user_agent or "")[:500], _now()),
+            )
+            conn.commit()
+    except Exception as e:  # pragma: no cover — defensive
+        print(f"[Ceol] failed to log invite attempt: {e}")
+
+
+# ── Admin settings (added 19 May 2026) ───────────────────────────────
+
+DEFAULT_INVITE_MESSAGE = (
+    "Hi {name} \u2014\n\n"
+    "I've made you an account on my tune app, Ceòl. Tap the link "
+    "below to set your username and password (one-time link, "
+    "expires in 7 days). The welcome page that opens has more "
+    "info, and there's detailed guidance behind the \u2630 menu "
+    "(top left of the app once you're in).\n\n"
+    "The library's yours to use as you please. I've put some "
+    "collections of tunes in to get you started, but whatever you "
+    "do has no effect on anyone else's library.\n\n"
+    "Shout if you have trouble.\n\n"
+    "\u2014 Callum\n\n"
+    "{link}"
+)
+
+
+def get_admin_setting(key: str, default: str = "") -> str:
+    with auth_db() as conn:
+        row = conn.execute(
+            "SELECT value FROM admin_settings WHERE key = ?", (key,)
+        ).fetchone()
+    return row["value"] if row else default
+
+
+def set_admin_setting(key: str, value: str) -> None:
+    with auth_db() as conn:
+        conn.execute(
+            "INSERT INTO admin_settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (str(key), str(value)),
         )
         conn.commit()
